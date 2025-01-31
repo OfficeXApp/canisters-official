@@ -6,12 +6,8 @@
       "type": "rust"
     },
     "canisters-official-frontend": {
-      "dependencies": [
-        "canisters-official-backend"
-      ],
-      "source": [
-        "src/canisters-official-frontend/dist"
-      ],
+      "dependencies": ["canisters-official-backend"],
+      "source": ["src/canisters-official-frontend/dist"],
       "type": "assets",
       "workspace": "canisters-official-frontend"
     }
@@ -20,6 +16,12 @@
     "build": {
       "args": "",
       "packtool": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8000",
+      "type": "ephemeral"
     }
   },
   "output_env_file": ".env",
