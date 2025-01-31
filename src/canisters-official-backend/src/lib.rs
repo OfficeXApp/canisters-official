@@ -1,22 +1,25 @@
 // src/lib.rs
+
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
 use std::{cell::RefCell, collections::HashMap};
 
+mod logger;
 mod types;
 mod rest;
 mod certifications;
 
-use rest::{router};
+use rest::router;
 use types::*;
 
 thread_local! {
-    static NEXT_TODO_ID: RefCell<u32> = RefCell::new(0);
-    static TODO_ITEMS: RefCell<HashMap<u32, TodoItem>> = RefCell::new(HashMap::new());
+    static NEXT_TEMPLATE_ID: RefCell<u32> = RefCell::new(0);
+    static TEMPLATE_ITEMS: RefCell<HashMap<u32, TemplateItem>> = RefCell::new(HashMap::new());
 }
 
 #[init]
 fn init() {
+    debug_log!("Initilializing canister...");
     certifications::init_certifications();
     router::init_routes();
 }

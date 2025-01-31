@@ -5,22 +5,22 @@ use matchit::Params;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize)]
-pub struct TodoItem {
+pub struct TemplateItem {
     pub id: u32,
     pub title: String,
     pub completed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub enum ApiResponse<'a, T = ()> {
+pub enum TemplateResponse<'a, T = ()> {
     #[serde(rename = "ok")]
     Ok { data: &'a T },
     #[serde(rename = "err")]
     Err { code: u16, message: String },
 }
 
-impl<'a, T: Serialize> ApiResponse<'a, T> {
-    pub fn ok(data: &'a T) -> ApiResponse<T> {
+impl<'a, T: Serialize> TemplateResponse<'a, T> {
+    pub fn ok(data: &'a T) -> TemplateResponse<T> {
         Self::Ok { data }
     }
 
@@ -42,24 +42,24 @@ impl<'a, T: Serialize> ApiResponse<'a, T> {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CreateTodoItemRequest {
+pub struct CreateTemplateRequest {
     pub title: String,
 }
 
-pub type CreateTodoItemResponse<'a> = ApiResponse<'a, TodoItem>;
+pub type CreateTemplateResponse<'a> = TemplateResponse<'a, TemplateItem>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateTodoItemRequest {
+pub struct UpdateTemplateRequest {
     pub title: Option<String>,
     pub completed: Option<bool>,
 }
 
-pub type UpdateTodoItemResponse<'a> = ApiResponse<'a, ()>;
+pub type UpdateTemplateResponse<'a> = TemplateResponse<'a, ()>;
 
-pub type DeleteTodoItemResponse<'a> = ApiResponse<'a, ()>;
+pub type DeleteTemplateResponse<'a> = TemplateResponse<'a, ()>;
 
-pub type ListTodosResponse<'a> = ApiResponse<'a, Vec<TodoItem>>;
+pub type ListTemplatesResponse<'a> = TemplateResponse<'a, Vec<TemplateItem>>;
 
-pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
+pub type ErrorResponse<'a> = TemplateResponse<'a, ()>;
 
 pub type RouteHandler = for<'a> fn(&'a HttpRequest, &'a Params) -> HttpResponse<'static>;

@@ -1,5 +1,6 @@
+use crate::rest::templates::route::TEMPLATES_LIST_PATH;
 // src/certifications.rs
-use crate::{router::*, types::*, TODO_ITEMS};
+use crate::{router::*, types::*, TEMPLATE_ITEMS};
 use ic_cdk::api::{data_certificate, set_certified_data};
 use ic_http_certification::{*, utils::add_v2_certificate_header};
 use lazy_static::lazy_static;
@@ -21,15 +22,15 @@ struct CertifiedHttpResponse<'a> {
 }
 
 lazy_static! {
-    static ref TODOS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(TEMPLATES_LIST_PATH);
+    static ref TEMPLATES_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(TEMPLATES_LIST_PATH);
     static ref NOT_FOUND_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::wildcard(NOT_FOUND_PATH);
 
-    static ref TODO_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
+    static ref TEMPLATES_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
         .with_request_headers(vec![])
         .with_request_query_parameters(vec![])
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))
         .build();
-    static ref TODO_CEL_EXPR: String = TODO_CEL_EXPR_DEF.to_string();
+    static ref TEMPLATES_CEL_EXPR: String = TEMPLATES_CEL_EXPR_DEF.to_string();
 
     static ref NOT_FOUND_CEL_EXPR_DEF: DefaultResponseOnlyCelExpression<'static> = DefaultCelBuilder::response_only_certification()
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))
@@ -38,16 +39,16 @@ lazy_static! {
 }
 
 pub fn init_certifications() {
-    certify_list_todos_response();
-    certify_not_allowed_todo_responses();
+    certify_list_templates_response();
+    certify_not_allowed_templates_responses();
     certify_not_found_response();
 }
 
-pub fn certify_list_todos_response() {
-    let request = HttpRequest::get(TEMPLATES_LIST_PATH).build();
+pub fn certify_list_templates_response() {
+    let request = HttpRequest::post(TEMPLATES_LIST_PATH).build();
 
-    let body = TODO_ITEMS.with_borrow(|items| {
-        ListTodosResponse::ok(
+    let body = TEMPLATE_ITEMS.with_borrow(|items| {
+        ListTemplatesResponse::ok(
             &items
                 .iter()
                 .map(|(_id, item)| item.clone())
@@ -57,10 +58,10 @@ pub fn certify_list_todos_response() {
     });
     let mut response = create_response(StatusCode::OK, body);
 
-    certify_response(request, &mut response, &TODOS_TREE_PATH);
+    certify_response(request, &mut response, &TEMPLATES_TREE_PATH);
 }
 
-fn certify_not_allowed_todo_responses() {
+fn certify_not_allowed_templates_responses() {
     [
         Method::HEAD,
         Method::PUT,
@@ -79,7 +80,7 @@ fn certify_not_allowed_todo_responses() {
         let body = ErrorResponse::not_allowed().encode();
         let mut response = create_response(StatusCode::METHOD_NOT_ALLOWED, body);
 
-        certify_response(request, &mut response, &TODOS_TREE_PATH);
+        certify_response(request, &mut response, &TEMPLATES_TREE_PATH);
     });
 }
 
@@ -171,11 +172,11 @@ fn certify_response(
 
     response.add_header((
         CERTIFICATE_EXPRESSION_HEADER_NAME.to_string(),
-        TODO_CEL_EXPR.clone(),
+        TEMPLATES_CEL_EXPR.clone(),
     ));
 
     let certification =
-        HttpCertification::full(&TODO_CEL_EXPR_DEF, &request, &response, None).unwrap();
+        HttpCertification::full(&TEMPLATES_CEL_EXPR_DEF, &request, &response, None).unwrap();
 
     RESPONSES.with_borrow_mut(|responses| {
         responses.insert(

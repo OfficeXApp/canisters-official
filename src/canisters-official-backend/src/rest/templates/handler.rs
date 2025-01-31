@@ -1,10 +1,10 @@
 // src/rest/templates/handler.rs
 pub mod templates_handlers {
     use crate::{
-        certifications::{self, get_certified_response, certify_list_todos_response},
+        certifications::{self, get_certified_response, certify_list_templates_response},
         types::*,
-        NEXT_TODO_ID,
-        TODO_ITEMS,
+        NEXT_TEMPLATE_ID,
+        TEMPLATE_ITEMS,
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -14,37 +14,37 @@ pub mod templates_handlers {
         certifications::get_certified_response(request)
     }
 
-    pub fn create_todo_item_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let req_body: CreateTodoItemRequest = json_decode(req.body());
+    pub fn create_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        let req_body: CreateTemplateRequest = json_decode(req.body());
 
-        let id = NEXT_TODO_ID.with_borrow_mut(|f| {
+        let id = NEXT_TEMPLATE_ID.with_borrow_mut(|f| {
             let id = *f;
             *f += 1;
             id
         });
 
-        let todo_item = TODO_ITEMS.with_borrow_mut(|items| {
-            let todo_item = TodoItem {
+        let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
+            let template_item = TemplateItem {
                 id,
                 title: req_body.title,
                 completed: false,
             };
 
-            items.insert(id, todo_item.clone());
-            todo_item
+            items.insert(id, template_item.clone());
+            template_item
         });
 
-        certify_list_todos_response();
+        certify_list_templates_response();
 
-        let body = CreateTodoItemResponse::ok(&todo_item).encode();
+        let body = CreateTemplateResponse::ok(&template_item).encode();
         create_response(StatusCode::CREATED, body)
     }
 
-    pub fn update_todo_item_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
-        let req_body: UpdateTodoItemRequest = json_decode(req.body());
+    pub fn update_template_item_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+        let req_body: UpdateTemplateRequest = json_decode(req.body());
         let id: u32 = params.get("id").unwrap().parse().unwrap();
 
-        TODO_ITEMS.with_borrow_mut(|items| {
+        TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let item = items.get_mut(&id).unwrap();
 
             if let Some(title) = req_body.title {
@@ -56,22 +56,22 @@ pub mod templates_handlers {
             }
         });
 
-        certify_list_todos_response();
+        certify_list_templates_response();
 
-        let body = UpdateTodoItemResponse::ok(&()).encode();
+        let body = UpdateTemplateResponse::ok(&()).encode();
         create_response(StatusCode::OK, body)
     }
 
-    pub fn delete_todo_item_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub fn delete_template_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
         let id: u32 = params.get("id").unwrap().parse().unwrap();
 
-        TODO_ITEMS.with_borrow_mut(|items| {
+        TEMPLATE_ITEMS.with_borrow_mut(|items| {
             items.remove(&id);
         });
 
-        certify_list_todos_response();
+        certify_list_templates_response();
 
-        let body = DeleteTodoItemResponse::ok(&()).encode();
+        let body = DeleteTemplateResponse::ok(&()).encode();
         create_response(StatusCode::NO_CONTENT, body)
     }
 
