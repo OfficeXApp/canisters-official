@@ -13,9 +13,9 @@ thread_local! {
 }
 
 // Route paths
-pub const TODOS_PATH: &str = "/todos";
-pub const TODOS_ID_PATH: &str = "/todos/{id}";
-pub const WILDCARD_PATH: &str = "/{*p}";
+pub const TODOS_PATH: &str = /* GET */ "/todos";
+pub const TODOS_ID_PATH: &str = /* GET */ "/todos/{id}";
+pub const WILDCARD_PATH: &str = /* GET */ "/{*p}";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

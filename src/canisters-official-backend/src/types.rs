@@ -1,5 +1,3 @@
-// types.rs (reference)
-
 use ic_http_certification::{HttpRequest, HttpResponse};
 use matchit::Params;
 use serde::{Deserialize, Serialize};
