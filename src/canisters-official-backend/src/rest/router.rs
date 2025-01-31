@@ -1,6 +1,6 @@
-// http/routes.rs
+// src/rest/router.rs
 use crate::{
-    handlers::todo_handlers::*,
+    rest::templates::handler::templates_handlers,
     types::RouteHandler,
 };
 use ic_http_certification::{HttpRequest, HttpResponse, Method};
@@ -13,8 +13,8 @@ thread_local! {
 }
 
 // Route paths
-pub const TODOS_PATH: &str = /* GET */ "/todos";
-pub const TODOS_ID_PATH: &str = /* GET */ "/todos/{id}";
+pub const TEMPLATES_GET_PATH: &str = /* GET */ "/templates/{id}";
+pub const TEMPLATES_LIST_PATH: &str = /* POST */ "/templates/list";
 pub const WILDCARD_PATH: &str = /* GET */ "/{*p}";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
@@ -27,10 +27,9 @@ pub fn init_routes() {
 fn init_query_routes() {
     // Define query routes with their handlers
     let query_routes: &[HandlerEntry] = &[
-        ("POST", TODOS_PATH, upgrade_to_update_call_handler as RouteHandler),
-        ("PATCH", TODOS_ID_PATH, upgrade_to_update_call_handler as RouteHandler),
-        ("DELETE", TODOS_ID_PATH, upgrade_to_update_call_handler as RouteHandler),
-        ("GET", WILDCARD_PATH, query_handler as RouteHandler),
+        ("POST", TEMPLATES_LIST_PATH, templates_handlers::upgrade_to_update_call_handler as RouteHandler),
+        ("GET", TEMPLATES_GET_PATH, templates_handlers::query_handler as RouteHandler),
+        ("GET", WILDCARD_PATH, templates_handlers::query_handler as RouteHandler),
     ];
 
     // Register all query routes
@@ -40,17 +39,16 @@ fn init_query_routes() {
 
     // Add standard methods that return query handler
     for method in ["HEAD", "PUT", "OPTIONS", "TRACE", "CONNECT"] {
-        insert_query_route(method, WILDCARD_PATH, query_handler as RouteHandler);
+        insert_query_route(method, WILDCARD_PATH, templates_handlers::query_handler as RouteHandler);
     }
 }
 
 fn init_update_routes() {
     // Define update routes with their handlers
     let update_routes: &[HandlerEntry] = &[
-        ("POST", TODOS_PATH, create_todo_item_handler as RouteHandler),
-        ("PATCH", TODOS_ID_PATH, update_todo_item_handler as RouteHandler),
-        ("DELETE", TODOS_ID_PATH, delete_todo_item_handler as RouteHandler),
-        ("GET", WILDCARD_PATH, no_update_call_handler as RouteHandler),
+        ("POST", TEMPLATES_LIST_PATH, templates_handlers::create_todo_item_handler as RouteHandler),
+        ("GET", TEMPLATES_GET_PATH, templates_handlers::update_todo_item_handler as RouteHandler),
+        ("GET", WILDCARD_PATH, templates_handlers::no_update_call_handler as RouteHandler),
     ];
 
     // Register all update routes
@@ -60,7 +58,7 @@ fn init_update_routes() {
 
     // Add standard methods that return no update handler
     for method in ["HEAD", "PUT", "OPTIONS", "TRACE", "CONNECT"] {
-        insert_update_route(method, WILDCARD_PATH, no_update_call_handler as RouteHandler);
+        insert_update_route(method, WILDCARD_PATH, templates_handlers::no_update_call_handler as RouteHandler);
     }
 }
 

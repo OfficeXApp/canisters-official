@@ -1,7 +1,7 @@
-// http/handlers.rs
-pub mod todo_handlers {
+// src/rest/templates/handler.rs
+pub mod templates_handlers {
     use crate::{
-        http::certifications::{self, get_certified_response, certify_list_todos_response},
+        certifications::{self, get_certified_response, certify_list_todos_response},
         types::*,
         NEXT_TODO_ID,
         TODO_ITEMS,

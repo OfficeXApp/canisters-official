@@ -1,5 +1,5 @@
-// http/certifications.rs
-use crate::{routes::*, types::*, TODO_ITEMS};
+// src/certifications.rs
+use crate::{router::*, types::*, TODO_ITEMS};
 use ic_cdk::api::{data_certificate, set_certified_data};
 use ic_http_certification::{*, utils::add_v2_certificate_header};
 use lazy_static::lazy_static;
@@ -21,7 +21,7 @@ struct CertifiedHttpResponse<'a> {
 }
 
 lazy_static! {
-    static ref TODOS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(TODOS_PATH);
+    static ref TODOS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(TEMPLATES_LIST_PATH);
     static ref NOT_FOUND_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::wildcard(NOT_FOUND_PATH);
 
     static ref TODO_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
@@ -44,7 +44,7 @@ pub fn init_certifications() {
 }
 
 pub fn certify_list_todos_response() {
-    let request = HttpRequest::get(TODOS_PATH).build();
+    let request = HttpRequest::get(TEMPLATES_LIST_PATH).build();
 
     let body = TODO_ITEMS.with_borrow(|items| {
         ListTodosResponse::ok(
@@ -73,7 +73,7 @@ fn certify_not_allowed_todo_responses() {
     .for_each(|method| {
         let request = HttpRequest::builder()
             .with_method(method)
-            .with_url(TODOS_PATH)
+            .with_url(TEMPLATES_LIST_PATH)
             .build();
 
         let body = ErrorResponse::not_allowed().encode();

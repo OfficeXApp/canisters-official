@@ -1,12 +1,13 @@
-// lib.rs
+// src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
 use std::{cell::RefCell, collections::HashMap};
 
-mod http;
 mod types;
+mod rest;
+mod certifications;
 
-use http::{certifications, handlers, routes};
+use rest::{router};
 use types::*;
 
 thread_local! {
@@ -17,7 +18,7 @@ thread_local! {
 #[init]
 fn init() {
     certifications::init_certifications();
-    routes::init_routes();
+    router::init_routes();
 }
 
 #[post_upgrade]
@@ -27,10 +28,10 @@ fn post_upgrade() {
 
 #[query]
 fn http_request(req: HttpRequest) -> HttpResponse<'static> {
-    routes::handle_query_request(req)
+    router::handle_query_request(req)
 }
 
 #[update]
 fn http_request_update(req: HttpRequest) -> HttpResponse<'static> {
-    routes::handle_update_request(req)
+    router::handle_update_request(req)
 }
