@@ -1,0 +1,27 @@
+{
+  "canisters": {
+    "canisters-official-backend": {
+      "candid": "src/canisters-official-backend/canisters-official-backend.did",
+      "package": "canisters-official-backend",
+      "type": "rust"
+    },
+    "canisters-official-frontend": {
+      "dependencies": [
+        "canisters-official-backend"
+      ],
+      "source": [
+        "src/canisters-official-frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "canisters-official-frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
