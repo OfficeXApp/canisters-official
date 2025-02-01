@@ -6,13 +6,10 @@ use std::{cell::RefCell, collections::HashMap};
 mod logger;
 mod types;
 mod rest;
+mod state;
 
+use state::{NEXT_TEMPLATE_ID, TEMPLATE_ITEMS};
 use rest::{router, templates::types::TemplateItem};
-
-thread_local! {
-    static NEXT_TEMPLATE_ID: RefCell<u32> = RefCell::new(0);
-    static TEMPLATE_ITEMS: RefCell<HashMap<u32, TemplateItem>> = RefCell::new(HashMap::new());
-}
 
 #[init]
 fn init() {

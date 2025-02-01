@@ -7,7 +7,6 @@ pub const TEMPLATES_GET_PATH: &str = "/templates/get/{id}";
 pub const TEMPLATES_LIST_PATH: &str = "/templates/list";
 pub const TEMPLATES_UPSERT_PATH: &str = "/templates/upsert";
 pub const TEMPLATES_DELETE_PATH: &str = "/templates/delete";
-pub const WILDCARD_PATH: &str = "/*";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -40,13 +39,4 @@ pub fn init_routes() {
         router::insert_route(method, path, handler);
     }
 
-    // Handle not found for all methods
-    let wildcard_methods = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "TRACE", "CONNECT"];
-    for &method in &wildcard_methods {
-        router::insert_route(
-            method,
-            WILDCARD_PATH,
-            crate::rest::templates::handler::templates_handlers::not_found_handler,
-        );
-    }
 }

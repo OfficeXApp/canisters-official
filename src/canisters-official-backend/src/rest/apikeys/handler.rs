@@ -1,9 +1,9 @@
-// src/rest/templates/handler.rs
-pub mod templates_handlers {
+// src/rest/apikeys/handler.rs
+pub mod apikeys_handlers {
     use crate::{
         debug_log, 
-        rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, TemplateItem, UpdateTemplateRequest, UpdateTemplateResponse},
-        state::{NEXT_TEMPLATE_ID, TEMPLATE_ITEMS}
+        rest::apikeys::types::{CreateApiKeyRequest, CreateApiKeyResponse, DeleteApiKeyRequest, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, ApiKeyItem, UpdateApiKeyRequest, UpdateApiKeyResponse},
+        state::{NEXT_APIKEY_ID, APIKEY_ITEMS},
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -15,16 +15,16 @@ pub mod templates_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_template_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub fn get_apikey_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
         let id: u32 = params.get("id").unwrap().parse().unwrap();
 
-        let item = TEMPLATE_ITEMS.with_borrow(|items| {
+        let item = APIKEY_ITEMS.with_borrow(|items| {
             items.get(&id).cloned()
         });
 
         match item {
             Some(item) => {
-                let body = GetTemplateResponse::ok(&item).encode();
+                let body = GetApiKeyResponse::ok(&item).encode();
                 create_response(StatusCode::OK, body)
             }
             None => {
@@ -34,8 +34,8 @@ pub mod templates_handlers {
         }
     }
 
-    pub fn list_templates_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        debug_log!("Handling list templates request");
+    pub fn list_apikeys_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        debug_log!("Handling list apikeys request");
         
         let query_params = request.get_query()
             .ok()
@@ -43,7 +43,7 @@ pub mod templates_handlers {
             .and_then(|q| serde_urlencoded::from_str::<ListQueryParams>(&q).ok())
             .unwrap_or_default();
         
-        let items = TEMPLATE_ITEMS.with_borrow(|items| {
+        let items = APIKEY_ITEMS.with_borrow(|items| {
             items.iter()
                 .filter(|(_id, item)| {
                     if let Some(title) = &query_params.title {
@@ -62,39 +62,39 @@ pub mod templates_handlers {
                 .collect::<Vec<_>>()
         });
     
-        let body = ListTemplatesResponse::ok(&items).encode();
+        let body = ListApiKeysResponse::ok(&items).encode();
         create_response(StatusCode::OK, body)
     }
 
-    pub fn create_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let req_body: CreateTemplateRequest = json_decode(req.body());
+    pub fn create_apikey_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        let req_body: CreateApiKeyRequest = json_decode(req.body());
 
-        let id = NEXT_TEMPLATE_ID.with_borrow_mut(|f| {
+        let id = NEXT_APIKEY_ID.with_borrow_mut(|f| {
             let id = *f;
             *f += 1;
             id
         });
 
-        let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
-            let template_item = TemplateItem {
+        let apikey_item = APIKEY_ITEMS.with_borrow_mut(|items| {
+            let apikey_item = ApiKeyItem {
                 id,
                 title: req_body.title,
                 completed: false,
             };
 
-            items.insert(id, template_item.clone());
-            template_item
+            items.insert(id, apikey_item.clone());
+            apikey_item
         });
 
-        let body = CreateTemplateResponse::ok(&template_item).encode();
+        let body = CreateApiKeyResponse::ok(&apikey_item).encode();
         create_response(StatusCode::CREATED, body)
     }
 
-    pub fn update_template_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
-        let req_body: UpdateTemplateRequest = json_decode(req.body());
+    pub fn update_apikey_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+        let req_body: UpdateApiKeyRequest = json_decode(req.body());
         let id: u32 = params.get("id").unwrap().parse().unwrap();
 
-        TEMPLATE_ITEMS.with_borrow_mut(|items| {
+        APIKEY_ITEMS.with_borrow_mut(|items| {
             let item = items.get_mut(&id).unwrap();
 
             if let Some(title) = req_body.title {
@@ -106,24 +106,24 @@ pub mod templates_handlers {
             }
         });
 
-        let body = UpdateTemplateResponse::ok(&()).encode();
+        let body = UpdateApiKeyResponse::ok(&()).encode();
         create_response(StatusCode::OK, body)
     }
 
-    pub fn delete_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let req_body: DeleteTemplateRequest = json_decode(req.body());
+    pub fn delete_apikey_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        let req_body: DeleteApiKeyRequest = json_decode(req.body());
 
         let id = req_body.id;
 
-        TEMPLATE_ITEMS.with_borrow_mut(|items| {
+        APIKEY_ITEMS.with_borrow_mut(|items| {
             items.remove(&id);
         });
 
-        let deleted_data = DeletedTemplateData {
+        let deleted_data = DeletedApiKeyData {
             deleted_id: req_body.id,
         };
 
-        let body = DeleteTemplateResponse::ok(&deleted_data).encode();
+        let body = DeleteApiKeyResponse::ok(&deleted_data).encode();
         create_response(StatusCode::OK, body)
     }
 

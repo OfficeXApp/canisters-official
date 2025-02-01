@@ -1,26 +1,27 @@
-// types.rs (reference)
+// src/rest/apikeys/types.rs
 
-use ic_http_certification::{HttpRequest, HttpResponse};
-use matchit::Params;
+
+
 use serde::{Deserialize, Serialize};
 
+
 #[derive(Debug, Clone, Serialize)]
-pub struct TodoItem {
+pub struct ApiKeyItem {
     pub id: u32,
     pub title: String,
     pub completed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub enum ApiResponse<'a, T = ()> {
+pub enum ApiKeyResponse<'a, T = ()> {
     #[serde(rename = "ok")]
     Ok { data: &'a T },
     #[serde(rename = "err")]
     Err { code: u16, message: String },
 }
 
-impl<'a, T: Serialize> ApiResponse<'a, T> {
-    pub fn ok(data: &'a T) -> ApiResponse<T> {
+impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
+    pub fn ok(data: &'a T) -> ApiKeyResponse<T> {
         Self::Ok { data }
     }
 
@@ -42,24 +43,34 @@ impl<'a, T: Serialize> ApiResponse<'a, T> {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CreateTodoItemRequest {
+pub struct CreateApiKeyRequest {
     pub title: String,
 }
 
-pub type CreateTodoItemResponse<'a> = ApiResponse<'a, TodoItem>;
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeleteApiKeyRequest {
+    pub id: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeletedApiKeyData {
+    pub deleted_id: u32,
+}
+
+pub type DeleteApiKeyResponse<'a> = ApiKeyResponse<'a, DeletedApiKeyData>;
+
+pub type CreateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKeyItem>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateTodoItemRequest {
+pub struct UpdateApiKeyRequest {
     pub title: Option<String>,
     pub completed: Option<bool>,
 }
 
-pub type UpdateTodoItemResponse<'a> = ApiResponse<'a, ()>;
+pub type UpdateApiKeyResponse<'a> = ApiKeyResponse<'a, ()>;
 
-pub type DeleteTodoItemResponse<'a> = ApiResponse<'a, ()>;
+pub type ListApiKeysResponse<'a> = ApiKeyResponse<'a, Vec<ApiKeyItem>>;
 
-pub type ListTodosResponse<'a> = ApiResponse<'a, Vec<TodoItem>>;
+pub type GetApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKeyItem>;
 
-pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
-
-pub type RouteHandler = for<'a> fn(&'a HttpRequest, &'a Params) -> HttpResponse<'static>;
+pub type ErrorResponse<'a> = ApiKeyResponse<'a, ()>;
