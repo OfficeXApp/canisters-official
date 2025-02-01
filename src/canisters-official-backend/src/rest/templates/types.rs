@@ -1,16 +1,8 @@
 // src/rest/templates/types.rs
 
-
-
 use serde::{Deserialize, Serialize};
 
-
-#[derive(Debug, Clone, Serialize)]
-pub struct TemplateItem {
-    pub id: u32,
-    pub title: String,
-    pub completed: bool,
-}
+use crate::core::state::templates::types::TemplateItem;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum TemplateResponse<'a, T = ()> {

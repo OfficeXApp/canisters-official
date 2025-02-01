@@ -1,14 +1,18 @@
 // src/rest/templates/handler.rs
+
+
 pub mod templates_handlers {
     use crate::{
-        debug_log, 
-        rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, TemplateItem, UpdateTemplateRequest, UpdateTemplateResponse},
-        state::{NEXT_TEMPLATE_ID, TEMPLATE_ITEMS}
+        core::state::templates::state::state::{NEXT_TEMPLATE_ID, TEMPLATE_ITEMS}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
+        
+    };
+    use crate::core::state::templates::{
+        types::TemplateItem,
+        state::state::TemplateState 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
-
     #[derive(Deserialize, Default)]
     struct ListQueryParams {
         title: Option<String>,

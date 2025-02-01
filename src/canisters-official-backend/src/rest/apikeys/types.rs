@@ -4,13 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::state::apikeys::types::ApiKeyItem;
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ApiKeyItem {
-    pub id: u32,
-    pub title: String,
-    pub completed: bool,
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub enum ApiKeyResponse<'a, T = ()> {

@@ -6,10 +6,8 @@ use std::{cell::RefCell, collections::HashMap};
 mod logger;
 mod types;
 mod rest;
-mod state;
-
-use state::{NEXT_TEMPLATE_ID, TEMPLATE_ITEMS};
-use rest::{router, templates::types::TemplateItem};
+mod core;
+use rest::{router};
 
 #[init]
 fn init() {
