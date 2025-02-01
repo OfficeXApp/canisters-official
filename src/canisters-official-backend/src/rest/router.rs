@@ -23,11 +23,10 @@ pub fn handle_query_request(req: HttpRequest) -> HttpResponse<'static> {
     debug_log!("Handling query request for path: {}", req_path);
     
     QUERY_ROUTER.with_borrow(|query_router| {
-        debug_log!("Query router: {:?}", query_router);
         let method_router = query_router
             .get(&req.method().as_str().to_uppercase())
             .unwrap();
-        debug_log!("Method router: {:?}", method_router);
+        
         let handler_match = method_router.at(&req_path).unwrap();
         let handler = handler_match.value;
 
@@ -41,11 +40,11 @@ pub fn handle_update_request(req: HttpRequest) -> HttpResponse<'static> {
     debug_log!("Handling update request for path: {}", req_path);
     
     UPDATE_ROUTER.with_borrow(|update_router| {
-        debug_log!("Update router: {:?}", update_router);
+        
         let method_router = update_router
             .get(&req.method().as_str().to_uppercase())
             .unwrap();
-        debug_log!("Method router: {:?}", method_router);
+        
         let handler_match = method_router.at(&req_path).unwrap();
         let handler = handler_match.value;
 

@@ -1,17 +1,65 @@
 // src/rest/templates/handler.rs
 pub mod templates_handlers {
     use crate::{
-        certifications::{self, get_certified_response, certify_list_templates_response},
-        types::*,
-        NEXT_TEMPLATE_ID,
-        TEMPLATE_ITEMS,
+        certifications::{self, get_certified_response}, debug_log, rest::templates::certs::{certify_response, TEMPLATES_TREE_PATH}, types::*, NEXT_TEMPLATE_ID, TEMPLATE_ITEMS
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
 
     pub fn query_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        certifications::get_certified_response(request)
+        debug_log!("query_handler called for path: {}", request.get_path().unwrap_or_default());
+        let path = request.get_path().expect("Failed to get request path");
+    
+        match path {
+            TEMPLATES_LIST_PATH => handle_list_templates(request),
+            _ => certifications::get_certified_response(request)
+        }
+    }
+
+    #[derive(Deserialize, Default)]
+    struct ListQueryParams {
+        title: Option<String>,
+        completed: Option<bool>,
+        // Add other filter fields as needed
+    }
+
+    fn handle_list_templates(request: &HttpRequest) -> HttpResponse<'static> {
+        debug_log!("Handling list templates request");
+        
+        // Parse query parameters
+        let query_params = request.get_query()
+            .ok()
+            .flatten()  // Convert Option<Option<String>> to Option<String>
+            .and_then(|q| serde_urlencoded::from_str::<ListQueryParams>(&q).ok())
+            .unwrap_or_default();
+        
+        // Get and filter items
+        let items = TEMPLATE_ITEMS.with_borrow(|items| {
+            items.iter()
+                .filter(|(_id, item)| {
+                    // Apply filters based on query params
+                    if let Some(title) = &query_params.title {
+                        if !item.title.contains(title) {
+                            return false;
+                        }
+                    }
+                    if let Some(completed) = query_params.completed {
+                        if item.completed != completed {
+                            return false;
+                        }
+                    }
+                    true
+                })
+                .map(|(_id, item)| item.clone())
+                .collect::<Vec<_>>()
+        });
+    
+        let body = ListTemplatesResponse::ok(&items).encode();
+        let mut response = create_response(StatusCode::OK, body);
+        certify_response(request.clone(), &mut response, &TEMPLATES_TREE_PATH);
+    
+        response
     }
 
     pub fn create_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
@@ -34,7 +82,7 @@ pub mod templates_handlers {
             template_item
         });
 
-        certify_list_templates_response();
+        
 
         let body = CreateTemplateResponse::ok(&template_item).encode();
         create_response(StatusCode::CREATED, body)
@@ -56,7 +104,7 @@ pub mod templates_handlers {
             }
         });
 
-        certify_list_templates_response();
+        
 
         let body = UpdateTemplateResponse::ok(&()).encode();
         create_response(StatusCode::OK, body)
@@ -69,7 +117,7 @@ pub mod templates_handlers {
             items.remove(&id);
         });
 
-        certify_list_templates_response();
+        
 
         let body = DeleteTemplateResponse::ok(&()).encode();
         create_response(StatusCode::NO_CONTENT, body)

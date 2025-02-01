@@ -24,6 +24,11 @@ pub fn init_query_routes() {
             "GET",
             TEMPLATES_GET_PATH,
             crate::rest::templates::handler::templates_handlers::query_handler,
+        ),
+        (
+            "POST",
+            TEMPLATES_UPSERT_PATH,
+            crate::rest::templates::handler::templates_handlers::upgrade_to_update_call_handler,
         )
     ];
 
