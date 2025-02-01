@@ -1,5 +1,4 @@
 // src/lib.rs
-
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
 use std::{cell::RefCell, collections::HashMap};
@@ -7,10 +6,8 @@ use std::{cell::RefCell, collections::HashMap};
 mod logger;
 mod types;
 mod rest;
-mod certifications;
 
-use rest::router;
-use types::*;
+use rest::{router, templates::types::TemplateItem};
 
 thread_local! {
     static NEXT_TEMPLATE_ID: RefCell<u32> = RefCell::new(0);
@@ -19,8 +16,7 @@ thread_local! {
 
 #[init]
 fn init() {
-    debug_log!("Initilializing canister...");
-    certifications::init_certifications();
+    debug_log!("Initializing canister...");
     router::init_routes();
 }
 
@@ -30,11 +26,14 @@ fn post_upgrade() {
 }
 
 #[query]
-fn http_request(req: HttpRequest) -> HttpResponse<'static> {
-    router::handle_query_request(req)
+fn http_request(_req: HttpRequest) -> HttpResponse<'static> {
+    // All requests will be upgraded to update calls
+    HttpResponse::builder()
+        .with_upgrade(true)
+        .build()
 }
 
 #[update]
 fn http_request_update(req: HttpRequest) -> HttpResponse<'static> {
-    router::handle_update_request(req)
+    router::handle_request(req)
 }

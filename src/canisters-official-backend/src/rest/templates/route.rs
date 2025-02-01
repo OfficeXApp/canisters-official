@@ -1,7 +1,5 @@
 // src/rest/templates/route.rs
-
 use crate::debug_log;
-
 use crate::rest::router;
 use crate::types::RouteHandler;
 
@@ -13,42 +11,18 @@ pub const WILDCARD_PATH: &str = "/*";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
-pub fn init_query_routes() {
-    let query_routes: &[HandlerEntry] = &[
-        (
-            "POST",
-            TEMPLATES_LIST_PATH,
-            crate::rest::templates::handler::templates_handlers::query_handler,
-        ),
+pub fn init_routes() {
+    let routes: &[HandlerEntry] = &[
         (
             "GET",
             TEMPLATES_GET_PATH,
-            crate::rest::templates::handler::templates_handlers::query_handler,
+            crate::rest::templates::handler::templates_handlers::get_template_handler,
         ),
         (
             "POST",
-            TEMPLATES_UPSERT_PATH,
-            crate::rest::templates::handler::templates_handlers::upgrade_to_update_call_handler,
-        )
-    ];
-
-    for &(method, path, handler) in query_routes {
-        debug_log!("Registering {} route: {}", method, path);
-        router::insert_query_route(method, path, handler);
-    }
-
-    let wildcard_methods = ["GET", "HEAD", "PUT", "POST", "OPTIONS", "TRACE", "CONNECT"];
-    for &method in &wildcard_methods {
-        router::insert_query_route(
-            method,
-            WILDCARD_PATH,
-            crate::rest::templates::handler::templates_handlers::query_handler,
-        );
-    }
-}
-
-pub fn init_update_routes() {
-    let update_routes: &[HandlerEntry] = &[
+            TEMPLATES_LIST_PATH,
+            crate::rest::templates::handler::templates_handlers::list_templates_handler,
+        ),
         (
             "POST",
             TEMPLATES_UPSERT_PATH,
@@ -61,16 +35,18 @@ pub fn init_update_routes() {
         )
     ];
 
-    for &(method, path, handler) in update_routes {
-        router::insert_update_route(method, path, handler);
+    for &(method, path, handler) in routes {
+        debug_log!("Registering {} route: {}", method, path);
+        router::insert_route(method, path, handler);
     }
 
-    let wildcard_methods = ["GET", "HEAD", "PUT", "POST", "OPTIONS", "TRACE", "CONNECT"];
+    // Handle not found for all methods
+    let wildcard_methods = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "TRACE", "CONNECT"];
     for &method in &wildcard_methods {
-        router::insert_update_route(
+        router::insert_route(
             method,
             WILDCARD_PATH,
-            crate::rest::templates::handler::templates_handlers::no_update_call_handler,
+            crate::rest::templates::handler::templates_handlers::not_found_handler,
         );
     }
 }
