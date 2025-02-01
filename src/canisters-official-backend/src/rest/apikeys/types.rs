@@ -4,7 +4,30 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::state::apikeys::types::ApiKeyItem;
+use crate::{core::{state::apikeys::types::{ApiKey, ApiKeyID}, types::UserID}, types::{CreateType, UpdateType}};
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ApiKeyHidden {
+    pub id: ApiKeyID,
+    pub user_id: UserID,
+    pub name: String,
+    pub created_at: u64,
+    pub expires_at: i64,
+    pub is_revoked: bool,
+}
+
+impl From<ApiKey> for ApiKeyHidden {
+    fn from(key: ApiKey) -> Self {
+        Self {
+            id: key.id,
+            user_id: key.user_id,
+            name: key.name,
+            created_at: key.created_at,
+            expires_at: key.expires_at,
+            is_revoked: key.is_revoked,
+        }
+    }
+}
 
 
 #[derive(Debug, Clone, Serialize)]
@@ -28,7 +51,7 @@ impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
         Self::err(405, "Method not allowed".to_string())
     }
 
-    fn err(code: u16, message: String) -> Self {
+    pub fn err(code: u16, message: String) -> Self {
         Self::Err { code, message }
     }
 
@@ -37,35 +60,46 @@ impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateApiKeyRequest {
-    pub title: String,
-}
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeleteApiKeyRequest {
+pub struct CreateApiKeyRequestBody {
+    #[serde(rename = "__type")]
+    pub type_field: CreateType,
+    pub name: String,
+    pub user_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+}
+pub type CreateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeleteApiKeyRequestBody {
     pub id: u32,
 }
-
 #[derive(Debug, Clone, Serialize)]
 pub struct DeletedApiKeyData {
     pub deleted_id: u32,
 }
-
 pub type DeleteApiKeyResponse<'a> = ApiKeyResponse<'a, DeletedApiKeyData>;
 
-pub type CreateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKeyItem>;
-
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateApiKeyRequest {
-    pub title: Option<String>,
-    pub completed: Option<bool>,
+pub struct UpdateApiKeyRequestBody {
+    #[serde(rename = "__type")]
+    pub type_field: UpdateType,
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_revoked: Option<bool>,
 }
-
 pub type UpdateApiKeyResponse<'a> = ApiKeyResponse<'a, ()>;
 
-pub type ListApiKeysResponse<'a> = ApiKeyResponse<'a, Vec<ApiKeyItem>>;
 
-pub type GetApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKeyItem>;
+pub type ListApiKeysResponse<'a> = ApiKeyResponse<'a, Vec<ApiKeyHidden>>;
+
+pub type GetApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
 
 pub type ErrorResponse<'a> = ApiKeyResponse<'a, ()>;

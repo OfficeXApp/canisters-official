@@ -5,7 +5,6 @@ pub mod state {
 
     use crate::core::state::templates::types::TemplateItem;
     
-
     thread_local! {
         pub static NEXT_TEMPLATE_ID: RefCell<u32> = RefCell::new(0);
         pub static TEMPLATE_ITEMS: RefCell<HashMap<u32, TemplateItem>> = RefCell::new(HashMap::new());

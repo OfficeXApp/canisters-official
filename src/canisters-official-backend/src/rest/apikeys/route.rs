@@ -4,7 +4,7 @@ use crate::rest::router;
 use crate::types::RouteHandler;
 
 pub const APIKEYS_GET_PATH: &str = "/api-keys/get/{id}";
-pub const APIKEYS_LIST_PATH: &str = "/api-keys/list";
+pub const APIKEYS_LIST_PATH: &str = "/api-keys/list/{user_id}";
 pub const APIKEYS_UPSERT_PATH: &str = "/api-keys/upsert";
 pub const APIKEYS_DELETE_PATH: &str = "/api-keys/delete";
 
@@ -25,7 +25,7 @@ pub fn init_routes() {
         (
             "POST",
             APIKEYS_UPSERT_PATH,
-            crate::rest::apikeys::handler::apikeys_handlers::create_apikey_handler,
+            crate::rest::apikeys::handler::apikeys_handlers::upsert_apikey_handler,
         ),
         (
             "POST",

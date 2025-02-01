@@ -3,25 +3,16 @@
 pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use crate::core::state::apikeys::types::ApiKeyItem;
+    use crate::core::{state::apikeys::types::{ApiKey, ApiKeyID, ApiKeyValue}, types::UserID};
 
     thread_local! {
-        pub static NEXT_APIKEY_ID: RefCell<u32> = RefCell::new(0);
-        pub static APIKEY_ITEMS: RefCell<HashMap<u32, ApiKeyItem>> = RefCell::new(HashMap::new());
-    }
-
-    pub struct ApiKeyState {
-        pub next_id: u32,
-        pub items: HashMap<u32, ApiKeyItem>,
-    }
-    
-    impl Default for ApiKeyState {
-        fn default() -> Self {
-            Self {
-                next_id: 0,
-                items: HashMap::new(),
-            }
-        }
+        // users pass in api key value, we O(1) lookup the api key id + O(1) lookup the api key
+        pub static HASHTABLE_APIKEYS_BY_VALUE: RefCell<HashMap<ApiKeyValue, ApiKeyID>> = RefCell::new(HashMap::new());
+        // default is to use the api key id to lookup the api key
+        pub static HASHTABLE_APIKEYS_BY_ID: RefCell<HashMap<ApiKeyID, ApiKey>> = RefCell::new(HashMap::new());
+        // track in hashtable users list of ApiKeyIDs
+        pub static HASHTABLE_USERS_APIKEYS: RefCell<HashMap<UserID, Vec<ApiKeyID>>> = RefCell::new(HashMap::new());
     }
 }
+
 

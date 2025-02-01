@@ -25,7 +25,7 @@ impl<'a, T: Serialize> TemplateResponse<'a, T> {
         Self::err(405, "Method not allowed".to_string())
     }
 
-    fn err(code: u16, message: String) -> Self {
+    pub fn err(code: u16, message: String) -> Self {
         Self::Err { code, message }
     }
 

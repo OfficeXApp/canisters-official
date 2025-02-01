@@ -109,6 +109,7 @@ dependencies = [
 name = "canisters-official-backend"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "candid",
  "ic-cdk 0.17.1",
  "ic-cdk-timers",
@@ -120,6 +121,7 @@ dependencies = [
  "serde_cbor",
  "serde_json",
  "serde_urlencoded",
+ "sha2",
 ]
 
 [[package]]
