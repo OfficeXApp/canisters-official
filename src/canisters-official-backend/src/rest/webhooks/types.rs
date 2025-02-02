@@ -1,8 +1,10 @@
 // src/rest/webhooks/types.rs
 
 use serde::{Deserialize, Serialize};
-
-use crate::core::state::webhooks::types::{WebhookID, WebhookItem};
+use crate::core::state::webhooks::types::WebhookEventLabel;
+use crate::types::UpsertCreateType;
+use crate::types::UpsertEditType;
+use crate::core::state::webhooks::types::{WebhookID, Webhook};
 
 #[derive(Debug, Clone, Serialize)]
 pub enum WebhookResponse<'a, T = ()> {
@@ -13,7 +15,7 @@ pub enum WebhookResponse<'a, T = ()> {
 }
 
 impl<'a, T: Serialize> WebhookResponse<'a, T> {
-    pub fn ok(data: &'a T) -> WebhookResponse<T> {
+    pub fn ok(data: &'a T) -> WebhookResponse<'a, T> { 
         Self::Ok { data }
     }
 
@@ -34,14 +36,79 @@ impl<'a, T: Serialize> WebhookResponse<'a, T> {
     }
 }
 
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+impl Default for SortDirection {
+    fn default() -> Self {
+        SortDirection::Asc
+    }
+}
+
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListWebhooksRequestBody {
+    #[serde(default)]
+    pub filters: String,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    #[serde(default)]
+    pub direction: SortDirection,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+fn default_page_size() -> usize {
+    50
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListWebhooksResponseData {
+    pub items: Vec<Webhook>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateWebhookRequest {
-    pub title: String,
+    #[serde(rename = "__type")]
+    pub type_field: UpsertCreateType,
+    pub alt_index: String,
+    pub url: String,
+    pub event: String,
+    pub signature: Option<String>,
+    pub description: Option<String>,
 }
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateWebhookRequest {
+    #[serde(rename = "__type")]
+    pub type_field: UpsertEditType,
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active: Option<bool>,
+}
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteWebhookRequest {
-    pub id: WebhookID,
+    pub id: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -50,20 +117,10 @@ pub struct DeletedWebhookData {
     pub deleted: bool
 }
 
+
+pub type GetWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
+pub type ListWebhooksResponse<'a> = WebhookResponse<'a, ListWebhooksResponseData>;
+pub type CreateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
+pub type UpdateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
 pub type DeleteWebhookResponse<'a> = WebhookResponse<'a, DeletedWebhookData>;
-
-pub type CreateWebhookResponse<'a> = WebhookResponse<'a, WebhookItem>;
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UpdateWebhookRequest {
-    pub title: Option<String>,
-    pub completed: Option<bool>,
-}
-
-pub type UpdateWebhookResponse<'a> = WebhookResponse<'a, ()>;
-
-pub type ListWebhooksResponse<'a> = WebhookResponse<'a, Vec<WebhookItem>>;
-
-pub type GetWebhookResponse<'a> = WebhookResponse<'a, WebhookItem>;
-
 pub type ErrorResponse<'a> = WebhookResponse<'a, ()>;

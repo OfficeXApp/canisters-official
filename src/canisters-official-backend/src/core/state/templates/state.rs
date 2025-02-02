@@ -9,17 +9,6 @@ pub mod state {
         pub static TEMPLATE_ITEMS: RefCell<HashMap<TemplateID, TemplateItem>> = RefCell::new(HashMap::new());
     }
 
-    pub struct TemplateState {
-        pub items: HashMap<TemplateID, TemplateItem>,
-    }
-
-    impl Default for TemplateState {
-        fn default() -> Self {
-            Self {
-                items: HashMap::new(),
-            }
-        }
-    }
 }
 
 

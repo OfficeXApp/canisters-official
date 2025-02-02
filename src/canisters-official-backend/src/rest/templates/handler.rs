@@ -8,7 +8,6 @@ pub mod templates_handlers {
     };
     use crate::core::state::templates::{
         types::TemplateItem,
-        state::state::TemplateState 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -106,8 +105,20 @@ pub mod templates_handlers {
             }
         });
 
-        let body = UpdateTemplateResponse::ok(&()).encode();
-        create_response(StatusCode::OK, body)
+        let updated_template_item = TEMPLATE_ITEMS.with_borrow(|items| {
+            items.get(&id).cloned()
+        });
+
+        match updated_template_item {
+            Some(key) => create_response(
+                StatusCode::OK,
+                UpdateTemplateResponse::ok(&key).encode()
+            ),
+            None => create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Template not found".to_string()).encode()
+            ),
+        }
     }
 
     pub fn delete_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {

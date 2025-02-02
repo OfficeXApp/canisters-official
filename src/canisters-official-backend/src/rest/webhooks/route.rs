@@ -3,7 +3,7 @@ use crate::debug_log;
 use crate::rest::router;
 use crate::types::RouteHandler;
 
-pub const WEBHOOKS_GET_PATH: &str = "/webhooks/get/{id}";
+pub const WEBHOOKS_GET_PATH: &str = "/webhooks/get/{webhook_id}";
 pub const WEBHOOKS_LIST_PATH: &str = "/webhooks/list";
 pub const WEBHOOKS_UPSERT_PATH: &str = "/webhooks/upsert";
 pub const WEBHOOKS_DELETE_PATH: &str = "/webhooks/delete";
@@ -25,7 +25,7 @@ pub fn init_routes() {
         (
             "POST",
             WEBHOOKS_UPSERT_PATH,
-            crate::rest::webhooks::handler::webhooks_handlers::create_webhook_handler,
+            crate::rest::webhooks::handler::webhooks_handlers::upsert_webhook_handler,
         ),
         (
             "POST",

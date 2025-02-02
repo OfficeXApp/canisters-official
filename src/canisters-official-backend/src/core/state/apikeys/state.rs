@@ -7,28 +7,28 @@ pub mod state {
 
     thread_local! {
         // users pass in api key value, we O(1) lookup the api key id + O(1) lookup the api key
-        pub static HASHTABLE_APIKEYS_BY_VALUE: RefCell<HashMap<ApiKeyValue, ApiKeyID>> = RefCell::new(HashMap::new());
+        pub static APIKEYS_BY_VALUE_HASHTABLE: RefCell<HashMap<ApiKeyValue, ApiKeyID>> = RefCell::new(HashMap::new());
         // default is to use the api key id to lookup the api key
-        pub static HASHTABLE_APIKEYS_BY_ID: RefCell<HashMap<ApiKeyID, ApiKey>> = RefCell::new(HashMap::new());
+        pub static APIKEYS_BY_ID_HASHTABLE: RefCell<HashMap<ApiKeyID, ApiKey>> = RefCell::new(HashMap::new());
         // track in hashtable users list of ApiKeyIDs
-        pub static HASHTABLE_USERS_APIKEYS: RefCell<HashMap<UserID, Vec<ApiKeyID>>> = RefCell::new(HashMap::new());
+        pub static USERS_APIKEYS_HASHTABLE: RefCell<HashMap<UserID, Vec<ApiKeyID>>> = RefCell::new(HashMap::new());
     }
 
     // Helper functions to get debug string representations
     pub fn debug_apikeys_by_value() -> String {
-        HASHTABLE_APIKEYS_BY_VALUE.with(|map| {
+        APIKEYS_BY_VALUE_HASHTABLE.with(|map| {
             format!("{:#?}", map.borrow())
         })
     }
 
     pub fn debug_apikeys_by_id() -> String {
-        HASHTABLE_APIKEYS_BY_ID.with(|map| {
+        APIKEYS_BY_ID_HASHTABLE.with(|map| {
             format!("{:#?}", map.borrow())
         })
     }
 
     pub fn debug_users_apikeys() -> String {
-        HASHTABLE_USERS_APIKEYS.with(|map| {
+        USERS_APIKEYS_HASHTABLE.with(|map| {
             format!("{:#?}", map.borrow())
         })
     }
@@ -59,15 +59,15 @@ pub mod state {
 
         debug_log!("Default admin api key: {}", default_key);
 
-        HASHTABLE_APIKEYS_BY_VALUE.with(|map| {
+        APIKEYS_BY_VALUE_HASHTABLE.with(|map| {
             map.borrow_mut().insert(default_key.value.clone(), default_key.id.clone());
         });
 
-        HASHTABLE_APIKEYS_BY_ID.with(|map| {
+        APIKEYS_BY_ID_HASHTABLE.with(|map| {
             map.borrow_mut().insert(default_key.id.clone(), default_key.clone());
         });
 
-        HASHTABLE_USERS_APIKEYS.with(|map| {
+        USERS_APIKEYS_HASHTABLE.with(|map| {
             map.borrow_mut().insert(default_key.user_id.clone(), vec![default_key.id.clone()]);
         });
     }
