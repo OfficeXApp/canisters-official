@@ -1,11 +1,7 @@
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::core::state::{
-    apikeys::state::state::{HASHTABLE_APIKEYS_BY_VALUE, HASHTABLE_APIKEYS_BY_ID},
-    apikeys::types::{ApiKeyValue, ApiKey},
-};
+use crate::{core::state::apikeys::{state::state::{debug_state,HASHTABLE_APIKEYS_BY_ID, HASHTABLE_APIKEYS_BY_VALUE}, types::{ApiKey, ApiKeyValue}}, debug_log};
 use crate::rest::apikeys::types::ErrorResponse;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::helpers::create_response;
 
@@ -17,8 +13,13 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         None => return None,
     };
 
+    debug_log!("api_key_str: {}", api_key_str);
+
     // Convert to ApiKeyValue type
     let api_key_value = ApiKeyValue(api_key_str.to_string());
+
+    debug_log!("api_key_value: {}", api_key_value);
+    debug_log!("Current state: {}", debug_state());
 
     // Look up the API key ID using the value
     let api_key_id = HASHTABLE_APIKEYS_BY_VALUE.with(|store| {
@@ -29,20 +30,23 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         Some(id) => id,
         None => return None,
     };
+    
+    debug_log!("api_key_id: {}", api_key_id);
 
     // Look up the full API key using the ID
     let full_api_key = HASHTABLE_APIKEYS_BY_ID.with(|store| {
         store.borrow().get(&api_key_id).cloned()
     });
 
+    debug_log!("full_api_key: {}", full_api_key.clone().unwrap());
+
     // Check if key exists and validate expiration/revocation
     if let Some(key) = full_api_key {
         // Get current Unix timestamp
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
+        let now = ic_cdk::api::time() as i64;
         
+        debug_log!("key check - expires_at: {}, is_revoked: {}", key.expires_at, key.is_revoked);
+
         // Check if key is expired (expires_at > 0 and current time exceeds it)
         // or if key is revoked
         if (key.expires_at > 0 && now >= key.expires_at) || key.is_revoked {
@@ -56,7 +60,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
 }
 
 pub fn create_auth_error_response() -> HttpResponse<'static> {
-    let body = String::from_utf8(ErrorResponse::not_allowed().encode())
+    let body = String::from_utf8(ErrorResponse::unauthorized().encode())
         .unwrap_or_else(|_| String::from("Unauthorized"));
     create_response(StatusCode::UNAUTHORIZED, body)
 }

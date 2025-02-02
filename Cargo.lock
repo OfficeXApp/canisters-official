@@ -111,7 +111,9 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "candid",
+ "hex",
  "ic-cdk 0.17.1",
+ "ic-cdk-macros 0.17.1",
  "ic-cdk-timers",
  "ic-http-certification",
  "lazy_static",

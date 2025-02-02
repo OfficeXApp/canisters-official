@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{apikeys::{state::state::{HASHTABLE_APIKEYS_BY_ID, HASHTABLE_APIKEYS_BY_VALUE, HASHTABLE_USERS_APIKEYS}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{apikeys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, types::{CreateType, UpdateType}
+        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{apikeys::{state::state::{HASHTABLE_APIKEYS_BY_ID, HASHTABLE_APIKEYS_BY_VALUE, HASHTABLE_USERS_APIKEYS}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{apikeys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, types::{UpsertCreateType, UpsertEditType}
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -54,6 +54,9 @@ pub mod apikeys_handlers {
     }
 
     pub fn list_apikeys_handler(request: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+
+        debug_log!("Incoming request: {}", request.url());
+
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -117,7 +120,7 @@ pub mod apikeys_handlers {
         // Try to deserialize as either create or update request
         if let Ok(create_req) = serde_json::from_slice::<CreateApiKeyRequestBody>(body) {
             // Handle create request
-            if !matches!(create_req.type_field, CreateType::Create) {
+            if !matches!(create_req.type_field, UpsertCreateType::Create) {
                 return create_response(
                     StatusCode::BAD_REQUEST,
                     ErrorResponse::err(400, "Invalid request type".to_string()).encode()
@@ -136,7 +139,7 @@ pub mod apikeys_handlers {
     
             // Generate new API key with proper user_id
             let new_api_key = ApiKey {
-                id: ApiKeyID(generate_unique_id()),
+                id: ApiKeyID(generate_unique_id("ApiKeyID")),
                 value: ApiKeyValue(generate_api_key()),
                 user_id: key_user_id, 
                 name: create_req.name,
@@ -172,7 +175,7 @@ pub mod apikeys_handlers {
     
         } else if let Ok(update_req) = serde_json::from_slice::<UpdateApiKeyRequestBody>(body) {
             // Handle update request
-            if !matches!(update_req.type_field, UpdateType::Update) {
+            if !matches!(update_req.type_field, UpsertEditType::Edit) {
                 return create_response(
                     StatusCode::BAD_REQUEST,
                     ErrorResponse::err(400, "Invalid request type".to_string()).encode()
@@ -207,13 +210,24 @@ pub mod apikeys_handlers {
     
             // Update the API key in HASHTABLE_APIKEYS_BY_ID
             HASHTABLE_APIKEYS_BY_ID.with(|store| {
-                store.borrow_mut().insert(api_key.id.clone(), api_key);
+                store.borrow_mut().insert(api_key.id.clone(), api_key.clone());
             });
-    
-            create_response(
-                StatusCode::OK,
-                UpdateApiKeyResponse::ok(&()).encode()
-            )
+
+            // Get the updated API key
+            let updated_api_key = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+                store.borrow().get(&api_key.id.clone()).cloned()
+            });
+
+            match updated_api_key {
+                Some(key) => create_response(
+                    StatusCode::OK,
+                    UpdateApiKeyResponse::ok(&key).encode()
+                ),
+                None => create_response(
+                    StatusCode::NOT_FOUND,
+                    ErrorResponse::err(404, "API key not found".to_string()).encode()
+                ),
+            }
     
         } else {
             create_response(
@@ -224,6 +238,9 @@ pub mod apikeys_handlers {
     }
 
     pub fn delete_apikey_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+
+        debug_log!("Incoming request: {}", req.url());
+
         // Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -232,6 +249,8 @@ pub mod apikeys_handlers {
 
         // Parse request body
         let body: &[u8] = req.body();
+        
+        debug_log!("Incoming request body: {}", String::from_utf8_lossy(req.body()));
         let delete_request = match serde_json::from_slice::<DeleteApiKeyRequestBody>(body) {
             Ok(req) => req,
             Err(_) => {
@@ -297,7 +316,8 @@ pub mod apikeys_handlers {
         create_response(
             StatusCode::OK,
             DeleteApiKeyResponse::ok(&DeletedApiKeyData {
-                deleted_id: delete_request.id
+                id: delete_request.id,
+                deleted: true
             }).encode()
         )
     }

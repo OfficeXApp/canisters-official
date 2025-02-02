@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::apikeys::types::{ApiKey, ApiKeyID}, types::UserID}, types::{CreateType, UpdateType}};
+use crate::{core::{state::apikeys::types::{ApiKey, ApiKeyID}, types::UserID}, types::{UpsertCreateType, UpsertEditType}};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyHidden {
@@ -47,8 +47,8 @@ impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
         Self::err(404, "Not found".to_string())
     }
 
-    pub fn not_allowed() -> Self {
-        Self::err(405, "Method not allowed".to_string())
+    pub fn unauthorized() -> Self {
+        Self::err(401, "Unauthorized".to_string())
     }
 
     pub fn err(code: u16, message: String) -> Self {
@@ -64,7 +64,7 @@ impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateApiKeyRequestBody {
     #[serde(rename = "__type")]
-    pub type_field: CreateType,
+    pub type_field: UpsertCreateType,
     pub name: String,
     pub user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -73,20 +73,22 @@ pub struct CreateApiKeyRequestBody {
 pub type CreateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
 
 
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteApiKeyRequestBody {
-    pub id: u32,
+    pub id: String,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct DeletedApiKeyData {
-    pub deleted_id: u32,
+    pub id: String,
+    pub deleted: bool
 }
 pub type DeleteApiKeyResponse<'a> = ApiKeyResponse<'a, DeletedApiKeyData>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateApiKeyRequestBody {
     #[serde(rename = "__type")]
-    pub type_field: UpdateType,
+    pub type_field: UpsertEditType,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -95,7 +97,7 @@ pub struct UpdateApiKeyRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_revoked: Option<bool>,
 }
-pub type UpdateApiKeyResponse<'a> = ApiKeyResponse<'a, ()>;
+pub type UpdateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
 
 
 pub type ListApiKeysResponse<'a> = ApiKeyResponse<'a, Vec<ApiKeyHidden>>;

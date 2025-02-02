@@ -9,13 +9,13 @@ pub type RouteHandler = for<'a> fn(&'a HttpRequest, &'a Params) -> HttpResponse<
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum CreateType {
+pub enum UpsertCreateType {
     Create,
 }
 
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum UpdateType {
-    Update,
+pub enum UpsertEditType {
+    Edit,
 }

@@ -1,6 +1,7 @@
 // src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
+use core::state::apikeys::state::state::init_default_admin_apikey;
 use std::{cell::RefCell, collections::HashMap};
 
 mod logger;
@@ -9,10 +10,11 @@ mod rest;
 mod core;
 use rest::{router};
 
-#[init]
+#[ic_cdk_macros::init]
 fn init() {
     debug_log!("Initializing canister...");
     router::init_routes();
+    init_default_admin_apikey();
 }
 
 #[post_upgrade]
