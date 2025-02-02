@@ -1,6 +1,6 @@
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::{core::state::apikeys::{state::state::{debug_state,HASHTABLE_APIKEYS_BY_ID, HASHTABLE_APIKEYS_BY_VALUE}, types::{ApiKey, ApiKeyValue}}, debug_log};
+use crate::{core::state::apikeys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyValue}}, debug_log};
 use crate::rest::apikeys::types::ErrorResponse;
 
 use super::helpers::create_response;
@@ -22,7 +22,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     debug_log!("Current state: {}", debug_state());
 
     // Look up the API key ID using the value
-    let api_key_id = HASHTABLE_APIKEYS_BY_VALUE.with(|store| {
+    let api_key_id = APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
         store.borrow().get(&api_key_value).cloned()
     });
 
@@ -34,7 +34,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     debug_log!("api_key_id: {}", api_key_id);
 
     // Look up the full API key using the ID
-    let full_api_key = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+    let full_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
         store.borrow().get(&api_key_id).cloned()
     });
 

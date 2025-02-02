@@ -34,10 +34,29 @@ impl<'a, T: Serialize> TemplateResponse<'a, T> {
     }
 }
 
+
+
+pub type GetTemplateResponse<'a> = TemplateResponse<'a, TemplateItem>;
+
+pub type ListTemplatesResponse<'a> = TemplateResponse<'a, Vec<TemplateItem>>;
+
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateTemplateRequest {
     pub title: String,
 }
+
+pub type CreateTemplateResponse<'a> = TemplateResponse<'a, TemplateItem>;
+
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateTemplateRequest {
+    pub title: Option<String>,
+    pub completed: Option<bool>,
+}
+
+pub type UpdateTemplateResponse<'a> = TemplateResponse<'a, TemplateItem>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteTemplateRequest {
@@ -52,18 +71,5 @@ pub struct DeletedTemplateData {
 
 pub type DeleteTemplateResponse<'a> = TemplateResponse<'a, DeletedTemplateData>;
 
-pub type CreateTemplateResponse<'a> = TemplateResponse<'a, TemplateItem>;
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UpdateTemplateRequest {
-    pub title: Option<String>,
-    pub completed: Option<bool>,
-}
-
-pub type UpdateTemplateResponse<'a> = TemplateResponse<'a, ()>;
-
-pub type ListTemplatesResponse<'a> = TemplateResponse<'a, Vec<TemplateItem>>;
-
-pub type GetTemplateResponse<'a> = TemplateResponse<'a, TemplateItem>;
 
 pub type ErrorResponse<'a> = TemplateResponse<'a, ()>;

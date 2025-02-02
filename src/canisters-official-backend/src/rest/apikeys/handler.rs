@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{apikeys::{state::state::{HASHTABLE_APIKEYS_BY_ID, HASHTABLE_APIKEYS_BY_VALUE, HASHTABLE_USERS_APIKEYS}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{apikeys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, types::{UpsertCreateType, UpsertEditType}
+        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{apikeys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{apikeys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, types::{UpsertCreateType, UpsertEditType}
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -22,7 +22,7 @@ pub mod apikeys_handlers {
         };
 
        // Get the requested API key ID from params
-        let requested_id = ApiKeyID(params.get("id").unwrap().to_string());
+        let requested_id = ApiKeyID(params.get("api_key_id").unwrap().to_string());
 
         // Check authorization:
         // 1. The requester's API key must either belong to the owner
@@ -37,7 +37,7 @@ pub mod apikeys_handlers {
         }
 
         // Get the requested API key
-        let api_key = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+        let api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&requested_id).cloned()
         });
 
@@ -79,14 +79,14 @@ pub mod apikeys_handlers {
         }
 
         // Get the list of API key IDs for the user
-        let api_key_ids = HASHTABLE_USERS_APIKEYS.with(|store| {
+        let api_key_ids = USERS_APIKEYS_HASHTABLE.with(|store| {
             store.borrow().get(&requested_user_id).cloned()
         });
 
         match api_key_ids {
             Some(ids) => {
                 // Get full API key details for each ID and convert to hidden version
-                let api_keys: Vec<ApiKeyHidden> = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+                let api_keys: Vec<ApiKeyHidden> = APIKEYS_BY_ID_HASHTABLE.with(|store| {
                     let store = store.borrow();
                     ids.iter()
                         .filter_map(|id| store.get(id))
@@ -150,18 +150,18 @@ pub mod apikeys_handlers {
     
             // Update all three hashtables
             
-            // 1. Add to HASHTABLE_APIKEYS_BY_VALUE
-            HASHTABLE_APIKEYS_BY_VALUE.with(|store| {
+            // 1. Add to APIKEYS_BY_VALUE_HASHTABLE
+            APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
                 store.borrow_mut().insert(new_api_key.value.clone(), new_api_key.id.clone());
             });
     
-            // 2. Add to HASHTABLE_APIKEYS_BY_ID
-            HASHTABLE_APIKEYS_BY_ID.with(|store| {
+            // 2. Add to APIKEYS_BY_ID_HASHTABLE
+            APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 store.borrow_mut().insert(new_api_key.id.clone(), new_api_key.clone());
             });
     
-            // 3. Add to HASHTABLE_USERS_APIKEYS
-            HASHTABLE_USERS_APIKEYS.with(|store| {
+            // 3. Add to USERS_APIKEYS_HASHTABLE
+            USERS_APIKEYS_HASHTABLE.with(|store| {
                 store.borrow_mut()
                     .entry(new_api_key.user_id.clone())
                     .or_insert_with(Vec::new)
@@ -184,7 +184,7 @@ pub mod apikeys_handlers {
     
             // Get the API key to update
             let api_key_id = ApiKeyID(update_req.id);
-            let mut api_key = match HASHTABLE_APIKEYS_BY_ID.with(|store| store.borrow().get(&api_key_id).cloned()) {
+            let mut api_key = match APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&api_key_id).cloned()) {
                 Some(key) => key,
                 None => return create_response(
                     StatusCode::NOT_FOUND,
@@ -208,13 +208,13 @@ pub mod apikeys_handlers {
                 api_key.is_revoked = is_revoked;
             }
     
-            // Update the API key in HASHTABLE_APIKEYS_BY_ID
-            HASHTABLE_APIKEYS_BY_ID.with(|store| {
+            // Update the API key in APIKEYS_BY_ID_HASHTABLE
+            APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 store.borrow_mut().insert(api_key.id.clone(), api_key.clone());
             });
 
             // Get the updated API key
-            let updated_api_key = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+            let updated_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 store.borrow().get(&api_key.id.clone()).cloned()
             });
 
@@ -262,7 +262,7 @@ pub mod apikeys_handlers {
         };
 
        // Get the API key to be deleted
-        let api_key_to_delete = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+        let api_key_to_delete = APIKEYS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&ApiKeyID(delete_request.id.to_string())).cloned()
         });
 
@@ -290,18 +290,18 @@ pub mod apikeys_handlers {
 
         // Remove from all three hashtables
         
-        // 1. Remove from HASHTABLE_APIKEYS_BY_VALUE
-        HASHTABLE_APIKEYS_BY_VALUE.with(|store| {
+        // 1. Remove from APIKEYS_BY_VALUE_HASHTABLE
+        APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
             store.borrow_mut().remove(&api_key.value);
         });
 
-        // 2. Remove from HASHTABLE_APIKEYS_BY_ID
-        HASHTABLE_APIKEYS_BY_ID.with(|store| {
+        // 2. Remove from APIKEYS_BY_ID_HASHTABLE
+        APIKEYS_BY_ID_HASHTABLE.with(|store| {
             store.borrow_mut().remove(&api_key.id);
         });
 
-        // 3. Remove from HASHTABLE_USERS_APIKEYS
-        HASHTABLE_USERS_APIKEYS.with(|store| {
+        // 3. Remove from USERS_APIKEYS_HASHTABLE
+        USERS_APIKEYS_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
             if let Some(api_key_ids) = store.get_mut(&api_key.user_id) {
                 api_key_ids.retain(|id| id != &api_key.id);
