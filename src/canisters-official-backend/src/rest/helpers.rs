@@ -16,12 +16,23 @@ pub fn create_response(status_code: StatusCode, body: String) -> HttpResponse<'s
         .build()
 }
 
-pub fn not_found_response(path: &str) -> HttpResponse<'static> {
-    create_response(
-        StatusCode::NOT_FOUND,
-        json!({
-            "error": format!("Path not found: {}", path),
-        })
-        .to_string(),
-    )
+
+pub fn not_found_response() -> HttpResponse<'static> {
+    let error_payload = json!({
+        "err": {
+            "code": 404,
+            "message": "REST API route not found"
+        }
+    });
+
+    let headers = vec![(
+        "Content-Type".to_string(),
+        "application/json".to_string(),
+    )];
+
+    HttpResponse::builder()
+        .with_status_code(StatusCode::NOT_FOUND)
+        .with_headers(headers)
+        .with_body(Cow::Owned(error_payload.to_string().into_bytes()))
+        .build()
 }

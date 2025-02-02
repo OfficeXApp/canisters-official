@@ -14,7 +14,7 @@ const WILDCARD_PATH: &str = "/*";
 
 pub fn not_found_handler(req: &HttpRequest, _params: &matchit::Params) -> HttpResponse<'static> {
     debug_log!("Path not found: {}", req.url());
-    helpers::not_found_response(&req.url())
+    helpers::not_found_response()
 }
 
 pub fn init_routes() {
@@ -33,18 +33,28 @@ pub fn init_routes() {
 }
 
 pub fn handle_request(req: HttpRequest) -> HttpResponse<'static> {
-    let req_path = req.get_path().expect("Failed to get req path");
+    let req_path = match req.get_path() {
+        Ok(path) => path,
+        Err(_) => return helpers::not_found_response(),
+    };
+    
     debug_log!("Handling request for path: {}", req_path);
     
     ROUTER.with_borrow(|router| {
-        let method_router = router
-            .get(&req.method().as_str().to_uppercase())
-            .unwrap();
+        // Get the router for this HTTP method
+        let method_router = match router.get(&req.method().as_str().to_uppercase()) {
+            Some(router) => router,
+            None => return helpers::not_found_response(),
+        };
         
-        let handler_match = method_router.at(&req_path).unwrap();
-        let handler = handler_match.value;
-
-        handler(&req, &handler_match.params)
+        // Try to match the route
+        match method_router.at(&req_path) {
+            Ok(handler_match) => {
+                let handler = handler_match.value;
+                handler(&req, &handler_match.params)
+            },
+            Err(_) => helpers::not_found_response(),
+        }
     })
 }
 
