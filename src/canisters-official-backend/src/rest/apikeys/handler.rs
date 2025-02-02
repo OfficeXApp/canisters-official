@@ -1,0 +1,352 @@
+// src/rest/apikeys/handler.rs
+
+pub mod apikeys_handlers {
+    use crate::{
+        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{apikeys::{state::state::{HASHTABLE_APIKEYS_BY_ID, HASHTABLE_APIKEYS_BY_VALUE, HASHTABLE_USERS_APIKEYS}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{apikeys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, types::{UpsertCreateType, UpsertEditType}
+    };
+    use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+    use matchit::Params;
+    use serde::Deserialize;
+
+    #[derive(Deserialize, Default)]
+    struct ListQueryParams {
+        title: Option<String>,
+        completed: Option<bool>,
+    }
+
+    pub fn get_apikey_handler(request: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+       // Get the requested API key ID from params
+        let requested_id = ApiKeyID(params.get("id").unwrap().to_string());
+
+        // Check authorization:
+        // 1. The requester's API key must either belong to the owner
+        // 2. Or the requester must be requesting their own API key
+        let is_authorized = OWNER_ID.with(|owner_id| {
+            requester_api_key.user_id == *owner_id || 
+            requester_api_key.id == requested_id
+        });
+
+        if !is_authorized {
+            return create_auth_error_response();
+        }
+
+        // Get the requested API key
+        let api_key = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+            store.borrow().get(&requested_id).cloned()
+        });
+
+        match api_key {
+            Some(key) => create_response(
+                StatusCode::OK,
+                GetApiKeyResponse::ok(&key).encode()
+            ),
+            None => create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "API key not found".to_string()).encode()
+            ),
+        }
+    }
+
+    pub fn list_apikeys_handler(request: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+
+        debug_log!("Incoming request: {}", request.url());
+
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        // Get the requested user_id from params
+        let requested_user_id = UserID(PublicKeyBLS(params.get("user_id").unwrap().to_string()));
+
+        // Check authorization:
+        // 1. The requester's API key must either belong to the owner
+        // 2. Or the requester must be requesting their own API keys
+        let is_authorized = OWNER_ID.with(|owner_id| {
+            requester_api_key.user_id == *owner_id || 
+            requester_api_key.user_id == requested_user_id
+        });
+
+        if !is_authorized {
+            return create_auth_error_response();
+        }
+
+        // Get the list of API key IDs for the user
+        let api_key_ids = HASHTABLE_USERS_APIKEYS.with(|store| {
+            store.borrow().get(&requested_user_id).cloned()
+        });
+
+        match api_key_ids {
+            Some(ids) => {
+                // Get full API key details for each ID and convert to hidden version
+                let api_keys: Vec<ApiKeyHidden> = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+                    let store = store.borrow();
+                    ids.iter()
+                        .filter_map(|id| store.get(id))
+                        .map(|key| ApiKeyHidden::from(key.clone()))
+                        .collect()
+                });
+
+                create_response(
+                    StatusCode::OK,
+                    ListApiKeysResponse::ok(&api_keys).encode()
+                )
+            },
+            None => create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "No API keys found for user".to_string()).encode()
+            ),
+        }
+    }
+
+    pub fn upsert_apikey_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Parse request body
+        let body: &[u8] = req.body();
+        let create_req = serde_json::from_slice::<CreateApiKeyRequestBody>(body);
+    
+        // Try to deserialize as either create or update request
+        if let Ok(create_req) = serde_json::from_slice::<CreateApiKeyRequestBody>(body) {
+            // Handle create request
+            if !matches!(create_req.type_field, UpsertCreateType::Create) {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid request type".to_string()).encode()
+                );
+            }
+    
+            // Determine what user_id to use for the new key
+            let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+            
+            // If owner and user_id provided in request, use that. Otherwise use requester's user_id
+            let key_user_id = if is_owner && create_req.user_id.is_some() {
+                UserID(PublicKeyBLS(create_req.user_id.unwrap()))
+            } else {
+                requester_api_key.user_id.clone()
+            };
+    
+            // Generate new API key with proper user_id
+            let new_api_key = ApiKey {
+                id: ApiKeyID(generate_unique_id("ApiKeyID")),
+                value: ApiKeyValue(generate_api_key()),
+                user_id: key_user_id, 
+                name: create_req.name,
+                created_at: ic_cdk::api::time(),
+                expires_at: create_req.expires_at.unwrap_or(-1),
+                is_revoked: false,
+            };
+    
+            // Update all three hashtables
+            
+            // 1. Add to HASHTABLE_APIKEYS_BY_VALUE
+            HASHTABLE_APIKEYS_BY_VALUE.with(|store| {
+                store.borrow_mut().insert(new_api_key.value.clone(), new_api_key.id.clone());
+            });
+    
+            // 2. Add to HASHTABLE_APIKEYS_BY_ID
+            HASHTABLE_APIKEYS_BY_ID.with(|store| {
+                store.borrow_mut().insert(new_api_key.id.clone(), new_api_key.clone());
+            });
+    
+            // 3. Add to HASHTABLE_USERS_APIKEYS
+            HASHTABLE_USERS_APIKEYS.with(|store| {
+                store.borrow_mut()
+                    .entry(new_api_key.user_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(new_api_key.id.clone());
+            });
+    
+            create_response(
+                StatusCode::OK,
+                CreateApiKeyResponse::ok(&new_api_key).encode()
+            )
+    
+        } else if let Ok(update_req) = serde_json::from_slice::<UpdateApiKeyRequestBody>(body) {
+            // Handle update request
+            if !matches!(update_req.type_field, UpsertEditType::Edit) {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid request type".to_string()).encode()
+                );
+            }
+    
+            // Get the API key to update
+            let api_key_id = ApiKeyID(update_req.id);
+            let mut api_key = match HASHTABLE_APIKEYS_BY_ID.with(|store| store.borrow().get(&api_key_id).cloned()) {
+                Some(key) => key,
+                None => return create_response(
+                    StatusCode::NOT_FOUND,
+                    ErrorResponse::err(404, "API key not found".to_string()).encode()
+                ),
+            };
+    
+            // Check authorization - can only update their own keys
+            if requester_api_key.user_id != api_key.user_id {
+                return create_auth_error_response();
+            }
+    
+            // Update only the fields that were provided
+            if let Some(name) = update_req.name {
+                api_key.name = name;
+            }
+            if let Some(expires_at) = update_req.expires_at {
+                api_key.expires_at = expires_at;
+            }
+            if let Some(is_revoked) = update_req.is_revoked {
+                api_key.is_revoked = is_revoked;
+            }
+    
+            // Update the API key in HASHTABLE_APIKEYS_BY_ID
+            HASHTABLE_APIKEYS_BY_ID.with(|store| {
+                store.borrow_mut().insert(api_key.id.clone(), api_key.clone());
+            });
+
+            // Get the updated API key
+            let updated_api_key = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+                store.borrow().get(&api_key.id.clone()).cloned()
+            });
+
+            match updated_api_key {
+                Some(key) => create_response(
+                    StatusCode::OK,
+                    UpdateApiKeyResponse::ok(&key).encode()
+                ),
+                None => create_response(
+                    StatusCode::NOT_FOUND,
+                    ErrorResponse::err(404, "API key not found".to_string()).encode()
+                ),
+            }
+    
+        } else {
+            create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            )
+        }
+    }
+
+    pub fn delete_apikey_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+
+        debug_log!("Incoming request: {}", req.url());
+
+        // Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        // Parse request body
+        let body: &[u8] = req.body();
+        
+        debug_log!("Incoming request body: {}", String::from_utf8_lossy(req.body()));
+        let delete_request = match serde_json::from_slice::<DeleteApiKeyRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+                )
+            }
+        };
+
+       // Get the API key to be deleted
+        let api_key_to_delete = HASHTABLE_APIKEYS_BY_ID.with(|store| {
+            store.borrow().get(&ApiKeyID(delete_request.id.to_string())).cloned()
+        });
+
+        let api_key = match api_key_to_delete {
+            Some(key) => key,
+            None => {
+                return create_response(
+                    StatusCode::NOT_FOUND,
+                    ErrorResponse::err(404, "API key not found".to_string()).encode()
+                )
+            }
+        };
+
+        // Check authorization:
+        // 1. The requester's API key must either belong to the owner
+        // 2. Or the requester must be deleting their own API key
+        let is_authorized = OWNER_ID.with(|owner_id| {
+            requester_api_key.user_id == *owner_id || 
+            requester_api_key.user_id == api_key.user_id
+        });
+
+        if !is_authorized {
+            return create_auth_error_response();
+        }
+
+        // Remove from all three hashtables
+        
+        // 1. Remove from HASHTABLE_APIKEYS_BY_VALUE
+        HASHTABLE_APIKEYS_BY_VALUE.with(|store| {
+            store.borrow_mut().remove(&api_key.value);
+        });
+
+        // 2. Remove from HASHTABLE_APIKEYS_BY_ID
+        HASHTABLE_APIKEYS_BY_ID.with(|store| {
+            store.borrow_mut().remove(&api_key.id);
+        });
+
+        // 3. Remove from HASHTABLE_USERS_APIKEYS
+        HASHTABLE_USERS_APIKEYS.with(|store| {
+            let mut store = store.borrow_mut();
+            if let Some(api_key_ids) = store.get_mut(&api_key.user_id) {
+                api_key_ids.retain(|id| id != &api_key.id);
+                // If this was the last API key for the user, remove the user entry
+                if api_key_ids.is_empty() {
+                    store.remove(&api_key.user_id);
+                }
+            }
+        });
+
+        // Return success response
+        create_response(
+            StatusCode::OK,
+            DeleteApiKeyResponse::ok(&DeletedApiKeyData {
+                id: delete_request.id,
+                deleted: true
+            }).encode()
+        )
+    }
+
+    fn json_decode<T>(value: &[u8]) -> T
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        serde_json::from_slice(value).expect("Failed to deserialize value")
+    }
+
+    fn create_response(status_code: StatusCode, body: Vec<u8>) -> HttpResponse<'static> {
+        HttpResponse::builder()
+            .with_status_code(status_code)
+            .with_headers(vec![
+                ("content-type".to_string(), "application/json".to_string()),
+                (
+                    "strict-transport-security".to_string(),
+                    "max-age=31536000; includeSubDomains".to_string(),
+                ),
+                ("x-content-type-options".to_string(), "nosniff".to_string()),
+                ("referrer-policy".to_string(), "no-referrer".to_string()),
+                (
+                    "cache-control".to_string(),
+                    "no-store, max-age=0".to_string(),
+                ),
+                ("pragma".to_string(), "no-cache".to_string()),
+            ])
+            .with_body(body)
+            .build()
+    }
+}

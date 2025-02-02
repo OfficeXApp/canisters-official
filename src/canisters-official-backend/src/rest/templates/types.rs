@@ -1,16 +1,8 @@
 // src/rest/templates/types.rs
 
-
-
 use serde::{Deserialize, Serialize};
 
-
-#[derive(Debug, Clone, Serialize)]
-pub struct TemplateItem {
-    pub id: u32,
-    pub title: String,
-    pub completed: bool,
-}
+use crate::core::state::templates::types::{TemplateID, TemplateItem};
 
 #[derive(Debug, Clone, Serialize)]
 pub enum TemplateResponse<'a, T = ()> {
@@ -29,11 +21,11 @@ impl<'a, T: Serialize> TemplateResponse<'a, T> {
         Self::err(404, "Not found".to_string())
     }
 
-    pub fn not_allowed() -> Self {
-        Self::err(405, "Method not allowed".to_string())
+    pub fn unauthorized() -> Self {
+        Self::err(401, "Unauthorized".to_string())
     }
 
-    fn err(code: u16, message: String) -> Self {
+    pub fn err(code: u16, message: String) -> Self {
         Self::Err { code, message }
     }
 
@@ -49,12 +41,13 @@ pub struct CreateTemplateRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteTemplateRequest {
-    pub id: u32,
+    pub id: TemplateID,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DeletedTemplateData {
-    pub deleted_id: u32,
+    pub id: TemplateID,
+    pub deleted: bool
 }
 
 pub type DeleteTemplateResponse<'a> = TemplateResponse<'a, DeletedTemplateData>;

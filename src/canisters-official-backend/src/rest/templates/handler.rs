@@ -1,10 +1,18 @@
 // src/rest/templates/handler.rs
+
+
 pub mod templates_handlers {
-    use crate::{debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, TemplateItem, UpdateTemplateRequest, UpdateTemplateResponse},  NEXT_TEMPLATE_ID, TEMPLATE_ITEMS};
+    use crate::{
+        core::{api::uuid::generate_unique_id, state::templates::{state::state::TEMPLATE_ITEMS, types::TemplateID}}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
+        
+    };
+    use crate::core::state::templates::{
+        types::TemplateItem,
+        state::state::TemplateState 
+    };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
-
     #[derive(Deserialize, Default)]
     struct ListQueryParams {
         title: Option<String>,
@@ -12,7 +20,7 @@ pub mod templates_handlers {
     }
 
     pub fn get_template_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
-        let id: u32 = params.get("id").unwrap().parse().unwrap();
+        let id = TemplateID(params.get("id").unwrap().to_string());
 
         let item = TEMPLATE_ITEMS.with_borrow(|items| {
             items.get(&id).cloned()
@@ -65,20 +73,16 @@ pub mod templates_handlers {
     pub fn create_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(req.body());
 
-        let id = NEXT_TEMPLATE_ID.with_borrow_mut(|f| {
-            let id = *f;
-            *f += 1;
-            id
-        });
+        let id = TemplateID(generate_unique_id("templateID"));
 
         let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let template_item = TemplateItem {
-                id,
+                id: id.clone(),
                 title: req_body.title,
                 completed: false,
             };
 
-            items.insert(id, template_item.clone());
+            items.insert(id.clone(), template_item.clone());
             template_item
         });
 
@@ -88,7 +92,7 @@ pub mod templates_handlers {
 
     pub fn update_template_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
         let req_body: UpdateTemplateRequest = json_decode(req.body());
-        let id: u32 = params.get("id").unwrap().parse().unwrap();
+        let id = TemplateID(params.get("id").unwrap().to_string());
 
         TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let item = items.get_mut(&id).unwrap();
@@ -109,23 +113,19 @@ pub mod templates_handlers {
     pub fn delete_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         let req_body: DeleteTemplateRequest = json_decode(req.body());
 
-        let id = req_body.id;
+        let id = req_body.id.clone();
 
         TEMPLATE_ITEMS.with_borrow_mut(|items| {
             items.remove(&id);
         });
 
         let deleted_data = DeletedTemplateData {
-            deleted_id: req_body.id,
+            id: req_body.id,
+            deleted: true,
         };
 
         let body = DeleteTemplateResponse::ok(&deleted_data).encode();
         create_response(StatusCode::OK, body)
-    }
-
-    pub fn not_found_handler(_req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let body = ErrorResponse::not_found().encode();
-        create_response(StatusCode::NOT_FOUND, body)
     }
 
     fn json_decode<T>(value: &[u8]) -> T

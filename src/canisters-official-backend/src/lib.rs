@@ -1,23 +1,20 @@
 // src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
+use core::state::apikeys::state::state::init_default_admin_apikey;
 use std::{cell::RefCell, collections::HashMap};
 
 mod logger;
 mod types;
 mod rest;
+mod core;
+use rest::{router};
 
-use rest::{router, templates::types::TemplateItem};
-
-thread_local! {
-    static NEXT_TEMPLATE_ID: RefCell<u32> = RefCell::new(0);
-    static TEMPLATE_ITEMS: RefCell<HashMap<u32, TemplateItem>> = RefCell::new(HashMap::new());
-}
-
-#[init]
+#[ic_cdk_macros::init]
 fn init() {
     debug_log!("Initializing canister...");
     router::init_routes();
+    init_default_admin_apikey();
 }
 
 #[post_upgrade]
