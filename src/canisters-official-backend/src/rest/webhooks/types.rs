@@ -2,8 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use crate::core::state::webhooks::types::WebhookEventLabel;
-use crate::types::UpsertCreateType;
-use crate::types::UpsertEditType;
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 
 #[derive(Debug, Clone, Serialize)]
@@ -79,9 +77,7 @@ pub struct ListWebhooksResponseData {
 
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CreateWebhookRequest {
-    #[serde(rename = "__type")]
-    pub type_field: UpsertCreateType,
+pub struct CreateWebhookRequestBody {
     pub alt_index: String,
     pub url: String,
     pub event: String,
@@ -91,9 +87,7 @@ pub struct CreateWebhookRequest {
 
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateWebhookRequest {
-    #[serde(rename = "__type")]
-    pub type_field: UpsertEditType,
+pub struct UpdateWebhookRequestBody {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -103,6 +97,13 @@ pub struct UpdateWebhookRequest {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum UpsertWebhookRequestBody {
+    Create(CreateWebhookRequestBody),
+    Update(UpdateWebhookRequestBody),
 }
 
 

@@ -2,8 +2,6 @@
 
 ## Urgent Next
 
-- [ ] Write the `webhooks` REST routes & define the possible events for listening
-- [ ] Remove the `__type` from upserts. Just check if `req.body.id` is present to determine create vs edit
 - [ ] Write the `contacts` REST routes
 - [ ] Connect relevant `contacts` REST routes with relevant `webhook` firing
 
@@ -27,3 +25,5 @@
 - [x] Setup boilerplate
 - [x] Write base `api-keys` REST routes
 - [x] Find, debug & fix developer gotchas related to ICP HTTP Canister development
+- [x] Write the `webhooks` REST routes & define the possible events for listening
+- [x] Remove the `__type` from upserts. Just check if `req.body.id` is present to determine create vs edit
