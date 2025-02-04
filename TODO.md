@@ -4,6 +4,7 @@
 
 - [ ] Write the `drives` REST routes
 - [ ] Write the `disks` REST routes
+- [ ] Consider whether we need to decouple IDs from BLS public address, and instead let it be uuid and have `Contact.icp_principal` and `Contact.external_id` and save for `Drive.icp_principal` and `Drive.external_id`
 - [ ] Investigate web2/web3 use of auth signatures as API Keys, will it work? how to prevent spoofing?
 
 ## Near Future
@@ -18,6 +19,7 @@
 
 - [ ] Add validation to `contact.icp_principal` and `contact.evm_public_address`
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
+- [ ] Refactor list to apply filter on all appropriate route items
 - [ ] Refactor all CRUD creates/updates/deletes to accept array to support bulk operations (hard to change API spec after)
 - [ ] Consider the danger of UserID values that dont comply with ICP Principals ThresholdBLS and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
 

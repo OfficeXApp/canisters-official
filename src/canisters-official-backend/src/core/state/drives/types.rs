@@ -1,11 +1,11 @@
 // src/core/state/drives/types.rs
 use serde::{Serialize, Deserialize};
 
-use crate::core::types::{PublicKeyBLS, UserID};
+use crate::core::types::{PublicKeyBLS};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DriveID(pub PublicKeyBLS);
+pub struct DriveID(pub String);
 
 
 
@@ -13,8 +13,7 @@ pub struct DriveID(pub PublicKeyBLS);
 pub struct Drive {
     pub id: DriveID,
     pub name: String,
-    pub owner_id: Option<UserID>,
-    pub gas_remaining: Option<u64>,
+    pub icp_principal: PublicKeyBLS,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
 }   

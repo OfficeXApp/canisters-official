@@ -6,13 +6,15 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
+    use crate::core::api::uuid::generate_unique_id;
     use crate::core::state::drives::types::Drive;
     use crate::core::state::drives::types::DriveID;
     use crate::core::types::{UserID,PublicKeyBLS};
 
     thread_local! {
         // self info
-        pub static CANISTER_ID: DriveID = DriveID(PublicKeyBLS(ic_cdk::api::id().to_text()));
+        pub static DRIVE_ID: DriveID = DriveID(generate_unique_id("DriveID", ""));
+        pub static CANISTER_ID: PublicKeyBLS = PublicKeyBLS(ic_cdk::api::id().to_text());
         pub static OWNER_ID: UserID = UserID("Anonymous_Owner".to_string());
         pub static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
         // hashtables
@@ -21,13 +23,12 @@ pub mod state {
     }
 
     pub fn init_self_drive() {
-        let self_drive = Drive  {
-            id: DriveID(PublicKeyBLS(ic_cdk::api::id().to_text())),
+        let self_drive = Drive {
+            id: DRIVE_ID.with(|id| id.clone()),
             name: "Anonymous_Canister".to_string(),
-            owner_id: Some(UserID("Anonymous_Owner".to_string())),
-            gas_remaining: Some(ic_cdk::api::canister_balance()),
             public_note: Some("".to_string()),
             private_note: Some("".to_string()),
+            icp_principal: PublicKeyBLS(ic_cdk::api::id().to_text()),
         };
 
         DRIVES_BY_ID_HASHTABLE.with(|map| {

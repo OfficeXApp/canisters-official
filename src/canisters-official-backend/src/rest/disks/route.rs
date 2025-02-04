@@ -3,7 +3,7 @@ use crate::debug_log;
 use crate::rest::router;
 use crate::types::RouteHandler;
 
-pub const DISKS_GET_PATH: &str = "/disks/get/{id}";
+pub const DISKS_GET_PATH: &str = "/disks/get/{disk_id}";
 pub const DISKS_LIST_PATH: &str = "/disks/list";
 pub const DISKS_UPSERT_PATH: &str = "/disks/upsert";
 pub const DISKS_DELETE_PATH: &str = "/disks/delete";
@@ -25,7 +25,7 @@ pub fn init_routes() {
         (
             "POST",
             DISKS_UPSERT_PATH,
-            crate::rest::disks::handler::disks_handlers::create_disk_handler,
+            crate::rest::disks::handler::disks_handlers::upsert_disk_handler,
         ),
         (
             "POST",

@@ -1,8 +1,9 @@
 // src/rest/drives/types.rs
 
 use serde::{Deserialize, Serialize};
-
 use crate::core::state::drives::types::{DriveID, Drive};
+use crate::core::types::PublicKeyBLS;
+use crate::rest::webhooks::types::SortDirection;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum DriveResponse<'a, T = ()> {
@@ -13,7 +14,7 @@ pub enum DriveResponse<'a, T = ()> {
 }
 
 impl<'a, T: Serialize> DriveResponse<'a, T> {
-    pub fn ok(data: &'a T) -> DriveResponse<T> {
+    pub fn ok(data: &'a T) -> DriveResponse<'a, T> {
         Self::Ok { data }
     }
 
@@ -34,28 +35,63 @@ impl<'a, T: Serialize> DriveResponse<'a, T> {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListDrivesRequestBody {
+    #[serde(default)]
+    pub filters: String,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    #[serde(default)]
+    pub direction: SortDirection,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
 
+fn default_page_size() -> usize {
+    50
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListDrivesResponseData {
+    pub items: Vec<Drive>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum UpsertDriveRequestBody {
+    Create(CreateDriveRequestBody),
+    Update(UpdateDriveRequestBody),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateDriveRequestBody {
+    pub name: String,
+    pub icp_principal: Option<String>,
+    pub public_note: Option<String>,
+    pub private_note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateDriveRequestBody {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icp_principal: Option<String>,
+}
 
 pub type GetDriveResponse<'a> = DriveResponse<'a, Drive>;
-
-pub type ListDrivesResponse<'a> = DriveResponse<'a, Vec<Drive>>;
-
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateDriveRequest {
-    pub title: String,
-}
-
+pub type ListDrivesResponse<'a> = DriveResponse<'a, ListDrivesResponseData>;
 pub type CreateDriveResponse<'a> = DriveResponse<'a, Drive>;
-
-
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UpdateDriveRequest {
-    pub title: Option<String>,
-    pub completed: Option<bool>,
-}
-
 pub type UpdateDriveResponse<'a> = DriveResponse<'a, Drive>;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,6 +106,4 @@ pub struct DeletedDriveData {
 }
 
 pub type DeleteDriveResponse<'a> = DriveResponse<'a, DeletedDriveData>;
-
-
 pub type ErrorResponse<'a> = DriveResponse<'a, ()>;

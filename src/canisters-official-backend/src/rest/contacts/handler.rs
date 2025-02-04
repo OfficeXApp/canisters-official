@@ -269,7 +269,7 @@ pub mod contacts_handlers {
                         contact.evm_public_address = evm_public_address;
                     }
                     if let Some(icp_principal) = update_req.icp_principal {
-                        contact.icp_principal = icp_principal;
+                        contact.icp_principal = PublicKeyBLS(icp_principal);
                     }
 
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {
@@ -277,7 +277,7 @@ pub mod contacts_handlers {
                     });
 
                     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
+                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
                     });
 
                     create_response(
@@ -295,7 +295,7 @@ pub mod contacts_handlers {
                         public_note: create_req.public_note.unwrap_or_default(),
                         private_note: Some(create_req.private_note.unwrap_or_default()),
                         evm_public_address: create_req.evm_public_address.unwrap_or_default(),
-                        icp_principal: create_req.icp_principal,
+                        icp_principal: PublicKeyBLS(create_req.icp_principal),
                         teams: [].to_vec()
                     };
 
@@ -304,7 +304,7 @@ pub mod contacts_handlers {
                     });
 
                     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
+                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
                     });
 
                     CONTACTS_BY_TIME_LIST.with(|store| {
