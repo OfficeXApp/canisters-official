@@ -1,7 +1,7 @@
 // src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
-use core::state::apikeys::state::state::init_default_admin_apikey;
+use core::state::api_keys::state::state::init_default_admin_apikey;
 use std::{cell::RefCell, collections::HashMap};
 
 mod logger;

@@ -14,10 +14,9 @@ pub mod webhooks_handlers {
         debug_log,
         rest::{
             auth::{authenticate_request, create_auth_error_response}, webhooks::types::{
-                CreateWebhookRequest, CreateWebhookResponse, DeleteWebhookRequest, DeleteWebhookResponse, DeletedWebhookData, ErrorResponse, GetWebhookResponse, ListWebhooksRequestBody, ListWebhooksResponse, ListWebhooksResponseData, SortDirection, UpdateWebhookRequest, UpdateWebhookResponse
+                CreateWebhookRequestBody, CreateWebhookResponse, DeleteWebhookRequest, DeleteWebhookResponse, DeletedWebhookData, ErrorResponse, GetWebhookResponse, ListWebhooksRequestBody, ListWebhooksResponse, ListWebhooksResponseData, SortDirection, UpdateWebhookRequestBody, UpdateWebhookResponse, UpsertWebhookRequestBody
             }
         },
-        types::{UpsertCreateType, UpsertEditType}
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -262,108 +261,98 @@ pub mod webhooks_handlers {
         // Parse request body
         let body: &[u8] = req.body();
 
-        // Try to deserialize as either create or update request
-        if let Ok(create_req) = serde_json::from_slice::<CreateWebhookRequest>(body) {
-            // Handle create request
-            if !matches!(create_req.type_field, UpsertCreateType::Create) {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid request type".to_string()).encode()
-                );
-            }
+        if let Ok(req) = serde_json::from_slice::<UpsertWebhookRequestBody>(body) {
+            match req {
+                UpsertWebhookRequestBody::Create(create_req) => {
 
-            // Create new webhook
-            let webhook_id = WebhookID(generate_unique_id("WebhookID"));
-            let alt_index = WebhookAltIndexID(create_req.alt_index);
-            let webhook = Webhook {
-                id: webhook_id.clone(),
-                alt_index: alt_index.clone(),
-                url: create_req.url,
-                event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
-                signature: create_req.signature.unwrap_or_default(),
-                description: create_req.description.unwrap_or_default(),
-                active: true,
-            };
+                    // Create new webhook
+                    let webhook_id = WebhookID(generate_unique_id("WebhookID", ""));
+                    let alt_index = WebhookAltIndexID(create_req.alt_index);
+                    let webhook = Webhook {
+                        id: webhook_id.clone(),
+                        alt_index: alt_index.clone(),
+                        url: create_req.url,
+                        event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
+                        signature: create_req.signature.unwrap_or_default(),
+                        description: create_req.description.unwrap_or_default(),
+                        active: true,
+                    };
 
-            // Update state tables - note we now allow overwriting existing alt_index
-            WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
-                // If there's an existing webhook with this alt_index, we need to clean it up
-                let mut store = store.borrow_mut();
-                if let Some(existing_webhook_id) = store.get(&alt_index).cloned() {
-                    // Remove the existing webhook from other tables
-                    WEBHOOKS_BY_ID_HASHTABLE.with(|id_store| {
-                        id_store.borrow_mut().remove(&existing_webhook_id);
+                    // Update state tables - note we now allow overwriting existing alt_index
+                    WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
+                        // If there's an existing webhook with this alt_index, we need to clean it up
+                        let mut store = store.borrow_mut();
+                        if let Some(existing_webhook_id) = store.get(&alt_index).cloned() {
+                            // Remove the existing webhook from other tables
+                            WEBHOOKS_BY_ID_HASHTABLE.with(|id_store| {
+                                id_store.borrow_mut().remove(&existing_webhook_id);
+                            });
+                            WEBHOOKS_BY_TIME_LIST.with(|time_list| {
+                                time_list.borrow_mut().retain(|id| id != &existing_webhook_id);
+                            });
+                        }
+                        // Insert new mapping
+                        store.insert(alt_index, webhook_id.clone());
                     });
-                    WEBHOOKS_BY_TIME_LIST.with(|time_list| {
-                        time_list.borrow_mut().retain(|id| id != &existing_webhook_id);
+
+                    WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
                     });
+
+                    WEBHOOKS_BY_TIME_LIST.with(|store| {
+                        store.borrow_mut().push(webhook_id.clone());
+                    });
+
+                    create_response(
+                        StatusCode::OK,
+                        CreateWebhookResponse::ok(&webhook).encode()
+                    )
+                },
+                UpsertWebhookRequestBody::Update(update_req) => {
+
+                    let webhook_id = WebhookID(update_req.id);
+                    
+                    // Get existing webhook
+                    let mut webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {
+                        Some(hook) => hook,
+                        None => return create_response(
+                            StatusCode::NOT_FOUND,
+                            ErrorResponse::not_found().encode()
+                        ),
+                    };
+
+                    // Update fields - ignoring alt_index and event as they cannot be modified
+                    if let Some(url) = update_req.url {
+                        webhook.url = url;
+                    }
+                    if let Some(signature) = update_req.signature {
+                        webhook.signature = signature;
+                    }
+                    if let Some(description) = update_req.description {
+                        webhook.description = description;
+                    }
+                    if let Some(active) = update_req.active {
+                        webhook.active = active;
+                    }
+
+                    // Update webhook in ID table
+                    WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
+                    });
+
+                    create_response(
+                        StatusCode::OK,
+                        UpdateWebhookResponse::ok(&webhook).encode()
+                    )
                 }
-                // Insert new mapping
-                store.insert(alt_index, webhook_id.clone());
-            });
-
-            WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
-                store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
-            });
-
-            WEBHOOKS_BY_TIME_LIST.with(|store| {
-                store.borrow_mut().push(webhook_id.clone());
-            });
-
-            create_response(
-                StatusCode::OK,
-                CreateWebhookResponse::ok(&webhook).encode()
-            )
-
-        } else if let Ok(update_req) = serde_json::from_slice::<UpdateWebhookRequest>(body) {
-            // Handle update request
-            if !matches!(update_req.type_field, UpsertEditType::Edit) {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid request type".to_string()).encode()
-                );
             }
-
-            let webhook_id = WebhookID(update_req.id);
-            
-            // Get existing webhook
-            let mut webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {
-                Some(hook) => hook,
-                None => return create_response(
-                    StatusCode::NOT_FOUND,
-                    ErrorResponse::not_found().encode()
-                ),
-            };
-
-            // Update fields - ignoring alt_index and event as they cannot be modified
-            if let Some(url) = update_req.url {
-                webhook.url = url;
-            }
-            if let Some(signature) = update_req.signature {
-                webhook.signature = signature;
-            }
-            if let Some(description) = update_req.description {
-                webhook.description = description;
-            }
-            if let Some(active) = update_req.active {
-                webhook.active = active;
-            }
-
-            // Update webhook in ID table
-            WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
-                store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
-            });
-
-            create_response(
-                StatusCode::OK,
-                UpdateWebhookResponse::ok(&webhook).encode()
-            )
         } else {
             create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             )
         }
+
     }
 
     pub fn delete_webhook_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {

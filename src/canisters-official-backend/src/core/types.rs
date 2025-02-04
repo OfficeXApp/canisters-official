@@ -14,7 +14,11 @@ impl fmt::Display for PublicKeyBLS {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct UserID(pub PublicKeyBLS);
+pub struct ICPPrincipalString(pub PublicKeyBLS);
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct UserID(pub String);
 
 impl fmt::Display for UserID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

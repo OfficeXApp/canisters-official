@@ -1,8 +1,8 @@
-// src/rest/apikeys/handler.rs
+// src/rest/api_keys/handler.rs
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{apikeys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{apikeys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, types::{UpsertCreateType, UpsertEditType}
+        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -64,7 +64,7 @@ pub mod apikeys_handlers {
         };
 
         // Get the requested user_id from params
-        let requested_user_id = UserID(PublicKeyBLS(params.get("user_id").unwrap().to_string()));
+        let requested_user_id = UserID(params.get("user_id").unwrap().to_string());
 
         // Check authorization:
         // 1. The requester's API key must either belong to the owner
@@ -115,120 +115,107 @@ pub mod apikeys_handlers {
     
         // Parse request body
         let body: &[u8] = req.body();
-        let create_req = serde_json::from_slice::<CreateApiKeyRequestBody>(body);
-    
-        // Try to deserialize as either create or update request
-        if let Ok(create_req) = serde_json::from_slice::<CreateApiKeyRequestBody>(body) {
-            // Handle create request
-            if !matches!(create_req.type_field, UpsertCreateType::Create) {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid request type".to_string()).encode()
-                );
-            }
-    
-            // Determine what user_id to use for the new key
-            let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-            
-            // If owner and user_id provided in request, use that. Otherwise use requester's user_id
-            let key_user_id = if is_owner && create_req.user_id.is_some() {
-                UserID(PublicKeyBLS(create_req.user_id.unwrap()))
-            } else {
-                requester_api_key.user_id.clone()
-            };
-    
-            // Generate new API key with proper user_id
-            let new_api_key = ApiKey {
-                id: ApiKeyID(generate_unique_id("ApiKeyID")),
-                value: ApiKeyValue(generate_api_key()),
-                user_id: key_user_id, 
-                name: create_req.name,
-                created_at: ic_cdk::api::time(),
-                expires_at: create_req.expires_at.unwrap_or(-1),
-                is_revoked: false,
-            };
-    
-            // Update all three hashtables
-            
-            // 1. Add to APIKEYS_BY_VALUE_HASHTABLE
-            APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
-                store.borrow_mut().insert(new_api_key.value.clone(), new_api_key.id.clone());
-            });
-    
-            // 2. Add to APIKEYS_BY_ID_HASHTABLE
-            APIKEYS_BY_ID_HASHTABLE.with(|store| {
-                store.borrow_mut().insert(new_api_key.id.clone(), new_api_key.clone());
-            });
-    
-            // 3. Add to USERS_APIKEYS_HASHTABLE
-            USERS_APIKEYS_HASHTABLE.with(|store| {
-                store.borrow_mut()
-                    .entry(new_api_key.user_id.clone())
-                    .or_insert_with(Vec::new)
-                    .push(new_api_key.id.clone());
-            });
-    
-            create_response(
-                StatusCode::OK,
-                CreateApiKeyResponse::ok(&new_api_key).encode()
-            )
-    
-        } else if let Ok(update_req) = serde_json::from_slice::<UpdateApiKeyRequestBody>(body) {
-            // Handle update request
-            if !matches!(update_req.type_field, UpsertEditType::Edit) {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid request type".to_string()).encode()
-                );
-            }
-    
-            // Get the API key to update
-            let api_key_id = ApiKeyID(update_req.id);
-            let mut api_key = match APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&api_key_id).cloned()) {
-                Some(key) => key,
-                None => return create_response(
-                    StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "API key not found".to_string()).encode()
-                ),
-            };
-    
-            // Check authorization - can only update their own keys
-            if requester_api_key.user_id != api_key.user_id {
-                return create_auth_error_response();
-            }
-    
-            // Update only the fields that were provided
-            if let Some(name) = update_req.name {
-                api_key.name = name;
-            }
-            if let Some(expires_at) = update_req.expires_at {
-                api_key.expires_at = expires_at;
-            }
-            if let Some(is_revoked) = update_req.is_revoked {
-                api_key.is_revoked = is_revoked;
-            }
-    
-            // Update the API key in APIKEYS_BY_ID_HASHTABLE
-            APIKEYS_BY_ID_HASHTABLE.with(|store| {
-                store.borrow_mut().insert(api_key.id.clone(), api_key.clone());
-            });
 
-            // Get the updated API key
-            let updated_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-                store.borrow().get(&api_key.id.clone()).cloned()
-            });
+        if let Ok(req) = serde_json::from_slice::<UpsertApiKeyRequestBody>(body) {
+            match req {
+                UpsertApiKeyRequestBody::Create(create_req) => {
+            
+                    // Determine what user_id to use for the new key
+                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+                    
+                    // If owner and user_id provided in request, use that. Otherwise use requester's user_id
+                    let key_user_id = if is_owner && create_req.user_id.is_some() {
+                        UserID(create_req.user_id.unwrap())
+                    } else {
+                        requester_api_key.user_id.clone()
+                    };
+            
+                    // Generate new API key with proper user_id
+                    let new_api_key = ApiKey {
+                        id: ApiKeyID(generate_unique_id("ApiKeyID", "")),
+                        value: ApiKeyValue(generate_api_key()),
+                        user_id: key_user_id, 
+                        name: create_req.name,
+                        created_at: ic_cdk::api::time(),
+                        expires_at: create_req.expires_at.unwrap_or(-1),
+                        is_revoked: false,
+                    };
+            
+                    // Update all three hashtables
+                    
+                    // 1. Add to APIKEYS_BY_VALUE_HASHTABLE
+                    APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(new_api_key.value.clone(), new_api_key.id.clone());
+                    });
+            
+                    // 2. Add to APIKEYS_BY_ID_HASHTABLE
+                    APIKEYS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(new_api_key.id.clone(), new_api_key.clone());
+                    });
+            
+                    // 3. Add to USERS_APIKEYS_HASHTABLE
+                    USERS_APIKEYS_HASHTABLE.with(|store| {
+                        store.borrow_mut()
+                            .entry(new_api_key.user_id.clone())
+                            .or_insert_with(Vec::new)
+                            .push(new_api_key.id.clone());
+                    });
+            
+                    create_response(
+                        StatusCode::OK,
+                        CreateApiKeyResponse::ok(&new_api_key).encode()
+                    )  
+                },
+                UpsertApiKeyRequestBody::Update(update_req) => {
+            
+                    // Get the API key to update
+                    let api_key_id = ApiKeyID(update_req.id);
+                    let mut api_key = match APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&api_key_id).cloned()) {
+                        Some(key) => key,
+                        None => return create_response(
+                            StatusCode::NOT_FOUND,
+                            ErrorResponse::err(404, "API key not found".to_string()).encode()
+                        ),
+                    };
+            
+                    // Check authorization - can only update their own keys
+                    if requester_api_key.user_id != api_key.user_id {
+                        return create_auth_error_response();
+                    }
+            
+                    // Update only the fields that were provided
+                    if let Some(name) = update_req.name {
+                        api_key.name = name;
+                    }
+                    if let Some(expires_at) = update_req.expires_at {
+                        api_key.expires_at = expires_at;
+                    }
+                    if let Some(is_revoked) = update_req.is_revoked {
+                        api_key.is_revoked = is_revoked;
+                    }
+            
+                    // Update the API key in APIKEYS_BY_ID_HASHTABLE
+                    APIKEYS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(api_key.id.clone(), api_key.clone());
+                    });
 
-            match updated_api_key {
-                Some(key) => create_response(
-                    StatusCode::OK,
-                    UpdateApiKeyResponse::ok(&key).encode()
-                ),
-                None => create_response(
-                    StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "API key not found".to_string()).encode()
-                ),
+                    // Get the updated API key
+                    let updated_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow().get(&api_key.id.clone()).cloned()
+                    });
+
+                    match updated_api_key {
+                        Some(key) => create_response(
+                            StatusCode::OK,
+                            UpdateApiKeyResponse::ok(&key).encode()
+                        ),
+                        None => create_response(
+                            StatusCode::NOT_FOUND,
+                            ErrorResponse::err(404, "API key not found".to_string()).encode()
+                        ),
+                    }
+                }
             }
-    
         } else {
             create_response(
                 StatusCode::BAD_REQUEST,

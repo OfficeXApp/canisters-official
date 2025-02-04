@@ -1,7 +1,7 @@
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::{core::state::apikeys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyValue}}, debug_log};
-use crate::rest::apikeys::types::ErrorResponse;
+use crate::{core::state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyValue}}, debug_log};
+use crate::rest::api_keys::types::ErrorResponse;
 
 use super::helpers::create_response;
 

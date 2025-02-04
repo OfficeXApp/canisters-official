@@ -1,10 +1,10 @@
-// src/rest/apikeys/types.rs
+// src/rest/api_keys/types.rs
 
 
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::apikeys::types::{ApiKey, ApiKeyID}, types::UserID}, types::{UpsertCreateType, UpsertEditType}};
+use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::UserID}};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyHidden {
@@ -39,7 +39,7 @@ pub enum ApiKeyResponse<'a, T = ()> {
 }
 
 impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
-    pub fn ok(data: &'a T) -> ApiKeyResponse<T> {
+    pub fn ok(data: &'a T) -> ApiKeyResponse<'a, T> {
         Self::Ok { data }
     }
 
@@ -62,9 +62,8 @@ impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
 
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateApiKeyRequestBody {
-    #[serde(rename = "__type")]
-    pub type_field: UpsertCreateType,
     pub name: String,
     pub user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,8 +86,6 @@ pub type DeleteApiKeyResponse<'a> = ApiKeyResponse<'a, DeletedApiKeyData>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateApiKeyRequestBody {
-    #[serde(rename = "__type")]
-    pub type_field: UpsertEditType,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -97,6 +94,15 @@ pub struct UpdateApiKeyRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_revoked: Option<bool>,
 }
+
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum UpsertApiKeyRequestBody {
+    Create(CreateApiKeyRequestBody),
+    Update(UpdateApiKeyRequestBody),
+}
+
 pub type UpdateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
 
 
