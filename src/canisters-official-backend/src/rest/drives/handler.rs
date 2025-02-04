@@ -1,13 +1,13 @@
-// src/rest/contacts/handler.rs
+// src/rest/drives/handler.rs
 
 
-pub mod contacts_handlers {
+pub mod drives_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, types::PublicKeyBLS}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
-    use crate::core::state::contacts::{
-        types::Contact,
+    use crate::core::state::drives::{
+        
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -18,69 +18,67 @@ pub mod contacts_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_contact_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub fn get_drive_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
-        // Only owner can access contact.private_note
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
         if !is_owner {
             return create_auth_error_response();
         }
 
-        // Get contact ID from params
-        let contact_id = UserID(params.get("contact_id").unwrap().to_string());
+        // Get drive ID from params
+        let drive_id = DriveID(params.get("drive_id").unwrap().to_string());
 
-        // Get the contact
-        let contact = CONTACTS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&contact_id).cloned()
+        // Get the drive
+        let drive = DRIVES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().get(&drive_id).cloned()
         });
 
-        match contact {
-            Some(mut contact) => {
+        match drive {
+            Some(mut drive) => {
                 if !is_owner {
-                    contact.private_note = None;
+                    drive.private_note = None;
                 }
                 create_response(
                     StatusCode::OK,
-                    GetContactResponse::ok(&contact).encode()
+                    GetDriveResponse::ok(&drive).encode()
                 )
             },
             None => create_response(
-                StatusCode::NOT_FOUND, 
+                StatusCode::NOT_FOUND,
                 ErrorResponse::not_found().encode()
             ),
         }
     }
 
-    pub fn list_contacts_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+
+    pub fn list_drives_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-    
-        // Only owner can access webhooks
+
+        // Only owner can access drives
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
         if !is_owner {
             return create_auth_error_response();
         }
-    
+
         // Parse request body
         let body = request.body();
-        let request_body: ListContactsRequestBody = match serde_json::from_slice(body) {
+        let request_body: ListDrivesRequestBody = match serde_json::from_slice(body) {
             Ok(body) => body,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-    
+
         // Parse cursors if provided
         let cursor_up = if let Some(cursor) = request_body.cursor_up {
             match cursor.parse::<usize>() {
@@ -93,7 +91,7 @@ pub mod contacts_handlers {
         } else {
             None
         };
-    
+
         let cursor_down = if let Some(cursor) = request_body.cursor_down {
             match cursor.parse::<usize>() {
                 Ok(idx) => Some(idx),
@@ -105,15 +103,15 @@ pub mod contacts_handlers {
         } else {
             None
         };
-    
+
         // Get total count
-        let total_count = CONTACTS_BY_TIME_LIST.with(|list| list.borrow().len());
-    
-        // If there are no contacts, return early
+        let total_count = DRIVES_BY_TIME_LIST.with(|list| list.borrow().len());
+
+        // If there are no drives, return early
         if total_count == 0 {
             return create_response(
                 StatusCode::OK,
-                ListContactsResponse::ok(&ListContactsResponseData {
+                ListDrivesResponse::ok(&ListDrivesResponseData {
                     items: vec![],
                     page_size: 0,
                     total: 0,
@@ -122,7 +120,7 @@ pub mod contacts_handlers {
                 }).encode()
             );
         }
-    
+
         // Determine starting point based on cursors
         let start_index = if let Some(up) = cursor_up {
             up.min(total_count - 1)
@@ -134,24 +132,24 @@ pub mod contacts_handlers {
                 SortDirection::Desc => total_count - 1,
             }
         };
-    
-        // Get webhooks with pagination and filtering
-        let mut filtered_contacts = Vec::new();
+
+        // Get drives with pagination and filtering
+        let mut filtered_drives = Vec::new();
         let mut processed_count = 0;
-    
-        CONTACTS_BY_TIME_LIST.with(|time_index| {
+
+        DRIVES_BY_TIME_LIST.with(|time_index| {
             let time_index = time_index.borrow();
-            CONTACTS_BY_ID_HASHTABLE.with(|id_store| {
+            DRIVES_BY_ID_HASHTABLE.with(|id_store| {
                 let id_store = id_store.borrow();
                 
                 match request_body.direction {
                     SortDirection::Desc => {
                         // Newest first
                         let mut current_idx = start_index;
-                        while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(contact) = id_store.get(&time_index[current_idx]) {
+                        while filtered_drives.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(drive) = id_store.get(&time_index[current_idx]) {
                                 if request_body.filters.is_empty() {
-                                    filtered_contacts.push(contact.clone());
+                                    filtered_drives.push(drive.clone());
                                 }
                             }
                             if current_idx == 0 {
@@ -164,10 +162,10 @@ pub mod contacts_handlers {
                     SortDirection::Asc => {
                         // Oldest first
                         let mut current_idx = start_index;
-                        while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(contact) = id_store.get(&time_index[current_idx]) {
+                        while filtered_drives.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(drive) = id_store.get(&time_index[current_idx]) {
                                 if request_body.filters.is_empty() {
-                                    filtered_contacts.push(contact.clone());
+                                    filtered_drives.push(drive.clone());
                                 }
                             }
                             current_idx += 1;
@@ -177,7 +175,7 @@ pub mod contacts_handlers {
                 }
             });
         });
-    
+
         // Calculate next cursors based on direction and current position
         let (cursor_up, cursor_down) = match request_body.direction {
             SortDirection::Desc => {
@@ -207,23 +205,24 @@ pub mod contacts_handlers {
                 (next_up, next_down)
             }
         };
-    
+
         // Create response
-        let response_data = ListContactsResponseData {
-            items: filtered_contacts.clone(),
-            page_size: filtered_contacts.len(),
+        let response_data = ListDrivesResponseData {
+            items: filtered_drives.clone(),
+            page_size: filtered_drives.len(),
             total: total_count,
             cursor_up,
             cursor_down,
         };
-    
+
         create_response(
             StatusCode::OK,
-            ListContactsResponse::ok(&response_data).encode()
+            ListDrivesResponse::ok(&response_data).encode()
         )
     }
 
-    pub fn upsert_contact_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+
+    pub fn upsert_drive_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -238,82 +237,64 @@ pub mod contacts_handlers {
         // Parse request body
         let body: &[u8] = req.body();
 
-        if let Ok(req) = serde_json::from_slice::<UpsertContactRequestBody>(body) {
+        if let Ok(req) = serde_json::from_slice::<UpsertDriveRequestBody>(body) {
             match req {
-                UpsertContactRequestBody::Update(update_req) => {
-
-                    let contact_id = UserID(update_req.id);
+                UpsertDriveRequestBody::Update(update_req) => {
+                    let drive_id = DriveID(update_req.id);
                     
-                    // Get existing webhook
-                    let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
-                        Some(contact) => contact,
+                    // Get existing drive
+                    let mut drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
+                        Some(drive) => drive,
                         None => return create_response(
                             StatusCode::NOT_FOUND,
                             ErrorResponse::not_found().encode()
                         ),
                     };
 
-                    // Update fields - ignoring alt_index and event as they cannot be modified
-                    if let Some(nickname) = update_req.nickname {
-                        contact.nickname = nickname;
+                    // Update fields
+                    if let Some(name) = update_req.name {
+                        drive.name = name;
                     }
                     if let Some(public_note) = update_req.public_note {
-                        contact.public_note = public_note;
+                        drive.public_note = Some(public_note);
                     }
                     if let Some(private_note) = update_req.private_note {
                         if is_owner {
-                            contact.private_note = Some(private_note);
+                            drive.private_note = Some(private_note);
                         }
                     }
-                    if let Some(evm_public_address) = update_req.evm_public_address {
-                        contact.evm_public_address = evm_public_address;
-                    }
-                    if let Some(icp_principal) = update_req.icp_principal {
-                        contact.icp_principal = PublicKeyBLS(icp_principal);
-                    }
 
-                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
-                    });
-
-                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
+                    DRIVES_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(drive_id, drive.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
-                        UpdateContactResponse::ok(&contact).encode()
+                        UpdateDriveResponse::ok(&drive).encode()
                     )
                 },
-                UpsertContactRequestBody::Create(create_req) => {
-
-                    // Create new webhook
-                    let contact_id = UserID(generate_unique_id("UserID", ""));
-                    let contact = Contact {
-                        id: contact_id.clone(),
-                        nickname: create_req.nickname,
-                        public_note: create_req.public_note.unwrap_or_default(),
+                UpsertDriveRequestBody::Create(create_req) => {
+                    // Create new drive
+                    let drive_id = DriveID(generate_unique_id("DriveID", ""));
+                    let drive = Drive {
+                        id: drive_id.clone(),
+                        name: create_req.name,
+                        public_note: Some(create_req.public_note.unwrap_or_default()),
                         private_note: Some(create_req.private_note.unwrap_or_default()),
-                        evm_public_address: create_req.evm_public_address.unwrap_or_default(),
-                        icp_principal: PublicKeyBLS(create_req.icp_principal),
-                        teams: [].to_vec()
+                        icp_principal: PublicKeyBLS(create_req.icp_principal.unwrap_or_default()),
                     };
 
-                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
+                    DRIVES_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(drive_id.clone(), drive.clone());
                     });
 
-                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
-                    });
-
-                    CONTACTS_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(contact_id.clone());
+                    DRIVES_BY_TIME_LIST.with(|store| {
+                        store.borrow_mut().push(drive_id);
                     });
 
                     create_response(
                         StatusCode::OK,
-                        CreateContactResponse::ok(&contact).encode()
+                        CreateDriveResponse::ok(&drive).encode()
                     )
                 }
             }
@@ -323,10 +304,9 @@ pub mod contacts_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             )
         }
-
     }
 
-    pub fn delete_contact_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn delete_drive_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -340,7 +320,7 @@ pub mod contacts_handlers {
 
         // Parse request body
         let body: &[u8] = req.body();
-        let delete_request = match serde_json::from_slice::<DeleteContactRequest>(body) {
+        let delete_request = match serde_json::from_slice::<DeleteDriveRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -348,20 +328,22 @@ pub mod contacts_handlers {
             ),
         };
 
-        let contact_id = delete_request.id.clone();
+        let drive_id = delete_request.id;
 
-        CONTACTS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow_mut().remove(&contact_id);
+        // Remove from hashtable
+        DRIVES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().remove(&drive_id);
         });
 
-        CONTACTS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &contact_id);
+        // Remove from time list
+        DRIVES_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().retain(|id| id != &drive_id);
         });
 
         create_response(
             StatusCode::OK,
-            DeleteContactResponse::ok(&DeletedContactData {
-                id: contact_id,
+            DeleteDriveResponse::ok(&DeletedDriveData {
+                id: drive_id,
                 deleted: true
             }).encode()
         )

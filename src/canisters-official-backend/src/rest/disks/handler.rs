@@ -1,13 +1,10 @@
-// src/rest/contacts/handler.rs
+// src/rest/disks/handler.rs
 
 
-pub mod contacts_handlers {
+pub mod disks_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::{disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::state::state::OWNER_ID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
         
-    };
-    use crate::core::state::contacts::{
-        types::Contact,
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -18,69 +15,67 @@ pub mod contacts_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_contact_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub fn get_disk_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
-        // Only owner can access contact.private_note
+        // Only owner can access disk.private_note
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
         if !is_owner {
             return create_auth_error_response();
         }
 
-        // Get contact ID from params
-        let contact_id = UserID(params.get("contact_id").unwrap().to_string());
+        // Get disk ID from params
+        let disk_id = DiskID(params.get("disk_id").unwrap().to_string());
 
-        // Get the contact
-        let contact = CONTACTS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&contact_id).cloned()
+        // Get the disk
+        let disk = DISKS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().get(&disk_id).cloned()
         });
 
-        match contact {
-            Some(mut contact) => {
+        match disk {
+            Some(mut disk) => {
                 if !is_owner {
-                    contact.private_note = None;
+                    disk.private_note = None;
+                    disk.auth_json = None;
                 }
                 create_response(
                     StatusCode::OK,
-                    GetContactResponse::ok(&contact).encode()
+                    GetDiskResponse::ok(&disk).encode()
                 )
             },
             None => create_response(
-                StatusCode::NOT_FOUND, 
+                StatusCode::NOT_FOUND,
                 ErrorResponse::not_found().encode()
             ),
         }
     }
 
-    pub fn list_contacts_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn list_disks_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-    
-        // Only owner can access webhooks
+
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
         if !is_owner {
             return create_auth_error_response();
         }
-    
+
         // Parse request body
         let body = request.body();
-        let request_body: ListContactsRequestBody = match serde_json::from_slice(body) {
+        let request_body: ListDisksRequestBody = match serde_json::from_slice(body) {
             Ok(body) => body,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-    
+
         // Parse cursors if provided
         let cursor_up = if let Some(cursor) = request_body.cursor_up {
             match cursor.parse::<usize>() {
@@ -93,7 +88,7 @@ pub mod contacts_handlers {
         } else {
             None
         };
-    
+
         let cursor_down = if let Some(cursor) = request_body.cursor_down {
             match cursor.parse::<usize>() {
                 Ok(idx) => Some(idx),
@@ -105,15 +100,15 @@ pub mod contacts_handlers {
         } else {
             None
         };
-    
+
         // Get total count
-        let total_count = CONTACTS_BY_TIME_LIST.with(|list| list.borrow().len());
-    
-        // If there are no contacts, return early
+        let total_count = DISKS_BY_TIME_LIST.with(|list| list.borrow().len());
+
+        // If there are no disks, return early
         if total_count == 0 {
             return create_response(
                 StatusCode::OK,
-                ListContactsResponse::ok(&ListContactsResponseData {
+                ListDisksResponse::ok(&ListDisksResponseData {
                     items: vec![],
                     page_size: 0,
                     total: 0,
@@ -122,7 +117,7 @@ pub mod contacts_handlers {
                 }).encode()
             );
         }
-    
+
         // Determine starting point based on cursors
         let start_index = if let Some(up) = cursor_up {
             up.min(total_count - 1)
@@ -134,24 +129,23 @@ pub mod contacts_handlers {
                 SortDirection::Desc => total_count - 1,
             }
         };
-    
-        // Get webhooks with pagination and filtering
-        let mut filtered_contacts = Vec::new();
+
+        // Get disks with pagination and filtering
+        let mut filtered_disks = Vec::new();
         let mut processed_count = 0;
-    
-        CONTACTS_BY_TIME_LIST.with(|time_index| {
+
+        DISKS_BY_TIME_LIST.with(|time_index| {
             let time_index = time_index.borrow();
-            CONTACTS_BY_ID_HASHTABLE.with(|id_store| {
+            DISKS_BY_ID_HASHTABLE.with(|id_store| {
                 let id_store = id_store.borrow();
                 
                 match request_body.direction {
                     SortDirection::Desc => {
-                        // Newest first
                         let mut current_idx = start_index;
-                        while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(contact) = id_store.get(&time_index[current_idx]) {
+                        while filtered_disks.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(disk) = id_store.get(&time_index[current_idx]) {
                                 if request_body.filters.is_empty() {
-                                    filtered_contacts.push(contact.clone());
+                                    filtered_disks.push(disk.clone());
                                 }
                             }
                             if current_idx == 0 {
@@ -162,12 +156,11 @@ pub mod contacts_handlers {
                         }
                     },
                     SortDirection::Asc => {
-                        // Oldest first
                         let mut current_idx = start_index;
-                        while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(contact) = id_store.get(&time_index[current_idx]) {
+                        while filtered_disks.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(disk) = id_store.get(&time_index[current_idx]) {
                                 if request_body.filters.is_empty() {
-                                    filtered_contacts.push(contact.clone());
+                                    filtered_disks.push(disk.clone());
                                 }
                             }
                             current_idx += 1;
@@ -177,7 +170,7 @@ pub mod contacts_handlers {
                 }
             });
         });
-    
+
         // Calculate next cursors based on direction and current position
         let (cursor_up, cursor_down) = match request_body.direction {
             SortDirection::Desc => {
@@ -207,23 +200,21 @@ pub mod contacts_handlers {
                 (next_up, next_down)
             }
         };
-    
-        // Create response
-        let response_data = ListContactsResponseData {
-            items: filtered_contacts.clone(),
-            page_size: filtered_contacts.len(),
-            total: total_count,
-            cursor_up,
-            cursor_down,
-        };
-    
+
         create_response(
             StatusCode::OK,
-            ListContactsResponse::ok(&response_data).encode()
+            ListDisksResponse::ok(&ListDisksResponseData {
+                items: filtered_disks.clone(),
+                page_size: filtered_disks.len(),
+                total: total_count,
+                cursor_up,
+                cursor_down,
+            }).encode()
         )
     }
 
-    pub fn upsert_contact_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+
+    pub fn upsert_disk_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -238,82 +229,88 @@ pub mod contacts_handlers {
         // Parse request body
         let body: &[u8] = req.body();
 
-        if let Ok(req) = serde_json::from_slice::<UpsertContactRequestBody>(body) {
+        if let Ok(req) = serde_json::from_slice::<UpsertDiskRequestBody>(body) {
             match req {
-                UpsertContactRequestBody::Update(update_req) => {
-
-                    let contact_id = UserID(update_req.id);
+                UpsertDiskRequestBody::Update(update_req) => {
+                    let disk_id = DiskID(update_req.id);
                     
-                    // Get existing webhook
-                    let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
-                        Some(contact) => contact,
+                    // Get existing disk
+                    let mut disk = match DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&disk_id).cloned()) {
+                        Some(disk) => disk,
                         None => return create_response(
                             StatusCode::NOT_FOUND,
                             ErrorResponse::not_found().encode()
                         ),
                     };
 
-                    // Update fields - ignoring alt_index and event as they cannot be modified
-                    if let Some(nickname) = update_req.nickname {
-                        contact.nickname = nickname;
+                    // Update fields
+                    if let Some(name) = update_req.name {
+                        disk.name = name;
                     }
                     if let Some(public_note) = update_req.public_note {
-                        contact.public_note = public_note;
+                        disk.public_note = Some(public_note);
                     }
                     if let Some(private_note) = update_req.private_note {
-                        if is_owner {
-                            contact.private_note = Some(private_note);
+                        disk.private_note = Some(private_note);
+                    }
+                    if let Some(auth_json) = update_req.auth_json {
+                        disk.auth_json = Some(auth_json);
+                    }
+                    if let Some(external_id) = update_req.external_id {
+                        // Update external ID mapping
+                        if let Some(old_external_id) = &disk.external_id {
+                            DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| {
+                                store.borrow_mut().remove(old_external_id);
+                            });
                         }
-                    }
-                    if let Some(evm_public_address) = update_req.evm_public_address {
-                        contact.evm_public_address = evm_public_address;
-                    }
-                    if let Some(icp_principal) = update_req.icp_principal {
-                        contact.icp_principal = PublicKeyBLS(icp_principal);
+                        DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| {
+                            store.borrow_mut().insert(external_id.clone(), disk_id.clone());
+                        });
+                        disk.external_id = Some(external_id);
                     }
 
-                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
-                    });
-
-                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
+                    DISKS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(disk_id.clone(), disk.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
-                        UpdateContactResponse::ok(&contact).encode()
+                        UpdateDiskResponse::ok(&disk).encode()
                     )
                 },
-                UpsertContactRequestBody::Create(create_req) => {
-
-                    // Create new webhook
-                    let contact_id = UserID(generate_unique_id("UserID", ""));
-                    let contact = Contact {
-                        id: contact_id.clone(),
-                        nickname: create_req.nickname,
-                        public_note: create_req.public_note.unwrap_or_default(),
-                        private_note: Some(create_req.private_note.unwrap_or_default()),
-                        evm_public_address: create_req.evm_public_address.unwrap_or_default(),
-                        icp_principal: PublicKeyBLS(create_req.icp_principal),
-                        teams: [].to_vec()
+                UpsertDiskRequestBody::Create(create_req) => {
+                    // Create new disk
+                    let disk_type_suffix = format!("--DiskType_{}", create_req.disk_type);
+                    let disk_id = DiskID(generate_unique_id("DiskID", &disk_type_suffix));
+                    let disk = Disk {
+                        id: disk_id.clone(),
+                        name: create_req.name,
+                        public_note: create_req.public_note,
+                        private_note: create_req.private_note,
+                        auth_json: create_req.auth_json,
+                        disk_type: create_req.disk_type,
+                        external_id: create_req.external_id.clone(),
                     };
 
-                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
+                    // Store the disk
+                    DISKS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(disk_id.clone(), disk.clone());
                     });
 
-                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
-                    });
+                    // Store external ID mapping if provided
+                    if let Some(external_id) = &disk.external_id {
+                        DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| {
+                            store.borrow_mut().insert(external_id.clone(), disk_id.clone());
+                        });
+                    }
 
-                    CONTACTS_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(contact_id.clone());
+                    DISKS_BY_TIME_LIST.with(|store| {
+                        store.borrow_mut().push(disk_id.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
-                        CreateContactResponse::ok(&contact).encode()
+                        CreateDiskResponse::ok(&disk).encode()
                     )
                 }
             }
@@ -323,10 +320,9 @@ pub mod contacts_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             )
         }
-
     }
 
-    pub fn delete_contact_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn delete_disk_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -340,7 +336,7 @@ pub mod contacts_handlers {
 
         // Parse request body
         let body: &[u8] = req.body();
-        let delete_request = match serde_json::from_slice::<DeleteContactRequest>(body) {
+        let delete_request = match serde_json::from_slice::<DeleteDiskRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -348,20 +344,35 @@ pub mod contacts_handlers {
             ),
         };
 
-        let contact_id = delete_request.id.clone();
+        let disk_id = delete_request.id.clone();
 
-        CONTACTS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow_mut().remove(&contact_id);
+        // Get disk for external ID cleanup
+        let disk = DISKS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().get(&disk_id).cloned()
         });
 
-        CONTACTS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &contact_id);
+        // Remove from external ID mapping if it exists
+        if let Some(disk) = disk {
+            if let Some(external_id) = disk.external_id {
+                DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| {
+                    store.borrow_mut().remove(&external_id);
+                });
+            }
+        }
+
+        // Remove from main stores
+        DISKS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().remove(&disk_id);
+        });
+
+        DISKS_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().retain(|id| id != &disk_id);
         });
 
         create_response(
             StatusCode::OK,
-            DeleteContactResponse::ok(&DeletedContactData {
-                id: contact_id,
+            DeleteDiskResponse::ok(&DeletedDiskData {
+                id: disk_id,
                 deleted: true
             }).encode()
         )

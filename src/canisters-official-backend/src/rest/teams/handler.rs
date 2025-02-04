@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{drive::state::state::OWNER_ID, team_invites::{state::state::TEAM_INVITES_BY_ID_HASHTABLE, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST, USERS_TEAMS_HASHTABLE}, types::{Team, TeamID}}}, types::{CanisterID, PublicKeyBLS}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
+        core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, OWNER_ID}, types::DriveID}, team_invites::{state::state::TEAM_INVITES_BY_ID_HASHTABLE, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST, USERS_TEAMS_HASHTABLE}, types::{Team, TeamID}}}, types::PublicKeyBLS}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -105,8 +105,8 @@ pub mod teams_handlers {
         if let Ok(req) = serde_json::from_slice::<UpsertTeamRequestBody>(body) {
             match req {
                 UpsertTeamRequestBody::Create(create_req) => {
-                    let canister_id_suffix = format!("--CanisterID_{}", ic_cdk::api::id().to_text());
-                    let team_id = TeamID(generate_unique_id("TeamID", &canister_id_suffix));
+                    let drive_id_suffix = format!("--DriveID_{}", ic_cdk::api::id().to_text());
+                    let team_id = TeamID(generate_unique_id("TeamID", &drive_id_suffix));
                     let now = ic_cdk::api::time();
 
                     // Create new team
@@ -120,7 +120,7 @@ pub mod teams_handlers {
                         member_invites: Vec::new(),
                         created_at: now,
                         last_modified_at: now,
-                        canister_id: CanisterID(PublicKeyBLS(ic_cdk::api::id().to_text())),
+                        drive_id: DRIVE_ID.with(|id| id.clone()),
                     };
 
                     // Update state
