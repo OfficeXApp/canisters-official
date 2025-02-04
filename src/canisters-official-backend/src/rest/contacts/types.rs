@@ -13,7 +13,7 @@ pub enum ContactResponse<'a, T = ()> {
 }
 
 impl<'a, T: Serialize> ContactResponse<'a, T> {
-    pub fn ok(data: &'a T) -> ContactResponse<T> {
+    pub fn ok(data: &'a T) -> ContactResponse<'a, T> {
         Self::Ok { data }
     }
 
@@ -75,8 +75,8 @@ pub enum UpsertContactRequestBody {
 }
 
 
-
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateContactRequestBody {
     pub icp_principal: String,
     pub nickname: String,
@@ -92,18 +92,15 @@ pub struct UpdateContactRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub evm_public_address: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub public_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub private_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evm_public_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icp_principal: Option<String>,
 }
 
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateContactRequest {
-    pub title: String,
-}
 
 pub type CreateContactResponse<'a> = ContactResponse<'a, Contact>;
 

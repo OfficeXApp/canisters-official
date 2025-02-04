@@ -77,6 +77,7 @@ pub struct ListWebhooksResponseData {
 
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateWebhookRequestBody {
     pub alt_index: String,
     pub url: String,

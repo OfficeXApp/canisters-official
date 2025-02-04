@@ -266,7 +266,7 @@ pub mod webhooks_handlers {
                 UpsertWebhookRequestBody::Create(create_req) => {
 
                     // Create new webhook
-                    let webhook_id = WebhookID(generate_unique_id("WebhookID"));
+                    let webhook_id = WebhookID(generate_unique_id("WebhookID", ""));
                     let alt_index = WebhookAltIndexID(create_req.alt_index);
                     let webhook = Webhook {
                         id: webhook_id.clone(),

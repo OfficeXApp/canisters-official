@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{drive::state::state::OWNER_ID, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST, USERS_TEAMS_HASHTABLE}, types::{Team, TeamID}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
+        core::{api::uuid::generate_unique_id, state::{drive::state::state::OWNER_ID, team_invites::{state::state::TEAM_INVITES_BY_ID_HASHTABLE, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST, USERS_TEAMS_HASHTABLE}, types::{Team, TeamID}}}, types::{CanisterID, PublicKeyBLS}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -105,12 +105,13 @@ pub mod teams_handlers {
         if let Ok(req) = serde_json::from_slice::<UpsertTeamRequestBody>(body) {
             match req {
                 UpsertTeamRequestBody::Create(create_req) => {
-                    let id = TeamID(generate_unique_id("teamID"));
+                    let canister_id_suffix = format!("--CanisterID_{}", ic_cdk::api::id().to_text());
+                    let team_id = TeamID(generate_unique_id("TeamID", &canister_id_suffix));
                     let now = ic_cdk::api::time();
 
                     // Create new team
                     let new_team = Team {
-                        id: id.clone(),
+                        id: team_id.clone(),
                         name: create_req.name,
                         owner: requester_api_key.user_id.clone(),
                         private_note: if is_authorized { create_req.private_note } else { None },
@@ -119,16 +120,16 @@ pub mod teams_handlers {
                         member_invites: Vec::new(),
                         created_at: now,
                         last_modified_at: now,
-                        canister_id: create_req.canister_id,
+                        canister_id: CanisterID(PublicKeyBLS(ic_cdk::api::id().to_text())),
                     };
 
                     // Update state
                     TEAMS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(id.clone(), new_team.clone());
+                        store.borrow_mut().insert(team_id.clone(), new_team.clone());
                     });
 
                     TEAMS_BY_TIME_LIST.with(|list| {
-                        list.borrow_mut().push(id.clone());
+                        list.borrow_mut().push(team_id.clone());
                     });
 
                     create_response(
@@ -187,14 +188,14 @@ pub mod teams_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-
+    
         // Only owner can delete teams for now
         let is_authorized = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-
+    
         if !is_authorized {
             return create_auth_error_response();
         }
-
+    
         // Parse request body
         let body: &[u8] = req.body();
         let delete_request = match serde_json::from_slice::<DeleteTeamRequestBody>(body) {
@@ -204,9 +205,9 @@ pub mod teams_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
         let team_id = TeamID(delete_request.id.clone());
-
+    
         // Get team to verify it exists
         let team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {
             Some(team) => team,
@@ -215,19 +216,48 @@ pub mod teams_handlers {
                 ErrorResponse::not_found().encode()
             ),
         };
-
-        // Remove from all state stores
+    
+    
+        // First, get all invites to know which users we need to update
+        let invites_to_remove = TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+            let store = store.borrow();
+            team.member_invites.clone().iter()
+                .filter_map(|invite_id| store.get(invite_id).cloned())
+                .collect::<Vec<Team_Invite>>()
+        });
+    
+        // Remove invites from TEAM_INVITES_BY_ID_HASHTABLE
+        TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+            let mut store = store.borrow_mut();
+            for invite_id in &team.member_invites {
+                store.remove(invite_id);
+            }
+        });
+    
+        // Remove invites from USERS_TEAMS_HASHTABLE
+        USERS_TEAMS_HASHTABLE.with(|store| {
+            let mut store = store.borrow_mut();
+            // For each invite we're removing, update the corresponding user's invite list
+            for invite in &invites_to_remove {
+                if let Some(user_invites) = store.get_mut(&invite.invitee_id) {
+                    user_invites.retain(|id| !team.member_invites.contains(id));
+                }
+            }
+        });
+    
+        // Remove team from TEAMS_BY_ID_HASHTABLE
         TEAMS_BY_ID_HASHTABLE.with(|store| {
             store.borrow_mut().remove(&team_id);
         });
-
+    
+        // Remove team from TEAMS_BY_TIME_LIST
         TEAMS_BY_TIME_LIST.with(|list| {
             let mut list = list.borrow_mut();
             if let Some(pos) = list.iter().position(|id| *id == team_id) {
                 list.remove(pos);
             }
         });
-
+    
         create_response(
             StatusCode::OK,
             DeleteTeamResponse::ok(&DeletedTeamData {

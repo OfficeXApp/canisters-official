@@ -15,7 +15,8 @@ pub struct Team_Invite {
     pub inviter_id: UserID,
     pub invitee_id: UserID,
     pub role: TeamRole,
-    pub status: InviteStatus,
+    pub active_from: u64,
+    pub expires_at: i64,
     pub created_at: u64,
     pub last_modified_at: u64,
 }
@@ -24,11 +25,4 @@ pub struct Team_Invite {
 pub enum TeamRole {
     Admin,
     Member
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)] 
-pub enum InviteStatus {
-    Pending,
-    Accepted,
-    Declined
 }

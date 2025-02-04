@@ -64,7 +64,7 @@ pub mod apikeys_handlers {
         };
 
         // Get the requested user_id from params
-        let requested_user_id = UserID(PublicKeyBLS(params.get("user_id").unwrap().to_string()));
+        let requested_user_id = UserID(params.get("user_id").unwrap().to_string());
 
         // Check authorization:
         // 1. The requester's API key must either belong to the owner
@@ -125,14 +125,14 @@ pub mod apikeys_handlers {
                     
                     // If owner and user_id provided in request, use that. Otherwise use requester's user_id
                     let key_user_id = if is_owner && create_req.user_id.is_some() {
-                        UserID(PublicKeyBLS(create_req.user_id.unwrap()))
+                        UserID(create_req.user_id.unwrap())
                     } else {
                         requester_api_key.user_id.clone()
                     };
             
                     // Generate new API key with proper user_id
                     let new_api_key = ApiKey {
-                        id: ApiKeyID(generate_unique_id("ApiKeyID")),
+                        id: ApiKeyID(generate_unique_id("ApiKeyID", "")),
                         value: ApiKeyValue(generate_api_key()),
                         user_id: key_user_id, 
                         name: create_req.name,

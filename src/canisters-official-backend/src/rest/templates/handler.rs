@@ -72,7 +72,7 @@ pub mod templates_handlers {
     pub fn create_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(req.body());
 
-        let id = TemplateID(generate_unique_id("templateID"));
+        let id = TemplateID(generate_unique_id("TemplateID", ""));
 
         let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let template_item = TemplateItem {

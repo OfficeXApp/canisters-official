@@ -21,6 +21,9 @@ pub fn init_routes() {
     crate::rest::templates::route::init_routes();
     crate::rest::api_keys::route::init_routes();
     crate::rest::webhooks::route::init_routes();
+    crate::rest::contacts::route::init_routes();
+    crate::rest::teams::route::init_routes();
+    crate::rest::team_invites::route::init_routes();
 
     // Handle not found for all methods with wildcard routes
     let wildcard_methods = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "TRACE", "CONNECT"];

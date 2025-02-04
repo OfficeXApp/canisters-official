@@ -14,7 +14,7 @@ pub enum TeamResponse<'a, T = ()> {
 }
 
 impl<'a, T: Serialize> TeamResponse<'a, T> {
-    pub fn ok(data: &'a T) -> TeamResponse<T> {
+    pub fn ok(data: &'a T) -> TeamResponse<'a, T> {
         Self::Ok { data }
     }
 
@@ -63,11 +63,11 @@ pub struct ListTeamsResponseData {
 pub type ListTeamsResponse<'a> = TeamResponse<'a, ListTeamsResponseData>;
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateTeamRequestBody {
     pub name: String,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub canister_id: CanisterID,
 }
 
 #[derive(Debug, Clone, Deserialize)]

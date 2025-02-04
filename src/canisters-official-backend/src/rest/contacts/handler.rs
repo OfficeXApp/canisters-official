@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{CreateContactRequest, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drive::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -27,12 +27,13 @@ pub mod contacts_handlers {
 
         // Only owner can access contact.private_note
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
         if !is_owner {
             return create_auth_error_response();
         }
 
         // Get contact ID from params
-        let contact_id = UserID(PublicKeyBLS(params.get("contact_id").unwrap().to_string()));
+        let contact_id = UserID(params.get("contact_id").unwrap().to_string());
 
         // Get the contact
         let contact = CONTACTS_BY_ID_HASHTABLE.with(|store| {
@@ -65,6 +66,7 @@ pub mod contacts_handlers {
     
         // Only owner can access webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
         if !is_owner {
             return create_auth_error_response();
         }
@@ -238,36 +240,9 @@ pub mod contacts_handlers {
 
         if let Ok(req) = serde_json::from_slice::<UpsertContactRequestBody>(body) {
             match req {
-                UpsertContactRequestBody::Create(create_req) => {
-
-                    // Create new webhook
-                    let contact_id = UserID(PublicKeyBLS(generate_unique_id("UserID")));
-                    let contact = Contact {
-                        id: contact_id.clone(),
-                        nickname: create_req.nickname,
-                        public_note: create_req.public_note.unwrap_or_default(),
-                        private_note: Some(create_req.private_note.unwrap_or_default()),
-                        evm_public_address: create_req.evm_public_address.unwrap_or_default(),
-                        icp_principal: ic_cdk::api::caller().to_text(),
-                        teams: [].to_vec()
-                    };
-
-                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
-                    });
-
-                    CONTACTS_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(contact_id.clone());
-                    });
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateContactResponse::ok(&contact).encode()
-                    )
-                },
                 UpsertContactRequestBody::Update(update_req) => {
 
-                    let contact_id = UserID(PublicKeyBLS(update_req.id));
+                    let contact_id = UserID(update_req.id);
                     
                     // Get existing webhook
                     let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
@@ -293,15 +268,52 @@ pub mod contacts_handlers {
                     if let Some(evm_public_address) = update_req.evm_public_address {
                         contact.evm_public_address = evm_public_address;
                     }
+                    if let Some(icp_principal) = update_req.icp_principal {
+                        contact.icp_principal = icp_principal;
+                    }
 
-                    // Update webhook in ID table
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(contact_id.clone(), contact.clone());
+                    });
+
+                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
                         UpdateContactResponse::ok(&contact).encode()
+                    )
+                },
+                UpsertContactRequestBody::Create(create_req) => {
+
+                    // Create new webhook
+                    let contact_id = UserID(generate_unique_id("UserID", ""));
+                    let contact = Contact {
+                        id: contact_id.clone(),
+                        nickname: create_req.nickname,
+                        public_note: create_req.public_note.unwrap_or_default(),
+                        private_note: Some(create_req.private_note.unwrap_or_default()),
+                        evm_public_address: create_req.evm_public_address.unwrap_or_default(),
+                        icp_principal: create_req.icp_principal,
+                        teams: [].to_vec()
+                    };
+
+                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
+                    });
+
+                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
+                    });
+
+                    CONTACTS_BY_TIME_LIST.with(|store| {
+                        store.borrow_mut().push(contact_id.clone());
+                    });
+
+                    create_response(
+                        StatusCode::OK,
+                        CreateContactResponse::ok(&contact).encode()
                     )
                 }
             }

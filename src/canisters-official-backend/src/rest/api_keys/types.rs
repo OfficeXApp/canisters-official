@@ -39,7 +39,7 @@ pub enum ApiKeyResponse<'a, T = ()> {
 }
 
 impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
-    pub fn ok(data: &'a T) -> ApiKeyResponse<T> {
+    pub fn ok(data: &'a T) -> ApiKeyResponse<'a, T> {
         Self::Ok { data }
     }
 
@@ -62,6 +62,7 @@ impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
 
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateApiKeyRequestBody {
     pub name: String,
     pub user_id: Option<String>,

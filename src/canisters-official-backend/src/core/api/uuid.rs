@@ -3,7 +3,7 @@ use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::time::{UNIX_EPOCH};
 
-pub fn generate_unique_id(prefix: &str) -> String {
+pub fn generate_unique_id(prefix: &str, suffix: &str) -> String {
     let canister_id = ic_cdk::api::id().to_string();          // Canister's unique ID
     let current_time = ic_cdk::api::time();                   // Nanoseconds timestamp
     let caller = ic_cdk::api::caller().to_string();           // Principal of the caller
@@ -19,12 +19,12 @@ pub fn generate_unique_id(prefix: &str) -> String {
         // Use SHA256 to hash the input string and produce a compact, unique identifier
         let mut hasher = Sha256::new();
         hasher.update(input_string);
-        format!("{}_{:x}", prefix, hasher.finalize())
+        format!("{}_{:x}{}", prefix, hasher.finalize(), suffix)
     })
 }
 
 pub fn generate_api_key() -> String {
-    let input = generate_unique_id("ApiKeyID");
+    let input = generate_unique_id("ApiKeyID", "");
     let salt = ic_cdk::api::time();
     let combined = format!("{}{}", input, salt);
     

@@ -3,10 +3,10 @@ use crate::debug_log;
 use crate::rest::router;
 use crate::types::RouteHandler;
 
-pub const TEAM_INVITES_GET_PATH: &str = "/team_invites/get/{id}";
-pub const TEAM_INVITES_LIST_PATH: &str = "/team_invites/list";
-pub const TEAM_INVITES_UPSERT_PATH: &str = "/team_invites/upsert";
-pub const TEAM_INVITES_DELETE_PATH: &str = "/team_invites/delete";
+pub const TEAM_INVITES_GET_PATH: &str = "/teams/invites/get/{invite_id}";
+pub const TEAM_INVITES_LIST_PATH: &str = "/teams/invites/list";
+pub const TEAM_INVITES_UPSERT_PATH: &str = "/teams/invites/upsert";
+pub const TEAM_INVITES_DELETE_PATH: &str = "/teams/invites/delete";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

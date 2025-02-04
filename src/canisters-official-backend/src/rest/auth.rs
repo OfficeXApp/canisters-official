@@ -8,7 +8,7 @@ use super::helpers::create_response;
 // Add this helper function in your apikeys_handlers module
 pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     // First extract the api key header
-    let api_key_str = match req.headers().iter().find(|(k, _)| k == "api_key") {
+    let api_key_str = match req.headers().iter().find(|(k, _)| k == "api-key") {
         Some((_, value)) => value,
         None => return None,
     };

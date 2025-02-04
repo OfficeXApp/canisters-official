@@ -24,8 +24,8 @@ impl fmt::Display for ApiKey {
 pub struct ApiKey {
     pub id: ApiKeyID,
     pub value: ApiKeyValue,
-    pub user_id: UserID, 
-    pub name: String, 
+    pub user_id: UserID,
+    pub name: String,
     pub created_at: u64, 
     pub expires_at: i64, 
     pub is_revoked: bool,

@@ -16,7 +16,7 @@ pub struct Team {
     pub owner: UserID,
     pub private_note: Option<String>,
     pub public_note: Option<String>,
-    pub admin_invites: Vec<TeamInviteID>,
+    pub admin_invites: Vec<TeamInviteID>, // all admin_invites are also in member_invites
     pub member_invites: Vec<TeamInviteID>,
     pub created_at: u64,
     pub last_modified_at: u64,

@@ -2,16 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::state::team_invites::types::{TeamInviteID, TeamRole, Team_Invite}, rest::webhooks::types::SortDirection};
+use crate::{core::state::team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}, rest::webhooks::types::SortDirection};
 
-
-// Update CreateTeam_InviteRequest in rest/team_invites/types.rs
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateTeam_InviteRequest {
-    pub team_id: String,
-    pub invitee_id: String,
-    pub role: TeamRole,
-}
 
 
 #[derive(Debug, Clone, Serialize)]
@@ -23,7 +15,7 @@ pub enum Team_InviteResponse<'a, T = ()> {
 }
 
 impl<'a, T: Serialize> Team_InviteResponse<'a, T> {
-    pub fn ok(data: &'a T) -> Team_InviteResponse<T> {
+    pub fn ok(data: &'a T) -> Team_InviteResponse<'a, T> {
         Self::Ok { data }
     }
 
@@ -48,6 +40,7 @@ impl<'a, T: Serialize> Team_InviteResponse<'a, T> {
 // Update CreateTeam_InviteRequest in rest/team_invites/types.rs
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListTeamInvitesRequestBody {
+    pub team_id: String,
     #[serde(default)]
     pub filters: String,
     #[serde(default = "default_page_size")]
@@ -70,6 +63,32 @@ pub struct ListTeamInvitesResponseData {
     pub total: usize,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
+}
+
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateTeamInviteRequestBody {
+    pub team_id: String,
+    pub invitee_id: String,
+    pub role: TeamRole,
+    pub active_from: Option<u64>,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateTeamInviteRequestBody {
+    pub id: TeamInviteID,
+    pub role: Option<TeamRole>,
+    pub active_from: Option<u64>,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum UpsertTeamInviteRequestBody {
+    Create(CreateTeamInviteRequestBody),
+    Update(UpdateTeamInviteRequestBody),
 }
 
 
