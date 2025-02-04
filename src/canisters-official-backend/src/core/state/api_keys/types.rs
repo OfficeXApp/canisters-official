@@ -1,5 +1,5 @@
 
-// src/core/state/apikeys/types.rs
+// src/core/state/api_keys/types.rs
 
 use serde::{Deserialize, Serialize};
 use crate::core::types::UserID;

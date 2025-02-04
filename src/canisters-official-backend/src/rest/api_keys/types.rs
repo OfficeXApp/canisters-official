@@ -1,10 +1,10 @@
-// src/rest/apikeys/types.rs
+// src/rest/api_keys/types.rs
 
 
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::apikeys::types::{ApiKey, ApiKeyID}, types::UserID}};
+use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::UserID}};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyHidden {

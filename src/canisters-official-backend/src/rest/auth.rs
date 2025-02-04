@@ -1,14 +1,14 @@
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::{core::state::apikeys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyValue}}, debug_log};
-use crate::rest::apikeys::types::ErrorResponse;
+use crate::{core::state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyValue}}, debug_log};
+use crate::rest::api_keys::types::ErrorResponse;
 
 use super::helpers::create_response;
 
 // Add this helper function in your apikeys_handlers module
 pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     // First extract the api key header
-    let api_key_str = match req.headers().iter().find(|(k, _)| k == "api-key") {
+    let api_key_str = match req.headers().iter().find(|(k, _)| k == "api_key") {
         Some((_, value)) => value,
         None => return None,
     };

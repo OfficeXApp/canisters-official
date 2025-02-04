@@ -3,27 +3,30 @@
 ## Urgent Next
 
 - [ ] Write the `contacts` REST routes
-- [ ] Connect relevant `contacts` REST routes with relevant `webhook` firing
+- [ ] Write the `teams` REST routes
+- [ ] Write the `team_invites` REST routes
+- [ ] Handle update of `USERS_TEAMS_HASHTABLE` on team delete, etc
+- [ ] Refactor all CRUD creates/updates/deletes to accept array to support bulk operations (hard to change API spec after)
 
 ## Near Future
 
-- [ ] Write the `drive-info` REST routes
-- [ ] Write the `teams` REST routes
+- [ ] Write the `drive_info` REST routes
 - [ ] Write the `canisters` REST routes
 - [ ] Write the `disks` REST routes
 - [ ] Write the `directory` REST routes
+- [ ] Connect relevant REST routes with relevant `webhook` firing
 - [ ] Write the `permissions` REST routes
 - [ ] Auth check `permissions` on all REST routes
 
 ## Backlog
 
-- [ ] Allow BLS signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api-keys). Also requires frontend implementation for convinence.
+- [ ] Allow BLS signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence.
 - [ ] Unit Tests
 
 ## Completed
 
 - [x] Setup boilerplate
-- [x] Write base `api-keys` REST routes
+- [x] Write base `api_keys` REST routes
 - [x] Find, debug & fix developer gotchas related to ICP HTTP Canister development
 - [x] Write the `webhooks` REST routes & define the possible events for listening
 - [x] Remove the `__type` from upserts. Just check if `req.body.id` is present to determine create vs edit
