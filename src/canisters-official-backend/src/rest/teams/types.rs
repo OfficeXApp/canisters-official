@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use crate::{core::{
     state::teams::types::{Team, TeamID},
-    types::{CanisterID, UserID}
+    types::{ UserID}
 }, rest::webhooks::types::SortDirection};
 
 #[derive(Debug, Clone, Serialize)]

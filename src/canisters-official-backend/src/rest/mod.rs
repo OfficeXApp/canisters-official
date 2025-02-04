@@ -12,3 +12,5 @@ pub mod webhooks;
 pub mod contacts;
 pub mod teams;
 pub mod team_invites;
+pub mod drives;
+pub mod disks;

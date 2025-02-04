@@ -2,8 +2,8 @@
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use crate::core::{
-    state::team_invites::types::TeamInviteID,
-    types::{CanisterID, UserID}
+    state::{drives::types::DriveID, team_invites::types::TeamInviteID},
+    types::UserID
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ pub struct Team {
     pub member_invites: Vec<TeamInviteID>,
     pub created_at: u64,
     pub last_modified_at: u64,
-    pub canister_id: CanisterID,
+    pub drive_id: DriveID,
 }
 
 // Implement Display for TeamID

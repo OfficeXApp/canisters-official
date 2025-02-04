@@ -25,6 +25,3 @@ impl fmt::Display for UserID {
         write!(f, "{}", self.0)
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CanisterID(pub PublicKeyBLS);
