@@ -2,8 +2,6 @@
 
 ## Urgent Next
 
-- [ ] Write the `drives` REST routes
-- [ ] Write the `disks` REST routes
 - [ ] Consider whether we need to decouple IDs from BLS public address, and instead let it be uuid and have `Contact.icp_principal` and `Contact.external_id` and save for `Drive.icp_principal` and `Drive.external_id`
 - [ ] Investigate web2/web3 use of auth signatures as API Keys, will it work? how to prevent spoofing?
 
@@ -40,3 +38,5 @@
 - [x] Write the `contacts` REST routes
 - [x] Write the `teams` REST routes
 - [x] Write the `team_invites` REST routes
+- [x] Write the `drives` REST routes
+- [x] Write the `disks` REST routes
