@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, types::PublicKeyBLS}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, types::{ICPPrincipalString, PublicKeyBLS}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::drives::{
@@ -281,7 +281,7 @@ pub mod drives_handlers {
                         name: create_req.name,
                         public_note: Some(create_req.public_note.unwrap_or_default()),
                         private_note: Some(create_req.private_note.unwrap_or_default()),
-                        icp_principal: PublicKeyBLS(create_req.icp_principal.unwrap_or_default()),
+                        icp_principal: ICPPrincipalString(PublicKeyBLS(create_req.icp_principal.unwrap_or_default())),
                     };
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {

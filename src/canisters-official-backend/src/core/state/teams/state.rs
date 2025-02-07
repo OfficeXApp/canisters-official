@@ -7,11 +7,9 @@ pub mod state {
     
     thread_local! {
         // default is to use the api key id to lookup the api key
-        pub static TEAMS_BY_ID_HASHTABLE: RefCell<HashMap<TeamID, Team>> = RefCell::new(HashMap::new());
+        pub(crate) static TEAMS_BY_ID_HASHTABLE: RefCell<HashMap<TeamID, Team>> = RefCell::new(HashMap::new());
         // track in hashtable users list of ApiKeyIDs
-        pub static TEAMS_BY_TIME_LIST: RefCell<Vec<TeamID>> = RefCell::new(Vec::new());
-        // track in hashtable users list of teams
-        pub static USERS_TEAMS_HASHTABLE: RefCell<HashMap<UserID, Vec<TeamInviteID>>> = RefCell::new(HashMap::new());
+        pub(crate) static TEAMS_BY_TIME_LIST: RefCell<Vec<TeamID>> = RefCell::new(Vec::new());
     }
 
 }

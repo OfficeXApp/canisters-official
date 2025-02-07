@@ -8,3 +8,4 @@ pub mod contacts;
 pub mod teams;
 pub mod team_invites;
 pub mod disks;
+pub mod directory;
