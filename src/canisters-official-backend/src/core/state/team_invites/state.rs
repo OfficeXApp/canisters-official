@@ -6,7 +6,7 @@ pub mod state {
     use crate::core::state::team_invites::types::{TeamInviteID, Team_Invite};
     
     thread_local! {
-        pub static TEAM_INVITES_BY_ID_HASHTABLE: RefCell<HashMap<TeamInviteID, Team_Invite>> = RefCell::new(HashMap::new());
+        pub(crate) static TEAM_INVITES_BY_ID_HASHTABLE: RefCell<HashMap<TeamInviteID, Team_Invite>> = RefCell::new(HashMap::new());
     }
 
 }

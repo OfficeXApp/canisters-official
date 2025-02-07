@@ -17,7 +17,7 @@ pub struct Disk {
     pub external_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DiskTypeEnum {
     BrowserCache,
     LocalSSD,

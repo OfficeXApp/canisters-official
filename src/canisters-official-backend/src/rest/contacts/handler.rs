@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -269,7 +269,7 @@ pub mod contacts_handlers {
                         contact.evm_public_address = evm_public_address;
                     }
                     if let Some(icp_principal) = update_req.icp_principal {
-                        contact.icp_principal = PublicKeyBLS(icp_principal);
+                        contact.icp_principal = ICPPrincipalString(PublicKeyBLS(icp_principal));
                     }
 
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {
@@ -295,7 +295,7 @@ pub mod contacts_handlers {
                         public_note: create_req.public_note.unwrap_or_default(),
                         private_note: Some(create_req.private_note.unwrap_or_default()),
                         evm_public_address: create_req.evm_public_address.unwrap_or_default(),
-                        icp_principal: PublicKeyBLS(create_req.icp_principal),
+                        icp_principal: ICPPrincipalString(PublicKeyBLS(create_req.icp_principal)),
                         teams: [].to_vec()
                     };
 

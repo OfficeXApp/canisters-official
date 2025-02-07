@@ -1,7 +1,7 @@
 // src/core/state/contacts/types.rs
 use serde::{Serialize, Deserialize};
 
-use crate::core::{state::teams::types::TeamID, types::{PublicKeyBLS, UserID}};
+use crate::core::{state::teams::types::TeamID, types::{ICPPrincipalString, PublicKeyBLS, UserID}};
 
 
 
@@ -12,6 +12,6 @@ pub struct Contact {
     pub public_note: String,
     pub private_note: Option<String>,
     pub evm_public_address: String,
-    pub icp_principal: PublicKeyBLS,
+    pub icp_principal: ICPPrincipalString,
     pub teams: Vec<TeamID>
 }   
