@@ -2,6 +2,7 @@
 use ic_http_certification::{HttpResponse, StatusCode};
 use serde_json::json;
 use std::borrow::Cow;
+use url::form_urlencoded;
 
 pub fn create_response(status_code: StatusCode, body: String) -> HttpResponse<'static> {
     let headers = vec![(
@@ -35,4 +36,10 @@ pub fn not_found_response() -> HttpResponse<'static> {
         .with_headers(headers)
         .with_body(Cow::Owned(error_payload.to_string().into_bytes()))
         .build()
+}
+
+
+/// Use `url::form_urlencoded` to parse query string into key-value pairs.
+pub fn parse_query_string(query: &str) -> std::collections::HashMap<String, String> {
+    form_urlencoded::parse(query.as_bytes()).into_owned().collect()
 }

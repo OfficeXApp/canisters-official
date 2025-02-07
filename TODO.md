@@ -4,6 +4,11 @@
 
 - [x] Migrate & refactor core drive code
 - [ ] Implement in-canister raw file storage
+- [ ] Implement browser-cache raw file storage
+- [ ] Implement local-ssd raw file storage
+- [ ] Implement aws s3 storage
+- [ ] Implement web3storj storage
+- [ ] Implement multi-disk storage
 - [ ] Figure out best way to elegantly handle in-canister vs off-canister raw file storage (potentially also `disks` logic holding auth creds)
 - [ ] Write the `directory` REST routes and particularly the file action logic
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi

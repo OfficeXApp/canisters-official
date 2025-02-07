@@ -9,3 +9,4 @@ pub mod teams;
 pub mod team_invites;
 pub mod disks;
 pub mod directory;
+pub mod raw_storage;
