@@ -2,7 +2,10 @@
 
 ## Urgent Next
 
-- [ ] Migrate & refactor the `directory` REST routes
+- [x] Migrate & refactor core drive code
+- [ ] Implement in-canister raw file storage
+- [ ] Figure out best way to elegantly handle in-canister vs off-canister raw file storage (potentially also `disks` logic holding auth creds)
+- [ ] Write the `directory` REST routes and particularly the file action logic
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi
 - [ ] Consider audit trailing events for replayability (on directory actions but also permissions and such)
 - [ ] Write the `directory` REST routes, including adding new one `POST /directory/path-to-id` that given full_url_path returns folder_id or file_id

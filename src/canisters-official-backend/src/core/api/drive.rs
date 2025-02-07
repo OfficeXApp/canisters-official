@@ -108,7 +108,6 @@ pub mod drive {
         let full_file_path = sanitized_file_path;
         let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
 
-
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
         } else {
@@ -126,7 +125,6 @@ pub mod drive {
         } else {
             1
         };
-
 
         let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
 
