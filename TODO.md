@@ -3,7 +3,7 @@
 ## Urgent Next
 
 - [ ] Migrate & refactor the `directory` REST routes
-- [ ] Add pub(crate) to rust repo
+- [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi
 - [ ] Consider audit trailing events for replayability (on directory actions but also permissions and such)
 - [ ] Write the `directory` REST routes, including adding new one `POST /directory/path-to-id` that given full_url_path returns folder_id or file_id
 - [ ] Consider whether to add hashed cosmic id into the url. eg. `/drive/{urlencoded_cosmic_id}/directory/list`. generate the id with `base64.urlsafe_b64encode("MYADDRESS::MYIP".encode()).decode().rstrip('=')`
@@ -19,6 +19,7 @@
 
 ## Priority Backlog
 
+- [ ] Add pub(crate) to rust repo in post-retro
 - [ ] Add validation to `contact.icp_principal` and `contact.evm_public_address`
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items

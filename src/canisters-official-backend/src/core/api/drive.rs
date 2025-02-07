@@ -2,21 +2,21 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                internals::drive_internals::{ensure_root_folder, sanitize_file_path, update_subfolder_paths},
+                internals::drive_internals::{ensure_folder_structure, ensure_root_folder, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths},
                 types::DirectoryError,
                 uuid::generate_unique_id
             },
             state::{
                 directory::{
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
-                    types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID}
+                    types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
                 },
                 disks::types::DiskTypeEnum,
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
         }, rest::{directory::types::{DirectoryListResponse, ListDirectoryRequest}, webhooks::types::SortDirection}
     };
 
-    fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
+    pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
         let ListDirectoryRequest { 
             folder_id, 
             path, 
@@ -97,11 +97,87 @@ pub mod drive {
         })
     }
 
+    pub fn create_file(
+        file_path: String,
+        storage_location: DiskTypeEnum,
+        user_id: UserID,
+        expires_at: i64,
+        canister_id: String,
+    ) -> FileUUID {
+        let sanitized_file_path = sanitize_file_path(&file_path);
+        let full_file_path = sanitized_file_path;
+        let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
+
+
+        let canister_icp_principal_string = if canister_id.is_empty() {
+            ic_cdk::api::id().to_text()
+        } else {
+            canister_id.clone()
+        };
+
+        let (folder_path, file_name) = split_path(&full_file_path);
+        let folder_uuid = ensure_folder_structure(&folder_path, storage_location.clone(), user_id.clone(), canister_icp_principal_string.clone());
+
+        let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
+
+        let file_version = if let Some(existing_uuid) = &existing_file_uuid {
+            let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
+            existing_file.file_version + 1
+        } else {
+            1
+        };
+
+
+        let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
+
+        let file_metadata = FileMetadata {
+            id: new_file_uuid.clone(),
+            original_file_name: file_name,
+            folder_uuid: folder_uuid.clone(),
+            file_version,
+            prior_version: existing_file_uuid.clone(),
+            next_version: None,
+            extension,
+            full_file_path: DriveFullFilePath(full_file_path.clone()),
+            tags: Vec::new(),
+            owner: user_id,
+            created_date: ic_cdk::api::time(),
+            storage_location,
+            file_size: 0,
+            raw_url: String::new(),
+            last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+            deleted: false,
+            canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+            expires_at,
+        };
+
+        // Update hashtables
+        file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata);
+        full_file_path_to_uuid.insert(DriveFullFilePath(full_file_path), new_file_uuid.clone());
+
+        // Update parent folder's file_uuids
+        update_folder_file_uuids(&folder_uuid, &new_file_uuid, true);
+
+        // Update prior version if it exists
+        if let Some(existing_uuid) = existing_file_uuid {
+            file_uuid_to_metadata.with_mut(|map| {
+                if let Some(existing_file) = map.get_mut(&existing_uuid) {
+                    existing_file.next_version = Some(new_file_uuid.clone());
+                }
+            });
+            // Remove the old file UUID from the parent folder
+            update_folder_file_uuids(&folder_uuid, &existing_uuid, false);
+        }
+
+        new_file_uuid
+    }
+
     pub fn create_folder(
         full_folder_path: DriveFullFilePath,
         storage_location: DiskTypeEnum,
         user_id: UserID,
         expires_at: i64,
+        canister_id: String,
     ) -> Result<FolderMetadata, String> {
         // Ensure the path ends with a slash
         let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
@@ -129,9 +205,15 @@ pub mod drive {
     
         // Split the folder path into individual parts
         let path_parts: Vec<&str> = folder_path.split('/').filter(|&x| !x.is_empty()).collect();
+
+        let canister_icp_principal_string = if canister_id.is_empty() {
+            ic_cdk::api::id().to_text()
+        } else {
+            canister_id.clone()
+        };
     
         let mut current_path = format!("{}::", storage_part);
-        let mut parent_folder_uuid = ensure_root_folder(&storage_location, &user_id);
+        let mut parent_folder_uuid = ensure_root_folder(&storage_location, &user_id, canister_icp_principal_string.clone());
 
         // root folder case
         if path_parts.is_empty() {
@@ -161,7 +243,7 @@ pub mod drive {
                     storage_location: storage_location.clone(),
                     last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
                     deleted: false,
-                    canister_id: ICPPrincipalString(PublicKeyBLS(ic_cdk::api::id().to_text())),
+                    canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at,
                 };
     
@@ -192,6 +274,19 @@ pub mod drive {
         Err(String::from("Folder already exists"))
     }
 
+    pub fn get_file_by_id(file_id: FileUUID) -> Result<FileMetadata, String> {
+        file_uuid_to_metadata
+            .get(&file_id)
+            .map(|metadata| metadata.clone())
+            .ok_or_else(|| "File not found".to_string())
+    }
+
+    pub fn get_folder_by_id(folder_id: FolderUUID) -> Result<FolderMetadata, String> {
+        folder_uuid_to_metadata
+            .get(&folder_id)
+            .map(|metadata| metadata.clone())
+            .ok_or_else(|| "Folder not found".to_string())
+    }
 
     pub fn rename_folder(folder_id: FolderUUID, new_name: String) -> Result<FolderUUID, String> {
         // Get current folder metadata
@@ -446,5 +541,6 @@ pub mod drive {
         ic_cdk::println!("File deleted successfully");
         Ok(())
     }
+
 
 }

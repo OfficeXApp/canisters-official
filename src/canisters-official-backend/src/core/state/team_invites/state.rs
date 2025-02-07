@@ -3,10 +3,11 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::core::state::team_invites::types::{TeamInviteID, Team_Invite};
+    use crate::core::{state::team_invites::types::{TeamInviteID, Team_Invite}, types::UserID};
     
     thread_local! {
-        pub(crate) static TEAM_INVITES_BY_ID_HASHTABLE: RefCell<HashMap<TeamInviteID, Team_Invite>> = RefCell::new(HashMap::new());
+        pub(crate) static INVITES_BY_ID_HASHTABLE: RefCell<HashMap<TeamInviteID, Team_Invite>> = RefCell::new(HashMap::new());
+        pub(crate) static USERS_INVITES_LIST_HASHTABLE: RefCell<HashMap<UserID, Vec<TeamInviteID>>> = RefCell::new(HashMap::new());
     }
 
 }

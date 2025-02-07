@@ -11,10 +11,10 @@ pub mod state {
     };
 
     // Wrapper types that implement Deref
-    struct FolderMap;
-    struct FileMap;
-    struct FolderPathMap;
-    struct FilePathMap;
+    pub struct FolderMap;
+    pub struct FileMap;
+    pub struct FolderPathMap;
+    pub struct FilePathMap;
 
     impl FolderMap {
         pub fn get(&self, key: &FolderUUID) -> Option<FolderMetadata> {

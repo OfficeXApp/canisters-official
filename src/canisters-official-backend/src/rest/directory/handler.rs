@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::directory::{}}, debug_log, 
+        core::{api::{drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{}, drives::state::state::OWNER_ID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::{DirectoryActionRequest, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, ListDirectoryRequest}}, 
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -15,16 +15,93 @@ pub mod directorys_handlers {
         completed: Option<bool>,
     }
 
-    pub fn search_directory_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
-        
+    pub fn search_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        let response = DirectoryListResponse {
+            folders: Vec::new(),
+            files: Vec::new(),
+            total_folders: 0,
+            total_files: 0,
+            cursor: None,
+        };
+    
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&response).expect("Failed to serialize response")
+        )
     }
 
     pub fn list_directorys_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Only owner can access directories
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        // Parse request body
+        let list_request: ListDirectoryRequest = match serde_json::from_slice(request.body()) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        match fetch_files_at_folder_path(list_request) {
+            Ok(response) => create_response(
+                StatusCode::OK,
+                serde_json::to_vec(&response).expect("Failed to serialize response")
+            ),
+            Err(err) => create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, format!("Failed to list directory: {:?}", err)).encode()
+            )
+        }
     }
 
-    pub fn action_directory_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-       
+    pub fn action_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        let action_request: DirectoryActionRequest = match serde_json::from_slice(request.body()) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // Placeholder that returns empty response for all actions
+        let response = DirectoryActionResponse {
+            data: serde_json::json!({})
+        };
+    
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&response).expect("Failed to serialize response")
+        )
     }
 
     fn json_decode<T>(value: &[u8]) -> T

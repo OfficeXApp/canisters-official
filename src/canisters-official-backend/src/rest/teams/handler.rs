@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, OWNER_ID}, types::DriveID}, team_invites::{state::state::TEAM_INVITES_BY_ID_HASHTABLE, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST, USERS_TEAMS_HASHTABLE}, types::{Team, TeamID}}}, types::PublicKeyBLS}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
+        core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, OWNER_ID}, types::DriveID}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::PublicKeyBLS}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -219,23 +219,23 @@ pub mod teams_handlers {
     
     
         // First, get all invites to know which users we need to update
-        let invites_to_remove = TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+        let invites_to_remove = INVITES_BY_ID_HASHTABLE.with(|store| {
             let store = store.borrow();
             team.member_invites.clone().iter()
                 .filter_map(|invite_id| store.get(invite_id).cloned())
                 .collect::<Vec<Team_Invite>>()
         });
     
-        // Remove invites from TEAM_INVITES_BY_ID_HASHTABLE
-        TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+        // Remove invites from INVITES_BY_ID_HASHTABLE
+        INVITES_BY_ID_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
             for invite_id in &team.member_invites {
                 store.remove(invite_id);
             }
         });
     
-        // Remove invites from USERS_TEAMS_HASHTABLE
-        USERS_TEAMS_HASHTABLE.with(|store| {
+        // Remove invites from USERS_INVITES_LIST_HASHTABLE
+        USERS_INVITES_LIST_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
             // For each invite we're removing, update the corresponding user's invite list
             for invite in &invites_to_remove {

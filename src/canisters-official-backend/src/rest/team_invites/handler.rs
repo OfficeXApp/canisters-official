@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{drives::state::state::OWNER_ID, team_invites::{state::state::TEAM_INVITES_BY_ID_HASHTABLE, types::{TeamInviteID, TeamRole}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, USERS_TEAMS_HASHTABLE}, types::TeamID}}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}}
+        core::{api::uuid::generate_unique_id, state::{drives::state::state::OWNER_ID, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}}
         
     };
     use crate::core::state::team_invites::{
@@ -22,7 +22,7 @@ pub mod team_invites_handlers {
     
         let invite_id = TeamInviteID(params.get("invite_id").unwrap().to_string());
         
-        let invite = TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+        let invite = INVITES_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&invite_id).cloned()
         });
     
@@ -89,7 +89,7 @@ pub mod team_invites_handlers {
                 .map(|team| {
                     team.owner == requester_api_key.user_id || 
                     team.admin_invites.iter().any(|invite_id| {
-                        TEAM_INVITES_BY_ID_HASHTABLE.with(|invite_store| {
+                        INVITES_BY_ID_HASHTABLE.with(|invite_store| {
                             invite_store.borrow()
                                 .get(invite_id)
                                 .map(|invite| invite.invitee_id == requester_api_key.user_id)
@@ -107,7 +107,7 @@ pub mod team_invites_handlers {
         let all_invites = TEAMS_BY_ID_HASHTABLE.with(|teams_store| {
             let teams = teams_store.borrow();
             teams.get(&team_id)
-                .map(|team| TEAM_INVITES_BY_ID_HASHTABLE.with(|invite_store| {
+                .map(|team| INVITES_BY_ID_HASHTABLE.with(|invite_store| {
                     let invites = invite_store.borrow();
                     team.member_invites.iter()
                         .filter_map(|id| invites.get(id))
@@ -174,7 +174,7 @@ pub mod team_invites_handlers {
                     // Check if user is authorized (owner or admin)
                     let is_authorized = team.owner == requester_api_key.user_id || 
                                     team.admin_invites.iter().any(|invite_id| {
-                                        TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+                                        INVITES_BY_ID_HASHTABLE.with(|store| {
                                             store.borrow()
                                                 .get(invite_id)
                                                 .map(|invite| invite.invitee_id == requester_api_key.user_id)
@@ -203,7 +203,7 @@ pub mod team_invites_handlers {
                     };
 
                     // Update all relevant state stores
-                    TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+                    INVITES_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(invite_id.clone(), new_invite.clone());
                     });
 
@@ -222,7 +222,7 @@ pub mod team_invites_handlers {
                     });
 
                     // Update user's team invites
-                    USERS_TEAMS_HASHTABLE.with(|store| {
+                    USERS_INVITES_LIST_HASHTABLE.with(|store| {
                         let mut store = store.borrow_mut();
                         store.entry(new_invite.invitee_id.clone())
                             .or_insert_with(Vec::new)
@@ -238,7 +238,7 @@ pub mod team_invites_handlers {
                     let invite_id = update_req.id;
 
                     // Get existing invite
-                    let mut invite = match TEAM_INVITES_BY_ID_HASHTABLE.with(|store| 
+                    let mut invite = match INVITES_BY_ID_HASHTABLE.with(|store| 
                         store.borrow().get(&invite_id).cloned()
                     ) {
                         Some(invite) => invite,
@@ -251,7 +251,7 @@ pub mod team_invites_handlers {
                     // Check if user is authorized (owner or admin)
                     let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
                     let is_authorized = is_owner || 
-                    TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+                    INVITES_BY_ID_HASHTABLE.with(|store| {
                         store.borrow()
                             .get(&invite_id)
                             .map(|invite| invite.inviter_id == requester_api_key.user_id)
@@ -318,7 +318,7 @@ pub mod team_invites_handlers {
                     invite.last_modified_at = ic_cdk::api::time();
 
                     // Update state
-                    TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+                    INVITES_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(invite.id.clone(), invite.clone());
                     });
 
@@ -353,7 +353,7 @@ pub mod team_invites_handlers {
         };
     
         // Get invite to verify it exists
-        let invite = match TEAM_INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&delete_req.id).cloned()) {
+        let invite = match INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&delete_req.id).cloned()) {
             Some(invite) => invite,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -376,7 +376,7 @@ pub mod team_invites_handlers {
         }
     
         // Remove from all state stores
-        TEAM_INVITES_BY_ID_HASHTABLE.with(|store| {
+        INVITES_BY_ID_HASHTABLE.with(|store| {
             store.borrow_mut().remove(&delete_req.id);
         });
     
@@ -400,7 +400,7 @@ pub mod team_invites_handlers {
         });
         
         // Update user's team invites
-        USERS_TEAMS_HASHTABLE.with(|store| {
+        USERS_INVITES_LIST_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
             if let Some(invites) = store.get_mut(&invite.invitee_id) {
                 if let Some(pos) = invites.iter().position(|id| *id == delete_req.id) {

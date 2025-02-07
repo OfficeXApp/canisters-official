@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -356,6 +356,27 @@ pub mod contacts_handlers {
 
         CONTACTS_BY_TIME_LIST.with(|store| {
             store.borrow_mut().retain(|id| id != &contact_id);
+        });
+
+        // Get and remove user's invites
+        USERS_INVITES_LIST_HASHTABLE.with(|store| {
+            if let Some(invite_ids) = store.borrow_mut().remove(&contact_id) {
+                // Remove each invite from invites hashtable
+                INVITES_BY_ID_HASHTABLE.with(|invites_store| {
+                    let mut store = invites_store.borrow_mut();
+                    for invite_id in invite_ids {
+                        if let Some(invite) = store.remove(&invite_id) {
+                            // Remove user from team if they were part of it
+                            TEAMS_BY_ID_HASHTABLE.with(|teams_store| {
+                                if let Some(mut team) = teams_store.borrow_mut().get_mut(&invite.team_id) {
+                                    team.member_invites.retain(|member_invite_id| member_invite_id != &invite_id);
+                                    team.admin_invites.retain(|admin_invite_id| admin_invite_id != &invite_id);
+                                }
+                            });
+                        }
+                    }
+                });
+            }
         });
 
         create_response(
