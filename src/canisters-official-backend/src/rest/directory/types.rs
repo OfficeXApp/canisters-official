@@ -64,6 +64,44 @@ fn default_page_size() -> usize {
     50
 }
 
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UploadChunkRequest {
+    pub file_id: String,
+    pub chunk_index: u32,
+    pub chunk_data: Vec<u8>,
+    pub total_chunks: u32
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UploadChunkResponse {
+    pub chunk_id: String,
+    pub bytes_received: usize
+}
+
+#[derive(Debug, Clone, Deserialize)] 
+pub struct CompleteUploadRequest {
+    pub file_id: String,
+    pub filename: String
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CompleteUploadResponse {
+    pub file_id: String,
+    pub size: usize,
+    pub chunks: u32,
+    pub filename: String
+}
+
+
+#[derive(serde::Serialize)]
+pub struct FileMetadataResponse {
+    pub file_id: String,
+    pub total_size: usize,
+    pub total_chunks: u32,
+    pub filename: String
+}
+
 pub type SearchDirectoryResponse = DirectoryListResponse;
 
 pub type DirectoryResponse<'a, T> = crate::rest::drives::types::DriveResponse<'a, T>;

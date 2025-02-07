@@ -64,3 +64,15 @@ pub fn create_auth_error_response() -> HttpResponse<'static> {
         .unwrap_or_else(|_| String::from("Unauthorized"));
     create_response(StatusCode::UNAUTHORIZED, body)
 }
+
+
+
+pub fn create_raw_upload_error_response(error_msg: &str) -> HttpResponse<'static> {
+    // Use the new `unauthorized_with_message` (or whichever method you create)
+    let error_struct = ErrorResponse::err(400, error_msg.to_string());
+
+    let body = String::from_utf8(error_struct.encode())
+        .unwrap_or_else(|_| String::from("Bad Request"));
+
+    create_response(StatusCode::BAD_REQUEST, body)
+}
