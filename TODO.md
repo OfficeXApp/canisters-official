@@ -2,12 +2,12 @@
 
 ## Urgent Next
 
-- [x] Migrate & refactor core drive code
-- [ ] Implement in-canister raw file storage
-- [ ] Implement browser-cache raw file storage
-- [ ] Implement local-ssd raw file storage
-- [ ] Implement aws s3 storage
-- [ ] Implement web3storj storage
+- [🔵] Migrate & refactor core drive code --> in front of every POST /directory/action:getFile we need to generate a new raw_url (and potentially also track access_tokens for reuse, at least for public)
+- [🔵] Implement in-canister raw file storage --> has raw_url but only if we add asset-canister functionality
+- [ ] Implement aws s3 storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
+- [ ] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
+- [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
+- [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement multi-disk storage
 - [ ] Figure out best way to elegantly handle in-canister vs off-canister raw file storage (potentially also `disks` logic holding auth creds)
 - [ ] Write the `directory` REST routes and particularly the file action logic
@@ -24,6 +24,8 @@
 - [ ] Write the `permissions` REST routes (https://youtu.be/5GG-VUvruzE?si=lEC0epAhFlD9-2Bp&t=1165)
 - [ ] Auth check `permissions` on all REST routes
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
+- [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
+- [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
 
 ## Priority Backlog
 
