@@ -10,6 +10,7 @@ pub const UPLOAD_CHUNK_PATH: &str = "/directory/raw_upload/chunk";
 pub const COMPLETE_UPLOAD_PATH: &str = "/directory/raw_upload/complete";
 pub const RAW_DOWNLOAD_META_PATH: &str = "/directory/raw_download/meta";
 pub const RAW_DOWNLOAD_CHUNK_PATH: &str = "/directory/raw_download/chunk";
+pub const REQUEST_CLIENTSIDE_UPLOAD: &str = "/directory/client_upload/aws_s3";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -49,6 +50,11 @@ pub fn init_routes() {
             "GET",
             RAW_DOWNLOAD_CHUNK_PATH,
             crate::rest::directory::handler::directorys_handlers::download_file_chunk_handler,
+        ),
+        (
+            "POST",
+            REQUEST_CLIENTSIDE_UPLOAD,
+            crate::rest::directory::handler::directorys_handlers::request_clientside_upload_handler,
         ),
     ];
 

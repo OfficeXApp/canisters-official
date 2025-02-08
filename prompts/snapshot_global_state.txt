@@ -1,0 +1,1478 @@
+// OfficeX filesharing app (clone of google drive)
+// where possible, show the code changes as green diffs without the +/- symbols
+
+
+// src/rest/drives/handler.rs
+
+
+pub mod drives_handlers {
+    use crate::{
+        core::{api::uuid::generate_unique_id, state::drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, types::{ICPPrincipalString, PublicKeyBLS}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        
+    };
+    use crate::core::state::drives::{
+        
+    };
+    use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+    use matchit::Params;
+    use serde::Deserialize;
+    #[derive(Deserialize, Default)]
+    struct ListQueryParams {
+        title: Option<String>,
+        completed: Option<bool>,
+    }
+
+    pub fn get_drive_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // Get drive ID from params
+        let drive_id = DriveID(params.get("drive_id").unwrap().to_string());
+
+        // Get the drive
+        let drive = DRIVES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().get(&drive_id).cloned()
+        });
+
+        match drive {
+            Some(mut drive) => {
+                if !is_owner {
+                    drive.private_note = None;
+                }
+                create_response(
+                    StatusCode::OK,
+                    GetDriveResponse::ok(&drive).encode()
+                )
+            },
+            None => create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        }
+    }
+
+
+    pub fn list_drives_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        // Only owner can access drives
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // Parse request body
+        let body = request.body();
+        let request_body: ListDrivesRequestBody = match serde_json::from_slice(body) {
+            Ok(body) => body,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+
+        // Parse cursors if provided
+        let cursor_up = if let Some(cursor) = request_body.cursor_up {
+            match cursor.parse::<usize>() {
+                Ok(idx) => Some(idx),
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid cursor_up format".to_string()).encode()
+                ),
+            }
+        } else {
+            None
+        };
+
+        let cursor_down = if let Some(cursor) = request_body.cursor_down {
+            match cursor.parse::<usize>() {
+                Ok(idx) => Some(idx),
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid cursor_down format".to_string()).encode()
+                ),
+            }
+        } else {
+            None
+        };
+
+        // Get total count
+        let total_count = DRIVES_BY_TIME_LIST.with(|list| list.borrow().len());
+
+        // If there are no drives, return early
+        if total_count == 0 {
+            return create_response(
+                StatusCode::OK,
+                ListDrivesResponse::ok(&ListDrivesResponseData {
+                    items: vec![],
+                    page_size: 0,
+                    total: 0,
+                    cursor_up: None,
+                    cursor_down: None,
+                }).encode()
+            );
+        }
+
+        // Determine starting point based on cursors
+        let start_index = if let Some(up) = cursor_up {
+            up.min(total_count - 1)
+        } else if let Some(down) = cursor_down {
+            down.min(total_count - 1)
+        } else {
+            match request_body.direction {
+                SortDirection::Asc => 0,
+                SortDirection::Desc => total_count - 1,
+            }
+        };
+
+        // Get drives with pagination and filtering
+        let mut filtered_drives = Vec::new();
+        let mut processed_count = 0;
+
+        DRIVES_BY_TIME_LIST.with(|time_index| {
+            let time_index = time_index.borrow();
+            DRIVES_BY_ID_HASHTABLE.with(|id_store| {
+                let id_store = id_store.borrow();
+                
+                match request_body.direction {
+                    SortDirection::Desc => {
+                        // Newest first
+                        let mut current_idx = start_index;
+                        while filtered_drives.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(drive) = id_store.get(&time_index[current_idx]) {
+                                if request_body.filters.is_empty() {
+                                    filtered_drives.push(drive.clone());
+                                }
+                            }
+                            if current_idx == 0 {
+                                break;
+                            }
+                            current_idx -= 1;
+                            processed_count = start_index - current_idx;
+                        }
+                    },
+                    SortDirection::Asc => {
+                        // Oldest first
+                        let mut current_idx = start_index;
+                        while filtered_drives.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(drive) = id_store.get(&time_index[current_idx]) {
+                                if request_body.filters.is_empty() {
+                                    filtered_drives.push(drive.clone());
+                                }
+                            }
+                            current_idx += 1;
+                            processed_count = current_idx - start_index;
+                        }
+                    }
+                }
+            });
+        });
+
+        // Calculate next cursors based on direction and current position
+        let (cursor_up, cursor_down) = match request_body.direction {
+            SortDirection::Desc => {
+                let next_up = if start_index < total_count - 1 {
+                    Some((start_index + 1).to_string())
+                } else {
+                    None
+                };
+                let next_down = if processed_count > 0 && start_index >= processed_count {
+                    Some((start_index - processed_count).to_string())
+                } else {
+                    None
+                };
+                (next_up, next_down)
+            },
+            SortDirection::Asc => {
+                let next_up = if processed_count > 0 {
+                    Some((start_index + processed_count).to_string())
+                } else {
+                    None
+                };
+                let next_down = if start_index > 0 {
+                    Some((start_index - 1).to_string())
+                } else {
+                    None
+                };
+                (next_up, next_down)
+            }
+        };
+
+        // Create response
+        let response_data = ListDrivesResponseData {
+            items: filtered_drives.clone(),
+            page_size: filtered_drives.len(),
+            total: total_count,
+            cursor_up,
+            cursor_down,
+        };
+
+        create_response(
+            StatusCode::OK,
+            ListDrivesResponse::ok(&response_data).encode()
+        )
+    }
+
+
+    pub fn upsert_drive_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // Parse request body
+        let body: &[u8] = req.body();
+
+        if let Ok(req) = serde_json::from_slice::<UpsertDriveRequestBody>(body) {
+            match req {
+                UpsertDriveRequestBody::Update(update_req) => {
+                    let drive_id = DriveID(update_req.id);
+                    
+                    // Get existing drive
+                    let mut drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
+                        Some(drive) => drive,
+                        None => return create_response(
+                            StatusCode::NOT_FOUND,
+                            ErrorResponse::not_found().encode()
+                        ),
+                    };
+
+                    // Update fields
+                    if let Some(name) = update_req.name {
+                        drive.name = name;
+                    }
+                    if let Some(public_note) = update_req.public_note {
+                        drive.public_note = Some(public_note);
+                    }
+                    if let Some(private_note) = update_req.private_note {
+                        if is_owner {
+                            drive.private_note = Some(private_note);
+                        }
+                    }
+
+                    DRIVES_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(drive_id, drive.clone());
+                    });
+
+                    create_response(
+                        StatusCode::OK,
+                        UpdateDriveResponse::ok(&drive).encode()
+                    )
+                },
+                UpsertDriveRequestBody::Create(create_req) => {
+                    // Create new drive
+                    let drive_id = DriveID(generate_unique_id("DriveID", ""));
+                    let drive = Drive {
+                        id: drive_id.clone(),
+                        name: create_req.name,
+                        public_note: Some(create_req.public_note.unwrap_or_default()),
+                        private_note: Some(create_req.private_note.unwrap_or_default()),
+                        icp_principal: ICPPrincipalString(PublicKeyBLS(create_req.icp_principal.unwrap_or_default())),
+                    };
+
+                    DRIVES_BY_ID_HASHTABLE.with(|store| {
+                        store.borrow_mut().insert(drive_id.clone(), drive.clone());
+                    });
+
+                    DRIVES_BY_TIME_LIST.with(|store| {
+                        store.borrow_mut().push(drive_id);
+                    });
+
+                    create_response(
+                        StatusCode::OK,
+                        CreateDriveResponse::ok(&drive).encode()
+                    )
+                }
+            }
+        } else {
+            create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            )
+        }
+    }
+
+    pub fn delete_drive_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // Parse request body
+        let body: &[u8] = req.body();
+        let delete_request = match serde_json::from_slice::<DeleteDriveRequest>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+
+        let drive_id = delete_request.id;
+
+        // Remove from hashtable
+        DRIVES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().remove(&drive_id);
+        });
+
+        // Remove from time list
+        DRIVES_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().retain(|id| id != &drive_id);
+        });
+
+        create_response(
+            StatusCode::OK,
+            DeleteDriveResponse::ok(&DeletedDriveData {
+                id: drive_id,
+                deleted: true
+            }).encode()
+        )
+    }
+
+    pub fn snapshot_drive_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // return GLOBAL_STATE
+    }
+
+    fn json_decode<T>(value: &[u8]) -> T
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        serde_json::from_slice(value).expect("Failed to deserialize value")
+    }
+
+    fn create_response(status_code: StatusCode, body: Vec<u8>) -> HttpResponse<'static> {
+        HttpResponse::builder()
+            .with_status_code(status_code)
+            .with_headers(vec![
+                ("content-type".to_string(), "application/json".to_string()),
+                (
+                    "strict-transport-security".to_string(),
+                    "max-age=31536000; includeSubDomains".to_string(),
+                ),
+                ("x-content-type-options".to_string(), "nosniff".to_string()),
+                ("referrer-policy".to_string(), "no-referrer".to_string()),
+                (
+                    "cache-control".to_string(),
+                    "no-store, max-age=0".to_string(),
+                ),
+                ("pragma".to_string(), "no-cache".to_string()),
+            ])
+            .with_body(body)
+            .build()
+    }
+}
+
+
+// src/rest/drives/types.rs
+
+use serde::{Deserialize, Serialize};
+use crate::core::state::drives::types::{DriveID, Drive};
+use crate::core::types::PublicKeyBLS;
+use crate::rest::webhooks::types::SortDirection;
+
+#[derive(Debug, Clone, Serialize)]
+pub enum DriveResponse<'a, T = ()> {
+    #[serde(rename = "ok")]
+    Ok { data: &'a T },
+    #[serde(rename = "err")]
+    Err { code: u16, message: String },
+}
+
+impl<'a, T: Serialize> DriveResponse<'a, T> {
+    pub fn ok(data: &'a T) -> DriveResponse<'a, T> {
+        Self::Ok { data }
+    }
+
+    pub fn not_found() -> Self {
+        Self::err(404, "Not found".to_string())
+    }
+
+    pub fn unauthorized() -> Self {
+        Self::err(401, "Unauthorized".to_string())
+    }
+
+    pub fn err(code: u16, message: String) -> Self {
+        Self::Err { code, message }
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("Failed to serialize value")
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListDrivesRequestBody {
+    #[serde(default)]
+    pub filters: String,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    #[serde(default)]
+    pub direction: SortDirection,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+fn default_page_size() -> usize {
+    50
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListDrivesResponseData {
+    pub items: Vec<Drive>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum UpsertDriveRequestBody {
+    Create(CreateDriveRequestBody),
+    Update(UpdateDriveRequestBody),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateDriveRequestBody {
+    pub name: String,
+    pub icp_principal: Option<String>,
+    pub public_note: Option<String>,
+    pub private_note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateDriveRequestBody {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icp_principal: Option<String>,
+}
+
+pub type GetDriveResponse<'a> = DriveResponse<'a, Drive>;
+pub type ListDrivesResponse<'a> = DriveResponse<'a, ListDrivesResponseData>;
+pub type CreateDriveResponse<'a> = DriveResponse<'a, Drive>;
+pub type UpdateDriveResponse<'a> = DriveResponse<'a, Drive>;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeleteDriveRequest {
+    pub id: DriveID,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeletedDriveData {
+    pub id: DriveID,
+    pub deleted: bool
+}
+
+pub type DeleteDriveResponse<'a> = DriveResponse<'a, DeletedDriveData>;
+pub type ErrorResponse<'a> = DriveResponse<'a, ()>;
+
+// src/rest/drives/route.rs
+use crate::debug_log;
+use crate::rest::router;
+use crate::types::RouteHandler;
+
+pub const DRIVES_GET_PATH: &str = "/drives/get/{drive_id}";
+pub const DRIVES_LIST_PATH: &str = "/drives/list";
+pub const DRIVES_UPSERT_PATH: &str = "/drives/upsert";
+pub const DRIVES_DELETE_PATH: &str = "/drives/delete";
+pub const DRIVES_SNAPSHOT_PATH: &str = "/drives/snapshot";
+
+type HandlerEntry = (&'static str, &'static str, RouteHandler);
+
+pub fn init_routes() {
+    let routes: &[HandlerEntry] = &[
+        (
+            "GET",
+            DRIVES_GET_PATH,
+            crate::rest::drives::handler::drives_handlers::get_drive_handler,
+        ),
+        (
+            "POST",
+            DRIVES_LIST_PATH,
+            crate::rest::drives::handler::drives_handlers::list_drives_handler,
+        ),
+        (
+            "POST",
+            DRIVES_UPSERT_PATH,
+            crate::rest::drives::handler::drives_handlers::upsert_drive_handler,
+        ),
+        (
+            "POST",
+            DRIVES_DELETE_PATH,
+            crate::rest::drives::handler::drives_handlers::delete_drive_handler,
+        ),
+        (
+            "GET",
+            DRIVES_SNAPSHOT_PATH,
+            crate::rest::drives::handler::drives_handlers::snapshot_drive_handler,
+        )
+    ];
+
+    for &(method, path, handler) in routes {
+        debug_log!("Registering {} route: {}", method, path);
+        router::insert_route(method, path, handler);
+    }
+
+}
+
+
+// src/core/state/teams/state.rs
+pub mod state {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::core::{state::{team_invites::types::TeamInviteID, teams::types::{Team, TeamID}}, types::UserID};
+    
+    thread_local! {
+        // default is to use the api key id to lookup the api key
+        pub(crate) static TEAMS_BY_ID_HASHTABLE: RefCell<HashMap<TeamID, Team>> = RefCell::new(HashMap::new());
+        // track in hashtable users list of ApiKeyIDs
+        pub(crate) static TEAMS_BY_TIME_LIST: RefCell<Vec<TeamID>> = RefCell::new(Vec::new());
+    }
+
+}
+
+
+// src/core/state/team_invites/state.rs
+pub mod state {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::core::{state::team_invites::types::{TeamInviteID, Team_Invite}, types::UserID};
+    
+    thread_local! {
+        pub(crate) static INVITES_BY_ID_HASHTABLE: RefCell<HashMap<TeamInviteID, Team_Invite>> = RefCell::new(HashMap::new());
+        pub(crate) static USERS_INVITES_LIST_HASHTABLE: RefCell<HashMap<UserID, Vec<TeamInviteID>>> = RefCell::new(HashMap::new());
+    }
+
+}
+
+
+
+
+// src/core/state/team_invites/state.rs
+pub mod state {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::core::{state::team_invites::types::{TeamInviteID, Team_Invite}, types::UserID};
+    
+    thread_local! {
+        pub(crate) static INVITES_BY_ID_HASHTABLE: RefCell<HashMap<TeamInviteID, Team_Invite>> = RefCell::new(HashMap::new());
+        pub(crate) static USERS_INVITES_LIST_HASHTABLE: RefCell<HashMap<UserID, Vec<TeamInviteID>>> = RefCell::new(HashMap::new());
+    }
+
+}
+
+
+
+// src/core/state/drives/state.rs
+
+pub mod state {
+    use std::cell::Cell;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::core::api::uuid::generate_unique_id;
+    use crate::core::state::drives::types::Drive;
+    use crate::core::state::drives::types::DriveID;
+    use crate::core::types::ICPPrincipalString;
+    use crate::core::types::{UserID,PublicKeyBLS};
+
+    thread_local! {
+        // self info
+        pub(crate) static DRIVE_ID: DriveID = DriveID(generate_unique_id("DriveID", ""));
+        pub(crate) static CANISTER_ID: PublicKeyBLS = PublicKeyBLS(ic_cdk::api::id().to_text());
+        pub(crate) static OWNER_ID: UserID = UserID("Anonymous_Owner".to_string());
+        pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
+        // hashtables
+        pub(crate) static DRIVES_BY_ID_HASHTABLE: RefCell<HashMap<DriveID, Drive>> = RefCell::new(HashMap::new());
+        pub(crate) static DRIVES_BY_TIME_LIST: RefCell<Vec<DriveID>> = RefCell::new(Vec::new());
+    }
+
+    pub fn init_self_drive() {
+        let self_drive = Drive {
+            id: DRIVE_ID.with(|id| id.clone()),
+            name: "Anonymous_Canister".to_string(),
+            public_note: Some("".to_string()),
+            private_note: Some("".to_string()),
+            icp_principal: ICPPrincipalString(PublicKeyBLS(ic_cdk::api::id().to_text())),
+        };
+
+        DRIVES_BY_ID_HASHTABLE.with(|map| {
+            map.borrow_mut().insert(self_drive.id.clone(), self_drive.clone());
+        });
+
+        DRIVES_BY_TIME_LIST.with(|list| {
+            list.borrow_mut().push(self_drive.id.clone());
+        });
+    }
+}
+
+
+
+// src/core/state/disks/state.rs
+pub mod state {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::{core::{api::uuid::generate_unique_id, state::{disks::types::{Disk, DiskID, DiskTypeEnum, DEFAULT_BROWSERCACHE_DISK_ID, DEFAULT_CANISTER_DISK_ID}, drives::state::state::CANISTER_ID}}, debug_log};
+    
+    thread_local! {
+        pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
+        pub(crate) static DISKS_BY_EXTERNAL_ID_HASHTABLE: RefCell<HashMap<String, DiskID>> = RefCell::new(HashMap::new());
+        pub(crate) static DISKS_BY_TIME_LIST: RefCell<Vec<DiskID>> = RefCell::new(Vec::new());
+    }
+
+    pub fn init_default_disks() {
+
+        debug_log!("Initializing default admin api key...");
+
+        let current_canister_disk_id = generate_unique_id("DiskID", &format!("_{}", ic_cdk::api::id().to_text()));
+        let default_canister_disk = Disk {
+            id: DiskID(current_canister_disk_id.clone()),
+            name: "Self Canister Storage (Default)".to_string(),
+            disk_type: DiskTypeEnum::IcpCanister,
+            private_note: Some("Default Canister Storage".to_string()),
+            public_note: Some("Default Canister Storage".to_string()),
+            auth_json: None,
+            external_id: Some(DEFAULT_CANISTER_DISK_ID.to_string()),
+        };
+        let browsercache_disk_id = generate_unique_id("DiskID", &format!("_{}", "_browsercache"));
+        let default_browsercache_disk = Disk {
+            id: DiskID(browsercache_disk_id.clone()),
+            name: "Ephemeral Browser Storage (Default)".to_string(),
+            disk_type: DiskTypeEnum::BrowserCache,
+            private_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
+            public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
+            auth_json: None,
+            external_id: Some(DEFAULT_BROWSERCACHE_DISK_ID.to_string()),
+        };
+
+        let default_disks = vec![default_canister_disk, default_browsercache_disk];
+
+        for disk in default_disks {
+            DISKS_BY_ID_HASHTABLE.with(|map| {
+                map.borrow_mut().insert(disk.id.clone(), disk.clone());
+            });
+
+            DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|map| {
+                map.borrow_mut().insert(disk.external_id.clone().unwrap(), disk.id.clone());
+            });
+
+            DISKS_BY_TIME_LIST.with(|list| {
+                list.borrow_mut().push(disk.id.clone());
+            });
+        }
+
+    }
+}
+
+
+
+// src/core/state/directory/state.rs
+
+pub mod state {
+    use std::cell::{RefCell, RefMut};
+    use std::collections::HashMap;
+    use std::ops::Deref;
+
+    use crate::core::state::{
+        directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID},
+        templates::types::{TemplateID, TemplateItem},
+    };
+
+    // Wrapper types that implement Deref
+    pub struct FolderMap;
+    pub struct FileMap;
+    pub struct FolderPathMap;
+    pub struct FilePathMap;
+
+    impl FolderMap {
+        pub fn get(&self, key: &FolderUUID) -> Option<FolderMetadata> {
+            folder_uuid_to_metadata_inner.with(|map| map.borrow().get(key).cloned())
+        }
+
+        pub fn insert(&self, key: FolderUUID, value: FolderMetadata) {
+            folder_uuid_to_metadata_inner.with(|map| map.borrow_mut().insert(key, value));
+        }
+
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<FolderUUID, FolderMetadata>) -> R) -> R {
+            folder_uuid_to_metadata_inner.with(|map| f(&mut map.borrow_mut()))
+        }
+    
+        pub fn contains_key(&self, key: &FolderUUID) -> bool {
+            folder_uuid_to_metadata_inner.with(|map| map.borrow().contains_key(key))
+        }
+    
+        pub fn remove(&self, key: &FolderUUID) -> Option<FolderMetadata> {
+            folder_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
+        }
+    }
+
+    impl FileMap {
+        pub fn get(&self, key: &FileUUID) -> Option<FileMetadata> {
+            file_uuid_to_metadata_inner.with(|map| map.borrow().get(key).cloned())
+        }
+
+        pub fn insert(&self, key: FileUUID, value: FileMetadata) {
+            file_uuid_to_metadata_inner.with(|map| map.borrow_mut().insert(key, value));
+        }
+
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<FileUUID, FileMetadata>) -> R) -> R {
+            file_uuid_to_metadata_inner.with(|map| f(&mut map.borrow_mut()))
+        }
+    
+        pub fn contains_key(&self, key: &FileUUID) -> bool {
+            file_uuid_to_metadata_inner.with(|map| map.borrow().contains_key(key))
+        }
+    
+        pub fn remove(&self, key: &FileUUID) -> Option<FileMetadata> {
+            file_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
+        }
+    }
+
+    impl FolderPathMap {
+        pub fn get(&self, key: &DriveFullFilePath) -> Option<FolderUUID> {
+            full_folder_path_to_uuid_inner.with(|map| map.borrow().get(key).cloned())
+        }
+
+        pub fn insert(&self, key: DriveFullFilePath, value: FolderUUID) {
+            full_folder_path_to_uuid_inner.with(|map| map.borrow_mut().insert(key, value));
+        }
+
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<DriveFullFilePath, FolderUUID>) -> R) -> R {
+            full_folder_path_to_uuid_inner.with(|map| f(&mut map.borrow_mut()))
+        }
+
+        pub fn contains_key(&self, key: &DriveFullFilePath) -> bool {
+            full_folder_path_to_uuid_inner.with(|map| map.borrow().contains_key(key))
+        }
+    
+        pub fn remove(&self, key: &DriveFullFilePath) -> Option<FolderUUID> {
+            full_folder_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
+        }
+    }
+
+    impl FilePathMap {
+        pub fn get(&self, key: &DriveFullFilePath) -> Option<FileUUID> {
+            full_file_path_to_uuid_inner.with(|map| map.borrow().get(key).cloned())
+        }
+
+        pub fn insert(&self, key: DriveFullFilePath, value: FileUUID) {
+            full_file_path_to_uuid_inner.with(|map| map.borrow_mut().insert(key, value));
+        }
+
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<DriveFullFilePath, FileUUID>) -> R) -> R {
+            full_file_path_to_uuid_inner.with(|map| f(&mut map.borrow_mut()))
+        }
+    
+        pub fn contains_key(&self, key: &DriveFullFilePath) -> bool {
+            full_file_path_to_uuid_inner.with(|map| map.borrow().contains_key(key))
+        }
+    
+        pub fn remove(&self, key: &DriveFullFilePath) -> Option<FileUUID> {
+            full_file_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
+        }
+    }
+
+    // Private thread_local storage
+    thread_local! {
+        static folder_uuid_to_metadata_inner: RefCell<HashMap<FolderUUID, FolderMetadata>> = RefCell::new(HashMap::new());
+        static file_uuid_to_metadata_inner: RefCell<HashMap<FileUUID, FileMetadata>> = RefCell::new(HashMap::new());
+        static full_folder_path_to_uuid_inner: RefCell<HashMap<DriveFullFilePath, FolderUUID>> = RefCell::new(HashMap::new());
+        static full_file_path_to_uuid_inner: RefCell<HashMap<DriveFullFilePath, FileUUID>> = RefCell::new(HashMap::new());
+    }
+
+    // Public instances with original names
+    pub static folder_uuid_to_metadata: FolderMap = FolderMap;
+    pub static file_uuid_to_metadata: FileMap = FileMap;
+    pub static full_folder_path_to_uuid: FolderPathMap = FolderPathMap;
+    pub static full_file_path_to_uuid: FilePathMap = FilePathMap;
+}
+
+
+
+// src/core/state/contacts/state.rs
+pub mod state {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::core::{state::contacts::types::Contact, types::UserID};
+    
+    thread_local! {
+        // default is to use the api key id to lookup the api key
+        pub(crate) static CONTACTS_BY_ID_HASHTABLE: RefCell<HashMap<UserID, Contact>> = RefCell::new(HashMap::new());
+        // default is to use the api key id to lookup the api key
+        pub(crate) static CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: RefCell<HashMap<String, UserID>> = RefCell::new(HashMap::new());
+        // track in hashtable users list of ApiKeyIDs
+        pub(crate) static CONTACTS_BY_TIME_LIST: RefCell<Vec<UserID>> = RefCell::new(Vec::new());
+    }
+
+}
+
+
+
+
+// src/core/state/api_keys/state.rs
+pub mod state {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use crate::{core::{state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID}, types::UserID}, debug_log};
+
+    thread_local! {
+        // users pass in api key value, we O(1) lookup the api key id + O(1) lookup the api key
+        pub(crate) static APIKEYS_BY_VALUE_HASHTABLE: RefCell<HashMap<ApiKeyValue, ApiKeyID>> = RefCell::new(HashMap::new());
+        // default is to use the api key id to lookup the api key
+        pub(crate) static APIKEYS_BY_ID_HASHTABLE: RefCell<HashMap<ApiKeyID, ApiKey>> = RefCell::new(HashMap::new());
+        // track in hashtable users list of ApiKeyIDs
+        pub(crate) static USERS_APIKEYS_HASHTABLE: RefCell<HashMap<UserID, Vec<ApiKeyID>>> = RefCell::new(HashMap::new());
+    }
+
+    // Helper functions to get debug string representations
+    pub fn debug_apikeys_by_value() -> String {
+        APIKEYS_BY_VALUE_HASHTABLE.with(|map| {
+            format!("{:#?}", map.borrow())
+        })
+    }
+
+    pub fn debug_apikeys_by_id() -> String {
+        APIKEYS_BY_ID_HASHTABLE.with(|map| {
+            format!("{:#?}", map.borrow())
+        })
+    }
+
+    pub fn debug_users_apikeys() -> String {
+        USERS_APIKEYS_HASHTABLE.with(|map| {
+            format!("{:#?}", map.borrow())
+        })
+    }
+
+    // Function to log all state
+    pub fn debug_state() -> String {
+        format!(
+            "State Debug:\n\nAPIKEYS_BY_VALUE:\n{}\n\nAPIKEYS_BY_ID:\n{}\n\nUSERS_APIKEYS:\n{}",
+            debug_apikeys_by_value(),
+            debug_apikeys_by_id(),
+            debug_users_apikeys()
+        )
+    }
+
+    pub fn init_default_admin_apikey() {
+
+        debug_log!("Initializing default admin api key...");
+
+        let default_key = ApiKey {
+            id: ApiKeyID("mock_api_key_id".to_string()),
+            value: ApiKeyValue("mock_api_key_value".to_string()),
+            user_id: OWNER_ID.with(|owner_id| owner_id.clone()),
+            name: "Default Admin Key".to_string(),
+            created_at: ic_cdk::api::time(),
+            expires_at: -1,
+            is_revoked: false,
+        };
+
+        debug_log!("Default admin api key: {}", default_key);
+
+        APIKEYS_BY_VALUE_HASHTABLE.with(|map| {
+            map.borrow_mut().insert(default_key.value.clone(), default_key.id.clone());
+        });
+
+        APIKEYS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow_mut().insert(default_key.id.clone(), default_key.clone());
+        });
+
+        USERS_APIKEYS_HASHTABLE.with(|map| {
+            map.borrow_mut().insert(default_key.user_id.clone(), vec![default_key.id.clone()]);
+        });
+    }
+}
+
+
+// src/core/api/drive.rs
+pub mod drive {
+    use crate::{
+        core::{
+            api::{
+                internals::drive_internals::{ensure_folder_structure, ensure_root_folder, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths},
+                types::DirectoryError,
+                uuid::generate_unique_id
+            },
+            state::{
+                directory::{
+                    state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
+                    types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
+                },
+                disks::types::DiskTypeEnum,
+            }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
+        }, rest::{directory::types::{DirectoryListResponse, ListDirectoryRequest}, webhooks::types::SortDirection}
+    };
+
+    pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
+        let ListDirectoryRequest { 
+            folder_id, 
+            path, 
+            filters: _, 
+            page_size, 
+            direction, 
+            cursor 
+        } = config;
+    
+        // Get the folder UUID either from folder_id or path
+        let folder_uuid = if let Some(id) = folder_id {
+            FolderUUID(id)
+        } else if let Some(path_str) = path {
+            full_folder_path_to_uuid
+                .get(&DriveFullFilePath(path_str.clone()))
+                .ok_or_else(|| DirectoryError::FolderNotFound(format!("Path not found: {}", path_str)))?
+        } else {
+            return Err(DirectoryError::FolderNotFound("Neither folder_id nor path provided".to_string()));
+        };
+    
+        // Get folder metadata
+        let folder = folder_uuid_to_metadata
+            .get(&folder_uuid)
+            .ok_or_else(|| DirectoryError::FolderNotFound("Folder metadata not found".to_string()))?;
+    
+        let total_folders = folder.subfolder_uuids.len();
+        let total_files = folder.file_uuids.len();
+        let total_items = total_folders + total_files;
+    
+        // Parse cursor to get starting position
+        let start_pos = cursor
+            .and_then(|c| c.parse::<usize>().ok())
+            .unwrap_or(0);
+    
+        // Determine range based on direction and cursor
+        let range_start = match direction {
+            SortDirection::Asc => start_pos,
+            SortDirection::Desc => start_pos.saturating_sub(page_size)
+        };
+    
+        let mut folders = Vec::new();
+        let mut files = Vec::new();
+        let mut count = 0;
+        let mut current_pos = range_start;
+        
+        // Fill results while tracking count
+        while count < page_size && current_pos < total_items {
+            if current_pos < total_folders {
+                // Add folder
+                if let Some(subfolder) = folder_uuid_to_metadata.get(&folder.subfolder_uuids[current_pos]) {
+                    folders.push(subfolder);
+                    count += 1;
+                }
+            } else {
+                // Add file
+                let file_index = current_pos - total_folders;
+                if let Some(file) = file_uuid_to_metadata.get(&folder.file_uuids[file_index]) {
+                    files.push(file);
+                    count += 1;
+                }
+            }
+            current_pos += 1;
+        }
+    
+        // Generate next cursor if there are more items
+        let next_cursor = if current_pos < total_items {
+            Some(current_pos.to_string())
+        } else {
+            None
+        };
+    
+        Ok(DirectoryListResponse {
+            folders,
+            files,
+            total_folders,
+            total_files,
+            cursor: next_cursor,
+        })
+    }
+
+    pub fn create_file(
+        file_path: String,
+        storage_location: DiskTypeEnum,
+        user_id: UserID,
+        expires_at: i64,
+        canister_id: String,
+    ) -> FileUUID {
+        let sanitized_file_path = sanitize_file_path(&file_path);
+        let full_file_path = sanitized_file_path;
+        let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
+
+        let canister_icp_principal_string = if canister_id.is_empty() {
+            ic_cdk::api::id().to_text()
+        } else {
+            canister_id.clone()
+        };
+
+        let (folder_path, file_name) = split_path(&full_file_path);
+        let folder_uuid = ensure_folder_structure(&folder_path, storage_location.clone(), user_id.clone(), canister_icp_principal_string.clone());
+
+        let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
+
+        let file_version = if let Some(existing_uuid) = &existing_file_uuid {
+            let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
+            existing_file.file_version + 1
+        } else {
+            1
+        };
+
+        let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
+
+        let file_metadata = FileMetadata {
+            id: new_file_uuid.clone(),
+            original_file_name: file_name,
+            folder_uuid: folder_uuid.clone(),
+            file_version,
+            prior_version: existing_file_uuid.clone(),
+            next_version: None,
+            extension,
+            full_file_path: DriveFullFilePath(full_file_path.clone()),
+            tags: Vec::new(),
+            owner: user_id,
+            created_date: ic_cdk::api::time(),
+            storage_location,
+            file_size: 0,
+            raw_url: String::new(),
+            last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+            deleted: false,
+            canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+            expires_at,
+        };
+
+        // Update hashtables
+        file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata);
+        full_file_path_to_uuid.insert(DriveFullFilePath(full_file_path), new_file_uuid.clone());
+
+        // Update parent folder's file_uuids
+        update_folder_file_uuids(&folder_uuid, &new_file_uuid, true);
+
+        // Update prior version if it exists
+        if let Some(existing_uuid) = existing_file_uuid {
+            file_uuid_to_metadata.with_mut(|map| {
+                if let Some(existing_file) = map.get_mut(&existing_uuid) {
+                    existing_file.next_version = Some(new_file_uuid.clone());
+                }
+            });
+            // Remove the old file UUID from the parent folder
+            update_folder_file_uuids(&folder_uuid, &existing_uuid, false);
+        }
+
+        new_file_uuid
+    }
+
+    pub fn create_folder(
+        full_folder_path: DriveFullFilePath,
+        storage_location: DiskTypeEnum,
+        user_id: UserID,
+        expires_at: i64,
+        canister_id: String,
+    ) -> Result<FolderMetadata, String> {
+        // Ensure the path ends with a slash
+        let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
+        if !sanitized_path.ends_with('/') {
+            sanitized_path.push('/');
+        }
+    
+        if sanitized_path.is_empty() {
+            return Err(String::from("Invalid folder path"));
+        }
+    
+        // Split the path into storage and folder parts
+        let parts: Vec<&str> = sanitized_path.split("::").collect();
+        if parts.len() < 2 {
+            return Err(String::from("Invalid folder path format"));
+        }
+    
+        let storage_part = parts[0];
+        let folder_path = parts[1..].join("::");
+    
+        // Ensure the storage location matches
+        if storage_part != storage_location.to_string() {
+            return Err(String::from("Storage location mismatch"));
+        }
+    
+        // Split the folder path into individual parts
+        let path_parts: Vec<&str> = folder_path.split('/').filter(|&x| !x.is_empty()).collect();
+
+        let canister_icp_principal_string = if canister_id.is_empty() {
+            ic_cdk::api::id().to_text()
+        } else {
+            canister_id.clone()
+        };
+    
+        let mut current_path = format!("{}::", storage_part);
+        let mut parent_folder_uuid = ensure_root_folder(&storage_location, &user_id, canister_icp_principal_string.clone());
+
+        // root folder case
+        if path_parts.is_empty() {
+            return folder_uuid_to_metadata
+                .get(&parent_folder_uuid)
+                .map(|metadata| metadata.clone())
+                .ok_or_else(|| "Parent folder not found".to_string());
+        }
+    
+        // Iterate through path parts and create folders as needed
+        for (i, part) in path_parts.iter().enumerate() {
+            current_path.push_str(part);
+            current_path.push('/');
+    
+            if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
+                let new_folder_uuid = FolderUUID(generate_unique_id("FolderID", ""));
+                let new_folder = FolderMetadata {
+                    id: new_folder_uuid.clone(),
+                    original_folder_name: part.to_string(),
+                    parent_folder_uuid: Some(parent_folder_uuid.clone()),
+                    subfolder_uuids: Vec::new(),
+                    file_uuids: Vec::new(),
+                    full_folder_path: DriveFullFilePath(current_path.clone()),
+                    tags: Vec::new(),
+                    owner: user_id.clone(),
+                    created_date: ic_cdk::api::time(),
+                    storage_location: storage_location.clone(),
+                    last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+                    deleted: false,
+                    canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+                    expires_at,
+                };
+    
+                full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
+                folder_uuid_to_metadata.insert(new_folder_uuid.clone(), new_folder.clone());
+    
+                // Update parent folder
+                folder_uuid_to_metadata.with_mut(|map| {
+                    if let Some(parent_folder) = map.get_mut(&parent_folder_uuid) {
+                        parent_folder.subfolder_uuids.push(new_folder_uuid.clone());
+                    }
+                });
+    
+                parent_folder_uuid = new_folder_uuid;
+    
+                // If this is the last part, return the created folder
+                if i == path_parts.len() - 1 {
+                    return Ok(new_folder);
+                }
+            } else {
+                parent_folder_uuid = full_folder_path_to_uuid
+                    .get(&DriveFullFilePath(current_path.clone()))
+                    .expect("Failed to get parent folder UUID from path");
+            }
+        }
+    
+        // If we've reached here, it means the folder already existed
+        Err(String::from("Folder already exists"))
+    }
+
+    pub fn get_file_by_id(file_id: FileUUID) -> Result<FileMetadata, String> {
+        file_uuid_to_metadata
+            .get(&file_id)
+            .map(|metadata| metadata.clone())
+            .ok_or_else(|| "File not found".to_string())
+    }
+
+    pub fn get_folder_by_id(folder_id: FolderUUID) -> Result<FolderMetadata, String> {
+        folder_uuid_to_metadata
+            .get(&folder_id)
+            .map(|metadata| metadata.clone())
+            .ok_or_else(|| "Folder not found".to_string())
+    }
+
+    pub fn rename_folder(folder_id: FolderUUID, new_name: String) -> Result<FolderUUID, String> {
+        // Get current folder metadata
+        let folder = folder_uuid_to_metadata
+            .get(&folder_id)
+            .ok_or_else(|| "Folder not found".to_string())?;
+        
+        let old_path = folder.full_folder_path.clone();
+        ic_cdk::println!("Old folder path: {}", old_path);
+    
+        // Create owned String before splitting
+        let path_string = old_path.to_string();
+        
+        // Split the path into storage and folder parts
+        let parts: Vec<&str> = path_string.splitn(2, "::").collect();
+        if parts.len() != 2 {
+            return Err("Invalid folder structure".to_string());
+        }
+    
+        let storage_part = parts[0].to_string();
+        let folder_path = parts[1].trim_end_matches('/').to_string();
+    
+        // Perform path manipulation
+        let path_parts: Vec<&str> = folder_path.rsplitn(2, '/').collect();
+        let (parent_path, _current_folder_name) = match path_parts.len() {
+            2 => (path_parts[1].to_string(), path_parts[0].to_string()),
+            1 => (String::new(), path_parts[0].to_string()),
+            _ => return Err("Invalid folder structure".to_string()),
+        };
+    
+        // Construct the new folder path
+        let new_folder_path = if parent_path.is_empty() {
+            format!("{}::{}{}", storage_part, new_name, "/")
+        } else {
+            format!("{}::{}/{}{}", storage_part, parent_path, new_name, "/")
+        };
+    
+        // Check if a folder with the new path already exists
+        if full_folder_path_to_uuid.contains_key(&DriveFullFilePath(new_folder_path.clone())) {
+            return Err("A folder with the new name already exists in the parent directory".to_string());
+        }
+    
+        // Update folder metadata using with_mut
+        folder_uuid_to_metadata.with_mut(|map| {
+            if let Some(folder) = map.get_mut(&folder_id) {
+                folder.original_folder_name = new_name;
+                folder.full_folder_path = DriveFullFilePath(new_folder_path.clone());
+                folder.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+            }
+        });
+    
+        // Update path mappings
+        ic_cdk::println!("Removing old path from full_folder_path_to_uuid: {}", old_path);
+        full_folder_path_to_uuid.remove(&old_path);
+    
+        ic_cdk::println!("Inserting new path into full_folder_path_to_uuid: {}", new_folder_path);
+        full_folder_path_to_uuid.insert(DriveFullFilePath(new_folder_path.clone()), folder_id.clone());
+    
+        // Update subfolder paths recursively
+        update_subfolder_paths(&folder_id, &old_path.to_string(), &new_folder_path);
+    
+        // Update parent folder reference if needed
+        if !parent_path.is_empty() {
+            let parent_full_path = format!("{}::{}", storage_part, parent_path);
+            if let Some(parent_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(parent_full_path.clone())) {
+                folder_uuid_to_metadata.with_mut(|map| {
+                    if let Some(parent_folder) = map.get_mut(&parent_uuid) {
+                        if !parent_folder.subfolder_uuids.contains(&folder_id) {
+                            parent_folder.subfolder_uuids.push(folder_id.clone());
+                            ic_cdk::println!("Added folder UUID to parent folder's subfolder_uuids");
+                        }
+                    }
+                });
+            } else {
+                ic_cdk::println!("Parent folder not found for path: {}", parent_full_path);
+                return Err("Parent folder not found".to_string());
+            }
+        }
+    
+        ic_cdk::println!("Folder renamed successfully");
+        Ok(folder_id)
+    }
+    
+    pub fn rename_file(file_id: FileUUID, new_name: String) -> Result<FileUUID, String> {
+        ic_cdk::println!(
+            "Attempting to rename file. File ID: {}, New Name: {}",
+            file_id,
+            new_name
+        );
+    
+        // Get current file metadata
+        let file = file_uuid_to_metadata
+            .get(&file_id)
+            .ok_or_else(|| "File not found".to_string())?;
+        
+        let old_path = file.full_file_path.clone();
+        ic_cdk::println!("Old file path: {}", old_path);
+    
+        // Create owned String before splitting
+        let path_string = old_path.to_string();
+        
+        // Split the path into storage part and the rest
+        let parts: Vec<&str> = path_string.splitn(2, "::").collect();
+        if parts.len() != 2 {
+            return Err("Invalid file structure".to_string());
+        }
+    
+        let storage_part = parts[0].to_string();
+        let file_path = parts[1].to_string();
+    
+        // Split the file path and replace the last part (file name)
+        let path_parts: Vec<&str> = file_path.rsplitn(2, '/').collect();
+        let new_path = if path_parts.len() > 1 {
+            format!("{}::{}/{}", storage_part, path_parts[1], new_name)
+        } else {
+            format!("{}::{}", storage_part, new_name)
+        };
+    
+        ic_cdk::println!("New file path: {}", new_path);
+    
+        // Check if a file with the new name already exists
+        if full_file_path_to_uuid.contains_key(&DriveFullFilePath(new_path.clone())) {
+            ic_cdk::println!("Error: A file with this name already exists");
+            return Err("A file with this name already exists".to_string());
+        }
+    
+        // Update file metadata
+        file_uuid_to_metadata.with_mut(|map| {
+            if let Some(file) = map.get_mut(&file_id) {
+                file.original_file_name = new_name.clone();
+                file.full_file_path = DriveFullFilePath(new_path.clone());
+                file.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+                file.extension = new_name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+                ic_cdk::println!("Updated file metadata: {:?}", file);
+            }
+        });
+    
+        // Update path mappings
+        ic_cdk::println!(
+            "Removing old path from full_file_path_to_uuid: {}",
+            old_path
+        );
+        full_file_path_to_uuid.remove(&old_path);
+    
+        ic_cdk::println!(
+            "Inserting new path into full_file_path_to_uuid: {}",
+            new_path
+        );
+        full_file_path_to_uuid.insert(DriveFullFilePath(new_path), file_id.clone());
+    
+        ic_cdk::println!("File renamed successfully");
+        Ok(file_id)
+    }
+
+    pub fn delete_folder(folder_id: &FolderUUID) -> Result<(), String> {
+        ic_cdk::println!("Attempting to delete folder. Folder ID: {}", folder_id);
+        
+        // Get folder data before modifications
+        let folder = folder_uuid_to_metadata
+            .get(folder_id)
+            .ok_or_else(|| {
+                ic_cdk::println!("Error: Folder not found. Folder ID: {}", folder_id);
+                "Folder not found".to_string()
+            })?;
+    
+        let folder_path = folder.full_folder_path.clone();
+        let subfolder_ids = folder.subfolder_uuids.clone();
+        let file_ids = folder.file_uuids.clone();
+        
+        ic_cdk::println!("Folder found. Full path: {}", folder_path);
+        
+        // Remove folder path mapping
+        ic_cdk::println!("Removing folder path from full_folder_path_to_uuid");
+        full_folder_path_to_uuid.remove(&folder_path);
+    
+        // Recursively delete subfolders
+        ic_cdk::println!("Deleting subfolders");
+        for subfolder_id in subfolder_ids {
+            ic_cdk::println!("Deleting subfolder: {}", subfolder_id);
+            delete_folder(&subfolder_id)?;
+        }
+    
+        // Delete files in this folder
+        ic_cdk::println!("Deleting files in the folder");
+        for file_id in file_ids {
+            ic_cdk::println!("Deleting file: {}", file_id);
+            delete_file(&file_id)?;
+        }
+    
+        // Mark the folder as deleted
+        folder_uuid_to_metadata.with_mut(|map| {
+            if let Some(folder) = map.get_mut(folder_id) {
+                folder.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+                folder.deleted = true;
+            }
+        });
+    
+        ic_cdk::println!("Folder deleted successfully");
+        Ok(())
+    }
+    
+    pub fn delete_file(file_id: &FileUUID) -> Result<(), String> {
+        ic_cdk::println!("Attempting to delete file. File ID: {}", file_id);
+        
+        // Get file data before modifications
+        let file = file_uuid_to_metadata
+            .get(file_id)
+            .ok_or_else(|| {
+                ic_cdk::println!("Error: File not found. File ID: {}", file_id);
+                "File not found".to_string()
+            })?;
+    
+        let file_path = file.full_file_path.clone();
+        // Use ref in pattern matching to avoid moving the values
+        let ref prior_version = file.prior_version;
+        let ref next_version = file.next_version;
+        
+        ic_cdk::println!("File found. Full path: {}", file_path);
+        
+        // Remove file path mapping
+        ic_cdk::println!("Removing file path from full_file_path_to_uuid");
+        full_file_path_to_uuid.remove(&file_path);
+    
+        // Handle versioning
+        if let Some(ref prior_id) = prior_version {
+            ic_cdk::println!("Updating prior version. Prior version ID: {}", prior_id);
+            file_uuid_to_metadata.with_mut(|map| {
+                if let Some(prior_file) = map.get_mut(&prior_id) {
+                    prior_file.next_version = next_version.clone();
+                    ic_cdk::println!("Updated prior file's next_version: {:?}", prior_file.next_version);
+                }
+            });
+        }
+    
+        if let Some(ref next_id) = next_version {
+            ic_cdk::println!("Updating next version. Next version ID: {}", next_id);
+            file_uuid_to_metadata.with_mut(|map| {
+                if let Some(next_file) = map.get_mut(next_id) {
+                    next_file.prior_version = prior_version.clone();
+                    ic_cdk::println!("Updated next file's prior_version: {:?}", next_file.prior_version);
+                }
+            });
+        }
+    
+        // Remove file metadata
+        file_uuid_to_metadata.remove(file_id);
+    
+        ic_cdk::println!("File deleted successfully");
+        Ok(())
+    }
+
+
+}

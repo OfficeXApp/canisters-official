@@ -5,6 +5,11 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DiskID(pub String);
+impl fmt::Display for DiskID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Disk {
@@ -16,6 +21,7 @@ pub struct Disk {
     pub auth_json: Option<String>,
     pub external_id: Option<String>,
 }
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DiskTypeEnum {
@@ -35,4 +41,16 @@ impl fmt::Display for DiskTypeEnum {
             DiskTypeEnum::IcpCanister => write!(f, "IcpCanister"),
         }
     }
+}
+
+pub const DEFAULT_CANISTER_DISK_ID: &str = "DEFAULT_CANISTER_DISK_ID";
+pub const DEFAULT_BROWSERCACHE_DISK_ID: &str = "DEFAULT_BROWSERCACHE_DISK_ID";
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwsBucketAuth {
+    pub(crate) endpoint: String,
+    pub(crate) access_key: String,
+    pub(crate) secret_key: String,
+    pub(crate) bucket: String,
 }

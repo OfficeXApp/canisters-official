@@ -3,7 +3,7 @@ use std::fmt;
 // src/core/state/directory/types.rs
 use serde::{Serialize, Deserialize};
 
-use crate::core::{state::disks::types::DiskTypeEnum, types::{ICPPrincipalString, UserID}};
+use crate::core::{state::disks::types::{DiskID, DiskTypeEnum}, types::{ICPPrincipalString, UserID}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -48,7 +48,7 @@ pub struct FolderMetadata {
     pub tags: Vec<Tag>,
     pub owner: UserID,
     pub created_date: u64, // unix ns   
-    pub storage_location: DiskTypeEnum,
+    pub disk_id: DiskID,
     pub last_changed_unix_ms: u64,
     pub deleted: bool,
     pub expires_at: i64,
@@ -69,7 +69,7 @@ pub struct FileMetadata {
     pub(crate) tags: Vec<Tag>,
     pub(crate) owner: UserID,
     pub(crate) created_date: u64, // unix ns
-    pub(crate) storage_location: DiskTypeEnum,
+    pub(crate) disk_id: DiskID,
     pub(crate) file_size: u64,
     pub(crate) raw_url: String,
     pub(crate) last_changed_unix_ms: u64, 

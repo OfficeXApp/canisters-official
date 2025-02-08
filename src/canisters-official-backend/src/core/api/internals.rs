@@ -1,7 +1,7 @@
-
+// src/core/api/internals.rs
 pub mod drive_internals {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID}}, disks::types::DiskTypeEnum}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, 
+        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, 
         
     };
     use regex::Regex;
@@ -26,8 +26,8 @@ pub mod drive_internals {
         format!("{}::{}", storage_part, sanitized)
     }
 
-    pub fn ensure_root_folder(storage_location: &DiskTypeEnum, user_id: &UserID, canister_id: String,) -> FolderUUID {
-        let root_path = DriveFullFilePath(format!("{}::", storage_location.to_string()));
+    pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderUUID {
+        let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
         } else {
@@ -47,7 +47,7 @@ pub mod drive_internals {
                 tags: Vec::new(),
                 owner: user_id.clone(),
                 created_date: ic_cdk::api::time(),
-                storage_location: storage_location.clone(),
+                disk_id: disk_id.clone(),
                 last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
                 deleted: false,
                 canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string)),
@@ -124,7 +124,7 @@ pub mod drive_internals {
 
     pub fn ensure_folder_structure(
         folder_path: &str,
-        storage_location: DiskTypeEnum,
+        disk_id: DiskID,
         user_id: UserID,
         canister_id: String,
     ) -> FolderUUID {
@@ -137,7 +137,7 @@ pub mod drive_internals {
             canister_id.clone()
         };
 
-        let mut parent_uuid = ensure_root_folder(&storage_location, &user_id, canister_icp_principal_string.clone());
+        let mut parent_uuid = ensure_root_folder(&disk_id, &user_id, canister_icp_principal_string.clone());
 
         for part in path_parts[1].split('/').filter(|&p| !p.is_empty()) {
             current_path = format!("{}{}/", current_path.clone(), part);
@@ -154,7 +154,7 @@ pub mod drive_internals {
                     tags: Vec::new(),
                     owner: user_id.clone(),
                     created_date: ic_cdk::api::time(),
-                    storage_location: storage_location.clone(),
+                    disk_id: disk_id.clone(),
                     last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),

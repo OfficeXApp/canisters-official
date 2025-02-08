@@ -118,3 +118,4 @@ pub mod state {
     pub static full_folder_path_to_uuid: FolderPathMap = FolderPathMap;
     pub static full_file_path_to_uuid: FilePathMap = FilePathMap;
 }
+

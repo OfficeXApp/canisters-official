@@ -106,3 +106,16 @@ pub type SearchDirectoryResponse = DirectoryListResponse;
 
 pub type DirectoryResponse<'a, T> = crate::rest::drives::types::DriveResponse<'a, T>;
 pub type ErrorResponse<'a> = DirectoryResponse<'a, ()>;
+
+
+
+#[derive(Debug, Clone, Deserialize)] 
+pub struct ClientSideUploadRequest {
+    pub disk_id: String,
+    pub folder_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClientSideUploadResponse {
+    pub signature: String,
+}

@@ -1,3 +1,4 @@
+// src/core/api/drive.rs
 pub mod drive {
     use crate::{
         core::{
@@ -11,7 +12,7 @@ pub mod drive {
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
                     types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
                 },
-                disks::types::DiskTypeEnum,
+                disks::types::{DiskID, DiskTypeEnum},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
         }, rest::{directory::types::{DirectoryListResponse, ListDirectoryRequest}, webhooks::types::SortDirection}
     };
@@ -99,7 +100,7 @@ pub mod drive {
 
     pub fn create_file(
         file_path: String,
-        storage_location: DiskTypeEnum,
+        disk_id: DiskID,
         user_id: UserID,
         expires_at: i64,
         canister_id: String,
@@ -115,7 +116,7 @@ pub mod drive {
         };
 
         let (folder_path, file_name) = split_path(&full_file_path);
-        let folder_uuid = ensure_folder_structure(&folder_path, storage_location.clone(), user_id.clone(), canister_icp_principal_string.clone());
+        let folder_uuid = ensure_folder_structure(&folder_path, disk_id.clone(), user_id.clone(), canister_icp_principal_string.clone());
 
         let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
 
@@ -140,7 +141,7 @@ pub mod drive {
             tags: Vec::new(),
             owner: user_id,
             created_date: ic_cdk::api::time(),
-            storage_location,
+            disk_id,
             file_size: 0,
             raw_url: String::new(),
             last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
@@ -172,7 +173,7 @@ pub mod drive {
 
     pub fn create_folder(
         full_folder_path: DriveFullFilePath,
-        storage_location: DiskTypeEnum,
+        disk_id: DiskID,
         user_id: UserID,
         expires_at: i64,
         canister_id: String,
@@ -197,7 +198,7 @@ pub mod drive {
         let folder_path = parts[1..].join("::");
     
         // Ensure the storage location matches
-        if storage_part != storage_location.to_string() {
+        if storage_part != disk_id.to_string() {
             return Err(String::from("Storage location mismatch"));
         }
     
@@ -211,7 +212,7 @@ pub mod drive {
         };
     
         let mut current_path = format!("{}::", storage_part);
-        let mut parent_folder_uuid = ensure_root_folder(&storage_location, &user_id, canister_icp_principal_string.clone());
+        let mut parent_folder_uuid = ensure_root_folder(&disk_id, &user_id, canister_icp_principal_string.clone());
 
         // root folder case
         if path_parts.is_empty() {
@@ -238,7 +239,7 @@ pub mod drive {
                     tags: Vec::new(),
                     owner: user_id.clone(),
                     created_date: ic_cdk::api::time(),
-                    storage_location: storage_location.clone(),
+                    disk_id: disk_id.clone(),
                     last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
