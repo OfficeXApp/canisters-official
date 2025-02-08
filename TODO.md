@@ -3,7 +3,7 @@
 ## Urgent Next
 
 - [🔵] Migrate & refactor core drive code --> in front of every POST /directory/action:getFile we need to generate a new raw_url (and potentially also track access_tokens for reuse, at least for public)
-- [🔵] Implement in-canister raw file storage --> has raw_url but only if we add asset-canister functionality
+- [🔵] Implement in-canister raw file storage, perhaps we should try a pure asset container? --> has raw_url but only if we add asset-canister functionality
 - [ ] Implement aws s3 storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
 - [ ] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
