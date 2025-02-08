@@ -1,3 +1,339 @@
+// refactored file upload code
+
+// src/lib.rs
+use ic_cdk::*;
+use ic_http_certification::{HttpRequest, HttpResponse};
+use core::state::{api_keys::state::state::init_default_admin_apikey, drives::state::state::init_self_drive};
+use std::{cell::RefCell, collections::HashMap};
+
+mod logger;
+mod types;
+mod rest;
+mod core;
+use rest::{router};
+
+#[ic_cdk_macros::init]
+fn init() {
+    debug_log!("Initializing canister...");
+    router::init_routes();
+    init_default_admin_apikey();
+    init_self_drive();  
+}
+
+#[post_upgrade]
+fn post_upgrade() {
+    init();
+}
+
+#[query]
+fn http_request(_req: HttpRequest) -> HttpResponse<'static> {
+    // All requests will be upgraded to update calls
+    HttpResponse::builder()
+        .with_upgrade(true)
+        .build()
+}
+
+#[update]
+fn http_request_update(req: HttpRequest) -> HttpResponse<'static> {
+    router::handle_request(req)
+}
+
+// src/core/state/raw_storage/state.rs
+use ic_stable_structures::{
+    memory_manager::{MemoryId, MemoryManager},
+    DefaultMemoryImpl, 
+    StableBTreeMap,
+    Memory
+};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::rc::Rc;
+use crate::core::state::raw_storage::types::{ChunkId, FileChunk};
+
+const CHUNKS_MEM_ID: MemoryId = MemoryId::new(1);
+const FILE_CHUNKS_MEM_ID: MemoryId = MemoryId::new(2);
+const FILE_META_MEM_ID: MemoryId = MemoryId::new(3);
+
+thread_local! {
+    // Initialize the memory manager
+    static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
+        MemoryManager::init(DefaultMemoryImpl::default())
+    );
+
+    // Store chunks in stable memory using a different initialization approach
+    static STABLE_CHUNKS: RefCell<StableBTreeMap<ChunkId, Vec<u8>, DefaultMemoryImpl>> = RefCell::new(
+        StableBTreeMap::new(DefaultMemoryImpl::default())
+    );
+
+    // Store chunk metadata in heap memory
+    static CHUNKS: RefCell<BTreeMap<ChunkId, FileChunk>> = RefCell::new(BTreeMap::new());
+    static FILE_CHUNKS: RefCell<BTreeMap<String, Vec<ChunkId>>> = RefCell::new(BTreeMap::new());
+    pub(crate) static FILE_META: RefCell<BTreeMap<String, String>> = RefCell::new(BTreeMap::new());
+}
+
+pub fn store_chunk(chunk: FileChunk) {
+    STABLE_CHUNKS.with(|chunks| {
+        chunks.borrow_mut().insert(chunk.id.clone(), chunk.data.clone());
+    });
+
+    CHUNKS.with(|chunks| {
+        chunks.borrow_mut().insert(chunk.id.clone(), chunk.clone());
+    });
+
+    FILE_CHUNKS.with(|file_chunks| {
+        let mut map = file_chunks.borrow_mut();
+        map.entry(chunk.file_id.clone())
+           .or_insert_with(Vec::new)
+           .push(chunk.id);
+    });
+}
+
+pub fn get_chunk(chunk_id: &ChunkId) -> Option<FileChunk> {
+    CHUNKS.with(|chunks| chunks.borrow().get(chunk_id).cloned())
+}
+
+pub fn get_file_chunks(file_id: &str) -> Vec<FileChunk> {
+    FILE_CHUNKS.with(|file_chunks| {
+        if let Some(chunk_ids) = file_chunks.borrow().get(file_id) {
+            chunk_ids.iter()
+                    .filter_map(|id| get_chunk(id))
+                    .collect()
+        } else {
+            Vec::new()
+        }
+    })
+}
+
+pub fn store_filename(file_id: &str, filename: &str) {
+    FILE_META.with(|fmeta| {
+        fmeta.borrow_mut().insert(file_id.to_string(), filename.to_string());
+    });
+}
+
+pub fn get_filename(file_id: &str) -> Option<String> {
+    FILE_META.with(|fmeta| {
+        fmeta.borrow().get(file_id).cloned()
+    })
+}
+
+// src/core/state/raw_storage/types.rs
+use candid::{CandidType, Decode, Encode}; 
+use ic_stable_structures::{Storable, storable::Bound};
+use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, fmt};
+
+pub const CHUNK_SIZE: usize = 2 * 1024 * 1024; // 2MB chunks
+
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
+pub struct ChunkId(pub String);
+
+impl fmt::Display for ChunkId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Storable for ChunkId {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap()) 
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+pub struct FileChunk {
+    pub id: ChunkId,
+    pub file_id: String,
+    pub chunk_index: u32,
+    pub data: Vec<u8>,
+    pub size: usize
+}
+
+impl Storable for FileChunk {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
+// src/rest/directorys/types.rs
+
+use serde::{Deserialize, Serialize};
+use crate::{core::state::directory::types::{FileMetadata, FolderMetadata}, rest::webhooks::types::SortDirection};
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum DirectoryAction {
+    #[serde(rename = "get")]
+    Get,
+    #[serde(rename = "create")]
+    Create,
+    #[serde(rename = "update")]
+    Update,
+    #[serde(rename = "delete")]
+    Delete,
+    #[serde(rename = "copy")]
+    Copy,
+    #[serde(rename = "move")]
+    Move,
+    #[serde(rename = "sync")]
+    Sync,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DirectoryActionRequest {
+    pub action: DirectoryAction,
+    #[serde(flatten)]
+    pub params: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DirectoryActionResponse {
+    #[serde(flatten)]
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchDirectoryRequest {
+    pub query_string: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListDirectoryRequest {
+    pub folder_id: Option<String>,
+    pub path: Option<String>,
+    #[serde(default)]
+    pub filters: String,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    #[serde(default)]
+    pub direction: SortDirection,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DirectoryListResponse {
+    pub folders: Vec<FolderMetadata>,
+    pub files: Vec<FileMetadata>,
+    pub total_files: usize,
+    pub total_folders: usize,
+    pub cursor: Option<String>,
+}
+
+fn default_page_size() -> usize {
+    50
+}
+
+
+
+pub type SearchDirectoryResponse = DirectoryListResponse;
+
+pub type DirectoryResponse<'a, T> = crate::rest::drives::types::DriveResponse<'a, T>;
+pub type ErrorResponse<'a> = DirectoryResponse<'a, ()>;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UploadChunkRequest {
+    pub file_id: String,
+    pub chunk_index: u32,
+    pub chunk_data: Vec<u8>,
+    pub total_chunks: u32
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UploadChunkResponse {
+    pub chunk_id: String,
+    pub bytes_received: usize
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CompleteUploadRequest {
+    pub file_id: String,
+    pub filename: String
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CompleteUploadResponse {
+    pub file_id: String,
+    pub size: usize,
+    pub chunks: u32,
+    pub filename: String
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FileMetadataResponse {
+    pub file_id: String,
+    pub total_size: usize,
+    pub total_chunks: u32,
+    pub filename: String
+}
+
+
+
+// src/rest/directorys/route.rs
+use crate::debug_log;
+use crate::rest::router;
+use crate::types::RouteHandler;
+
+pub const DIRECTORYS_SEARCH_PATH: &str = "/directory/search";
+pub const DIRECTORYS_LIST_PATH: &str = "/directory/list";
+pub const DIRECTORYS_ACTION_PATH: &str = "/directory/action";
+
+pub const UPLOAD_CHUNK_PATH: &str = "/directory/raw_upload/chunk";
+pub const COMPLETE_UPLOAD_PATH: &str = "/directory/raw_upload/complete";
+pub const ASSET_PATH: &str = "/asset/{file_id}";
+
+type HandlerEntry = (&'static str, &'static str, RouteHandler);
+
+pub fn init_routes() {
+    let routes: &[HandlerEntry] = &[
+        (
+            "POST",
+            DIRECTORYS_SEARCH_PATH,
+            crate::rest::directory::handler::directorys_handlers::search_directory_handler,
+        ),
+        (
+            "POST",
+            DIRECTORYS_LIST_PATH,
+            crate::rest::directory::handler::directorys_handlers::list_directorys_handler,
+        ),
+        (
+            "POST",
+            DIRECTORYS_ACTION_PATH,
+            crate::rest::directory::handler::directorys_handlers::action_directory_handler,
+        ),
+        (
+            "POST",
+            UPLOAD_CHUNK_PATH,
+            crate::rest::directory::handler::directorys_handlers::handle_upload_chunk,
+        ),
+        (
+            "POST", 
+            COMPLETE_UPLOAD_PATH,
+            crate::rest::directory::handler::directorys_handlers::handle_complete_upload,
+        ),
+        (
+            "GET",
+            ASSET_PATH,
+            crate::rest::directory::handler::directorys_handlers::serve_asset,
+        ),
+    ];
+
+    for &(method, path, handler) in routes {
+        debug_log!("Registering {} route: {}", method, path);
+        router::insert_route(method, path, handler);
+    }
+
+}
+
 // src/rest/directorys/handler.rs
 
 

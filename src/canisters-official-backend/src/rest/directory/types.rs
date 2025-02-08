@@ -1,4 +1,5 @@
 // src/rest/directorys/types.rs
+
 use serde::{Deserialize, Serialize};
 use crate::{core::state::directory::types::{FileMetadata, FolderMetadata}, rest::webhooks::types::SortDirection};
 
@@ -65,6 +66,12 @@ fn default_page_size() -> usize {
 }
 
 
+
+pub type SearchDirectoryResponse = DirectoryListResponse;
+
+pub type DirectoryResponse<'a, T> = crate::rest::drives::types::DriveResponse<'a, T>;
+pub type ErrorResponse<'a> = DirectoryResponse<'a, ()>;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct UploadChunkRequest {
     pub file_id: String,
@@ -79,7 +86,7 @@ pub struct UploadChunkResponse {
     pub bytes_received: usize
 }
 
-#[derive(Debug, Clone, Deserialize)] 
+#[derive(Debug, Clone, Deserialize)]
 pub struct CompleteUploadRequest {
     pub file_id: String,
     pub filename: String
@@ -93,8 +100,7 @@ pub struct CompleteUploadResponse {
     pub filename: String
 }
 
-
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FileMetadataResponse {
     pub file_id: String,
     pub total_size: usize,
@@ -102,7 +108,3 @@ pub struct FileMetadataResponse {
     pub filename: String
 }
 
-pub type SearchDirectoryResponse = DirectoryListResponse;
-
-pub type DirectoryResponse<'a, T> = crate::rest::drives::types::DriveResponse<'a, T>;
-pub type ErrorResponse<'a> = DirectoryResponse<'a, ()>;

@@ -1,8 +1,12 @@
 // src/core/state/raw_storage/types.rs
+use candid::{CandidType, Decode, Encode}; 
+use ic_stable_structures::{Storable, storable::Bound};
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub const CHUNK_SIZE: usize = 2 * 1024 * 1024; // 2MB chunks
+
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 pub struct ChunkId(pub String);
 
 impl fmt::Display for ChunkId {
@@ -11,7 +15,19 @@ impl fmt::Display for ChunkId {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl Storable for ChunkId {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap()) 
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
 pub struct FileChunk {
     pub id: ChunkId,
     pub file_id: String,
@@ -20,4 +36,14 @@ pub struct FileChunk {
     pub size: usize
 }
 
-pub const CHUNK_SIZE: usize = 3 * 1024 * (1024 / 2); // 1.5MB chunks
+impl Storable for FileChunk {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
