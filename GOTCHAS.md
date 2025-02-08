@@ -42,3 +42,14 @@ And here are the possible set of events and their corresponding alt_index patter
 - `drive.*` -> `""` empty string
 
 So when a CRUD event happens on a file, we can take the file.id and use it to query against `WEBHOOKS_BY_ALT_INDEX_HASHTABLE` to quickly check in O(1) time if theres a relevant webhook. The limitation is there can only be 1 webhook per resource.
+
+## Default Canister Memory
+
+By default, a drive on ICP mainnet can use the canister itself for filestorage. While convinient, its also slow (10x slower, takes several mins to upload a 60mb video) and expensive ($5/gb/month). However we must still offer it as an option. For this we use the `/directory/raw_upload/*` and `/directory/raw_download/*` routes.
+
+We batch upload files in chunks and canister server reconstructs writing to stable memory continously (hence slow). When we download, we can either:
+
+1. Download by building the file in browser memory as chunks are downloaded. Convinent but memory inefficient, large files can cause lag. Use this for under <100mb.
+2. Download by write-streaming to local computer filesystem which solves the memory efficiency issues, but requires browser permission to access local file directory. Use this for large files >100mb.
+
+The best place to store files is not the canister, its 3rd party integrations like S3, Storj, or local SSD.
