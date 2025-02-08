@@ -6,6 +6,7 @@ pub mod directorys_handlers {
         core::{api::{drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{CompleteUploadRequest, CompleteUploadResponse, DirectoryActionRequest, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
+    
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
@@ -226,7 +227,7 @@ pub mod directorys_handlers {
         let filename: String = FILE_META.with(|map| 
             map.borrow()
                 .get(&file_id.to_string())
-                .cloned()
+                .clone()  // Change cloned() to clone()
         ).unwrap_or_else(|| "unknown.bin".to_string());
 
         // Create a JSON response with metadata

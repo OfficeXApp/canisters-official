@@ -1,8 +1,10 @@
+use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/raw_storage/types.rs
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct ChunkId(pub String);
 
 impl fmt::Display for ChunkId {
@@ -21,3 +23,25 @@ pub struct FileChunk {
 }
 
 pub const CHUNK_SIZE: usize = 3 * 1024 * (1024 / 2); // 1.5MB chunks
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkIdList(pub Vec<ChunkId>);
+
+impl Storable for ChunkIdList {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 1024 * 1024, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::into_writer(&self.0, &mut bytes).expect("Failed to serialize ChunkIdList");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        let vec: Vec<ChunkId> = ciborium::from_reader(&bytes[..])
+            .expect("Failed to deserialize ChunkIdList");
+        ChunkIdList(vec)
+    }
+}
