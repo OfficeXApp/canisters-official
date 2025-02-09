@@ -25,7 +25,7 @@ pub struct ListDirectoryRequest {
     pub cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryListResponse {
     pub folders: Vec<FolderMetadata>,
     pub files: Vec<FileMetadata>,
@@ -47,7 +47,7 @@ pub struct UploadChunkRequest {
     pub total_chunks: u32
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadChunkResponse {
     pub chunk_id: String,
     pub bytes_received: usize
@@ -59,7 +59,7 @@ pub struct CompleteUploadRequest {
     pub filename: String
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompleteUploadResponse {
     pub file_id: String,
     pub size: usize,
@@ -68,7 +68,7 @@ pub struct CompleteUploadResponse {
 }
 
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Deserialize)]
 pub struct FileMetadataResponse {
     pub file_id: String,
     pub total_size: usize,
@@ -89,7 +89,7 @@ pub struct ClientSideUploadRequest {
     pub folder_path: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientSideUploadResponse {
     pub signature: String,
 }
@@ -98,14 +98,39 @@ pub struct ClientSideUploadResponse {
 // --------------------------------------------
 
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct DirectoryActionRequest {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryAction {
     pub action: DirectoryActionEnum,
     pub target: ResourceIdentifier,
     pub payload: DirectoryActionPayload,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DirectoryActionOutcomeID(pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionOutcome {
+    pub id: DirectoryActionOutcomeID,
+    pub success: bool,
+    pub action: DirectoryActionEnum,
+    pub target: ResourceIdentifier,
+    pub payload: DirectoryActionPayload,
+    pub result: Option<DirectoryActionResult>,
+    pub error: Option<DirectoryActionError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionRequestBody {
+    pub actions: Vec<DirectoryAction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionError {
+    pub code: i32,
+    pub message: String,
+}
+
+#[derive(Debug, Clone,Serialize,  Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryActionEnum {
     GetFile,
@@ -122,7 +147,7 @@ pub enum DirectoryActionEnum {
     MoveFolder,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceIdentifier {
     #[serde(default)]
     pub resource_path: Option<DriveFullFilePath>,
@@ -130,7 +155,7 @@ pub struct ResourceIdentifier {
     pub resource_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DirectoryActionPayload {
     GetFile(GetFilePayload),
@@ -147,13 +172,13 @@ pub enum DirectoryActionPayload {
     MoveFolder(MoveFolderPayload),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetFilePayload {}
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetFolderPayload {}
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFilePayload {
     pub name: String,
     pub folder_uuid: FolderUUID,
@@ -165,7 +190,7 @@ pub struct CreateFilePayload {
     pub expires_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFolderPayload {
     pub name: String,
     pub parent_folder_uuid: Option<FolderUUID>,
@@ -174,7 +199,7 @@ pub struct CreateFolderPayload {
     pub expires_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateFilePayload {
     pub name: Option<String>,
     pub folder_uuid: Option<FolderUUID>,
@@ -183,7 +208,7 @@ pub struct UpdateFilePayload {
     pub expires_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateFolderPayload {
     pub name: Option<String>,
     pub parent_folder_uuid: Option<FolderUUID>,
@@ -191,46 +216,48 @@ pub struct UpdateFolderPayload {
     pub expires_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFilePayload {
     pub permanent: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderPayload {
     pub permanent: bool,
     pub recursive: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopyFilePayload {
     pub destination_folder_id: FolderUUID,
     pub new_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopyFolderPayload {
     pub destination_parent_id: FolderUUID,
     pub new_name: Option<String>,
     pub recursive: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone,Serialize, Deserialize)]
 pub struct MoveFilePayload {
     pub destination_folder_id: FolderUUID,
     pub new_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveFolderPayload {
     pub destination_parent_id: FolderUUID,
     pub new_name: Option<String>,
 }
 
+
+
 // Response types remain the same as before
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum DirectoryActionResponse {
+pub enum DirectoryActionResult {
     GetFile(FileMetadata),
     GetFolder(FolderMetadata),
     CreateFile(FileMetadata),
@@ -245,13 +272,13 @@ pub enum DirectoryActionResponse {
     MoveFolder(FolderMetadata),
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFileResponse {
     pub file_id: FileUUID,
     pub full_path: DriveFullFilePath,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderResponse {
     pub folder_id: FolderUUID,
     pub full_path: DriveFullFilePath,

@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::aws_s3::generate_s3_upload_url, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryActionRequest, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::aws_s3::generate_s3_upload_url, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -87,7 +87,7 @@ pub mod directorys_handlers {
             return create_auth_error_response();
         }
     
-        let action_request: DirectoryActionRequest = match serde_json::from_slice(request.body()) {
+        let action_batch: DirectoryActionRequestBody = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -95,14 +95,39 @@ pub mod directorys_handlers {
             ),
         };
     
-        // Placeholder that returns empty response for all actions
-        let response = DirectoryActionResponse {
-            data: serde_json::json!({})
-        };
+        let mut outcomes = Vec::new();
+        
+        for action in action_batch.actions {
+            let outcome_id = DirectoryActionOutcomeID(generate_unique_id("DirectoryActionOutcomeID", ""));
+            let outcome = match crate::core::api::actions::pipe_action(action.clone()) {
+                Ok(result) => DirectoryActionOutcome {
+                    id: outcome_id,
+                    success: true,
+                    action: action.action,
+                    target: action.target,
+                    payload: action.payload,
+                    result: Some(result),
+                    error: None,
+                },
+                Err(error_info) => DirectoryActionOutcome {
+                    id: outcome_id,
+                    success: false,
+                    action: action.action,
+                    target: action.target,
+                    payload: action.payload,
+                    result: None,
+                    error: Some(DirectoryActionError {
+                        code: error_info.code,
+                        message: error_info.message,
+                    }),
+                },
+            };
+            outcomes.push(outcome);
+        }
     
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&response).expect("Failed to serialize response")
+            serde_json::to_vec(&outcomes).expect("Failed to serialize response")
         )
     }
 

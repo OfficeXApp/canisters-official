@@ -1,7 +1,7 @@
 // src/core/api/internals.rs
 pub mod drive_internals {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, 
+        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, 
         
     };
     use regex::Regex;
@@ -36,7 +36,7 @@ pub mod drive_internals {
         if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
             uuid.clone()
         } else {
-            let root_folder_uuid = generate_unique_id("FolderID", "");
+            let root_folder_uuid = generate_unique_id("FolderUUID", "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),
@@ -143,7 +143,7 @@ pub mod drive_internals {
             current_path = format!("{}{}/", current_path.clone(), part);
             
             if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
-                let new_folder_uuid = FolderUUID(generate_unique_id("FolderID",""));
+                let new_folder_uuid = FolderUUID(generate_unique_id("FolderUUID",""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
                     name: part.to_string(),
@@ -211,5 +211,31 @@ pub mod drive_internals {
                 }
             }
         });
+    }
+    
+    pub fn translate_path_to_id(path: DriveFullFilePath) -> PathTranslationResponse {
+        // Check if path ends with '/' to determine if we're looking for a folder
+        let is_folder_path = path.0.ends_with('/');
+        
+        let mut response = PathTranslationResponse {
+            folder: None,
+            file: None,
+        };
+
+        if is_folder_path {
+            // Look up folder UUID first
+            if let Some(folder_uuid) = full_folder_path_to_uuid.get(&path) {
+                // Then get the folder metadata
+                response.folder = folder_uuid_to_metadata.get(&folder_uuid);
+            }
+        } else {
+            // Look up file UUID first
+            if let Some(file_uuid) = full_file_path_to_uuid.get(&path) {
+                // Then get the file metadata
+                response.file = file_uuid_to_metadata.get(&file_uuid);
+            }
+        }
+
+        response
     }
 }

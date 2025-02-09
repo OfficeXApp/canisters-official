@@ -77,3 +77,12 @@ pub struct FileMetadata {
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,
 }
+
+
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PathTranslationResponse {
+    pub folder: Option<FolderMetadata>,
+    pub file: Option<FileMetadata>,
+}

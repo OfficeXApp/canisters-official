@@ -228,7 +228,7 @@ pub mod drive {
             current_path.push('/');
     
             if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
-                let new_folder_uuid = FolderUUID(generate_unique_id("FolderID", ""));
+                let new_folder_uuid = FolderUUID(generate_unique_id("FolderUUID", ""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
                     name: part.to_string(),

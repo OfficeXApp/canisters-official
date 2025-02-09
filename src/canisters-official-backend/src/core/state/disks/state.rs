@@ -68,7 +68,7 @@ pub mod state {
         
         // Only create if root folder doesn't exist
         if !full_folder_path_to_uuid.contains_key(&root_path) {
-            let root_folder_uuid = generate_unique_id("FolderID", "");
+            let root_folder_uuid = generate_unique_id("FolderUUID", "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),
