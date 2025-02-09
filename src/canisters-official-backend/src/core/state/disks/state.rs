@@ -71,7 +71,7 @@ pub mod state {
             let root_folder_uuid = generate_unique_id("FolderID", "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
-                original_folder_name: String::new(),
+                name: String::new(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),

@@ -131,7 +131,7 @@ pub mod drive {
 
         let file_metadata = FileMetadata {
             id: new_file_uuid.clone(),
-            original_file_name: file_name,
+            name: file_name,
             folder_uuid: folder_uuid.clone(),
             file_version,
             prior_version: existing_file_uuid.clone(),
@@ -231,7 +231,7 @@ pub mod drive {
                 let new_folder_uuid = FolderUUID(generate_unique_id("FolderID", ""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
-                    original_folder_name: part.to_string(),
+                    name: part.to_string(),
                     parent_folder_uuid: Some(parent_folder_uuid.clone()),
                     subfolder_uuids: Vec::new(),
                     file_uuids: Vec::new(),
@@ -331,7 +331,7 @@ pub mod drive {
         // Update folder metadata using with_mut
         folder_uuid_to_metadata.with_mut(|map| {
             if let Some(folder) = map.get_mut(&folder_id) {
-                folder.original_folder_name = new_name;
+                folder.name = new_name;
                 folder.full_folder_path = DriveFullFilePath(new_folder_path.clone());
                 folder.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
             }
@@ -415,7 +415,7 @@ pub mod drive {
         // Update file metadata
         file_uuid_to_metadata.with_mut(|map| {
             if let Some(file) = map.get_mut(&file_id) {
-                file.original_file_name = new_name.clone();
+                file.name = new_name.clone();
                 file.full_file_path = DriveFullFilePath(new_path.clone());
                 file.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
                 file.extension = new_name

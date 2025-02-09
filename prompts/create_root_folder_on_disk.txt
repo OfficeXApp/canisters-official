@@ -861,7 +861,7 @@ pub struct Tag(pub String);
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FolderMetadata {
     pub id: FolderUUID,
-    pub original_folder_name: String,
+    pub name: String,
     pub parent_folder_uuid: Option<FolderUUID>,
     pub subfolder_uuids: Vec<FolderUUID>,
     pub file_uuids: Vec<FileUUID>,
@@ -880,7 +880,7 @@ pub struct FolderMetadata {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FileMetadata {
     pub(crate) id: FileUUID,
-    pub(crate) original_file_name: String,
+    pub(crate) name: String,
     pub(crate) folder_uuid: FolderUUID,
     pub(crate) file_version: u32,
     pub(crate) prior_version: Option<FileUUID>,
@@ -941,7 +941,7 @@ pub mod drive_internals {
             let root_folder_uuid = generate_unique_id("FolderID", "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
-                original_folder_name: String::new(),
+                name: String::new(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
@@ -1048,7 +1048,7 @@ pub mod drive_internals {
                 let new_folder_uuid = FolderUUID(generate_unique_id("FolderID",""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
-                    original_folder_name: part.to_string(),
+                    name: part.to_string(),
                     parent_folder_uuid: Some(parent_uuid.clone()),
                     subfolder_uuids: Vec::new(),
                     file_uuids: Vec::new(),

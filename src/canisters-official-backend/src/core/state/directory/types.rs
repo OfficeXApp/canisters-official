@@ -40,7 +40,7 @@ pub struct Tag(pub String);
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FolderMetadata {
     pub id: FolderUUID,
-    pub original_folder_name: String,
+    pub name: String,
     pub parent_folder_uuid: Option<FolderUUID>,
     pub subfolder_uuids: Vec<FolderUUID>,
     pub file_uuids: Vec<FileUUID>,
@@ -59,7 +59,7 @@ pub struct FolderMetadata {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FileMetadata {
     pub(crate) id: FileUUID,
-    pub(crate) original_file_name: String,
+    pub(crate) name: String,
     pub(crate) folder_uuid: FolderUUID,
     pub(crate) file_version: u32,
     pub(crate) prior_version: Option<FileUUID>,

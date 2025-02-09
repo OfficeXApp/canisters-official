@@ -39,7 +39,7 @@ pub mod drive_internals {
             let root_folder_uuid = generate_unique_id("FolderID", "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
-                original_folder_name: String::new(),
+                name: String::new(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
@@ -146,7 +146,7 @@ pub mod drive_internals {
                 let new_folder_uuid = FolderUUID(generate_unique_id("FolderID",""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
-                    original_folder_name: part.to_string(),
+                    name: part.to_string(),
                     parent_folder_uuid: Some(parent_uuid.clone()),
                     subfolder_uuids: Vec::new(),
                     file_uuids: Vec::new(),
