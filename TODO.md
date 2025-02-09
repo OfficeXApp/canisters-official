@@ -4,6 +4,7 @@
 
 - [🔵] Migrate & refactor core drive code --> in front of every POST /directory/action:getFile we need to generate a new raw_url (and potentially also track access_tokens for reuse, at least for public)
 - [x] Implement in-canister raw file storage, perhaps we should try a pure asset container? --> has raw_url but only if we add asset-canister functionality --> in the end we settled for in-canister filestorage via persistent chunked binary data. while the data is stored & streamed onchain, its slow expensive and cant be accessed via plain url string, must be via webapp to render.
+- [🔵] Handle directory file & folder actions via `/directory/action`. Note that copy & move operations are also in actions but could be recursively long if many subfolders/subfiles. Do not allow copy/move between disks and max 20 actions in a batch.
 - [ ] Implement aws s3 storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
 - [ ] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
