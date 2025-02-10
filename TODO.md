@@ -4,6 +4,7 @@
 
 - [🔵] Migrate & refactor core drive code --> in front of every POST /directory/action:getFile we need to generate a new raw_url (and potentially also track access_tokens for reuse, at least for public)
 - [x] Implement in-canister raw file storage, perhaps we should try a pure asset container? --> has raw_url but only if we add asset-canister functionality --> in the end we settled for in-canister filestorage via persistent chunked binary data. while the data is stored & streamed onchain, its slow expensive and cant be accessed via plain url string, must be via webapp to render.
+- [ ] Refactor how recycling bin works.
 - [🔵] Handle directory file & folder actions via `/directory/action`. Note that copy & move operations are also in actions but could be recursively long if many subfolders/subfiles. Do not allow copy/move between disks and max 20 actions in a batch.
 - [ ] Implement aws s3 storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
 - [ ] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
@@ -35,6 +36,7 @@
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items
 - [ ] Refactor all CRUD creates/updates/deletes to accept array to support bulk operations (hard to change API spec after)
+- [ ] Implement file/folder tags
 - [ ] Consider the danger of UserID values that dont comply with ICP Principals ThresholdBLS and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
 - [ ] Consider whether we need historical action logs and replayability (eg. who did what when, can we "rollback"?)
 
