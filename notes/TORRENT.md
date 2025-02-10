@@ -12,7 +12,7 @@ For a 1TB video series with 1TB seeded to consumers, earns:
 - $20 storage + $90 egress
 - $5 storage + $9 egress
 
-Torrent consumers (leechers) pay these fees, which match the existing AWS S3 pricing. Torrent consumers may be businesses or individuals. Video streaming sites already have high server costs - utilizing torrents can drastically reduce costs. Using OfficeX connects leeches with vast quantity of retail friendly seeders compared to traditional torrent platforms where seeders have overhead costs or niche volunteers.
+Torrent consumers (leechers) pay these fees, which match the existing AWS S3 pricing. Torrent consumers may be businesses or individuals. Video streaming sites already have high server costs - utilizing torrents can drastically reduce costs. Using OfficeX connects leeches with vast quantity of retail friendly seeders who offer better pricing compared to traditional cloud storage.
 
 See AWS Pricing:
 https://aws.amazon.com/s3/pricing/
@@ -20,3 +20,4 @@ https://aws.amazon.com/s3/pricing/
 ## User Experience
 
 Since OfficeX is so convinient as a storage app, it's way easier to get people to seed files and search.
+When you share torrents, you're sharing a folder on your OfficeX. other users can right click your torrent file and launch it right from their web app (no need to download torrent files).

@@ -1,4 +1,4 @@
-// src/rest/directorys/types.rs
+// src/rest/directory/types.rs
 use serde::{Deserialize, Serialize};
 use crate::{core::state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}, rest::webhooks::types::SortDirection};
 use crate::core::{
@@ -181,7 +181,6 @@ pub struct GetFolderPayload {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFilePayload {
     pub name: String,
-    pub folder_uuid: FolderUUID,
     pub extension: String,
     pub tags: Vec<Tag>,
     pub file_size: u64,
@@ -193,7 +192,6 @@ pub struct CreateFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFolderPayload {
     pub name: String,
-    pub parent_folder_uuid: Option<FolderUUID>,
     pub tags: Vec<Tag>,
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
@@ -202,7 +200,6 @@ pub struct CreateFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateFilePayload {
     pub name: Option<String>,
-    pub folder_uuid: Option<FolderUUID>,
     pub tags: Option<Vec<Tag>>,
     pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
@@ -211,7 +208,6 @@ pub struct UpdateFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateFolderPayload {
     pub name: Option<String>,
-    pub parent_folder_uuid: Option<FolderUUID>,
     pub tags: Option<Vec<Tag>>,
     pub expires_at: Option<i64>,
 }

@@ -444,7 +444,11 @@ pub mod drive {
         Ok(file_id)
     }
 
-    pub fn delete_folder(folder_id: &FolderUUID) -> Result<(), String> {
+    pub fn delete_folder(
+        folder_id: &FolderUUID,
+        all_deleted_folders: &mut Vec<FolderUUID>,
+        all_deleted_files: &mut Vec<FileUUID>,
+    ) -> Result<(), String> {
         ic_cdk::println!("Attempting to delete folder. Folder ID: {}", folder_id);
         
         // Get folder data before modifications
@@ -460,24 +464,40 @@ pub mod drive {
         let file_ids = folder.file_uuids.clone();
         
         ic_cdk::println!("Folder found. Full path: {}", folder_path);
-        
-        // Remove folder path mapping
-        ic_cdk::println!("Removing folder path from full_folder_path_to_uuid");
-        full_folder_path_to_uuid.remove(&folder_path);
-    
-        // Recursively delete subfolders
-        ic_cdk::println!("Deleting subfolders");
-        for subfolder_id in subfolder_ids {
-            ic_cdk::println!("Deleting subfolder: {}", subfolder_id);
-            delete_folder(&subfolder_id)?;
+
+        // Add this folder's files to the deleted files list, respecting the limit
+        for file_id in file_ids.clone() {
+            if all_deleted_files.len() >= 2000 {
+                break;
+            }
+            ic_cdk::println!("Deleting file: {}", file_id);
+            if let Ok(()) = delete_file(&file_id) {
+                all_deleted_files.push(file_id);
+            }
         }
-    
-        // Delete files in this folder
+
+        // First delete files in the current folder
         ic_cdk::println!("Deleting files in the folder");
         for file_id in file_ids {
             ic_cdk::println!("Deleting file: {}", file_id);
-            delete_file(&file_id)?;
+            if let Err(e) = delete_file(&file_id) {
+                ic_cdk::println!("Error deleting file {}: {}", file_id, e);
+                return Err(format!("Failed to delete file {}: {}", file_id, e));
+            }
+            
+            // Only add to deleted files list after successful deletion
+            if all_deleted_files.len() < 2000 {
+                all_deleted_files.push(file_id);
+            }
         }
+    
+        // Recursively delete subfolders, passing the same vectors
+        for subfolder_id in subfolder_ids {
+            if let Err(e) = delete_folder(&subfolder_id, all_deleted_folders, all_deleted_files) {
+                ic_cdk::println!("Error deleting subfolder {}: {}", subfolder_id, e);
+            }
+        }
+    
     
         // Mark the folder as deleted
         folder_uuid_to_metadata.with_mut(|map| {
@@ -486,6 +506,15 @@ pub mod drive {
                 folder.deleted = true;
             }
         });
+        
+        // Remove folder path mapping
+        ic_cdk::println!("Removing folder path from full_folder_path_to_uuid");
+        full_folder_path_to_uuid.remove(&folder_path);
+
+        // Add to deleted folders list after successful deletion
+        if all_deleted_folders.len() < 2000 {
+            all_deleted_folders.push(folder_id.clone());
+        }
     
         ic_cdk::println!("Folder deleted successfully");
         Ok(())
