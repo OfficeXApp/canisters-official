@@ -54,6 +54,7 @@ pub struct FolderMetadata {
     pub(crate) deleted: bool,
     pub(crate) expires_at: i64,
     pub(crate) canister_id: ICPPrincipalString,
+    pub(crate) restore_trash_prior_folder: Option<FolderUUID>,
 }
 
 
@@ -78,6 +79,7 @@ pub struct FileMetadata {
     pub(crate) deleted: bool,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,
+    pub(crate) restore_trash_prior_folder: Option<FolderUUID>,
 }
 
 

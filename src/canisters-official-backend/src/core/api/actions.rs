@@ -3,7 +3,7 @@ use std::result::Result;
 
 use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::UserID}, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
 
-use super::{drive::drive::{create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, rename_file, rename_folder}, internals::drive_internals::translate_path_to_id};
+use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
 
 
 #[derive(Debug, Clone)]
@@ -391,10 +391,10 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     };
 
                     // Perform deletion
-                    match delete_file(&file_id) {
+                    match delete_file(&file_id, payload.permanent) {
                         Ok(_) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
                             file_id,
-                            full_path: file.full_file_path
+                            trash_full_path: file.full_file_path
                         })),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -445,10 +445,10 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let mut deleted_folders = Vec::with_capacity(2000);
 
                     // Perform deletion with collection vectors
-                    match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files) {
-                        Ok(()) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
+                    match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files, payload.permanent) {
+                        Ok(driveFullFilePath) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
                             folder_id,
-                            full_path: folder.full_folder_path,
+                            trash_full_path: folder.full_folder_path,
                             deleted_files: Some(deleted_files),
                             deleted_folders: Some(deleted_folders),
                         })),
@@ -468,11 +468,47 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::CopyFile => {
             match action.payload {
                 DirectoryActionPayload::CopyFile(payload) => {
-                    // Implementation for copying file
-                    todo!("Implement copy file")
+                    // Get the file ID from either resource_id or resource_path
+                    let file_id = if let Some(id) = action.target.resource_id {
+                        FileUUID(id)
+                    } else if let Some(path) = action.target.resource_path {
+                        let translation = translate_path_to_id(path);
+                        match translation.file {
+                            Some(file) => file.id,
+                            None => return Err(DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "Source file not found at specified path".to_string()
+                            })
+                        }
+                    } else {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: "Neither resource_id nor resource_path provided for source file".to_string()
+                        });
+                    };
+        
+                    // Get destination folder
+                    let destination_folder = match get_destination_folder(
+                        payload.destination_folder_id,
+                        payload.destination_folder_path,
+                    ) {
+                        Ok(folder) => folder,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Destination folder not found: {}", e)
+                        })
+                    };
+        
+                    match copy_file(&file_id, &destination_folder, payload.file_conflict_resolution) {
+                        Ok(file) => Ok(DirectoryActionResult::CopyFile(file)),
+                        Err(e) => Err(DirectoryActionErrorInfo {
+                            code: 500,
+                            message: format!("Failed to copy file: {}", e)
+                        })
+                    }
                 }
                 _ => Err(DirectoryActionErrorInfo {
-                    code: 500,
+                    code: 400,
                     message: "Invalid payload for COPY_FILE action".to_string()
                 })
             }
@@ -481,11 +517,47 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::CopyFolder => {
             match action.payload {
                 DirectoryActionPayload::CopyFolder(payload) => {
-                    // Implementation for copying folder
-                    todo!("Implement copy folder")
+                    // Get the folder ID from either resource_id or resource_path
+                    let folder_id = if let Some(id) = action.target.resource_id {
+                        FolderUUID(id)
+                    } else if let Some(path) = action.target.resource_path {
+                        let translation = translate_path_to_id(path);
+                        match translation.folder {
+                            Some(folder) => folder.id,
+                            None => return Err(DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "Source folder not found at specified path".to_string()
+                            })
+                        }
+                    } else {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: "Neither resource_id nor resource_path provided for source folder".to_string()
+                        });
+                    };
+        
+                    // Get destination folder
+                    let destination_folder = match get_destination_folder(
+                        payload.destination_folder_id,
+                        payload.destination_folder_path,
+                    ) {
+                        Ok(folder) => folder,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Destination folder not found: {}", e)
+                        })
+                    };
+        
+                    match copy_folder(&folder_id, &destination_folder, payload.file_conflict_resolution) {
+                        Ok(folder) => Ok(DirectoryActionResult::CopyFolder(folder)),
+                        Err(e) => Err(DirectoryActionErrorInfo {
+                            code: 500,
+                            message: format!("Failed to copy folder: {}", e)
+                        })
+                    }
                 }
                 _ => Err(DirectoryActionErrorInfo {
-                    code: 500,
+                    code: 400,
                     message: "Invalid payload for COPY_FOLDER action".to_string()
                 })
             }
@@ -494,11 +566,47 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::MoveFile => {
             match action.payload {
                 DirectoryActionPayload::MoveFile(payload) => {
-                    // Implementation for moving file
-                    todo!("Implement move file")
+                    // Get the file ID from either resource_id or resource_path
+                    let file_id = if let Some(id) = action.target.resource_id {
+                        FileUUID(id)
+                    } else if let Some(path) = action.target.resource_path {
+                        let translation = translate_path_to_id(path);
+                        match translation.file {
+                            Some(file) => file.id,
+                            None => return Err(DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "Source file not found at specified path".to_string()
+                            })
+                        }
+                    } else {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: "Neither resource_id nor resource_path provided for source file".to_string()
+                        });
+                    };
+        
+                    // Get destination folder
+                    let destination_folder = match get_destination_folder(
+                        payload.destination_folder_id,
+                        payload.destination_folder_path,
+                    ) {
+                        Ok(folder) => folder,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Destination folder not found: {}", e)
+                        })
+                    };
+        
+                    match move_file(&file_id, &destination_folder, payload.file_conflict_resolution) {
+                        Ok(file) => Ok(DirectoryActionResult::MoveFile(file)),
+                        Err(e) => Err(DirectoryActionErrorInfo {
+                            code: 500,
+                            message: format!("Failed to move file: {}", e)
+                        })
+                    }
                 }
                 _ => Err(DirectoryActionErrorInfo {
-                    code: 500,
+                    code: 400,
                     message: "Invalid payload for MOVE_FILE action".to_string()
                 })
             }
@@ -507,12 +615,61 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::MoveFolder => {
             match action.payload {
                 DirectoryActionPayload::MoveFolder(payload) => {
-                    // Implementation for moving folder
-                    todo!("Implement move folder")
+                    // Get the folder ID from either resource_id or resource_path
+                    let folder_id = if let Some(id) = action.target.resource_id {
+                        FolderUUID(id)
+                    } else if let Some(path) = action.target.resource_path {
+                        let translation = translate_path_to_id(path);
+                        match translation.folder {
+                            Some(folder) => folder.id,
+                            None => return Err(DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "Source folder not found at specified path".to_string()
+                            })
+                        }
+                    } else {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: "Neither resource_id nor resource_path provided for source folder".to_string()
+                        });
+                    };
+        
+                    // Get destination folder
+                    let destination_folder = match get_destination_folder(
+                        payload.destination_folder_id,
+                        payload.destination_folder_path,
+                    ) {
+                        Ok(folder) => folder,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Destination folder not found: {}", e)
+                        })
+                    };
+        
+                    match move_folder(&folder_id, &destination_folder, payload.file_conflict_resolution) {
+                        Ok(folder) => Ok(DirectoryActionResult::MoveFolder(folder)),
+                        Err(e) => Err(DirectoryActionErrorInfo {
+                            code: 500,
+                            message: format!("Failed to move folder: {}", e)
+                        })
+                    }
+                }
+                _ => Err(DirectoryActionErrorInfo {
+                    code: 400,
+                    message: "Invalid payload for MOVE_FOLDER action".to_string()
+                })
+            }
+        }
+        
+        DirectoryActionEnum::RestoreTrash => {
+            match action.payload {
+                DirectoryActionPayload::RestoreTrash(payload) => {
+                    // Implementation for restoring trash
+                    todo!("Implement restore trash")
                 }
                 _ => Err(DirectoryActionErrorInfo {
                     code: 500,
-                    message: "Invalid payload for MOVE_FOLDER action".to_string()
+                    message: "Invalid payload for RESTORE_TRASH action".to_string()
                 })
             }
         }

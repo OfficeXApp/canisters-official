@@ -147,6 +147,7 @@ pub enum DirectoryActionEnum {
     CopyFolder,
     MoveFile,
     MoveFolder,
+    RestoreTrash,
 }
 
 
@@ -193,6 +194,7 @@ pub enum DirectoryActionPayload {
     CopyFolder(CopyFolderPayload),
     MoveFile(MoveFilePayload),
     MoveFolder(MoveFolderPayload),
+    RestoreTrash(RestoreTrashPayload),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,7 +247,6 @@ pub struct DeleteFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderPayload {
     pub permanent: bool,
-    pub recursive: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -294,6 +295,7 @@ pub enum DirectoryActionResult {
     CopyFolder(FolderMetadata),
     MoveFile(FileMetadata),
     MoveFolder(FolderMetadata),
+    RestoreTrash(RestoreTrashResponse)
 }
 
 
@@ -313,17 +315,31 @@ pub struct CreateFolderResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFileResponse {
     pub file_id: FileUUID,
-    pub full_path: DriveFullFilePath,
+    pub trash_full_path: DriveFullFilePath,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderResponse {
     pub folder_id: FolderUUID,
-    pub full_path: DriveFullFilePath,
+    pub trash_full_path: DriveFullFilePath, // if empty then its permanently deleted
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_files: Option<Vec<FileUUID>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_folders: Option<Vec<FolderUUID>>,
+}
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestoreTrashPayload {
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub restore_to_folder: Option<FolderUUID>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestoreTrashResponse {
+    pub restored_files: Vec<FileUUID>,
+    pub restored_folders: Vec<FolderUUID>,
 }
 
 // Example JSON requests:
@@ -488,4 +504,11 @@ pub struct DeleteFolderResponse {
         "new_name": "project-alpha-archived"
     }
 }
+
+14. RESTORE_TRASH request:
+{
+    "action": "RESTORE_TRASH",
+    "target": {
+        "resource_id": "folder-uuid-456"
+    },
 */
