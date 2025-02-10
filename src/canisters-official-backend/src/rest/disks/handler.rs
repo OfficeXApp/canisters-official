@@ -3,7 +3,7 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::state::state::OWNER_ID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::state::state::OWNER_ID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -307,6 +307,12 @@ pub mod disks_handlers {
                     DISKS_BY_TIME_LIST.with(|store| {
                         store.borrow_mut().push(disk_id.clone());
                     });
+
+                    ensure_disk_root_folder(
+                        &disk_id,
+                        &requester_api_key.user_id,
+                        &ic_cdk::api::id().to_text()
+                    );
 
                     create_response(
                         StatusCode::OK,

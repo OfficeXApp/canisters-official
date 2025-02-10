@@ -1,4 +1,4 @@
-// src/rest/directorys/certs.rs
+// src/rest/directory/certs.rs
 
 
 #[derive(Debug, Clone)]

@@ -7,6 +7,7 @@ pub const DRIVES_GET_PATH: &str = "/drives/get/{drive_id}";
 pub const DRIVES_LIST_PATH: &str = "/drives/list";
 pub const DRIVES_UPSERT_PATH: &str = "/drives/upsert";
 pub const DRIVES_DELETE_PATH: &str = "/drives/delete";
+pub const DRIVES_SNAPSHOT_PATH: &str = "/drives/snapshot";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -31,6 +32,11 @@ pub fn init_routes() {
             "POST",
             DRIVES_DELETE_PATH,
             crate::rest::drives::handler::drives_handlers::delete_drive_handler,
+        ),
+        (
+            "GET",
+            DRIVES_SNAPSHOT_PATH,
+            crate::rest::drives::handler::drives_handlers::snapshot_drive_handler,
         )
     ];
 

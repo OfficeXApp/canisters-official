@@ -1,7 +1,7 @@
 // src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
-use core::state::{api_keys::state::state::init_default_admin_apikey, drives::state::state::init_self_drive};
+use core::state::{api_keys::state::state::init_default_admin_apikey, disks::state::state::init_default_disks, drives::state::state::init_self_drive};
 use std::{cell::RefCell, collections::HashMap};
 
 mod logger;
@@ -16,6 +16,7 @@ fn init() {
     router::init_routes();
     init_default_admin_apikey();
     init_self_drive();  
+    init_default_disks();
 }
 
 #[post_upgrade]

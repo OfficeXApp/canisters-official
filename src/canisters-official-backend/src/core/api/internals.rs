@@ -1,9 +1,10 @@
-
+// src/core/api/internals.rs
 pub mod drive_internals {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID}}, disks::types::DiskTypeEnum}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, 
+        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
         
     };
+    
     use regex::Regex;
 
     pub fn sanitize_file_path(file_path: &str) -> String {
@@ -26,8 +27,8 @@ pub mod drive_internals {
         format!("{}::{}", storage_part, sanitized)
     }
 
-    pub fn ensure_root_folder(storage_location: &DiskTypeEnum, user_id: &UserID, canister_id: String,) -> FolderUUID {
-        let root_path = DriveFullFilePath(format!("{}::", storage_location.to_string()));
+    pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderUUID {
+        let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
         } else {
@@ -36,19 +37,20 @@ pub mod drive_internals {
         if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
             uuid.clone()
         } else {
-            let root_folder_uuid = generate_unique_id("FolderID", "");
+            let root_folder_uuid = generate_unique_id("FolderUUID", "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
-                original_folder_name: String::new(),
+                name: String::new(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_folder_path: root_path.clone(),
                 tags: Vec::new(),
-                owner: user_id.clone(),
-                created_date: ic_cdk::api::time(),
-                storage_location: storage_location.clone(),
-                last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+                created_by: user_id.clone(),
+                created_date_ms: ic_cdk::api::time(),
+                disk_id: disk_id.clone(),
+                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
+                last_updated_by: user_id.clone(),
                 deleted: false,
                 canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string)),
                 expires_at: -1,
@@ -124,7 +126,7 @@ pub mod drive_internals {
 
     pub fn ensure_folder_structure(
         folder_path: &str,
-        storage_location: DiskTypeEnum,
+        disk_id: DiskID,
         user_id: UserID,
         canister_id: String,
     ) -> FolderUUID {
@@ -137,25 +139,26 @@ pub mod drive_internals {
             canister_id.clone()
         };
 
-        let mut parent_uuid = ensure_root_folder(&storage_location, &user_id, canister_icp_principal_string.clone());
+        let mut parent_uuid = ensure_root_folder(&disk_id, &user_id, canister_icp_principal_string.clone());
 
         for part in path_parts[1].split('/').filter(|&p| !p.is_empty()) {
             current_path = format!("{}{}/", current_path.clone(), part);
             
             if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
-                let new_folder_uuid = FolderUUID(generate_unique_id("FolderID",""));
+                let new_folder_uuid = FolderUUID(generate_unique_id("FolderUUID",""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
-                    original_folder_name: part.to_string(),
+                    name: part.to_string(),
                     parent_folder_uuid: Some(parent_uuid.clone()),
                     subfolder_uuids: Vec::new(),
                     file_uuids: Vec::new(),
                     full_folder_path: DriveFullFilePath(current_path.clone()),
                     tags: Vec::new(),
-                    owner: user_id.clone(),
-                    created_date: ic_cdk::api::time(),
-                    storage_location: storage_location.clone(),
-                    last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+                    created_by: user_id.clone(),
+                    created_date_ms: ic_cdk::api::time(),
+                    disk_id: disk_id.clone(),
+                    last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
+                    last_updated_by: user_id.clone(),
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at: -1,
@@ -211,5 +214,98 @@ pub mod drive_internals {
                 }
             }
         });
+    }
+    
+    pub fn translate_path_to_id(path: DriveFullFilePath) -> PathTranslationResponse {
+        // Check if path ends with '/' to determine if we're looking for a folder
+        let is_folder_path = path.0.ends_with('/');
+        
+        let mut response = PathTranslationResponse {
+            folder: None,
+            file: None,
+        };
+
+        if is_folder_path {
+            // Look up folder UUID first
+            if let Some(folder_uuid) = full_folder_path_to_uuid.get(&path) {
+                // Then get the folder metadata
+                response.folder = folder_uuid_to_metadata.get(&folder_uuid);
+            }
+        } else {
+            // Look up file UUID first
+            if let Some(file_uuid) = full_file_path_to_uuid.get(&path) {
+                // Then get the file metadata
+                response.file = file_uuid_to_metadata.get(&file_uuid);
+            }
+        }
+
+        response
+    }
+
+    pub fn format_file_asset_path (
+        file_uuid: FileUUID,
+        extension: String,
+    ) -> String {
+        format!(
+            "https://{}.raw.icp0.io/asset/{file_uuid}.{extension}",
+            ic_cdk::api::id().to_text()
+        )
+    }
+
+    pub fn resolve_naming_conflict(
+        base_path: &str,
+        name: &str,
+        is_folder: bool,
+        resolution: Option<FileConflictResolutionEnum>,
+    ) -> (String, String) {
+        let mut final_name = name.to_string();
+        let mut final_path = if is_folder {
+            format!("{}{}/", base_path, name)
+        } else {
+            format!("{}{}", base_path, name)
+        };
+    
+        match resolution.unwrap_or(FileConflictResolutionEnum::KEEP_BOTH) {
+            FileConflictResolutionEnum::REPLACE => (final_name, final_path),
+            FileConflictResolutionEnum::KEEP_ORIGINAL => {
+                if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
+                   (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                    return (String::new(), String::new()); // Signal to keep original
+                }
+                (final_name, final_path)
+            }
+            FileConflictResolutionEnum::KEEP_NEWER => {
+                // For KEEP_NEWER, we'll implement timestamp comparison in the caller
+                (final_name, final_path)
+            }
+            FileConflictResolutionEnum::KEEP_BOTH => {
+                let mut counter = 1;
+                while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
+                      (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                    counter += 1;
+                    
+                    // Split name and extension for files
+                    let (base_name, ext) = if !is_folder && name.contains('.') {
+                        let parts: Vec<&str> = name.rsplitn(2, '.').collect();
+                        (parts[1], parts[0])
+                    } else {
+                        (name, "")
+                    };
+    
+                    final_name = if ext.is_empty() {
+                        format!("{} ({})", base_name, counter)
+                    } else {
+                        format!("{} ({}).{}", base_name, counter, ext)
+                    };
+    
+                    final_path = if is_folder {
+                        format!("{}{}/", base_path, final_name)
+                    } else {
+                        format!("{}{}", base_path, final_name)
+                    };
+                }
+                (final_name, final_path)
+            }
+        }
     }
 }

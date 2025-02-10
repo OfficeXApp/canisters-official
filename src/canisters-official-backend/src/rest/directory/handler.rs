@@ -1,9 +1,9 @@
-// src/rest/directorys/handler.rs
+// src/rest/directory/handler.rs
 
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{CompleteUploadRequest, CompleteUploadResponse, DirectoryActionRequest, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::aws_s3::generate_s3_upload_url, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -87,7 +87,7 @@ pub mod directorys_handlers {
             return create_auth_error_response();
         }
     
-        let action_request: DirectoryActionRequest = match serde_json::from_slice(request.body()) {
+        let action_batch: DirectoryActionRequestBody = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -95,14 +95,39 @@ pub mod directorys_handlers {
             ),
         };
     
-        // Placeholder that returns empty response for all actions
-        let response = DirectoryActionResponse {
-            data: serde_json::json!({})
-        };
+        let mut outcomes = Vec::new();
+        
+        for action in action_batch.actions {
+            let outcome_id = DirectoryActionOutcomeID(generate_unique_id("DirectoryActionOutcomeID", ""));
+            let outcome = match crate::core::api::actions::pipe_action(action.clone(), requester_api_key.user_id.clone()) {
+                Ok(result) => DirectoryActionOutcome {
+                    id: outcome_id,
+                    success: true,
+                    action: action.action,
+                    target: action.target,
+                    payload: action.payload,
+                    result: Some(result),
+                    error: None,
+                },
+                Err(error_info) => DirectoryActionOutcome {
+                    id: outcome_id,
+                    success: false,
+                    action: action.action,
+                    target: action.target,
+                    payload: action.payload,
+                    result: None,
+                    error: Some(DirectoryActionError {
+                        code: error_info.code,
+                        message: error_info.message,
+                    }),
+                },
+            };
+            outcomes.push(outcome);
+        }
     
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&response).expect("Failed to serialize response")
+            serde_json::to_vec(&outcomes).expect("Failed to serialize response")
         )
     }
 
@@ -325,6 +350,85 @@ pub mod directorys_handlers {
             ])
             .with_body(chunk.data.clone())
             .build()
+    }
+
+    pub fn request_clientside_upload_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // 2. Only owner can request uploads
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        // 3. Parse request body
+        let upload_req: ClientSideUploadRequest = match serde_json::from_slice(req.body()) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // 4. Validate the disk exists and is AWS type
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow()
+                .get(&DiskID(upload_req.disk_id.clone()))
+                .cloned()
+        });
+    
+        let disk = match disk {
+            Some(d) => d,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Disk not found".to_string()).encode()
+            ),
+        };
+    
+        if disk.disk_type != DiskTypeEnum::AwsBucket {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Disk is not an AWS S3 bucket".to_string()).encode()
+            );
+        }
+    
+        // 5. Parse AWS credentials from disk auth_json
+        let aws_auth: AwsBucketAuth = match disk.auth_json {
+            Some(auth_str) => match serde_json::from_str(&auth_str) {
+                Ok(auth) => auth,
+                Err(_) => return create_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorResponse::err(500, "Invalid AWS credentials format".to_string()).encode()
+                ),
+            },
+            None => return create_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorResponse::err(500, "Missing AWS credentials".to_string()).encode()
+            ),
+        };
+    
+        // 6. Generate the upload URL and signature
+        // Set reasonable limits: 100GB max size, 24 hour expiry
+        let max_file_size = 100 * 1024 * 1024 * 1024; // 10GB in bytes
+        let expires_in = 3600 * 24; // 24 hours in seconds
+    
+        let s3_response = generate_s3_upload_url(
+            &upload_req.folder_path,
+            &aws_auth,
+            max_file_size,
+            expires_in
+        );
+    
+        // 7. Return the signed URL and fields
+        let response = ClientSideUploadResponse {
+            signature: s3_response,  // Contains URL and form fields
+        };
+    
+        create_success_response(&response)
     }
 
     fn json_decode<T>(value: &[u8]) -> T

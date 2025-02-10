@@ -36,7 +36,7 @@ pub struct Webhook {
 And here are the possible set of events and their corresponding alt_index patterns
 
 - `file.*` -> `{FileID}`
-- `folder.*` -> `{FolderID}`
+- `folder.*` -> `{FolderUUID}`
 - `folder.file.*` -> `{FolderID_files}`
 - `team.invite.*` -> `{TeamID}_{InviteID}`
 - `drive.*` -> `""` empty string
@@ -53,3 +53,7 @@ We batch upload files in chunks and canister server reconstructs writing to stab
 2. Download by write-streaming to local computer filesystem which solves the memory efficiency issues, but requires browser permission to access local file directory. Use this for large files >100mb.
 
 The best place to store files is not the canister, its 3rd party integrations like S3, Storj, or local SSD.
+
+## Copy/Move Files Across Disks
+
+OfficeX does not support copy/move between disks (users must manual download/reupload when moving between disks). while s3/storj allow for transfering files to other buckets via REST API, its not always possible on other destination disks like localSSD or cross platform s3 to storj. they would require manual download/reupload. for simplicity, we require all cross-disk transfers to require manual download/reupload. this may change in future with advanced functionality.

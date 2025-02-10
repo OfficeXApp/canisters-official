@@ -3,9 +3,10 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, types::{ICPPrincipalString, PublicKeyBLS}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, PublicKeyBLS}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
+    use serde_json::json;
     use crate::core::state::drives::{
         
     };
@@ -347,6 +348,67 @@ pub mod drives_handlers {
                 deleted: true
             }).encode()
         )
+    }
+
+    pub fn snapshot_drive_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        // Collect all state data using serde_json::json! macro
+        let state = json!({
+            "GLOBAL_STATE": {
+                "api_keys": {
+                    "APIKEYS_BY_VALUE_HASHTABLE": APIKEYS_BY_VALUE_HASHTABLE.with(|h| h.borrow().clone()),
+                    "APIKEYS_BY_ID_HASHTABLE": APIKEYS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
+                    "USERS_APIKEYS_HASHTABLE": USERS_APIKEYS_HASHTABLE.with(|h| h.borrow().clone())
+                },
+                "contacts": {
+                    "CONTACTS_BY_ID_HASHTABLE": CONTACTS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
+                    "CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE": CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|h| h.borrow().clone()),
+                    "CONTACTS_BY_TIME_LIST": CONTACTS_BY_TIME_LIST.with(|l| l.borrow().clone())
+                },
+                "directory": {
+                    "folder_uuid_to_metadata": folder_uuid_to_metadata.with_mut(|m| m.clone()),
+                    "file_uuid_to_metadata": file_uuid_to_metadata.with_mut(|m| m.clone()),
+                    "full_folder_path_to_uuid": full_folder_path_to_uuid.with_mut(|m| m.clone()),
+                    "full_file_path_to_uuid": full_file_path_to_uuid.with_mut(|m| m.clone())
+                },
+                "disks": {
+                    "DISKS_BY_ID_HASHTABLE": DISKS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
+                    "DISKS_BY_EXTERNAL_ID_HASHTABLE": DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|h| h.borrow().clone()),
+                    "DISKS_BY_TIME_LIST": DISKS_BY_TIME_LIST.with(|l| l.borrow().clone())
+                },
+                "drives": {
+                    "DRIVES_BY_ID_HASHTABLE": DRIVES_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
+                    "DRIVES_BY_TIME_LIST": DRIVES_BY_TIME_LIST.with(|l| l.borrow().clone())
+                },
+                "invites": {
+                    "INVITES_BY_ID_HASHTABLE": INVITES_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
+                    "USERS_INVITES_LIST_HASHTABLE": USERS_INVITES_LIST_HASHTABLE.with(|h| h.borrow().clone())
+                },
+                "teams": {
+                    "TEAMS_BY_ID_HASHTABLE": TEAMS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
+                    "TEAMS_BY_TIME_LIST": TEAMS_BY_TIME_LIST.with(|l| l.borrow().clone())
+                }
+            }
+        });
+    
+        // Return the JSON response
+        match serde_json::to_vec(&state) {
+            Ok(json) => create_response(StatusCode::OK, json),
+            Err(_) => create_response(
+                StatusCode::INTERNAL_SERVER_ERROR, 
+                ErrorResponse::err(500, "Failed to serialize state".to_string()).encode()
+            )
+        }
     }
 
     fn json_decode<T>(value: &[u8]) -> T

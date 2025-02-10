@@ -1,3 +1,5 @@
+// src/core/api/uuid.rs
+
 use crate::core::state::drives::state::state::GLOBAL_UUID_NONCE;
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
