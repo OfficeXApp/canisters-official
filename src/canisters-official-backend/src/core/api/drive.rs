@@ -3,7 +3,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                internals::drive_internals::{ensure_folder_structure, ensure_root_folder, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths},
+                internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths},
                 types::DirectoryError,
                 uuid::generate_unique_id
             },
@@ -14,7 +14,7 @@ pub mod drive {
                 },
                 disks::types::{DiskID, DiskTypeEnum},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
-        }, rest::{directory::types::{DirectoryListResponse, ListDirectoryRequest}, webhooks::types::SortDirection}
+        }, rest::{directory::types::{DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest}, webhooks::types::SortDirection}
     };
 
     pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
@@ -102,11 +102,30 @@ pub mod drive {
         file_path: String,
         disk_id: DiskID,
         user_id: UserID,
+        file_size: u64,
         expires_at: i64,
         canister_id: String,
-    ) -> FileUUID {
+        file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    ) -> Result<FileMetadata, String> {
         let sanitized_file_path = sanitize_file_path(&file_path);
-        let full_file_path = sanitized_file_path;
+        let (folder_path, file_name) = split_path(&sanitized_file_path);
+        
+        // Handle naming conflicts
+        let (final_name, final_path) = resolve_naming_conflict(
+            &folder_path,
+            &file_name,
+            false,
+            file_conflict_resolution.clone()
+        );
+
+        // If empty strings returned, it means we should keep the original file
+        if final_name.is_empty() && final_path.is_empty() {
+            if let Some(existing_uuid) = full_file_path_to_uuid.get(&DriveFullFilePath(sanitized_file_path.clone())) {
+                return get_file_by_id(existing_uuid.clone());
+            }
+        }
+        
+        let full_file_path = final_path;
         let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
 
         let canister_icp_principal_string = if canister_id.is_empty() {
@@ -115,16 +134,28 @@ pub mod drive {
             canister_id.clone()
         };
 
-        let (folder_path, file_name) = split_path(&full_file_path);
         let folder_uuid = ensure_folder_structure(&folder_path, disk_id.clone(), user_id.clone(), canister_icp_principal_string.clone());
 
         let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
 
-        let file_version = if let Some(existing_uuid) = &existing_file_uuid {
-            let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
-            existing_file.file_version + 1
+        // Handle version-related logic
+        let (file_version, prior_version) = if let Some(existing_uuid) = &existing_file_uuid {
+            match file_conflict_resolution {
+                Some(FileConflictResolutionEnum::REPLACE) => {
+                    let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
+                    (existing_file.file_version + 1, Some(existing_uuid.clone()))
+                },
+                Some(FileConflictResolutionEnum::KEEP_NEWER) => {
+                    let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
+                    if existing_file.last_updated_date_ms > ic_cdk::api::time() / 1_000_000 {
+                        return Ok(existing_file.clone());
+                    }
+                    (existing_file.file_version + 1, Some(existing_uuid.clone()))
+                },
+                _ => (1, None) // For KEEP_BOTH and KEEP_ORIGINAL, we create a new version chain
+            }
         } else {
-            1
+            (1, None)
         };
 
         let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
@@ -134,41 +165,49 @@ pub mod drive {
             name: file_name,
             folder_uuid: folder_uuid.clone(),
             file_version,
-            prior_version: existing_file_uuid.clone(),
+            prior_version,
             next_version: None,
-            extension,
+            extension: extension.clone(),
             full_file_path: DriveFullFilePath(full_file_path.clone()),
             tags: Vec::new(),
-            owner: user_id,
-            created_date: ic_cdk::api::time(),
+            created_by: user_id.clone(),
+            created_date_ms: ic_cdk::api::time() / 1_000_000,
             disk_id,
-            file_size: 0,
-            raw_url: String::new(),
-            last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+            file_size,
+            raw_url: format_file_asset_path(new_file_uuid.clone(), extension),
+            last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
+            last_updated_by: user_id,
             deleted: false,
             canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
             expires_at,
         };
 
+        // Update version chain if we're replacing
+        if let Some(existing_uuid) = existing_file_uuid {
+            match file_conflict_resolution {
+                Some(FileConflictResolutionEnum::REPLACE) | Some(FileConflictResolutionEnum::KEEP_NEWER) => {
+                    // Update the prior version's next_version pointer
+                    file_uuid_to_metadata.with_mut(|map| {
+                        if let Some(existing_file) = map.get_mut(&existing_uuid) {
+                            existing_file.next_version = Some(new_file_uuid.clone());
+                        }
+                    });
+                    
+                    // Remove old file from parent folder's file_uuids
+                    update_folder_file_uuids(&folder_uuid, &existing_uuid, false);
+                },
+                _ => ()
+            }
+        }
+
         // Update hashtables
-        file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata);
+        file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata.clone());
         full_file_path_to_uuid.insert(DriveFullFilePath(full_file_path), new_file_uuid.clone());
 
         // Update parent folder's file_uuids
         update_folder_file_uuids(&folder_uuid, &new_file_uuid, true);
 
-        // Update prior version if it exists
-        if let Some(existing_uuid) = existing_file_uuid {
-            file_uuid_to_metadata.with_mut(|map| {
-                if let Some(existing_file) = map.get_mut(&existing_uuid) {
-                    existing_file.next_version = Some(new_file_uuid.clone());
-                }
-            });
-            // Remove the old file UUID from the parent folder
-            update_folder_file_uuids(&folder_uuid, &existing_uuid, false);
-        }
-
-        new_file_uuid
+        Ok(file_metadata)
     }
 
     pub fn create_folder(
@@ -177,6 +216,7 @@ pub mod drive {
         user_id: UserID,
         expires_at: i64,
         canister_id: String,
+        file_conflict_resolution: Option<FileConflictResolutionEnum>,
     ) -> Result<FolderMetadata, String> {
         // Ensure the path ends with a slash
         let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
@@ -202,75 +242,82 @@ pub mod drive {
             return Err(String::from("Storage location mismatch"));
         }
     
-        // Split the folder path into individual parts
-        let path_parts: Vec<&str> = folder_path.split('/').filter(|&x| !x.is_empty()).collect();
-
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
         } else {
             canister_id.clone()
         };
     
-        let mut current_path = format!("{}::", storage_part);
-        let mut parent_folder_uuid = ensure_root_folder(&disk_id, &user_id, canister_icp_principal_string.clone());
-
-        // root folder case
-        if path_parts.is_empty() {
-            return folder_uuid_to_metadata
-                .get(&parent_folder_uuid)
-                .map(|metadata| metadata.clone())
-                .ok_or_else(|| "Parent folder not found".to_string());
-        }
-    
-        // Iterate through path parts and create folders as needed
-        for (i, part) in path_parts.iter().enumerate() {
-            current_path.push_str(part);
-            current_path.push('/');
-    
-            if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
-                let new_folder_uuid = FolderUUID(generate_unique_id("FolderUUID", ""));
-                let new_folder = FolderMetadata {
-                    id: new_folder_uuid.clone(),
-                    name: part.to_string(),
-                    parent_folder_uuid: Some(parent_folder_uuid.clone()),
-                    subfolder_uuids: Vec::new(),
-                    file_uuids: Vec::new(),
-                    full_folder_path: DriveFullFilePath(current_path.clone()),
-                    tags: Vec::new(),
-                    owner: user_id.clone(),
-                    created_date: ic_cdk::api::time(),
-                    disk_id: disk_id.clone(),
-                    last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
-                    deleted: false,
-                    canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
-                    expires_at,
-                };
-    
-                full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
-                folder_uuid_to_metadata.insert(new_folder_uuid.clone(), new_folder.clone());
-    
-                // Update parent folder
-                folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(parent_folder) = map.get_mut(&parent_folder_uuid) {
-                        parent_folder.subfolder_uuids.push(new_folder_uuid.clone());
+        // Check if folder already exists
+        if let Some(existing_folder_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(sanitized_path.clone())) {
+            match file_conflict_resolution.unwrap_or(FileConflictResolutionEnum::KEEP_BOTH) {
+                FileConflictResolutionEnum::REPLACE => {
+                    // Delete existing folder and create new one
+                    let mut deleted_files = Vec::new();
+                    let mut deleted_folders = Vec::new();
+                    delete_folder(&existing_folder_uuid, &mut deleted_folders, &mut deleted_files)?;
+                },
+                FileConflictResolutionEnum::KEEP_NEWER => {
+                    // Compare timestamps and keep newer one
+                    if let Some(existing_folder) = folder_uuid_to_metadata.get(&existing_folder_uuid) {
+                        if existing_folder.last_updated_date_ms > ic_cdk::api::time() / 1_000_000 {
+                            return Ok(existing_folder);
+                        }
+                        // Delete older folder
+                        let mut deleted_files = Vec::new();
+                        let mut deleted_folders = Vec::new();
+                        delete_folder(&existing_folder_uuid, &mut deleted_folders, &mut deleted_files)?;
                     }
-                });
+                },
+                FileConflictResolutionEnum::KEEP_ORIGINAL => {
+                    // Return existing folder
+                    return folder_uuid_to_metadata
+                        .get(&existing_folder_uuid)
+                        .map(|metadata| metadata.clone())
+                        .ok_or_else(|| "Existing folder not found".to_string());
+                },
+                FileConflictResolutionEnum::KEEP_BOTH => {
+                    // Split the path into parent path and folder name
+                    let path_parts: Vec<&str> = folder_path.split('/').filter(|&x| !x.is_empty()).collect();
+                    let parent_path = if path_parts.len() > 1 {
+                        format!("{}::{}/", storage_part, path_parts[..path_parts.len()-1].join("/"))
+                    } else {
+                        format!("{}::", storage_part)
+                    };
+                    let folder_name = path_parts.last().unwrap_or(&"");
     
-                parent_folder_uuid = new_folder_uuid;
-    
-                // If this is the last part, return the created folder
-                if i == path_parts.len() - 1 {
-                    return Ok(new_folder);
+                    // Generate new name with suffix
+                    let (_, new_path) = resolve_naming_conflict(
+                        &parent_path,
+                        folder_name,
+                        true,
+                        Some(FileConflictResolutionEnum::KEEP_BOTH),
+                    );
+                    sanitized_path = new_path;
                 }
-            } else {
-                parent_folder_uuid = full_folder_path_to_uuid
-                    .get(&DriveFullFilePath(current_path.clone()))
-                    .expect("Failed to get parent folder UUID from path");
             }
         }
     
-        // If we've reached here, it means the folder already existed
-        Err(String::from("Folder already exists"))
+        // Create the folder and get its UUID
+        let new_folder_uuid = ensure_folder_structure(
+            &sanitized_path,
+            disk_id,
+            user_id.clone(),
+            canister_icp_principal_string,
+        );
+    
+        // Update the metadata with the correct expires_at value
+        folder_uuid_to_metadata.with_mut(|map| {
+            if let Some(folder) = map.get_mut(&new_folder_uuid) {
+                folder.expires_at = expires_at;
+            }
+        });
+    
+        // Get and return the updated folder metadata
+        folder_uuid_to_metadata
+            .get(&new_folder_uuid)
+            .map(|metadata| metadata.clone())
+            .ok_or_else(|| "Failed to get created folder metadata".to_string())
     }
 
     pub fn get_file_by_id(file_id: FileUUID) -> Result<FileMetadata, String> {
@@ -333,7 +380,7 @@ pub mod drive {
             if let Some(folder) = map.get_mut(&folder_id) {
                 folder.name = new_name;
                 folder.full_folder_path = DriveFullFilePath(new_folder_path.clone());
-                folder.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+                folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
     
@@ -417,7 +464,7 @@ pub mod drive {
             if let Some(file) = map.get_mut(&file_id) {
                 file.name = new_name.clone();
                 file.full_file_path = DriveFullFilePath(new_path.clone());
-                file.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+                file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                 file.extension = new_name
                     .rsplit('.')
                     .next()
@@ -502,7 +549,7 @@ pub mod drive {
         // Mark the folder as deleted
         folder_uuid_to_metadata.with_mut(|map| {
             if let Some(folder) = map.get_mut(folder_id) {
-                folder.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+                folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                 folder.deleted = true;
             }
         });

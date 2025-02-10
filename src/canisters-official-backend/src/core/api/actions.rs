@@ -1,9 +1,9 @@
 // src/core/api/actions.rs
 use std::result::Result;
 
-use crate::{core::state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, rest::directory::types::{DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
+use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::UserID}, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
 
-use super::{drive::drive::{delete_file, delete_folder, get_file_by_id, get_folder_by_id, rename_file, rename_folder}, internals::drive_internals::translate_path_to_id};
+use super::{drive::drive::{create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, rename_file, rename_folder}, internals::drive_internals::translate_path_to_id};
 
 
 #[derive(Debug, Clone)]
@@ -12,7 +12,7 @@ pub struct DirectoryActionErrorInfo {
     pub message: String,
 }
 
-pub fn pipe_action(action: DirectoryAction) -> Result<DirectoryActionResult, DirectoryActionErrorInfo> {
+pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<DirectoryActionResult, DirectoryActionErrorInfo> {
     match action.action {
         DirectoryActionEnum::GetFile => {
             match action.payload {
@@ -91,11 +91,61 @@ pub fn pipe_action(action: DirectoryAction) -> Result<DirectoryActionResult, Dir
         DirectoryActionEnum::CreateFile => {
             match action.payload {
                 DirectoryActionPayload::CreateFile(payload) => {
-                    // Implementation for creating file
-                    todo!("Implement create file")
+                    // Get parent folder path from either resource_path or resource_id
+                    let parent_folder = if let Some(path) = action.target.resource_path {
+                        match translate_path_to_id(path) {
+                            PathTranslationResponse { folder: Some(folder), .. } => folder,
+                            _ => return Err(DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "Parent folder not found at specified path".to_string()
+                            })
+                        }
+                    } else if let Some(id) = action.target.resource_id {
+                        match get_folder_by_id(FolderUUID(id)) {
+                            Ok(folder) => folder,
+                            Err(e) => return Err(DirectoryActionErrorInfo {
+                                code: 404,
+                                message: format!("Parent folder not found: {}", e)
+                            })
+                        }
+                    } else {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: "Neither resource_path nor resource_id provided for parent folder".to_string()
+                        });
+                    };
+        
+                    // Construct full file path by combining parent folder path with new file name
+                    let full_file_path = format!("{}{}", parent_folder.full_folder_path.0, payload.name);
+        
+                    // Create file using the drive API
+                    match create_file(
+                        full_file_path,
+                        payload.disk_id,
+                        user_id.clone(), // Assuming this is passed in the DirectoryAction struct
+                        payload.file_size,
+                        payload.expires_at.unwrap_or(-1),
+                        String::new(), // Empty canister ID to use current canister
+                        payload.file_conflict_resolution,
+                    ) {
+                        Ok(file_metadata) => {
+                            // TODO: Generate upload signature based on the file conflict resolution strategy
+                            let upload_signature = "TODO: Generate proper upload signature".to_string();
+                            
+                            Ok(DirectoryActionResult::CreateFile(CreateFileResponse {
+                                upload_signature,
+                                notes: "File created successfully".to_string(),
+                                file: file_metadata,
+                            }))
+                        },
+                        Err(e) => Err(DirectoryActionErrorInfo {
+                            code: 500,
+                            message: format!("Failed to create file: {}", e)
+                        })
+                    }
                 }
                 _ => Err(DirectoryActionErrorInfo {
-                    code: 500,
+                    code: 400,
                     message: "Invalid payload for CREATE_FILE action".to_string()
                 })
             }
@@ -104,11 +154,57 @@ pub fn pipe_action(action: DirectoryAction) -> Result<DirectoryActionResult, Dir
         DirectoryActionEnum::CreateFolder => {
             match action.payload {
                 DirectoryActionPayload::CreateFolder(payload) => {
-                    // Implementation for creating folder
-                    todo!("Implement create folder")
+                    // Get full folder path either from existing parent or construct from resource_path
+                    let full_folder_path = if let Some(path) = action.target.resource_path {
+                        match translate_path_to_id(path.clone()) {
+                            PathTranslationResponse { folder: Some(folder), .. } => {
+                                // Parent exists, construct path normally
+                                DriveFullFilePath(format!("{}{}/", folder.full_folder_path.0, payload.name))
+                            },
+                            _ => {
+                                // Parent doesn't exist, construct path from the provided resource_path
+                                DriveFullFilePath(format!("{}{}/", path, payload.name))
+                            }
+                        }
+                    } else if let Some(id) = action.target.resource_id {
+                        match get_folder_by_id(FolderUUID(id)) {
+                            Ok(folder) => DriveFullFilePath(format!("{}{}/", folder.full_folder_path.0, payload.name)),
+                            Err(_) => return Err(DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "Cannot create folder: parent folder ID not found".to_string()
+                            })
+                        }
+                    } else {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: "Neither resource_path nor resource_id provided for parent folder".to_string()
+                        });
+                    };
+        
+                    // Create folder using the drive API
+                    match create_folder(
+                        full_folder_path,
+                        payload.disk_id,
+                        user_id.clone(),
+                        payload.expires_at.unwrap_or(-1),
+                        String::new(),
+                        payload.file_conflict_resolution,
+                    ) {
+                        Ok(folder) => Ok(DirectoryActionResult::CreateFolder(folder)),
+                        Err(e) => match e.as_str() {
+                            "Folder already exists" => Err(DirectoryActionErrorInfo {
+                                code: 409,
+                                message: "A folder with this name already exists".to_string()
+                            }),
+                            _ => Err(DirectoryActionErrorInfo {
+                                code: 500,
+                                message: format!("Failed to create folder: {}", e)
+                            })
+                        }
+                    }
                 }
                 _ => Err(DirectoryActionErrorInfo {
-                    code: 500,
+                    code: 400,
                     message: "Invalid payload for CREATE_FOLDER action".to_string()
                 })
             }
@@ -170,7 +266,7 @@ pub fn pipe_action(action: DirectoryAction) -> Result<DirectoryActionResult, Dir
                             if let Some(expires_at) = payload.expires_at {
                                 file.expires_at = expires_at;
                             }
-                            file.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+                            file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                         }
                     });
         
@@ -243,7 +339,7 @@ pub fn pipe_action(action: DirectoryAction) -> Result<DirectoryActionResult, Dir
                             if let Some(expires_at) = payload.expires_at {
                                 folder.expires_at = expires_at;
                             }
-                            folder.last_changed_unix_ms = ic_cdk::api::time() / 1_000_000;
+                            folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                         }
                     });
         

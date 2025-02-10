@@ -1,9 +1,10 @@
 // src/core/api/internals.rs
 pub mod drive_internals {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, 
+        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
         
     };
+    
     use regex::Regex;
 
     pub fn sanitize_file_path(file_path: &str) -> String {
@@ -45,10 +46,11 @@ pub mod drive_internals {
                 file_uuids: Vec::new(),
                 full_folder_path: root_path.clone(),
                 tags: Vec::new(),
-                owner: user_id.clone(),
-                created_date: ic_cdk::api::time(),
+                created_by: user_id.clone(),
+                created_date_ms: ic_cdk::api::time(),
                 disk_id: disk_id.clone(),
-                last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
+                last_updated_by: user_id.clone(),
                 deleted: false,
                 canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string)),
                 expires_at: -1,
@@ -152,10 +154,11 @@ pub mod drive_internals {
                     file_uuids: Vec::new(),
                     full_folder_path: DriveFullFilePath(current_path.clone()),
                     tags: Vec::new(),
-                    owner: user_id.clone(),
-                    created_date: ic_cdk::api::time(),
+                    created_by: user_id.clone(),
+                    created_date_ms: ic_cdk::api::time(),
                     disk_id: disk_id.clone(),
-                    last_changed_unix_ms: ic_cdk::api::time() / 1_000_000,
+                    last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
+                    last_updated_by: user_id.clone(),
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at: -1,
@@ -237,5 +240,72 @@ pub mod drive_internals {
         }
 
         response
+    }
+
+    pub fn format_file_asset_path (
+        file_uuid: FileUUID,
+        extension: String,
+    ) -> String {
+        format!(
+            "https://{}.raw.icp0.io/asset/{file_uuid}.{extension}",
+            ic_cdk::api::id().to_text()
+        )
+    }
+
+    pub fn resolve_naming_conflict(
+        base_path: &str,
+        name: &str,
+        is_folder: bool,
+        resolution: Option<FileConflictResolutionEnum>,
+    ) -> (String, String) {
+        let mut final_name = name.to_string();
+        let mut final_path = if is_folder {
+            format!("{}{}/", base_path, name)
+        } else {
+            format!("{}{}", base_path, name)
+        };
+    
+        match resolution.unwrap_or(FileConflictResolutionEnum::KEEP_BOTH) {
+            FileConflictResolutionEnum::REPLACE => (final_name, final_path),
+            FileConflictResolutionEnum::KEEP_ORIGINAL => {
+                if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
+                   (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                    return (String::new(), String::new()); // Signal to keep original
+                }
+                (final_name, final_path)
+            }
+            FileConflictResolutionEnum::KEEP_NEWER => {
+                // For KEEP_NEWER, we'll implement timestamp comparison in the caller
+                (final_name, final_path)
+            }
+            FileConflictResolutionEnum::KEEP_BOTH => {
+                let mut counter = 1;
+                while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
+                      (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                    counter += 1;
+                    
+                    // Split name and extension for files
+                    let (base_name, ext) = if !is_folder && name.contains('.') {
+                        let parts: Vec<&str> = name.rsplitn(2, '.').collect();
+                        (parts[1], parts[0])
+                    } else {
+                        (name, "")
+                    };
+    
+                    final_name = if ext.is_empty() {
+                        format!("{} ({})", base_name, counter)
+                    } else {
+                        format!("{} ({}).{}", base_name, counter, ext)
+                    };
+    
+                    final_path = if is_folder {
+                        format!("{}{}/", base_path, final_name)
+                    } else {
+                        format!("{}{}", base_path, final_name)
+                    };
+                }
+                (final_name, final_path)
+            }
+        }
     }
 }

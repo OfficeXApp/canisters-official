@@ -39,20 +39,21 @@ pub struct Tag(pub String);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FolderMetadata {
-    pub id: FolderUUID,
-    pub name: String,
-    pub parent_folder_uuid: Option<FolderUUID>,
-    pub subfolder_uuids: Vec<FolderUUID>,
-    pub file_uuids: Vec<FileUUID>,
-    pub full_folder_path: DriveFullFilePath,
-    pub tags: Vec<Tag>,
-    pub owner: UserID,
-    pub created_date: u64, // unix ns   
-    pub disk_id: DiskID,
-    pub last_changed_unix_ms: u64,
-    pub deleted: bool,
-    pub expires_at: i64,
-    pub canister_id: ICPPrincipalString,
+    pub(crate) id: FolderUUID,
+    pub(crate) name: String,
+    pub(crate) parent_folder_uuid: Option<FolderUUID>,
+    pub(crate) subfolder_uuids: Vec<FolderUUID>,
+    pub(crate) file_uuids: Vec<FileUUID>,
+    pub(crate) full_folder_path: DriveFullFilePath,
+    pub(crate) tags: Vec<Tag>,
+    pub(crate) created_by: UserID,
+    pub(crate) created_date_ms: u64, // unix ms
+    pub(crate) last_updated_date_ms: u64,  // unix ms
+    pub(crate) last_updated_by: UserID,
+    pub(crate) disk_id: DiskID,
+    pub(crate) deleted: bool,
+    pub(crate) expires_at: i64,
+    pub(crate) canister_id: ICPPrincipalString,
 }
 
 
@@ -67,12 +68,13 @@ pub struct FileMetadata {
     pub(crate) extension: String,
     pub(crate) full_file_path: DriveFullFilePath,
     pub(crate) tags: Vec<Tag>,
-    pub(crate) owner: UserID,
-    pub(crate) created_date: u64, // unix ns
+    pub(crate) created_by: UserID,
+    pub(crate) created_date_ms: u64, // unix ms
     pub(crate) disk_id: DiskID,
     pub(crate) file_size: u64,
     pub(crate) raw_url: String,
-    pub(crate) last_changed_unix_ms: u64, 
+    pub(crate) last_updated_date_ms: u64,  // unix ms
+    pub(crate) last_updated_by: UserID,
     pub(crate) deleted: bool,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,

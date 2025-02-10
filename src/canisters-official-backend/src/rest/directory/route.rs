@@ -1,4 +1,4 @@
-// src/rest/directorys/route.rs
+// src/rest/directory/route.rs
 use crate::debug_log;
 use crate::rest::router;
 use crate::types::RouteHandler;

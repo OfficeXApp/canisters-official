@@ -1,3 +1,5 @@
+use std::fmt;
+
 // src/rest/directory/types.rs
 use serde::{Deserialize, Serialize};
 use crate::{core::state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}, rest::webhooks::types::SortDirection};
@@ -147,12 +149,33 @@ pub enum DirectoryActionEnum {
     MoveFolder,
 }
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FileConflictResolutionEnum {
+    REPLACE,
+    KEEP_BOTH,
+    KEEP_ORIGINAL,
+    KEEP_NEWER,
+}
+impl fmt::Display for FileConflictResolutionEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FileConflictResolutionEnum::REPLACE => write!(f, "REPLACE"),
+            FileConflictResolutionEnum::KEEP_BOTH => write!(f, "KEEP_BOTH"),
+            FileConflictResolutionEnum::KEEP_ORIGINAL => write!(f, "KEEP_ORIGINAL"),
+            FileConflictResolutionEnum::KEEP_NEWER => write!(f, "KEEP_NEWER"),
+        }
+    }
+}
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceIdentifier {
     #[serde(default)]
-    pub resource_path: Option<DriveFullFilePath>,
+    pub resource_path: Option<DriveFullFilePath>, // points to file/folder itself, except in create file/folder operations would be a parent folder
     #[serde(default)]
-    pub resource_id: Option<String>,
+    pub resource_id: Option<String>,  // points to file/folder itself, except in create file/folder operations would be a parent folder
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,6 +210,7 @@ pub struct CreateFilePayload {
     pub raw_url: String,
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,6 +219,7 @@ pub struct CreateFolderPayload {
     pub tags: Vec<Tag>,
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,27 +250,30 @@ pub struct DeleteFolderPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopyFilePayload {
-    pub destination_folder_id: FolderUUID,
-    pub new_name: Option<String>,
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopyFolderPayload {
-    pub destination_parent_id: FolderUUID,
-    pub new_name: Option<String>,
-    pub recursive: bool,
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
 #[derive(Debug, Clone,Serialize, Deserialize)]
 pub struct MoveFilePayload {
-    pub destination_folder_id: FolderUUID,
-    pub new_name: Option<String>,
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveFolderPayload {
-    pub destination_parent_id: FolderUUID,
-    pub new_name: Option<String>,
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
 
@@ -256,7 +284,7 @@ pub struct MoveFolderPayload {
 pub enum DirectoryActionResult {
     GetFile(FileMetadata),
     GetFolder(FolderMetadata),
-    CreateFile(FileMetadata),
+    CreateFile(CreateFileResponse),
     CreateFolder(FolderMetadata),
     UpdateFile(FileMetadata),
     UpdateFolder(FolderMetadata),
@@ -266,6 +294,20 @@ pub enum DirectoryActionResult {
     CopyFolder(FolderMetadata),
     MoveFile(FileMetadata),
     MoveFolder(FolderMetadata),
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFileResponse {
+    pub upload_signature: String,
+    pub notes: String,
+    pub file: FileMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFolderResponse {
+    pub notes: String,
+    pub folder: FolderMetadata,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

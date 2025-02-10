@@ -1,4 +1,4 @@
-// src/rest/directorys/handler.rs
+// src/rest/directory/handler.rs
 
 
 pub mod directorys_handlers {
@@ -99,7 +99,7 @@ pub mod directorys_handlers {
         
         for action in action_batch.actions {
             let outcome_id = DirectoryActionOutcomeID(generate_unique_id("DirectoryActionOutcomeID", ""));
-            let outcome = match crate::core::api::actions::pipe_action(action.clone()) {
+            let outcome = match crate::core::api::actions::pipe_action(action.clone(), requester_api_key.user_id.clone()) {
                 Ok(result) => DirectoryActionOutcome {
                     id: outcome_id,
                     success: true,
