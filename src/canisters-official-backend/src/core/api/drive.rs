@@ -568,7 +568,7 @@ pub mod drive {
     }
     
     pub fn delete_file(file_id: &FileUUID) -> Result<(), String> {
-        ic_cdk::println!("Attempting to delete file. File ID: {}", file_id);
+        ic_cdk::println!("Attempting to delete file: {}", file_id);
         
         // Get file data before modifications
         let file = file_uuid_to_metadata
