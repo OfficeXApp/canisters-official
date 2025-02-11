@@ -122,20 +122,17 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     match create_file(
                         full_file_path,
                         payload.disk_id,
-                        user_id.clone(), // Assuming this is passed in the DirectoryAction struct
+                        user_id.clone(),
                         payload.file_size,
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
                     ) {
-                        Ok(file_metadata) => {
-                            // TODO: Generate upload signature based on the file conflict resolution strategy
-                            let upload_signature = "TODO: Generate proper upload signature".to_string();
-                            
+                        Ok((file_metadata, upload_response)) => {
                             Ok(DirectoryActionResult::CreateFile(CreateFileResponse {
-                                upload_signature,
-                                notes: "File created successfully".to_string(),
                                 file: file_metadata,
+                                upload: upload_response,
+                                notes: "File created successfully".to_string(),
                             }))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {

@@ -53,4 +53,5 @@ pub struct AwsBucketAuth {
     pub(crate) access_key: String,
     pub(crate) secret_key: String,
     pub(crate) bucket: String,
+    pub(crate) region: String,  
 }

@@ -1,8 +1,8 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 // src/rest/directory/types.rs
 use serde::{Deserialize, Serialize};
-use crate::{core::state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}, rest::webhooks::types::SortDirection};
+use crate::{core::{api::disks::aws_s3::S3UploadResponse, state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -301,9 +301,9 @@ pub enum DirectoryActionResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFileResponse {
-    pub upload_signature: String,
-    pub notes: String,
     pub file: FileMetadata,
+    pub upload: S3UploadResponse,
+    pub notes: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

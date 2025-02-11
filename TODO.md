@@ -2,7 +2,7 @@
 
 ## Sprints Roadmap
 
-1. Finish up `/directory/action` operations
+1. Finish up `/directory/action` operations (s3 presigned urls for read & write)
 2. Implement webhooks & replayability
 3. Implement permissions (including deterministics principal ids)
 4. Cleanup & testing backend

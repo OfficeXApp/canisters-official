@@ -3,16 +3,14 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths},
-                types::DirectoryError,
-                uuid::generate_unique_id
+                disks::aws_s3::{generate_s3_upload_url, S3UploadResponse}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
             },
             state::{
                 directory::{
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
                     types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
                 },
-                disks::types::{DiskID, DiskTypeEnum},
+                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
         }, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
@@ -106,7 +104,7 @@ pub mod drive {
         expires_at: i64,
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    ) -> Result<FileMetadata, String> {
+    ) -> Result<(FileMetadata, S3UploadResponse), String> {
         let sanitized_file_path = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
         
@@ -117,27 +115,28 @@ pub mod drive {
             false,
             file_conflict_resolution.clone()
         );
-
+    
         // If empty strings returned, it means we should keep the original file
         if final_name.is_empty() && final_path.is_empty() {
             if let Some(existing_uuid) = full_file_path_to_uuid.get(&DriveFullFilePath(sanitized_file_path.clone())) {
-                return get_file_by_id(existing_uuid.clone());
+                // For KEEP_ORIGINAL we just return Err since we don't want to generate an upload URL
+                return Err("File already exists and resolution is KEEP_ORIGINAL".to_string());
             }
         }
         
         let full_file_path = final_path;
         let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
-
+    
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
         } else {
             canister_id.clone()
         };
-
+    
         let folder_uuid = ensure_folder_structure(&folder_path, disk_id.clone(), user_id.clone(), canister_icp_principal_string.clone());
-
+    
         let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
-
+    
         // Handle version-related logic
         let (file_version, prior_version) = if let Some(existing_uuid) = &existing_file_uuid {
             match file_conflict_resolution {
@@ -148,7 +147,29 @@ pub mod drive {
                 Some(FileConflictResolutionEnum::KEEP_NEWER) => {
                     let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
                     if existing_file.last_updated_date_ms > ic_cdk::api::time() / 1_000_000 {
-                        return Ok(existing_file.clone());
+                        return match get_file_by_id(existing_uuid.clone()) {
+                            Ok(existing_file) => {
+                                // Get disk info for S3 upload URL generation
+                                let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+                                    map.borrow()
+                                        .get(&disk_id)
+                                        .cloned()
+                                }).ok_or_else(|| "Disk not found".to_string())?;
+    
+                                let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
+                                    .map_err(|_| "Invalid AWS credentials format".to_string())?;
+    
+                                let upload_response = generate_s3_upload_url(
+                                    &existing_uuid.0,
+                                    &aws_auth,
+                                    file_size,
+                                    3600
+                                )?;
+    
+                                Ok((existing_file, upload_response))
+                            },
+                            Err(e) => Err(e)
+                        };
                     }
                     (existing_file.file_version + 1, Some(existing_uuid.clone()))
                 },
@@ -157,9 +178,9 @@ pub mod drive {
         } else {
             (1, None)
         };
-
+    
         let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
-
+    
         let file_metadata = FileMetadata {
             id: new_file_uuid.clone(),
             name: file_name,
@@ -172,7 +193,7 @@ pub mod drive {
             tags: Vec::new(),
             created_by: user_id.clone(),
             created_date_ms: ic_cdk::api::time() / 1_000_000,
-            disk_id,
+            disk_id: disk_id.clone(),
             file_size,
             raw_url: format_file_asset_path(new_file_uuid.clone(), extension),
             last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
@@ -182,7 +203,7 @@ pub mod drive {
             expires_at,
             restore_trash_prior_folder: None,
         };
-
+    
         // Update version chain if we're replacing
         if let Some(existing_uuid) = existing_file_uuid {
             match file_conflict_resolution {
@@ -200,15 +221,36 @@ pub mod drive {
                 _ => ()
             }
         }
-
+    
         // Update hashtables
         file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata.clone());
         full_file_path_to_uuid.insert(DriveFullFilePath(full_file_path), new_file_uuid.clone());
-
+    
         // Update parent folder's file_uuids
         update_folder_file_uuids(&folder_uuid, &new_file_uuid, true);
-
-        Ok(file_metadata)
+    
+        // Get disk info for S3 upload URL generation
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow()
+                .get(&disk_id)
+                .cloned()
+        }).ok_or_else(|| "Disk not found".to_string())?;
+    
+        if disk.disk_type != DiskTypeEnum::AwsBucket {
+            return Err("Only S3 buckets are supported for file uploads".to_string());
+        }
+    
+        let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
+            .map_err(|_| "Invalid AWS credentials format".to_string())?;
+    
+        let upload_response = generate_s3_upload_url(
+            &new_file_uuid.0,
+            &aws_auth,
+            file_size,
+            3600
+        )?;
+    
+        Ok((file_metadata, upload_response))
     }
 
     pub fn create_folder(
