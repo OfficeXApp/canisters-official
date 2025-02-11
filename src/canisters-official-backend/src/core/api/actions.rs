@@ -3,7 +3,7 @@ use std::result::Result;
 
 use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::UserID}, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
 
-use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
+use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
 
 
 #[derive(Debug, Clone)]
@@ -664,11 +664,21 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::RestoreTrash => {
             match action.payload {
                 DirectoryActionPayload::RestoreTrash(payload) => {
-                    // Implementation for restoring trash
-                    todo!("Implement restore trash")
+                    let resource_id = action.target.resource_id.ok_or_else(|| DirectoryActionErrorInfo {
+                        code: 400,
+                        message: "Resource ID is required for restore operation".to_string()
+                    })?;
+        
+                    match restore_from_trash(&resource_id, &payload) {
+                        Ok(result) => Ok(result),
+                        Err(e) => Err(DirectoryActionErrorInfo {
+                            code: 500,
+                            message: format!("Failed to restore from trash: {}", e)
+                        })
+                    }
                 }
                 _ => Err(DirectoryActionErrorInfo {
-                    code: 500,
+                    code: 400,
                     message: "Invalid payload for RESTORE_TRASH action".to_string()
                 })
             }

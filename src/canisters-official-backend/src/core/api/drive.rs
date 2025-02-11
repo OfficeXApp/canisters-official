@@ -924,15 +924,11 @@ pub mod drive {
 
     pub fn restore_from_trash(
         resource_id: &str,
-        is_folder: bool,
         payload: &RestoreTrashPayload,
     ) -> Result<DirectoryActionResult, String> {
-        if is_folder {
-            let folder_id = FolderUUID(resource_id.to_string());
-            let folder = folder_uuid_to_metadata
-                .get(&folder_id)
-                .ok_or_else(|| "Folder not found".to_string())?;
-    
+        // Check if resource exists as a folder
+        let folder_id = FolderUUID(resource_id.to_string());
+        if let Some(folder) = folder_uuid_to_metadata.get(&folder_id) {
             // Verify folder is actually in trash
             if folder.restore_trash_prior_folder.is_none() {
                 return Err("Folder is not in trash".to_string());
@@ -953,7 +949,7 @@ pub mod drive {
                 .ok_or_else(|| "Target folder not found".to_string())?;
     
             if target_folder.restore_trash_prior_folder.is_some() {
-                return Err("Cannot restore to a folder that is in trash".to_string());
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
             }
     
             // Move folder to target location
@@ -963,15 +959,11 @@ pub mod drive {
                 payload.file_conflict_resolution.clone(),
             )?;
     
-            // Clear restore_trash_prior_folder
-            folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(folder) = map.get_mut(&folder_id) {
-                    folder.restore_trash_prior_folder = None;
-                }
-            });
-    
-            // Clear restore_trash_prior_folder for all subfolders and files
+            // Clear restore_trash_prior_folder for the folder and all its contents
             let mut stack = vec![folder_id.clone()];
+            let mut restored_folders = vec![folder_id.clone()];
+            let mut restored_files = Vec::new();
+    
             while let Some(current_folder_id) = stack.pop() {
                 if let Some(current_folder) = folder_uuid_to_metadata.get(&current_folder_id) {
                     // Process subfolders
@@ -981,6 +973,7 @@ pub mod drive {
                                 subfolder.restore_trash_prior_folder = None;
                             }
                         });
+                        restored_folders.push(subfolder_id.clone());
                         stack.push(subfolder_id.clone());
                     }
     
@@ -991,23 +984,25 @@ pub mod drive {
                                 file.restore_trash_prior_folder = None;
                             }
                         });
+                        restored_files.push(file_id.clone());
                     }
                 }
             }
     
-            let mut restored_folders = Vec::new();
-            let mut restored_files = Vec::new();
+            // Clear restore_trash_prior_folder for the main folder
+            folder_uuid_to_metadata.with_mut(|map| {
+                if let Some(folder) = map.get_mut(&folder_id) {
+                    folder.restore_trash_prior_folder = None;
+                }
+            });
     
             Ok(DirectoryActionResult::RestoreTrash(RestoreTrashResponse {
                 restored_folders,
                 restored_files,
             }))
-        } else {
-            let file_id = FileUUID(resource_id.to_string());
-            let file = file_uuid_to_metadata
-                .get(&file_id)
-                .ok_or_else(|| "File not found".to_string())?;
-    
+        }
+        // Check if resource exists as a file
+        else if let Some(file) = file_uuid_to_metadata.get(&FileUUID(resource_id.to_string())) {
             // Verify file is actually in trash
             if file.restore_trash_prior_folder.is_none() {
                 return Err("File is not in trash".to_string());
@@ -1028,8 +1023,10 @@ pub mod drive {
                 .ok_or_else(|| "Target folder not found".to_string())?;
     
             if target_folder.restore_trash_prior_folder.is_some() {
-                return Err("Cannot restore to a folder that is in trash".to_string());
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}",target_folder.full_folder_path).to_string());
             }
+    
+            let file_id = FileUUID(resource_id.to_string());
     
             // Move file to target location
             let restored_file = move_file(
@@ -1049,6 +1046,8 @@ pub mod drive {
                 restored_folders: Vec::new(),
                 restored_files: vec![file_id],
             }))
+        } else {
+            Err("Resource not found in trash".to_string())
         }
     }
 }
