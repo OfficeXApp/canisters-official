@@ -34,7 +34,7 @@ pub mod drive_internals {
         } else {
             canister_id.clone()
         };
-        if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
+        let root_uuid = if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
             uuid.clone()
         } else {
             let root_folder_uuid = generate_unique_id("FolderUUID", "");
@@ -42,9 +42,38 @@ pub mod drive_internals {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),
                 parent_folder_uuid: None,
+                restore_trash_prior_folder: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_folder_path: root_path.clone(),
+                tags: Vec::new(),
+                created_by: user_id.clone(),
+                created_date_ms: ic_cdk::api::time(),
+                disk_id: disk_id.clone(),
+                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
+                last_updated_by: user_id.clone(),
+                deleted: false,
+                canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+                expires_at: -1,
+            };
+    
+            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
+            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid.clone()), root_folder);
+            FolderUUID(root_folder_uuid)
+        };
+
+        // Ensure .trash folder exists
+        let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
+        if !full_folder_path_to_uuid.contains_key(&trash_path) {
+            let trash_folder_uuid = generate_unique_id("FolderUUID", "");
+            let trash_folder = FolderMetadata {
+                id: FolderUUID(trash_folder_uuid.clone()),
+                name: ".trash".to_string(),
+                parent_folder_uuid: Some(root_uuid.clone()),
+                restore_trash_prior_folder: None,
+                subfolder_uuids: Vec::new(),
+                file_uuids: Vec::new(),
+                full_folder_path: trash_path.clone(),
                 tags: Vec::new(),
                 created_by: user_id.clone(),
                 created_date_ms: ic_cdk::api::time(),
@@ -56,11 +85,18 @@ pub mod drive_internals {
                 expires_at: -1,
             };
 
-            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid.clone()), root_folder);
-
-            FolderUUID(root_folder_uuid)
+            full_folder_path_to_uuid.insert(trash_path, FolderUUID(trash_folder_uuid.clone()));
+            folder_uuid_to_metadata.insert(FolderUUID(trash_folder_uuid.clone()), trash_folder);
+            
+            // Add trash folder to root's subfolders
+            folder_uuid_to_metadata.with_mut(|map| {
+                if let Some(root_folder) = map.get_mut(&root_uuid) {
+                    root_folder.subfolder_uuids.push(FolderUUID(trash_folder_uuid));
+                }
+            });
         }
+
+        root_uuid
     }
 
     pub fn update_subfolder_paths(folder_id: &FolderUUID, old_path: &str, new_path: &str) {
@@ -162,6 +198,7 @@ pub mod drive_internals {
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at: -1,
+                    restore_trash_prior_folder: None,
                 };
 
                 full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
@@ -183,6 +220,8 @@ pub mod drive_internals {
                     .clone();
             }
         }
+
+            
 
         parent_uuid
     }
@@ -306,6 +345,24 @@ pub mod drive_internals {
                 }
                 (final_name, final_path)
             }
+        }
+    }
+
+    // Helper function to get destination folder from either ID or path
+    pub fn get_destination_folder(folder_id: Option<FolderUUID>, folder_path: Option<DriveFullFilePath>) -> Result<FolderMetadata, String> {
+        if let Some(id) = folder_id {
+            folder_uuid_to_metadata
+                .get(&id)
+                .clone()
+                .ok_or_else(|| "Destination folder not found".to_string())
+        } else if let Some(path) = folder_path {
+            let translation = translate_path_to_id(path);
+            translation
+                .folder
+                .clone()
+                .ok_or_else(|| "Destination folder not found at specified path".to_string())
+        } else {
+            Err("Neither destination folder ID nor path provided".to_string())
         }
     }
 }
