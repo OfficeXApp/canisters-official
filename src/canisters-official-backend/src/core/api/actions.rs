@@ -141,10 +141,17 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         })
                     }
                 }
-                _ => Err(DirectoryActionErrorInfo {
-                    code: 400,
-                    message: "Invalid payload for CREATE_FILE action".to_string()
-                })
+                other => {
+                    let error_msg = format!(
+                        "Invalid payload for CREATE_FILE action. Expected CreateFile, got: {:?}",
+                        other
+                    );
+                    ic_cdk::println!("Payload error: {}", error_msg);
+                    Err(DirectoryActionErrorInfo {
+                        code: 400,
+                        message: error_msg
+                    })
+                }
             }
         }
         

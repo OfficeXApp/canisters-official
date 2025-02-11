@@ -761,17 +761,17 @@ pub mod drive {
                 .ok_or_else(|| "Missing AWS credentials".to_string())?
             ).map_err(|_| "Invalid AWS credentials format".to_string())?;
 
-            // Perform S3 copy operation
+            // Prepare S3 copy operation parameters
             let source_key = format!("{}", source_file.raw_url);
             let destination_key = format_file_asset_path(new_file_uuid.clone(), source_file.extension.clone());
 
-            // Use tokio runtime to execute async copy operation
-            let runtime = tokio::runtime::Runtime::new()
-                .map_err(|e| format!("Failed to create Tokio runtime: {}", e))?;
-            
-            runtime.block_on(async {
-                copy_s3_object(&source_key, &destination_key, &aws_auth).await
-            })?;
+            // Fire and forget - initiate copy operation without waiting
+            ic_cdk::spawn(async move {
+                match copy_s3_object(&source_key, &destination_key, &aws_auth).await {
+                    Ok(_) => ic_cdk::println!("S3 copy completed successfully"),
+                    Err(e) => ic_cdk::println!("S3 copy failed: {}", e)
+                }
+            });
         }
 
 
