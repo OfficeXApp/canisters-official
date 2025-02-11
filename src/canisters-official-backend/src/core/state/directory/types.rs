@@ -72,6 +72,7 @@ pub struct FileMetadata {
     pub(crate) created_by: UserID,
     pub(crate) created_date_ms: u64, // unix ms
     pub(crate) disk_id: DiskID,
+    pub(crate) disk_type: DiskTypeEnum,
     pub(crate) file_size: u64,
     pub(crate) raw_url: String,
     pub(crate) last_updated_date_ms: u64,  // unix ms

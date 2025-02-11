@@ -130,6 +130,8 @@ dependencies = [
  "ic-stable-structures",
  "lazy_static",
  "matchit",
+ "num-bigint",
+ "num-traits",
  "regex",
  "serde",
  "serde_bytes",

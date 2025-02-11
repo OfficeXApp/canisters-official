@@ -3,7 +3,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::aws_s3::{generate_s3_upload_url, S3UploadResponse}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
+                disks::aws_s3::{copy_s3_object, generate_s3_upload_url, S3UploadResponse}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
             },
             state::{
                 directory::{
@@ -123,6 +123,13 @@ pub mod drive {
                 return Err("File already exists and resolution is KEEP_ORIGINAL".to_string());
             }
         }
+
+        // Get the disk and if it's not found, return an error
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow()
+                .get(&disk_id)
+                .cloned()
+        }).ok_or_else(|| "Disk not found".to_string())?;
         
         let full_file_path = final_path;
         let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
@@ -194,6 +201,7 @@ pub mod drive {
             created_by: user_id.clone(),
             created_date_ms: ic_cdk::api::time() / 1_000_000,
             disk_id: disk_id.clone(),
+            disk_type: disk.disk_type,
             file_size,
             raw_url: format_file_asset_path(new_file_uuid.clone(), extension),
             last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
@@ -738,6 +746,34 @@ pub mod drive {
 
         // Generate new UUID for the copy
         let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
+
+        // If this is an S3 or Storj bucket, perform copy operation
+        if source_file.disk_type == DiskTypeEnum::AwsBucket || 
+            source_file.disk_type == DiskTypeEnum::StorjWeb3 {
+            // Get disk auth info
+            let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+                map.borrow()
+                    .get(&source_file.disk_id)
+                    .cloned()
+            }).ok_or_else(|| "Disk not found".to_string())?;
+
+            let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
+                .ok_or_else(|| "Missing AWS credentials".to_string())?
+            ).map_err(|_| "Invalid AWS credentials format".to_string())?;
+
+            // Perform S3 copy operation
+            let source_key = format!("{}", source_file.raw_url);
+            let destination_key = format_file_asset_path(new_file_uuid.clone(), source_file.extension.clone());
+
+            // Use tokio runtime to execute async copy operation
+            let runtime = tokio::runtime::Runtime::new()
+                .map_err(|e| format!("Failed to create Tokio runtime: {}", e))?;
+            
+            runtime.block_on(async {
+                copy_s3_object(&source_key, &destination_key, &aws_auth).await
+            })?;
+        }
+
 
         // Create new metadata for the copy
         let mut new_file_metadata = source_file.clone();
