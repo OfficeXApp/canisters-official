@@ -85,7 +85,7 @@ pub mod state {
                 deleted: false,
                 canister_id: ICPPrincipalString(PublicKeyBLS(canister_id.to_string())),
                 expires_at: -1,
-                restore_trash_prior_folder: None,
+                restore_trash_prior_folder_path: None,
             };
 
             full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));

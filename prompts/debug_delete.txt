@@ -4,7 +4,7 @@
 // src/core/api/actions.rs
 use std::result::Result;
 
-use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::UserID}, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
+use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
 
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
 
@@ -94,34 +94,49 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::CreateFile => {
             match action.payload {
                 DirectoryActionPayload::CreateFile(payload) => {
-                    // Get parent folder path from either resource_path or resource_id
-                    let parent_folder = if let Some(path) = action.target.resource_path {
-                        match translate_path_to_id(path) {
-                            PathTranslationResponse { folder: Some(folder), .. } => folder,
-                            _ => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Parent folder not found at specified path".to_string()
-                            })
+                    // Determine the full file path.
+                    // If the user provided a resource_path, we try to translate it.
+                    // - If translation finds a folder, we use its full path.
+                    // - Otherwise, we use the user’s resource_path as provided (ensuring it ends with a '/').
+                    // If no resource_path is provided but a resource_id is,
+                    // then we require that get_folder_by_id returns a valid folder.
+                    let full_file_path = if let Some(user_resource_path) = action.target.resource_path {
+                        let translation = translate_path_to_id(user_resource_path.clone());
+                        if let Some(folder) = translation.folder {
+                            let resulting_path = format!("{}/{}", folder.full_folder_path.0.trim_end_matches('/'), payload.name);
+                            debug_log!("if full_file_path = {}", resulting_path);
+                            resulting_path
+                        } else {
+                            // No folder found from the given path.
+                            // That’s fine – let the drive API create parent folders.
+                            let parent_path = if user_resource_path.to_string().ends_with('/') {
+                                user_resource_path.to_string()
+                            } else {
+                                format!("{}/", user_resource_path)
+                            };
+                            let resulting_path = format!("{}{}", parent_path, payload.name);
+                            debug_log!("else full_file_path = {}", resulting_path);
+                            resulting_path
                         }
                     } else if let Some(id) = action.target.resource_id {
-                        match get_folder_by_id(FolderUUID(id)) {
-                            Ok(folder) => folder,
-                            Err(e) => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: format!("Parent folder not found: {}", e)
-                            })
-                        }
+                        // For resource_id, a valid parent folder MUST be found.
+                        let folder = get_folder_by_id(FolderUUID(id)).map_err(|e| DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Parent folder not found: {}", e)
+                        })?;
+                        let resulting_path = format!("{}/{}", folder.full_folder_path.0.trim_end_matches('/'), payload.name);
+                        debug_log!("else if full_file_path = {}", resulting_path);
+                        resulting_path
                     } else {
                         return Err(DirectoryActionErrorInfo {
                             code: 400,
                             message: "Neither resource_path nor resource_id provided for parent folder".to_string()
                         });
                     };
+
+                    debug_log!("full_file_path = {}", full_file_path);
         
-                    // Construct full file path by combining parent folder path with new file name
-                    let full_file_path = format!("{}{}", parent_folder.full_folder_path.0, payload.name);
-        
-                    // Create file using the drive API
+                    // Create file using the drive API.
                     match create_file(
                         full_file_path,
                         payload.disk_id,
@@ -144,12 +159,20 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         })
                     }
                 }
-                _ => Err(DirectoryActionErrorInfo {
-                    code: 400,
-                    message: "Invalid payload for CREATE_FILE action".to_string()
-                })
+                other => {
+                    let error_msg = format!(
+                        "Invalid payload for CREATE_FILE action. Expected CreateFile, got: {:?}",
+                        other
+                    );
+                    ic_cdk::println!("Payload error: {}", error_msg);
+                    Err(DirectoryActionErrorInfo {
+                        code: 400,
+                        message: error_msg
+                    })
+                }
             }
         }
+        
         
         DirectoryActionEnum::CreateFolder => {
             match action.payload {
@@ -392,9 +415,9 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
 
                     // Perform deletion
                     match delete_file(&file_id, payload.permanent) {
-                        Ok(_) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
+                        Ok(path_to_trash) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
                             file_id,
-                            path_to_trash: file.full_file_path
+                            path_to_trash
                         })),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -446,9 +469,9 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
 
                     // Perform deletion with collection vectors
                     match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files, payload.permanent) {
-                        Ok(driveFullFilePath) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
+                        Ok(path_to_trash) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
                             folder_id,
-                            path_to_trash: folder.full_folder_path,
+                            path_to_trash,
                             deleted_files: Some(deleted_files),
                             deleted_folders: Some(deleted_folders),
                         })),
@@ -486,11 +509,17 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source file".to_string()
                         });
                     };
+
+                    // get the file from directory state
+                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_file.disk_id,
+                        user_id,
+                        preexisting_file.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -535,11 +564,22 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source folder".to_string()
                         });
                     };
+
+                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Folder not found: {}", e)
+                        })
+                    };
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_folder.disk_id,
+                        user_id,
+                        preexisting_folder.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -584,11 +624,16 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source file".to_string()
                         });
                     };
+
+                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_file.disk_id,
+                        user_id,
+                        preexisting_file.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -633,11 +678,23 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source folder".to_string()
                         });
                     };
+
+                    // get the folder metadata
+                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Folder not found: {}", e)
+                        })
+                    };
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_folder.disk_id,
+                        user_id,
+                        preexisting_folder.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -700,7 +757,7 @@ pub mod drive {
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
-        }, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
     pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
@@ -821,6 +878,13 @@ pub mod drive {
         
         let full_file_path = final_path;
         let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
+
+        ic_cdk::println!(
+            "Checking full path: {} -> {}",
+            sanitized_file_path,
+            full_file_path_to_uuid.get(&DriveFullFilePath(sanitized_file_path.clone())).is_some()
+        );
+        
     
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
@@ -986,6 +1050,8 @@ pub mod drive {
         } else {
             canister_id.clone()
         };
+
+        
     
         // Check if folder already exists
         if let Some(existing_folder_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(sanitized_path.clone())) {
@@ -1052,7 +1118,7 @@ pub mod drive {
             if let Some(folder) = map.get_mut(&new_folder_uuid) {
                 folder.expires_at = expires_at;
             }
-        });
+        });        
     
         // Get and return the updated folder metadata
         folder_uuid_to_metadata
@@ -1137,7 +1203,7 @@ pub mod drive {
     
         // Update parent folder reference if needed
         if !parent_path.is_empty() {
-            let parent_full_path = format!("{}::{}", storage_part, parent_path);
+            let parent_full_path = format!("{}::{}{}", storage_part, parent_path, "/");
             if let Some(parent_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(parent_full_path.clone())) {
                 folder_uuid_to_metadata.with_mut(|map| {
                     if let Some(parent_folder) = map.get_mut(&parent_uuid) {
@@ -1263,7 +1329,7 @@ pub mod drive {
     
             // Delete files
             for file_id in file_ids {
-                if let Ok((driveFullFilePath)) = delete_file(&file_id, true) {
+                if let Ok(_) = delete_file(&file_id, true) {
                     if all_deleted_files.len() < 2000 {
                         all_deleted_files.push(file_id);
                     }
@@ -1272,7 +1338,7 @@ pub mod drive {
     
             // Recursively delete subfolders
             for subfolder_id in subfolder_ids {
-                if let Ok(driveFullFilePath) = delete_folder(&subfolder_id, all_deleted_folders, all_deleted_files, true) {
+                if let Ok(_) = delete_folder(&subfolder_id, all_deleted_folders, all_deleted_files, true) {
                     if all_deleted_folders.len() < 2000 {
                         all_deleted_folders.push(subfolder_id);
                     }
@@ -1291,37 +1357,98 @@ pub mod drive {
                     }
                 });
             }
-            // Return the full path of the deleted folder
+            
             Ok(DriveFullFilePath("".to_string()))
         } else {
-            // Move to trash
+            // Move to trash logic
             // Get .trash folder UUID
             let trash_path = DriveFullFilePath(format!("{}::.trash/", folder.disk_id.to_string()));
             let trash_uuid = full_folder_path_to_uuid
                 .get(&trash_path)
                 .ok_or_else(|| "Trash folder not found".to_string())?;
     
-            // Store original parent for restore
-            let original_parent = folder.parent_folder_uuid.clone();
+            // Store original folder path before moving
+            let original_folder_path = folder.full_folder_path.clone();
+    
+            // First, set restore_trash_prior_folder_path for the main folder and all its contents
+            let mut stack = vec![folder_id.clone()];
+            
+            while let Some(current_folder_id) = stack.pop() {
+                // First handle the folder's metadata
+                let mut file_ids = Vec::new();
+                let mut current_folder_path = None;
+                
+                folder_uuid_to_metadata.with_mut(|map| {
+                    if let Some(current_folder) = map.get_mut(&current_folder_id) {
+                        if current_folder_id == *folder_id {
+                            // Main folder gets the original parent path
+                            current_folder.restore_trash_prior_folder_path = Some(original_folder_path.clone());
+                        } else {
+                            // Subfolders keep their current path
+                            current_folder.restore_trash_prior_folder_path = Some(current_folder.full_folder_path.clone());
+                        }
+    
+                        // Add subfolders to stack
+                        stack.extend(current_folder.subfolder_uuids.clone());
+                        // Get the file IDs for processing after we release this borrow
+                        file_ids = current_folder.file_uuids.clone();
+                        current_folder_path = Some(current_folder.full_folder_path.clone());
+                    }
+                });
+    
+                // Now set restore info for all files using file_uuid_to_metadata
+                if let Some(folder_path) = current_folder_path {
+                    for file_id in file_ids {
+                        file_uuid_to_metadata.with_mut(|file_map| {
+                            if let Some(file) = file_map.get_mut(&file_id) {
+                                file.restore_trash_prior_folder_path = Some(folder_path.clone());
+                            }
+                        });
+                    }
+                }
+            }
+    
+            // Get trash folder metadata
+            let trash_folder = folder_uuid_to_metadata
+                .get(&trash_uuid)
+                .ok_or_else(|| "Trash folder metadata not found".to_string())?;
     
             // Move folder to .trash
-            let folder_in_trash = move_folder(
+            let moved_folder = move_folder(
                 folder_id,
-                &folder_uuid_to_metadata.get(&trash_uuid).unwrap(),
+                &trash_folder,
                 Some(FileConflictResolutionEnum::KEEP_BOTH),
             )?;
     
-            // Update restore_trash_prior_folder_path
-            folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(folder) = map.get_mut(folder_id) {
-                    folder.restore_trash_prior_folder_path = original_parent;
-                }
-            });
-
-            // return the new path in trash
-            Ok(folder_in_trash.full_folder_path)
-        }
+            // Add moved items to tracking vectors
+            if all_deleted_folders.len() < 2000 {
+                all_deleted_folders.push(folder_id.clone());
+            }
     
+            // Track all files in the moved folder structure
+            let mut stack = vec![folder_id.clone()];
+            while let Some(current_folder_id) = stack.pop() {
+                if let Some(current_folder) = folder_uuid_to_metadata.get(&current_folder_id) {
+                    // Add all files in current folder
+                    for file_id in &current_folder.file_uuids {
+                        if all_deleted_files.len() < 2000 {
+                            all_deleted_files.push(file_id.clone());
+                        }
+                    }
+    
+                    // Add subfolders to stack and tracking
+                    for subfolder_id in &current_folder.subfolder_uuids {
+                        if all_deleted_folders.len() < 2000 {
+                            all_deleted_folders.push(subfolder_id.clone());
+                        }
+                        stack.push(subfolder_id.clone());
+                    }
+                }
+            }
+    
+            // Return the new path in trash
+            Ok(moved_folder.full_folder_path)
+        }
     }
 
     pub fn delete_file(file_id: &FileUUID, permanent: bool) -> Result<DriveFullFilePath, String> {
@@ -1369,33 +1496,40 @@ pub mod drive {
                     folder.file_uuids.retain(|id| id != file_id);
                 }
             });
-
+    
             Ok(DriveFullFilePath("".to_string()))
         } else {
             // Move to trash
+            // Store original folder path before moving
+            let original_folder_path = DriveFullFilePath(format!("{}/", file.full_file_path.0.rsplitn(2, '/').nth(1).unwrap_or("")));
+            
             // Get .trash folder UUID
             let trash_path = DriveFullFilePath(format!("{}::.trash/", file.disk_id.to_string()));
             let trash_uuid = full_folder_path_to_uuid
                 .get(&trash_path)
                 .ok_or_else(|| "Trash folder not found".to_string())?;
     
-            // Store original parent for restore
-            let original_parent = file.folder_uuid.clone();
+            // Set restore_trash_prior_folder_path BEFORE moving the file
+            file_uuid_to_metadata.with_mut(|map| {
+                if let Some(file) = map.get_mut(file_id) {
+                    file.restore_trash_prior_folder_path = Some(original_folder_path);
+                }
+            });
+    
+            // Get trash folder metadata
+            let trash_folder = folder_uuid_to_metadata
+                .get(&trash_uuid)
+                .ok_or_else(|| "Trash folder metadata not found".to_string())?;
     
             // Move file to .trash
-            let trashed_file = move_file(
+            let moved_file = move_file(
                 file_id,
-                &folder_uuid_to_metadata.get(&trash_uuid).unwrap(),
+                &trash_folder,
                 Some(FileConflictResolutionEnum::KEEP_BOTH),
             )?;
     
-            // Update restore_trash_prior_folder_path
-            file_uuid_to_metadata.with_mut(|map| {
-                if let Some(file) = map.get_mut(file_id) {
-                    file.restore_trash_prior_folder_path = Some(original_parent);
-                }
-            });
-            Ok(trashed_file.full_file_path)
+            // Return the new path in trash
+            Ok(moved_file.full_file_path)
         }
     }
 
@@ -1444,18 +1578,20 @@ pub mod drive {
                     .get(&source_file.disk_id)
                     .cloned()
             }).ok_or_else(|| "Disk not found".to_string())?;
-        
+
             let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
                 .ok_or_else(|| "Missing AWS credentials".to_string())?
             ).map_err(|_| "Invalid AWS credentials format".to_string())?;
-        
+
+            // Prepare S3 copy operation parameters
             let source_key = format!("{}", source_file.raw_url);
             let destination_key = format_file_asset_path(new_file_uuid.clone(), source_file.extension.clone());
-        
-            // Fire and forget the copy operation
+
+            // Fire and forget - initiate copy operation without waiting
             ic_cdk::spawn(async move {
-                if let Err(e) = copy_s3_object(&source_key, &destination_key, &aws_auth).await {
-                    ic_cdk::println!("S3 copy operation error (continuing anyway): {}", e);
+                match copy_s3_object(&source_key, &destination_key, &aws_auth).await {
+                    Ok(_) => ic_cdk::println!("S3 copy completed successfully"),
+                    Err(e) => ic_cdk::println!("S3 copy failed: {}", e)
                 }
             });
         }
@@ -1638,12 +1774,12 @@ pub mod drive {
         let source_folder = folder_uuid_to_metadata
             .get(folder_id)
             .ok_or_else(|| "Source folder not found".to_string())?;
-    
+        
         // Check if source and destination are on the same disk
         if source_folder.disk_id != destination_folder.disk_id {
             return Err("Cannot move folders between different disks".to_string());
         }
-
+    
         // Check for circular reference
         let mut current_folder = Some(destination_folder.id.clone());
         while let Some(folder_id) = current_folder {
@@ -1654,9 +1790,8 @@ pub mod drive {
                 .get(&folder_id)
                 .and_then(|folder| folder.parent_folder_uuid.clone());
         }
-
-        
-        // Handle naming conflicts
+    
+        // Handle naming conflicts via resolve_naming_conflict.
         let (final_name, final_path) = resolve_naming_conflict(
             &destination_folder.full_folder_path.0,
             &source_folder.name,
@@ -1670,40 +1805,52 @@ pub mod drive {
         }
     
         let old_path = source_folder.full_folder_path.clone();
-    
-        // Update folder metadata
+        
+        // Update folder metadata using with_mut.
         folder_uuid_to_metadata.with_mut(|map| {
             if let Some(folder) = map.get_mut(folder_id) {
-                folder.name = final_name;
+                folder.name = final_name.clone();
                 folder.parent_folder_uuid = Some(destination_folder.id.clone());
                 folder.full_folder_path = DriveFullFilePath(final_path.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
     
-        // Update path mappings for the folder and all its contents
+        // *** NEW: Update the global path mapping for the folder itself ***
+        debug_log!("move_folder: Removing old full folder path mapping: {}", old_path);
+        full_folder_path_to_uuid.remove(&old_path);
+        debug_log!("move_folder: Inserting new full folder path mapping: {}", final_path);
+        full_folder_path_to_uuid.insert(DriveFullFilePath(final_path.clone()), folder_id.clone());
+    
+        // Update path mappings for all subfolders and files.
         update_subfolder_paths(folder_id, &old_path.0, &final_path);
     
-        // Remove folder from old parent's subfolder list
+        // Remove folder from old parent's subfolder list.
         if let Some(old_parent_id) = &source_folder.parent_folder_uuid {
             folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(folder) = map.get_mut(old_parent_id) {
-                    folder.subfolder_uuids.retain(|id| id != folder_id);
-                    folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(parent) = map.get_mut(old_parent_id) {
+                    parent.subfolder_uuids.retain(|id| id != folder_id);
+                    parent.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                 }
             });
         }
     
-        // Add folder to new parent's subfolder list
+        // Add folder to new parent's subfolder list.
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&destination_folder.id) {
-                folder.subfolder_uuids.push(folder_id.clone());
-                folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+            if let Some(new_parent) = map.get_mut(&destination_folder.id) {
+                new_parent.subfolder_uuids.push(folder_id.clone());
+                new_parent.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
     
-        Ok(folder_uuid_to_metadata.get(folder_id).unwrap().clone())
+        let updated_folder = folder_uuid_to_metadata
+            .get(folder_id)
+            .ok_or_else(|| "Failed to retrieve updated folder metadata".to_string())?;
+        debug_log!("move_folder: Finished moving folder. New metadata: {:?}", updated_folder);
+    
+        Ok(updated_folder.clone())
     }
+    
 
     pub fn restore_from_trash(
         resource_id: &str,
@@ -1722,8 +1869,12 @@ pub mod drive {
                 // User specified location takes precedence
                 restore_to.clone()
             } else {
-                // Fall back to original location
-                folder.restore_trash_prior_folder_path.clone().unwrap()
+                // Get the folder UUID from the stored path
+                let path = folder.restore_trash_prior_folder_path.clone().unwrap();
+                full_folder_path_to_uuid
+                    .get(&path)
+                    .ok_or_else(|| format!("Original folder path no longer exists: {}", path))?
+                    .clone()
             };
     
             // Verify target folder exists and is not in trash
@@ -1796,8 +1947,12 @@ pub mod drive {
                 // User specified location takes precedence
                 restore_to.clone()
             } else {
-                // Fall back to original location
-                file.restore_trash_prior_folder_path.clone().unwrap()
+                // Get the folder UUID from the stored path
+                let path = file.restore_trash_prior_folder_path.clone().unwrap();
+                full_folder_path_to_uuid
+                    .get(&path)
+                    .ok_or_else(|| format!("Original folder path no longer exists: {}", path))?
+                    .clone()
             };
     
             // Verify target folder exists and is not in trash
@@ -1806,7 +1961,7 @@ pub mod drive {
                 .ok_or_else(|| "Target folder not found".to_string())?;
     
             if target_folder.restore_trash_prior_folder_path.is_some() {
-                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}",target_folder.full_folder_path).to_string());
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
             }
     
             let file_id = FileUUID(resource_id.to_string());
@@ -1833,36 +1988,34 @@ pub mod drive {
             Err("Resource not found in trash".to_string())
         }
     }
+
 }
 
 // src/core/api/internals.rs
 pub mod drive_internals {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
+        core::{api::{drive::drive::get_folder_by_id, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
         
     };
     
     use regex::Regex;
 
     pub fn sanitize_file_path(file_path: &str) -> String {
+        let original = file_path.to_string();
         let mut parts = file_path.splitn(2, "::");
         let storage_part = parts.next().unwrap_or("");
         let path_part = parts.next().unwrap_or("");
     
         let sanitized = path_part.replace(':', ";");
-
-        // Compile a regex to match one or more consecutive slashes
         let re = Regex::new(r"/+").unwrap();
         let sanitized = re.replace_all(&sanitized, "/").to_string();
-
-        // Remove leading and trailing slashes
         let sanitized = sanitized.trim_matches('/').to_string();
-
-        // Additional sanitization can be performed here if necessary
     
-        // Reconstruct the full path
-        format!("{}::{}", storage_part, sanitized)
+        let final_path = format!("{}::{}", storage_part, sanitized);
+        ic_cdk::println!("sanitize_file_path: {} -> {}", original, final_path);
+        final_path
     }
+    
 
     pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderUUID {
         let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
@@ -2064,8 +2217,9 @@ pub mod drive_internals {
     }
 
     pub fn split_path(full_path: &str) -> (String, String) {
+        let original = full_path.to_string();
         let parts: Vec<&str> = full_path.rsplitn(2, '/').collect();
-        match parts.as_slice() {
+        let (folder, filename) = match parts.as_slice() {
             [file_name, folder_path] => (folder_path.to_string(), file_name.to_string()),
             [single_part] => {
                 let storage_parts: Vec<&str> = single_part.splitn(2, "::").collect();
@@ -2075,8 +2229,11 @@ pub mod drive_internals {
                 }
             },
             _ => (String::new(), String::new()),
-        }
+        };
+        ic_cdk::println!("split_path: {} -> ({}, {})", original, folder, filename);
+        (folder, filename)
     }
+    
 
     pub fn update_folder_file_uuids(folder_uuid: &FolderUUID, file_uuid: &FileUUID, is_add: bool) {
         folder_uuid_to_metadata.with_mut(|map| {
@@ -2134,33 +2291,65 @@ pub mod drive_internals {
         is_folder: bool,
         resolution: Option<FileConflictResolutionEnum>,
     ) -> (String, String) {
+        // Start with the initial name and computed full path.
         let mut final_name = name.to_string();
         let mut final_path = if is_folder {
-            format!("{}{}/", base_path, name)
+            format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
         } else {
-            format!("{}{}", base_path, name)
+            format!("{}/{}", base_path.trim_end_matches('/'), final_name)
         };
     
+        debug_log!(
+            "resolve_naming_conflict: initial base_path: '{}', name: '{}', is_folder: {} -> final_name: '{}', final_path: '{}'",
+            base_path, name, is_folder, final_name, final_path
+        );
+    
         match resolution.unwrap_or(FileConflictResolutionEnum::KEEP_BOTH) {
-            FileConflictResolutionEnum::REPLACE => (final_name, final_path),
+            FileConflictResolutionEnum::REPLACE => {
+                debug_log!(
+                    "resolve_naming_conflict: Using REPLACE. Returning final_name: '{}' and final_path: '{}'",
+                    final_name,
+                    final_path
+                );
+                (final_name, final_path)
+            },
             FileConflictResolutionEnum::KEEP_ORIGINAL => {
-                if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
-                   (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                    || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                {
+                    debug_log!(
+                        "resolve_naming_conflict (KEEP_ORIGINAL): Conflict found for final_path: '{}'. Returning empty strings to keep original.",
+                        final_path
+                    );
                     return (String::new(), String::new()); // Signal to keep original
                 }
+                debug_log!(
+                    "resolve_naming_conflict (KEEP_ORIGINAL): No conflict for final_path: '{}'. Returning final_name: '{}' and final_path: '{}'",
+                    final_path, final_name, final_path
+                );
                 (final_name, final_path)
-            }
+            },
             FileConflictResolutionEnum::KEEP_NEWER => {
-                // For KEEP_NEWER, we'll implement timestamp comparison in the caller
+                debug_log!(
+                    "resolve_naming_conflict: Using KEEP_NEWER. Returning final_name: '{}' and final_path: '{}'",
+                    final_name,
+                    final_path
+                );
                 (final_name, final_path)
-            }
+            },
             FileConflictResolutionEnum::KEEP_BOTH => {
                 let mut counter = 1;
-                while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
-                      (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                    || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                {
+                    debug_log!(
+                        "resolve_naming_conflict (KEEP_BOTH): Conflict for final_path: '{}'. Counter: {}",
+                        final_path,
+                        counter
+                    );
                     counter += 1;
-                    
-                    // Split name and extension for files
+    
+                    // Split name and extension for files.
                     let (base_name, ext) = if !is_folder && name.contains('.') {
                         let parts: Vec<&str> = name.rsplitn(2, '.').collect();
                         (parts[1], parts[0])
@@ -2175,34 +2364,83 @@ pub mod drive_internals {
                     };
     
                     final_path = if is_folder {
-                        format!("{}{}/", base_path, final_name)
+                        format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
                     } else {
-                        format!("{}{}", base_path, final_name)
+                        format!("{}/{}", base_path.trim_end_matches('/'), final_name)
                     };
+    
+                    debug_log!(
+                        "resolve_naming_conflict (KEEP_BOTH): New computed final_name: '{}', final_path: '{}'",
+                        final_name,
+                        final_path
+                    );
                 }
+                debug_log!(
+                    "resolve_naming_conflict (KEEP_BOTH): Final resolved final_name: '{}', final_path: '{}'",
+                    final_name,
+                    final_path
+                );
                 (final_name, final_path)
             }
         }
     }
+    
+    
 
     // Helper function to get destination folder from either ID or path
-    pub fn get_destination_folder(folder_id: Option<FolderUUID>, folder_path: Option<DriveFullFilePath>) -> Result<FolderMetadata, String> {
+    pub fn get_destination_folder(
+        folder_id: Option<FolderUUID>, 
+        folder_path: Option<DriveFullFilePath>,
+        disk_id: DiskID,
+        user_id: UserID,
+        canister_id: String,
+    ) -> Result<FolderMetadata, String> {
         if let Some(id) = folder_id {
             folder_uuid_to_metadata
                 .get(&id)
                 .clone()
                 .ok_or_else(|| "Destination folder not found".to_string())
         } else if let Some(path) = folder_path {
-            let translation = translate_path_to_id(path);
-            translation
-                .folder
-                .clone()
-                .ok_or_else(|| "Destination folder not found at specified path".to_string())
+            let translation = translate_path_to_id(path.clone());
+            if let Some(folder) = translation.folder {
+                Ok(folder)
+            } else {
+                // Folder not found at the given path; create the folder structure.
+                let new_folder_uuid = ensure_folder_structure(
+                    &path.to_string(),
+                    disk_id,
+                    user_id,
+                    canister_id,
+                );
+                // Retrieve the folder metadata using the new UUID.
+                get_folder_by_id(new_folder_uuid)
+            }
         } else {
             Err("Neither destination folder ID nor path provided".to_string())
         }
     }
+    
+
+    /// Validates that if the disk type is AwsBucket or StorjWeb3,
+    /// then auth_json is provided and can be deserialized into AwsBucketAuth.
+    pub fn validate_auth_json(disk_type: &DiskTypeEnum, auth_json: &Option<String>) -> Result<(), String> {
+        if *disk_type == DiskTypeEnum::AwsBucket || *disk_type == DiskTypeEnum::StorjWeb3 {
+            match auth_json {
+                Some(json_str) => {
+                    // Try to parse the provided JSON string into AwsBucketAuth.
+                    serde_json::from_str::<AwsBucketAuth>(json_str)
+                        .map_err(|e| format!("Invalid auth_json for {}: {}", disk_type, e))?;
+                    Ok(())
+                },
+                None => Err(format!("auth_json is required for disk type {}", disk_type)),
+            }
+        } else {
+            Ok(())
+        }
+    }
+
 }
+
 
 // src/core/state/directory/state.rs
 
@@ -2383,7 +2621,7 @@ pub struct FolderMetadata {
     pub(crate) deleted: bool,
     pub(crate) expires_at: i64,
     pub(crate) canister_id: ICPPrincipalString,
-    pub(crate) restore_trash_prior_folder_path: Option<FolderUUID>,
+    pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
 }
 
 
@@ -2409,7 +2647,7 @@ pub struct FileMetadata {
     pub(crate) deleted: bool,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,
-    pub(crate) restore_trash_prior_folder_path: Option<FolderUUID>,
+    pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
 }
 
 
@@ -2898,83 +3136,17 @@ pub mod directorys_handlers {
     
 }
 
-// src/rest/directory/route.rs
-use crate::debug_log;
-use crate::rest::router;
-use crate::types::RouteHandler;
-
-pub const DIRECTORYS_SEARCH_PATH: &str = "/directory/search";
-pub const DIRECTORYS_LIST_PATH: &str = "/directory/list";
-pub const DIRECTORYS_ACTION_PATH: &str = "/directory/action";
-pub const UPLOAD_CHUNK_PATH: &str = "/directory/raw_upload/chunk";
-pub const COMPLETE_UPLOAD_PATH: &str = "/directory/raw_upload/complete";
-pub const RAW_DOWNLOAD_META_PATH: &str = "/directory/raw_download/meta";
-pub const RAW_DOWNLOAD_CHUNK_PATH: &str = "/directory/raw_download/chunk";
-pub const RAW_URL_PROXY_PATH: &str = "/directory/asset/{file_id_with_extension}"; // for proxying raw urls 302 redirect to temp presigned s3 urls
-
-
-type HandlerEntry = (&'static str, &'static str, RouteHandler);
-
-pub fn init_routes() {
-    let routes: &[HandlerEntry] = &[
-        (
-            "POST",
-            DIRECTORYS_SEARCH_PATH,
-            crate::rest::directory::handler::directorys_handlers::search_directory_handler,
-        ),
-        (
-            "POST",
-            DIRECTORYS_LIST_PATH,
-            crate::rest::directory::handler::directorys_handlers::list_directorys_handler,
-        ),
-        (
-            "POST",
-            DIRECTORYS_ACTION_PATH,
-            crate::rest::directory::handler::directorys_handlers::action_directory_handler,
-        ),
-        (
-            "POST",
-            UPLOAD_CHUNK_PATH,
-            crate::rest::directory::handler::directorys_handlers::handle_upload_chunk,
-        ),
-        (
-            "POST",
-            COMPLETE_UPLOAD_PATH,
-            crate::rest::directory::handler::directorys_handlers::handle_complete_upload,
-        ),
-        (
-            "GET",
-            RAW_DOWNLOAD_META_PATH,
-            crate::rest::directory::handler::directorys_handlers::download_file_metadata_handler,
-        ),
-        (
-            "GET",
-            RAW_DOWNLOAD_CHUNK_PATH,
-            crate::rest::directory::handler::directorys_handlers::download_file_chunk_handler,
-        ),
-        (
-            "GET",
-            RAW_URL_PROXY_PATH,
-            crate::rest::directory::handler::directorys_handlers::get_raw_url_proxy_handler,
-        ),
-    ];
-
-    for &(method, path, handler) in routes {
-        debug_log!("Registering {} route: {}", method, path);
-        router::insert_route(method, path, handler);
-    }
-
-}
-
-use std::{collections::HashMap, fmt};
 
 // src/rest/directory/types.rs
-use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fmt};
+use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
 use crate::{core::{api::disks::aws_s3::S3UploadResponse, state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
 };
+use serde::de;
+use serde_json::Value;
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -3068,11 +3240,18 @@ pub struct ClientSideUploadResponse {
 // --------------------------------------------
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DirectoryAction {
     pub action: DirectoryActionEnum,
     pub target: ResourceIdentifier,
     pub payload: DirectoryActionPayload,
+}
+
+#[derive(Deserialize)]
+struct RawDirectoryAction {
+    action: DirectoryActionEnum,
+    target: ResourceIdentifier,
+    payload: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -3094,13 +3273,113 @@ pub struct DirectoryActionRequestBody {
     pub actions: Vec<DirectoryAction>,
 }
 
+// Custom deserialization for DirectoryAction.
+impl<'de> Deserialize<'de> for DirectoryAction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawDirectoryAction::deserialize(deserializer)?;
+        // Dispatch based on the action enum to convert the raw JSON payload.
+        let payload = match raw.action {
+            DirectoryActionEnum::GetFile => {
+                DirectoryActionPayload::GetFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::GetFolder => {
+                DirectoryActionPayload::GetFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CreateFile => {
+                DirectoryActionPayload::CreateFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CreateFolder => {
+                DirectoryActionPayload::CreateFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::UpdateFile => {
+                DirectoryActionPayload::UpdateFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::UpdateFolder => {
+                DirectoryActionPayload::UpdateFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::DeleteFile => {
+                DirectoryActionPayload::DeleteFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::DeleteFolder => {
+                DirectoryActionPayload::DeleteFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CopyFile => {
+                DirectoryActionPayload::CopyFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CopyFolder => {
+                DirectoryActionPayload::CopyFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::MoveFile => {
+                DirectoryActionPayload::MoveFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::MoveFolder => {
+                DirectoryActionPayload::MoveFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::RestoreTrash => {
+                DirectoryActionPayload::RestoreTrash(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+        };
+
+        Ok(DirectoryAction {
+            action: raw.action,
+            target: raw.target,
+            payload,
+        })
+    }
+}
+
+// Custom serialization for DirectoryAction.
+impl Serialize for DirectoryAction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("DirectoryAction", 3)?;
+        state.serialize_field("action", &self.action)?;
+        state.serialize_field("target", &self.target)?;
+        // Match on the payload variant so that it serializes as a plain JSON object.
+        match &self.payload {
+            DirectoryActionPayload::GetFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::GetFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CreateFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CreateFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::UpdateFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::UpdateFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::DeleteFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::DeleteFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CopyFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CopyFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::MoveFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::MoveFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::RestoreTrash(p) => state.serialize_field("payload", p)?,
+        }
+        state.end()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryActionError {
     pub code: i32,
     pub message: String,
 }
 
-#[derive(Debug, Clone,Serialize,  Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryActionEnum {
     GetFile,
@@ -3148,7 +3427,6 @@ pub struct ResourceIdentifier {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 pub enum DirectoryActionPayload {
     GetFile(GetFilePayload),
     GetFolder(GetFolderPayload),
@@ -3166,12 +3444,15 @@ pub enum DirectoryActionPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GetFilePayload {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GetFolderPayload {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateFilePayload {
     pub name: String,
     pub extension: String,
@@ -3184,6 +3465,7 @@ pub struct CreateFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateFolderPayload {
     pub name: String,
     pub tags: Vec<Tag>,
@@ -3193,6 +3475,7 @@ pub struct CreateFolderPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateFilePayload {
     pub name: Option<String>,
     pub tags: Option<Vec<Tag>>,
@@ -3201,6 +3484,7 @@ pub struct UpdateFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateFolderPayload {
     pub name: Option<String>,
     pub tags: Option<Vec<Tag>>,
@@ -3208,16 +3492,19 @@ pub struct UpdateFolderPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteFilePayload {
     pub permanent: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteFolderPayload {
     pub permanent: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CopyFilePayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
@@ -3225,6 +3512,7 @@ pub struct CopyFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CopyFolderPayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
@@ -3232,6 +3520,7 @@ pub struct CopyFolderPayload {
 }
 
 #[derive(Debug, Clone,Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MoveFilePayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
@@ -3239,12 +3528,21 @@ pub struct MoveFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MoveFolderPayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RestoreTrashPayload {
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub restore_to_folder: Option<FolderUUID>,
+}
 
 
 // Response types remain the same as before
@@ -3296,13 +3594,6 @@ pub struct DeleteFolderResponse {
     pub deleted_folders: Option<Vec<FolderUUID>>,
 }
 
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RestoreTrashPayload {
-    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    pub restore_to_folder: Option<FolderUUID>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreTrashResponse {

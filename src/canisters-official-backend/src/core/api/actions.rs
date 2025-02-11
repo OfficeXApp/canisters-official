@@ -412,9 +412,9 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
 
                     // Perform deletion
                     match delete_file(&file_id, payload.permanent) {
-                        Ok(_) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
+                        Ok(path_to_trash) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
                             file_id,
-                            trash_full_path: file.full_file_path
+                            path_to_trash
                         })),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -466,9 +466,9 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
 
                     // Perform deletion with collection vectors
                     match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files, payload.permanent) {
-                        Ok(driveFullFilePath) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
+                        Ok(path_to_trash) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
                             folder_id,
-                            trash_full_path: folder.full_folder_path,
+                            path_to_trash,
                             deleted_files: Some(deleted_files),
                             deleted_folders: Some(deleted_folders),
                         })),

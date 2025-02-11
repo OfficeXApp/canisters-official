@@ -654,7 +654,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     match delete_file(&file_id, payload.permanent) {
                         Ok(_) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
                             file_id,
-                            trash_full_path: file.full_file_path
+                            path_to_trash: file.full_file_path
                         })),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -708,7 +708,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files, payload.permanent) {
                         Ok(driveFullFilePath) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
                             folder_id,
-                            trash_full_path: folder.full_folder_path,
+                            path_to_trash: folder.full_folder_path,
                             deleted_files: Some(deleted_files),
                             deleted_folders: Some(deleted_folders),
                         })),
@@ -1128,7 +1128,7 @@ pub mod drive {
             deleted: false,
             canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
             expires_at,
-            restore_trash_prior_folder: None,
+            restore_trash_prior_folder_path: None,
         };
 
         // Update version chain if we're replacing
@@ -1459,7 +1459,7 @@ pub mod drive {
         }
     
         // If folder is already in trash, only allow permanent deletion
-        if let Some(_) = folder.restore_trash_prior_folder {
+        if let Some(_) = folder.restore_trash_prior_folder_path {
             if !permanent {
                 return Err("Cannot move to trash: item is already in trash".to_string());
             }
@@ -1521,10 +1521,10 @@ pub mod drive {
                 Some(FileConflictResolutionEnum::KEEP_BOTH),
             )?;
     
-            // Update restore_trash_prior_folder
+            // Update restore_trash_prior_folder_path
             folder_uuid_to_metadata.with_mut(|map| {
                 if let Some(folder) = map.get_mut(folder_id) {
-                    folder.restore_trash_prior_folder = original_parent;
+                    folder.restore_trash_prior_folder_path = original_parent;
                 }
             });
 
@@ -1541,7 +1541,7 @@ pub mod drive {
             .ok_or_else(|| "File not found".to_string())?;
     
         // If file is already in trash, only allow permanent deletion
-        if let Some(_) = file.restore_trash_prior_folder {
+        if let Some(_) = file.restore_trash_prior_folder_path {
             if !permanent {
                 return Err("Cannot move to trash: item is already in trash".to_string());
             }
@@ -1599,10 +1599,10 @@ pub mod drive {
                 Some(FileConflictResolutionEnum::KEEP_BOTH),
             )?;
     
-            // Update restore_trash_prior_folder
+            // Update restore_trash_prior_folder_path
             file_uuid_to_metadata.with_mut(|map| {
                 if let Some(file) = map.get_mut(file_id) {
-                    file.restore_trash_prior_folder = Some(original_parent);
+                    file.restore_trash_prior_folder_path = Some(original_parent);
                 }
             });
             Ok(trashed_file.full_file_path)
@@ -1897,7 +1897,7 @@ pub mod drive {
         let folder_id = FolderUUID(resource_id.to_string());
         if let Some(folder) = folder_uuid_to_metadata.get(&folder_id) {
             // Verify folder is actually in trash
-            if folder.restore_trash_prior_folder.is_none() {
+            if folder.restore_trash_prior_folder_path.is_none() {
                 return Err("Folder is not in trash".to_string());
             }
     
@@ -1907,7 +1907,7 @@ pub mod drive {
                 restore_to.clone()
             } else {
                 // Fall back to original location
-                folder.restore_trash_prior_folder.clone().unwrap()
+                folder.restore_trash_prior_folder_path.clone().unwrap()
             };
     
             // Verify target folder exists and is not in trash
@@ -1915,7 +1915,7 @@ pub mod drive {
                 .get(&target_folder_id)
                 .ok_or_else(|| "Target folder not found".to_string())?;
     
-            if target_folder.restore_trash_prior_folder.is_some() {
+            if target_folder.restore_trash_prior_folder_path.is_some() {
                 return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
             }
     
@@ -1926,7 +1926,7 @@ pub mod drive {
                 payload.file_conflict_resolution.clone(),
             )?;
     
-            // Clear restore_trash_prior_folder for the folder and all its contents
+            // Clear restore_trash_prior_folder_path for the folder and all its contents
             let mut stack = vec![folder_id.clone()];
             let mut restored_folders = vec![folder_id.clone()];
             let mut restored_files = Vec::new();
@@ -1937,7 +1937,7 @@ pub mod drive {
                     for subfolder_id in &current_folder.subfolder_uuids {
                         folder_uuid_to_metadata.with_mut(|map| {
                             if let Some(subfolder) = map.get_mut(subfolder_id) {
-                                subfolder.restore_trash_prior_folder = None;
+                                subfolder.restore_trash_prior_folder_path = None;
                             }
                         });
                         restored_folders.push(subfolder_id.clone());
@@ -1948,7 +1948,7 @@ pub mod drive {
                     for file_id in &current_folder.file_uuids {
                         file_uuid_to_metadata.with_mut(|map| {
                             if let Some(file) = map.get_mut(file_id) {
-                                file.restore_trash_prior_folder = None;
+                                file.restore_trash_prior_folder_path = None;
                             }
                         });
                         restored_files.push(file_id.clone());
@@ -1956,10 +1956,10 @@ pub mod drive {
                 }
             }
     
-            // Clear restore_trash_prior_folder for the main folder
+            // Clear restore_trash_prior_folder_path for the main folder
             folder_uuid_to_metadata.with_mut(|map| {
                 if let Some(folder) = map.get_mut(&folder_id) {
-                    folder.restore_trash_prior_folder = None;
+                    folder.restore_trash_prior_folder_path = None;
                 }
             });
     
@@ -1971,7 +1971,7 @@ pub mod drive {
         // Check if resource exists as a file
         else if let Some(file) = file_uuid_to_metadata.get(&FileUUID(resource_id.to_string())) {
             // Verify file is actually in trash
-            if file.restore_trash_prior_folder.is_none() {
+            if file.restore_trash_prior_folder_path.is_none() {
                 return Err("File is not in trash".to_string());
             }
     
@@ -1981,7 +1981,7 @@ pub mod drive {
                 restore_to.clone()
             } else {
                 // Fall back to original location
-                file.restore_trash_prior_folder.clone().unwrap()
+                file.restore_trash_prior_folder_path.clone().unwrap()
             };
     
             // Verify target folder exists and is not in trash
@@ -1989,7 +1989,7 @@ pub mod drive {
                 .get(&target_folder_id)
                 .ok_or_else(|| "Target folder not found".to_string())?;
     
-            if target_folder.restore_trash_prior_folder.is_some() {
+            if target_folder.restore_trash_prior_folder_path.is_some() {
                 return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}",target_folder.full_folder_path).to_string());
             }
     
@@ -2002,10 +2002,10 @@ pub mod drive {
                 payload.file_conflict_resolution.clone(),
             )?;
     
-            // Clear restore_trash_prior_folder
+            // Clear restore_trash_prior_folder_path
             file_uuid_to_metadata.with_mut(|map| {
                 if let Some(file) = map.get_mut(&file_id) {
-                    file.restore_trash_prior_folder = None;
+                    file.restore_trash_prior_folder_path = None;
                 }
             });
     
@@ -2064,7 +2064,7 @@ pub mod drive_internals {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),
                 parent_folder_uuid: None,
-                restore_trash_prior_folder: None,
+                restore_trash_prior_folder_path: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_folder_path: root_path.clone(),
@@ -2092,7 +2092,7 @@ pub mod drive_internals {
                 id: FolderUUID(trash_folder_uuid.clone()),
                 name: ".trash".to_string(),
                 parent_folder_uuid: Some(root_uuid.clone()),
-                restore_trash_prior_folder: None,
+                restore_trash_prior_folder_path: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_folder_path: trash_path.clone(),
@@ -2220,7 +2220,7 @@ pub mod drive_internals {
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at: -1,
-                    restore_trash_prior_folder: None,
+                    restore_trash_prior_folder_path: None,
                 };
 
                 full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
@@ -2568,7 +2568,7 @@ pub struct FolderMetadata {
     pub(crate) deleted: bool,
     pub(crate) expires_at: i64,
     pub(crate) canister_id: ICPPrincipalString,
-    pub(crate) restore_trash_prior_folder: Option<FolderUUID>,
+    pub(crate) restore_trash_prior_folder_path: Option<FolderUUID>,
 }
 
 
@@ -2593,7 +2593,7 @@ pub struct FileMetadata {
     pub(crate) deleted: bool,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,
-    pub(crate) restore_trash_prior_folder: Option<FolderUUID>,
+    pub(crate) restore_trash_prior_folder_path: Option<FolderUUID>,
 }
 
 
@@ -3552,13 +3552,13 @@ pub struct CreateFolderResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFileResponse {
     pub file_id: FileUUID,
-    pub trash_full_path: DriveFullFilePath,
+    pub path_to_trash: DriveFullFilePath,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderResponse {
     pub folder_id: FolderUUID,
-    pub trash_full_path: DriveFullFilePath, // if empty then its permanently deleted
+    pub path_to_trash: DriveFullFilePath, // if empty then its permanently deleted
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_files: Option<Vec<FileUUID>>,
     #[serde(skip_serializing_if = "Option::is_none")]

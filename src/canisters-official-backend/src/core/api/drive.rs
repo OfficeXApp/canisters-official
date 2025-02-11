@@ -3,7 +3,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::aws_s3::{copy_s3_object, generate_s3_upload_url, S3UploadResponse}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
+                disks::aws_s3::{copy_s3_object, generate_s3_upload_url, S3UploadResponse}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
             },
             state::{
                 directory::{
@@ -12,7 +12,7 @@ pub mod drive {
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
-        }, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
     pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
@@ -216,7 +216,7 @@ pub mod drive {
             deleted: false,
             canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
             expires_at,
-            restore_trash_prior_folder: None,
+            restore_trash_prior_folder_path: None,
         };
     
         // Update version chain if we're replacing
@@ -570,7 +570,7 @@ pub mod drive {
         }
     
         // If folder is already in trash, only allow permanent deletion
-        if let Some(_) = folder.restore_trash_prior_folder {
+        if let Some(_) = folder.restore_trash_prior_folder_path {
             if !permanent {
                 return Err("Cannot move to trash: item is already in trash".to_string());
             }
@@ -584,7 +584,7 @@ pub mod drive {
     
             // Delete files
             for file_id in file_ids {
-                if let Ok((driveFullFilePath)) = delete_file(&file_id, true) {
+                if let Ok(_) = delete_file(&file_id, true) {
                     if all_deleted_files.len() < 2000 {
                         all_deleted_files.push(file_id);
                     }
@@ -593,7 +593,7 @@ pub mod drive {
     
             // Recursively delete subfolders
             for subfolder_id in subfolder_ids {
-                if let Ok(driveFullFilePath) = delete_folder(&subfolder_id, all_deleted_folders, all_deleted_files, true) {
+                if let Ok(_) = delete_folder(&subfolder_id, all_deleted_folders, all_deleted_files, true) {
                     if all_deleted_folders.len() < 2000 {
                         all_deleted_folders.push(subfolder_id);
                     }
@@ -612,37 +612,98 @@ pub mod drive {
                     }
                 });
             }
-            // Return the full path of the deleted folder
+            
             Ok(DriveFullFilePath("".to_string()))
         } else {
-            // Move to trash
+            // Move to trash logic
             // Get .trash folder UUID
             let trash_path = DriveFullFilePath(format!("{}::.trash/", folder.disk_id.to_string()));
             let trash_uuid = full_folder_path_to_uuid
                 .get(&trash_path)
                 .ok_or_else(|| "Trash folder not found".to_string())?;
     
-            // Store original parent for restore
-            let original_parent = folder.parent_folder_uuid.clone();
+            // Store original folder path before moving
+            let original_folder_path = folder.full_folder_path.clone();
+    
+            // First, set restore_trash_prior_folder_path for the main folder and all its contents
+            let mut stack = vec![folder_id.clone()];
+            
+            while let Some(current_folder_id) = stack.pop() {
+                // First handle the folder's metadata
+                let mut file_ids = Vec::new();
+                let mut current_folder_path = None;
+                
+                folder_uuid_to_metadata.with_mut(|map| {
+                    if let Some(current_folder) = map.get_mut(&current_folder_id) {
+                        if current_folder_id == *folder_id {
+                            // Main folder gets the original parent path
+                            current_folder.restore_trash_prior_folder_path = Some(original_folder_path.clone());
+                        } else {
+                            // Subfolders keep their current path
+                            current_folder.restore_trash_prior_folder_path = Some(current_folder.full_folder_path.clone());
+                        }
+    
+                        // Add subfolders to stack
+                        stack.extend(current_folder.subfolder_uuids.clone());
+                        // Get the file IDs for processing after we release this borrow
+                        file_ids = current_folder.file_uuids.clone();
+                        current_folder_path = Some(current_folder.full_folder_path.clone());
+                    }
+                });
+    
+                // Now set restore info for all files using file_uuid_to_metadata
+                if let Some(folder_path) = current_folder_path {
+                    for file_id in file_ids {
+                        file_uuid_to_metadata.with_mut(|file_map| {
+                            if let Some(file) = file_map.get_mut(&file_id) {
+                                file.restore_trash_prior_folder_path = Some(folder_path.clone());
+                            }
+                        });
+                    }
+                }
+            }
+    
+            // Get trash folder metadata
+            let trash_folder = folder_uuid_to_metadata
+                .get(&trash_uuid)
+                .ok_or_else(|| "Trash folder metadata not found".to_string())?;
     
             // Move folder to .trash
-            let folder_in_trash = move_folder(
+            let moved_folder = move_folder(
                 folder_id,
-                &folder_uuid_to_metadata.get(&trash_uuid).unwrap(),
+                &trash_folder,
                 Some(FileConflictResolutionEnum::KEEP_BOTH),
             )?;
     
-            // Update restore_trash_prior_folder
-            folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(folder) = map.get_mut(folder_id) {
-                    folder.restore_trash_prior_folder = original_parent;
-                }
-            });
-
-            // return the new path in trash
-            Ok(folder_in_trash.full_folder_path)
-        }
+            // Add moved items to tracking vectors
+            if all_deleted_folders.len() < 2000 {
+                all_deleted_folders.push(folder_id.clone());
+            }
     
+            // Track all files in the moved folder structure
+            let mut stack = vec![folder_id.clone()];
+            while let Some(current_folder_id) = stack.pop() {
+                if let Some(current_folder) = folder_uuid_to_metadata.get(&current_folder_id) {
+                    // Add all files in current folder
+                    for file_id in &current_folder.file_uuids {
+                        if all_deleted_files.len() < 2000 {
+                            all_deleted_files.push(file_id.clone());
+                        }
+                    }
+    
+                    // Add subfolders to stack and tracking
+                    for subfolder_id in &current_folder.subfolder_uuids {
+                        if all_deleted_folders.len() < 2000 {
+                            all_deleted_folders.push(subfolder_id.clone());
+                        }
+                        stack.push(subfolder_id.clone());
+                    }
+                }
+            }
+    
+            // Return the new path in trash
+            Ok(moved_folder.full_folder_path)
+        }
     }
 
     pub fn delete_file(file_id: &FileUUID, permanent: bool) -> Result<DriveFullFilePath, String> {
@@ -652,7 +713,7 @@ pub mod drive {
             .ok_or_else(|| "File not found".to_string())?;
     
         // If file is already in trash, only allow permanent deletion
-        if let Some(_) = file.restore_trash_prior_folder {
+        if let Some(_) = file.restore_trash_prior_folder_path {
             if !permanent {
                 return Err("Cannot move to trash: item is already in trash".to_string());
             }
@@ -690,33 +751,40 @@ pub mod drive {
                     folder.file_uuids.retain(|id| id != file_id);
                 }
             });
-
+    
             Ok(DriveFullFilePath("".to_string()))
         } else {
             // Move to trash
+            // Store original folder path before moving
+            let original_folder_path = DriveFullFilePath(format!("{}/", file.full_file_path.0.rsplitn(2, '/').nth(1).unwrap_or("")));
+            
             // Get .trash folder UUID
             let trash_path = DriveFullFilePath(format!("{}::.trash/", file.disk_id.to_string()));
             let trash_uuid = full_folder_path_to_uuid
                 .get(&trash_path)
                 .ok_or_else(|| "Trash folder not found".to_string())?;
     
-            // Store original parent for restore
-            let original_parent = file.folder_uuid.clone();
+            // Set restore_trash_prior_folder_path BEFORE moving the file
+            file_uuid_to_metadata.with_mut(|map| {
+                if let Some(file) = map.get_mut(file_id) {
+                    file.restore_trash_prior_folder_path = Some(original_folder_path);
+                }
+            });
+    
+            // Get trash folder metadata
+            let trash_folder = folder_uuid_to_metadata
+                .get(&trash_uuid)
+                .ok_or_else(|| "Trash folder metadata not found".to_string())?;
     
             // Move file to .trash
-            let trashed_file = move_file(
+            let moved_file = move_file(
                 file_id,
-                &folder_uuid_to_metadata.get(&trash_uuid).unwrap(),
+                &trash_folder,
                 Some(FileConflictResolutionEnum::KEEP_BOTH),
             )?;
     
-            // Update restore_trash_prior_folder
-            file_uuid_to_metadata.with_mut(|map| {
-                if let Some(file) = map.get_mut(file_id) {
-                    file.restore_trash_prior_folder = Some(original_parent);
-                }
-            });
-            Ok(trashed_file.full_file_path)
+            // Return the new path in trash
+            Ok(moved_file.full_file_path)
         }
     }
 
@@ -961,12 +1029,12 @@ pub mod drive {
         let source_folder = folder_uuid_to_metadata
             .get(folder_id)
             .ok_or_else(|| "Source folder not found".to_string())?;
-    
+        
         // Check if source and destination are on the same disk
         if source_folder.disk_id != destination_folder.disk_id {
             return Err("Cannot move folders between different disks".to_string());
         }
-
+    
         // Check for circular reference
         let mut current_folder = Some(destination_folder.id.clone());
         while let Some(folder_id) = current_folder {
@@ -977,9 +1045,8 @@ pub mod drive {
                 .get(&folder_id)
                 .and_then(|folder| folder.parent_folder_uuid.clone());
         }
-
-        
-        // Handle naming conflicts
+    
+        // Handle naming conflicts via resolve_naming_conflict.
         let (final_name, final_path) = resolve_naming_conflict(
             &destination_folder.full_folder_path.0,
             &source_folder.name,
@@ -993,41 +1060,54 @@ pub mod drive {
         }
     
         let old_path = source_folder.full_folder_path.clone();
-    
-        // Update folder metadata
+        
+        // Update folder metadata using with_mut.
         folder_uuid_to_metadata.with_mut(|map| {
             if let Some(folder) = map.get_mut(folder_id) {
-                folder.name = final_name;
+                folder.name = final_name.clone();
                 folder.parent_folder_uuid = Some(destination_folder.id.clone());
                 folder.full_folder_path = DriveFullFilePath(final_path.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
     
-        // Update path mappings for the folder and all its contents
+        // *** NEW: Update the global path mapping for the folder itself ***
+        debug_log!("move_folder: Removing old full folder path mapping: {}", old_path);
+        full_folder_path_to_uuid.remove(&old_path);
+        debug_log!("move_folder: Inserting new full folder path mapping: {}", final_path);
+        full_folder_path_to_uuid.insert(DriveFullFilePath(final_path.clone()), folder_id.clone());
+    
+        // Update path mappings for all subfolders and files.
         update_subfolder_paths(folder_id, &old_path.0, &final_path);
     
-        // Remove folder from old parent's subfolder list
+        // Remove folder from old parent's subfolder list.
         if let Some(old_parent_id) = &source_folder.parent_folder_uuid {
             folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(folder) = map.get_mut(old_parent_id) {
-                    folder.subfolder_uuids.retain(|id| id != folder_id);
-                    folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(parent) = map.get_mut(old_parent_id) {
+                    parent.subfolder_uuids.retain(|id| id != folder_id);
+                    parent.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                 }
             });
         }
     
-        // Add folder to new parent's subfolder list
+        // Add folder to new parent's subfolder list.
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&destination_folder.id) {
-                folder.subfolder_uuids.push(folder_id.clone());
-                folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+            if let Some(new_parent) = map.get_mut(&destination_folder.id) {
+                new_parent.subfolder_uuids.push(folder_id.clone());
+                new_parent.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
     
-        Ok(folder_uuid_to_metadata.get(folder_id).unwrap().clone())
+        let updated_folder = folder_uuid_to_metadata
+            .get(folder_id)
+            .ok_or_else(|| "Failed to retrieve updated folder metadata".to_string())?;
+        debug_log!("move_folder: Finished moving folder. New metadata: {:?}", updated_folder);
+    
+        Ok(updated_folder.clone())
     }
+    
 
+    // In drive.rs, update restore_from_trash function
     pub fn restore_from_trash(
         resource_id: &str,
         payload: &RestoreTrashPayload,
@@ -1036,118 +1116,172 @@ pub mod drive {
         let folder_id = FolderUUID(resource_id.to_string());
         if let Some(folder) = folder_uuid_to_metadata.get(&folder_id) {
             // Verify folder is actually in trash
-            if folder.restore_trash_prior_folder.is_none() {
+            if folder.restore_trash_prior_folder_path.is_none() {
                 return Err("Folder is not in trash".to_string());
             }
-    
+
             // Determine target restore location
-            let target_folder_id = if let Some(restore_to) = &payload.restore_to_folder {
-                // User specified location takes precedence
-                restore_to.clone()
+            let target_folder = if let Some(restore_path) = &payload.restore_to_folder_path {
+                // First try to find existing folder at the path
+                let translation = translate_path_to_id(restore_path.clone());
+                if let Some(existing_folder) = translation.folder {
+                    existing_folder
+                } else {
+                    // Create the folder structure if it doesn't exist
+                    let new_folder_uuid = ensure_folder_structure(
+                        &restore_path.to_string(),
+                        folder.disk_id.clone(),
+                        folder.created_by.clone(),
+                        folder.canister_id.0.0.clone(),
+                    );
+                    
+                    folder_uuid_to_metadata
+                        .get(&new_folder_uuid)
+                        .ok_or_else(|| "Failed to create restore folder path".to_string())?
+                }
             } else {
-                // Fall back to original location
-                folder.restore_trash_prior_folder.clone().unwrap()
+                // Get the folder UUID from the stored path
+                let path = folder.restore_trash_prior_folder_path.clone().unwrap();
+                let translation = translate_path_to_id(path.clone());
+                if let Some(existing_folder) = translation.folder {
+                    existing_folder
+                } else {
+                    // Create the folder structure if original path doesn't exist
+                    let new_folder_uuid = ensure_folder_structure(
+                        &path.to_string(),
+                        folder.disk_id.clone(),
+                        folder.created_by.clone(),
+                        folder.canister_id.0.0.clone(),
+                    );
+                    
+                    folder_uuid_to_metadata
+                        .get(&new_folder_uuid)
+                        .ok_or_else(|| "Failed to create restore folder path".to_string())?
+                }
             };
-    
-            // Verify target folder exists and is not in trash
-            let target_folder = folder_uuid_to_metadata
-                .get(&target_folder_id)
-                .ok_or_else(|| "Target folder not found".to_string())?;
-    
-            if target_folder.restore_trash_prior_folder.is_some() {
+
+            // Verify target folder is not in trash
+            if target_folder.restore_trash_prior_folder_path.is_some() {
                 return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
             }
-    
+
             // Move folder to target location
             let restored_folder = move_folder(
                 &folder_id,
                 &target_folder,
                 payload.file_conflict_resolution.clone(),
             )?;
-    
-            // Clear restore_trash_prior_folder for the folder and all its contents
+
+            // Clear restore_trash_prior_folder_path for the folder and all its contents
             let mut stack = vec![folder_id.clone()];
             let mut restored_folders = vec![folder_id.clone()];
             let mut restored_files = Vec::new();
-    
+
             while let Some(current_folder_id) = stack.pop() {
                 if let Some(current_folder) = folder_uuid_to_metadata.get(&current_folder_id) {
                     // Process subfolders
                     for subfolder_id in &current_folder.subfolder_uuids {
                         folder_uuid_to_metadata.with_mut(|map| {
                             if let Some(subfolder) = map.get_mut(subfolder_id) {
-                                subfolder.restore_trash_prior_folder = None;
+                                subfolder.restore_trash_prior_folder_path = None;
                             }
                         });
                         restored_folders.push(subfolder_id.clone());
                         stack.push(subfolder_id.clone());
                     }
-    
+
                     // Process files
                     for file_id in &current_folder.file_uuids {
                         file_uuid_to_metadata.with_mut(|map| {
                             if let Some(file) = map.get_mut(file_id) {
-                                file.restore_trash_prior_folder = None;
+                                file.restore_trash_prior_folder_path = None;
                             }
                         });
                         restored_files.push(file_id.clone());
                     }
                 }
             }
-    
-            // Clear restore_trash_prior_folder for the main folder
+
+            // Clear restore_trash_prior_folder_path for the main folder
             folder_uuid_to_metadata.with_mut(|map| {
                 if let Some(folder) = map.get_mut(&folder_id) {
-                    folder.restore_trash_prior_folder = None;
+                    folder.restore_trash_prior_folder_path = None;
                 }
             });
-    
+
             Ok(DirectoryActionResult::RestoreTrash(RestoreTrashResponse {
                 restored_folders,
                 restored_files,
             }))
         }
-        // Check if resource exists as a file
+        // Handle file restore case similarly
         else if let Some(file) = file_uuid_to_metadata.get(&FileUUID(resource_id.to_string())) {
             // Verify file is actually in trash
-            if file.restore_trash_prior_folder.is_none() {
+            if file.restore_trash_prior_folder_path.is_none() {
                 return Err("File is not in trash".to_string());
             }
-    
+
             // Determine target restore location
-            let target_folder_id = if let Some(restore_to) = &payload.restore_to_folder {
-                // User specified location takes precedence
-                restore_to.clone()
+            let target_folder = if let Some(restore_path) = &payload.restore_to_folder_path {
+                // First try to find existing folder at the path
+                let translation = translate_path_to_id(restore_path.clone());
+                if let Some(existing_folder) = translation.folder {
+                    existing_folder
+                } else {
+                    // Create the folder structure if it doesn't exist
+                    let new_folder_uuid = ensure_folder_structure(
+                        &restore_path.to_string(),
+                        file.disk_id.clone(),
+                        file.created_by.clone(),
+                        file.canister_id.0.0.clone(),
+                    );
+                    
+                    folder_uuid_to_metadata
+                        .get(&new_folder_uuid)
+                        .ok_or_else(|| "Failed to create restore folder path".to_string())?
+                }
             } else {
-                // Fall back to original location
-                file.restore_trash_prior_folder.clone().unwrap()
+                // Get the folder UUID from the stored path
+                let path = file.restore_trash_prior_folder_path.clone().unwrap();
+                let translation = translate_path_to_id(path.clone());
+                if let Some(existing_folder) = translation.folder {
+                    existing_folder
+                } else {
+                    // Create the folder structure if original path doesn't exist
+                    let new_folder_uuid = ensure_folder_structure(
+                        &path.to_string(),
+                        file.disk_id.clone(),
+                        file.created_by.clone(),
+                        file.canister_id.0.0.clone(),
+                    );
+                    
+                    folder_uuid_to_metadata
+                        .get(&new_folder_uuid)
+                        .ok_or_else(|| "Failed to create restore folder path".to_string())?
+                }
             };
-    
-            // Verify target folder exists and is not in trash
-            let target_folder = folder_uuid_to_metadata
-                .get(&target_folder_id)
-                .ok_or_else(|| "Target folder not found".to_string())?;
-    
-            if target_folder.restore_trash_prior_folder.is_some() {
-                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}",target_folder.full_folder_path).to_string());
+
+            // Verify target folder is not in trash
+            if target_folder.restore_trash_prior_folder_path.is_some() {
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
             }
-    
+
             let file_id = FileUUID(resource_id.to_string());
-    
+
             // Move file to target location
             let restored_file = move_file(
                 &file_id,
                 &target_folder,
                 payload.file_conflict_resolution.clone(),
             )?;
-    
-            // Clear restore_trash_prior_folder
+
+            // Clear restore_trash_prior_folder_path
             file_uuid_to_metadata.with_mut(|map| {
                 if let Some(file) = map.get_mut(&file_id) {
-                    file.restore_trash_prior_folder = None;
+                    file.restore_trash_prior_folder_path = None;
                 }
             });
-    
+
             Ok(DirectoryActionResult::RestoreTrash(RestoreTrashResponse {
                 restored_folders: Vec::new(),
                 restored_files: vec![file_id],
@@ -1156,4 +1290,6 @@ pub mod drive {
             Err("Resource not found in trash".to_string())
         }
     }
+
+
 }

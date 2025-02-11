@@ -403,7 +403,7 @@ pub struct MoveFolderPayload {
 #[serde(deny_unknown_fields)]
 pub struct RestoreTrashPayload {
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    pub restore_to_folder: Option<FolderUUID>,
+    pub restore_to_folder_path: Option<DriveFullFilePath>,
 }
 
 
@@ -443,13 +443,13 @@ pub struct CreateFolderResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFileResponse {
     pub file_id: FileUUID,
-    pub trash_full_path: DriveFullFilePath,
+    pub path_to_trash: DriveFullFilePath,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderResponse {
     pub folder_id: FolderUUID,
-    pub trash_full_path: DriveFullFilePath, // if empty then its permanently deleted
+    pub path_to_trash: DriveFullFilePath, // if empty then its permanently deleted
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_files: Option<Vec<FileUUID>>,
     #[serde(skip_serializing_if = "Option::is_none")]

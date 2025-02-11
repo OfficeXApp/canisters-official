@@ -39,7 +39,7 @@ pub mod drive_internals {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),
                 parent_folder_uuid: None,
-                restore_trash_prior_folder: None,
+                restore_trash_prior_folder_path: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_folder_path: root_path.clone(),
@@ -67,7 +67,7 @@ pub mod drive_internals {
                 id: FolderUUID(trash_folder_uuid.clone()),
                 name: ".trash".to_string(),
                 parent_folder_uuid: Some(root_uuid.clone()),
-                restore_trash_prior_folder: None,
+                restore_trash_prior_folder_path: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_folder_path: trash_path.clone(),
@@ -195,7 +195,7 @@ pub mod drive_internals {
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at: -1,
-                    restore_trash_prior_folder: None,
+                    restore_trash_prior_folder_path: None,
                 };
 
                 full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
@@ -298,37 +298,65 @@ pub mod drive_internals {
         is_folder: bool,
         resolution: Option<FileConflictResolutionEnum>,
     ) -> (String, String) {
+        // Start with the initial name and computed full path.
         let mut final_name = name.to_string();
         let mut final_path = if is_folder {
             format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
         } else {
-            format!("{}/{}", base_path.trim_end_matches('/'), final_name) // Ensure `/` separator for files
+            format!("{}/{}", base_path.trim_end_matches('/'), final_name)
         };
     
-        ic_cdk::println!(
-            "resolve_naming_conflict: base_path={} name={} is_folder={} -> ({}, {})",
+        debug_log!(
+            "resolve_naming_conflict: initial base_path: '{}', name: '{}', is_folder: {} -> final_name: '{}', final_path: '{}'",
             base_path, name, is_folder, final_name, final_path
         );
     
         match resolution.unwrap_or(FileConflictResolutionEnum::KEEP_BOTH) {
-            FileConflictResolutionEnum::REPLACE => (final_name, final_path),
+            FileConflictResolutionEnum::REPLACE => {
+                debug_log!(
+                    "resolve_naming_conflict: Using REPLACE. Returning final_name: '{}' and final_path: '{}'",
+                    final_name,
+                    final_path
+                );
+                (final_name, final_path)
+            },
             FileConflictResolutionEnum::KEEP_ORIGINAL => {
                 if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
                     || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
                 {
+                    debug_log!(
+                        "resolve_naming_conflict (KEEP_ORIGINAL): Conflict found for final_path: '{}'. Returning empty strings to keep original.",
+                        final_path
+                    );
                     return (String::new(), String::new()); // Signal to keep original
                 }
+                debug_log!(
+                    "resolve_naming_conflict (KEEP_ORIGINAL): No conflict for final_path: '{}'. Returning final_name: '{}' and final_path: '{}'",
+                    final_path, final_name, final_path
+                );
                 (final_name, final_path)
-            }
-            FileConflictResolutionEnum::KEEP_NEWER => (final_name, final_path),
+            },
+            FileConflictResolutionEnum::KEEP_NEWER => {
+                debug_log!(
+                    "resolve_naming_conflict: Using KEEP_NEWER. Returning final_name: '{}' and final_path: '{}'",
+                    final_name,
+                    final_path
+                );
+                (final_name, final_path)
+            },
             FileConflictResolutionEnum::KEEP_BOTH => {
                 let mut counter = 1;
                 while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
                     || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
                 {
+                    debug_log!(
+                        "resolve_naming_conflict (KEEP_BOTH): Conflict for final_path: '{}'. Counter: {}",
+                        final_path,
+                        counter
+                    );
                     counter += 1;
     
-                    // Split name and extension for files
+                    // Split name and extension for files.
                     let (base_name, ext) = if !is_folder && name.contains('.') {
                         let parts: Vec<&str> = name.rsplitn(2, '.').collect();
                         (parts[1], parts[0])
@@ -343,15 +371,27 @@ pub mod drive_internals {
                     };
     
                     final_path = if is_folder {
-                        format!("{}{}/", base_path.trim_end_matches('/'), final_name)
+                        format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
                     } else {
                         format!("{}/{}", base_path.trim_end_matches('/'), final_name)
                     };
+    
+                    debug_log!(
+                        "resolve_naming_conflict (KEEP_BOTH): New computed final_name: '{}', final_path: '{}'",
+                        final_name,
+                        final_path
+                    );
                 }
+                debug_log!(
+                    "resolve_naming_conflict (KEEP_BOTH): Final resolved final_name: '{}', final_path: '{}'",
+                    final_name,
+                    final_path
+                );
                 (final_name, final_path)
             }
         }
     }
+    
     
 
     // Helper function to get destination folder from either ID or path
