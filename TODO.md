@@ -1,21 +1,23 @@
 # TODO TRIAGE
 
+## Sprints Roadmap
+
+1. Finish up `/directory/action` operations (s3 presigned urls for read & write)
+2. Implement webhooks & replayability
+3. Implement permissions (including deterministics principal ids)
+4. Cleanup & testing backend
+5. Refactor frontend & implement torrents for browser-cache/local-ssd sharing
+
 ## Urgent Next
 
-- [🔵] Migrate & refactor core drive code --> in front of every POST /directory/action:getFile we need to generate a new raw_url (and potentially also track access_tokens for reuse, at least for public)
-- [x] Implement in-canister raw file storage, perhaps we should try a pure asset container? --> has raw_url but only if we add asset-canister functionality --> in the end we settled for in-canister filestorage via persistent chunked binary data. while the data is stored & streamed onchain, its slow expensive and cant be accessed via plain url string, must be via webapp to render.
-- [x] Refactor how recycling bin works.
-- [x] Handle directory file & folder actions via `/directory/action`. Note that copy & move operations are also in actions but could be recursively long if many subfolders/subfiles. Do not allow copy/move between disks and max 20 actions in a batch.
-- [ ] Implement aws s3 storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
-- [ ] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time
+- [🔵] Implement aws s3 storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time. also implement copy/move operations (dont need to wait for ACL since generating access token logic is same)
+- [🔵] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time. also implement copy/move operations (dont need to wait for ACL since generating access token logic is same)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
-- [ ] Implement multi-disk storage
 - [ ] Figure out best way to elegantly handle in-canister vs off-canister raw file storage (potentially also `disks` logic holding auth creds)
 - [ ] Write the `directory` REST routes and particularly the file action logic
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi
 - [ ] Consider audit trailing events for replayability (on directory actions but also permissions and such)
-- [ ] Write the `directory` REST routes, including adding new one `POST /directory/path-to-id` that given full_url_path returns folder_id or file_id
 - [ ] Consider whether to add hashed cosmic id into the url. eg. `/drive/{urlencoded_cosmic_id}/directory/list`. generate the id with `base64.urlsafe_b64encode("MYADDRESS::MYIP".encode()).decode().rstrip('=')`
 - [ ] Investigate web2/web3 use of auth signatures as API Keys, will it work? how to prevent spoofing?
 
@@ -60,3 +62,8 @@
 - [x] Write the `drives` REST routes
 - [x] Write the `disks` REST routes
 - [x] Consider whether we need to decouple IDs from BLS public address, and instead let it be uuid and have `Contact.icp_principal` and `Contact.external_id` and save for `Drive.icp_principal` and `Drive.external_id`. --> Yes we decoupled it. There is no `Contact.external_id` as all communication must use PublicKeyBLS
+- [x] Migrate & refactor core drive code --> in front of every POST /directory/action:getFile we need to generate a new raw_url (and potentially also track access_tokens for reuse, at least for public)
+- [x] Implement in-canister raw file storage, perhaps we should try a pure asset container? --> has raw_url but only if we add asset-canister functionality --> in the end we settled for in-canister filestorage via persistent chunked binary data. while the data is stored & streamed onchain, its slow expensive and cant be accessed via plain url string, must be via webapp to render.
+- [x] Refactor how recycling bin works.
+- [x] Handle directory file & folder actions via `/directory/action`. Note that copy & move operations are also in actions but could be recursively long if many subfolders/subfiles. Do not allow copy/move between disks and max 20 actions in a batch.
+- [x] Implement multi-disk storage

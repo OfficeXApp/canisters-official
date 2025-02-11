@@ -105,7 +105,7 @@ pub mod teams_handlers {
         if let Ok(req) = serde_json::from_slice::<UpsertTeamRequestBody>(body) {
             match req {
                 UpsertTeamRequestBody::Create(create_req) => {
-                    let drive_id_suffix = format!("--DriveID_{}", ic_cdk::api::id().to_text());
+                    let drive_id_suffix = format!("__DriveID_{}", ic_cdk::api::id().to_text());
                     let team_id = TeamID(generate_unique_id("TeamID", &drive_id_suffix));
                     let now = ic_cdk::api::time();
 

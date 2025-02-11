@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::aws_s3::generate_s3_upload_url, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::aws_s3::{generate_s3_upload_url, generate_s3_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -352,57 +352,61 @@ pub mod directorys_handlers {
             .build()
     }
 
-    pub fn request_clientside_upload_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
-        // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
-            Some(key) => key,
-            None => return create_auth_error_response(),
-        };
+
+    pub fn get_raw_url_proxy_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+        debug_log!("get_raw_url_proxy_handler: Handling raw URL proxy request");
     
-        // 2. Only owner can request uploads
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
-    
-        // 3. Parse request body
-        let upload_req: ClientSideUploadRequest = match serde_json::from_slice(req.body()) {
-            Ok(req) => req,
-            Err(_) => return create_response(
+        // 1. Extract file_id from URL parameters
+        let file_id_with_extension = match params.get("file_id_with_extension") {
+            Some(id) => id,
+            None => return create_response(
                 StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+                ErrorResponse::err(400, "Missing file ID in URL".to_string()).encode()
             ),
         };
     
-        // 4. Validate the disk exists and is AWS type
+        // Strip extension from file_id if present
+        let file_id = match file_id_with_extension.rfind('.') {
+            Some(pos) => &file_id_with_extension[..pos],
+            None => file_id_with_extension,
+        };
+    
+        debug_log!("get_raw_url_proxy_handler: file_id={}", file_id.clone());
+    
+        
+        // 2. Look up file metadata
+        let file_meta = file_uuid_to_metadata.get(&FileUUID(file_id.to_string()));
+        let file_meta = match file_meta {
+            Some(meta) => meta,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "File not found".to_string()).encode()
+            ),
+        };
+    
+        // 3. Get disk info to access AWS credentials
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
-                .get(&DiskID(upload_req.disk_id.clone()))
-                .cloned()
+                .iter()
+                .find(|(_, disk)| disk.disk_type == DiskTypeEnum::AwsBucket)
+                .map(|(_, disk)| disk.clone())
         });
     
         let disk = match disk {
             Some(d) => d,
             None => return create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "Disk not found".to_string()).encode()
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorResponse::err(500, "No S3 disk configured".to_string()).encode()
             ),
         };
     
-        if disk.disk_type != DiskTypeEnum::AwsBucket {
-            return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Disk is not an AWS S3 bucket".to_string()).encode()
-            );
-        }
-    
-        // 5. Parse AWS credentials from disk auth_json
+        // 4. Parse AWS credentials
         let aws_auth: AwsBucketAuth = match disk.auth_json {
             Some(auth_str) => match serde_json::from_str(&auth_str) {
                 Ok(auth) => auth,
                 Err(_) => return create_response(
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorResponse::err(500, "Invalid AWS credentials format".to_string()).encode()
+                    ErrorResponse::err(500, "Invalid AWS credentials".to_string()).encode()
                 ),
             },
             None => return create_response(
@@ -410,25 +414,29 @@ pub mod directorys_handlers {
                 ErrorResponse::err(500, "Missing AWS credentials".to_string()).encode()
             ),
         };
-    
-        // 6. Generate the upload URL and signature
-        // Set reasonable limits: 100GB max size, 24 hour expiry
-        let max_file_size = 100 * 1024 * 1024 * 1024; // 10GB in bytes
-        let expires_in = 3600 * 24; // 24 hours in seconds
-    
-        let s3_response = generate_s3_upload_url(
-            &upload_req.folder_path,
+        
+        // 5. Generate the download filename (original filename with extension)
+        let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
+        
+        // 6. Generate presigned URL with content-disposition header
+        let presigned_url = generate_s3_view_url(
+            &format!("{}/{}", file_id, file_meta.name),  // S3 key
             &aws_auth,
-            max_file_size,
-            expires_in
+            Some(3600),
+            Some(&download_filename)
         );
     
-        // 7. Return the signed URL and fields
-        let response = ClientSideUploadResponse {
-            signature: s3_response,  // Contains URL and form fields
-        };
+        debug_log!("get_raw_url_proxy_handler: Redirecting to presigned URL");
     
-        create_success_response(&response)
+        // 7. Return 302 redirect response
+        HttpResponse::builder()
+            .with_status_code(StatusCode::FOUND) // 302 Found
+            .with_headers(vec![
+                ("location".to_string(), presigned_url),
+                ("cache-control".to_string(), "no-store, max-age=0".to_string()),
+            ])
+            .with_body(Vec::new())
+            .build()
     }
 
     fn json_decode<T>(value: &[u8]) -> T

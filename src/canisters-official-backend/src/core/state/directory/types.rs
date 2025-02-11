@@ -54,7 +54,7 @@ pub struct FolderMetadata {
     pub(crate) deleted: bool,
     pub(crate) expires_at: i64,
     pub(crate) canister_id: ICPPrincipalString,
-    pub(crate) restore_trash_prior_folder: Option<FolderUUID>,
+    pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
 }
 
 
@@ -72,6 +72,7 @@ pub struct FileMetadata {
     pub(crate) created_by: UserID,
     pub(crate) created_date_ms: u64, // unix ms
     pub(crate) disk_id: DiskID,
+    pub(crate) disk_type: DiskTypeEnum,
     pub(crate) file_size: u64,
     pub(crate) raw_url: String,
     pub(crate) last_updated_date_ms: u64,  // unix ms
@@ -79,7 +80,7 @@ pub struct FileMetadata {
     pub(crate) deleted: bool,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,
-    pub(crate) restore_trash_prior_folder: Option<FolderUUID>,
+    pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
 }
 
 

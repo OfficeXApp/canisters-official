@@ -43,9 +43,6 @@ impl fmt::Display for DiskTypeEnum {
     }
 }
 
-pub const DEFAULT_CANISTER_DISK_ID: &str = "DEFAULT_CANISTER_DISK_ID";
-pub const DEFAULT_BROWSERCACHE_DISK_ID: &str = "DEFAULT_BROWSERCACHE_DISK_ID";
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AwsBucketAuth {
@@ -53,4 +50,5 @@ pub struct AwsBucketAuth {
     pub(crate) access_key: String,
     pub(crate) secret_key: String,
     pub(crate) bucket: String,
+    pub(crate) region: String,  
 }

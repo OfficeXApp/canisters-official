@@ -1,12 +1,269 @@
 // OfficeX filesharing app (clone of google drive)
 // where possible, show the code changes as green diffs without the +/- symbols
 
+
+// src/core/api/disks/aws_s3.rs
+
+use base64::{Engine as _, engine::general_purpose};
+use serde::{Serialize, Deserialize};
+use time::{Duration, OffsetDateTime};
+use crate::core::state::disks::types::AwsBucketAuth;
+
+
+ pub fn generate_s3_view_url(
+        file_key: &str,
+        auth: &AwsBucketAuth,
+        expires_in: Option<u64>,
+        download_filename: Option<&str>  // New parameter
+    ) -> String {
+
+    let DEFAULT_EXPIRATION: u64 = 3600; // 1 hour in seconds
+
+    let current_time = ic_cdk::api::time();
+    
+    // Format dates
+    let date = format_date(current_time);         // YYYYMMDD
+    let date_time = format_datetime(current_time); // YYYYMMDDTHHMMSSZ
+    
+    // Construct canonical request components
+    let http_method = "GET";
+    let canonical_uri = format!("/{}/{}", auth.bucket, file_key);
+    
+    // Query parameters
+    let credential = format!("{}/{}/{}/s3/aws4_request", 
+        auth.access_key, date, auth.region);
+    
+    let expiration = expires_in.unwrap_or(DEFAULT_EXPIRATION).to_string();
+
+
+    // Create content disposition string if filename provided
+    let content_disposition = download_filename.map(|filename| {
+        let encoded_filename = url_encode(filename);
+        format!("attachment; filename=\"{}\"", encoded_filename)
+    });
+
+    // Create query parameters including content-disposition if filename provided
+    let mut query_params = vec![
+        ("X-Amz-Algorithm", "AWS4-HMAC-SHA256"),
+        ("X-Amz-Credential", &credential),
+        ("X-Amz-Date", &date_time),
+        ("X-Amz-Expires", &expiration),
+        ("X-Amz-SignedHeaders", "host")
+    ];
+     
+
+    // Add content-disposition if present
+    if let Some(ref disposition) = content_disposition {
+        query_params.push(("response-content-disposition", disposition));
+    }
+    
+    // Sort query parameters
+    query_params.sort_by(|a, b| a.0.cmp(b.0));
+    
+    // Create canonical query string
+    let canonical_query_string = query_params
+        .iter()
+        .map(|(k, v)| format!("{}={}", 
+            url_encode(k), 
+            url_encode(v)))
+        .collect::<Vec<_>>()
+        .join("&");
+    
+    // Create canonical headers
+    let host = format!("{}.s3.{}.amazonaws.com", auth.bucket, auth.region);
+    let canonical_headers = format!("host:{}\n", host);
+    
+    // Create canonical request
+    let canonical_request = format!("{}\n{}\n{}\n{}\n{}\n{}",
+        http_method,
+        canonical_uri,
+        canonical_query_string,
+        canonical_headers,
+        "host",  // signed headers
+        "UNSIGNED-PAYLOAD"
+    );
+    
+    // Create string to sign
+    let string_to_sign = format!(
+        "AWS4-HMAC-SHA256\n{}\n{}/{}/s3/aws4_request\n{}",
+        date_time,
+        date,
+        auth.region,
+        hex::encode(sha256_hash(canonical_request.as_bytes()))
+    );
+    
+    // Calculate signature
+    let signature = sign_policy(&string_to_sign, &auth.secret_key, &date, &auth.region);
+    
+    // Construct final URL
+    format!(
+        "https://{}/{}?{}&X-Amz-Signature={}",
+        host,
+        file_key,
+        canonical_query_string,
+        signature
+    )
+}
+
+// URL encode function that follows AWS rules
+fn url_encode(s: &str) -> String {
+    let mut encoded = String::new();
+    for c in s.chars() {
+        match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '_' | '-' | '~' | '.' => encoded.push(c),
+            _ => {
+                encoded.push_str(&format!("%{:02X}", c as u8));
+            }
+        }
+    }
+    encoded
+}
+
+// SHA256 hash function
+fn sha256_hash(data: &[u8]) -> Vec<u8> {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().to_vec()
+}
+
+pub fn generate_s3_upload_url(
+    parent_folder_id: &str,
+    auth: &AwsBucketAuth,
+    max_size: u64,  // in bytes
+    expires_in: u64 // in seconds
+) -> String {
+    let current_time = ic_cdk::api::time();
+    let expiration_time = current_time + (expires_in * 1_000_000_000); // Convert seconds to nanos
+
+    // Convert timestamps to required formats
+    let date = format_date(current_time);         // YYYYMMDD
+    let date_time = format_datetime(current_time); // YYYYMMDDTHHMMSSZ
+    let expiration = format_iso8601(expiration_time);  // YYYY-MM-DDTHH:MM:SSZ
+
+    // Policy document restricting uploads to folder
+    let policy = format!(
+        r#"{{
+            "expiration": "{}",
+            "conditions": [
+                {{"bucket": "{}"}},
+                ["starts-with", "$key", "{}/"],
+                {{"acl": "private"}},
+                ["content-length-range", 0, {}],
+                {{"x-amz-algorithm": "AWS4-HMAC-SHA256"}},
+                {{"x-amz-credential": "{}/{}/{}/s3/aws4_request"}},
+                {{"x-amz-date": "{}"}}
+            ]
+        }}"#,
+        expiration,
+        auth.bucket,
+        parent_folder_id,
+        max_size,
+        auth.access_key,
+        date,
+        auth.region,
+        date_time
+    );
+
+    let policy_base64 = general_purpose::STANDARD.encode(policy);
+    let signature = sign_policy(&policy_base64, &auth.secret_key, &date, &auth.region);
+
+    format!(
+        r#"{{
+            "url": "{}/{}",
+            "fields": {{
+                "key": "{}/{{filename}}",
+                "acl": "private",
+                "x-amz-algorithm": "AWS4-HMAC-SHA256",
+                "x-amz-credential": "{}/{}/us-east-1/s3/aws4_request",
+                "x-amz-date": "{}",
+                "policy": "{}",
+                "x-amz-signature": "{}"
+            }}
+        }}"#,
+        auth.endpoint,
+        auth.bucket,
+        parent_folder_id,
+        auth.access_key,
+        date,
+        date_time,
+        policy_base64,
+        signature
+    )
+}
+
+
+fn format_date(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+    
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    
+    format!("{:04}{:02}{:02}", 
+        dt.year(), dt.month() as u8, dt.day())
+}
+
+fn format_datetime(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+    
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    
+    format!("{:04}{:02}{:02}T{:02}{:02}{:02}Z",
+        dt.year(), dt.month() as u8, dt.day(),
+        dt.hour(), dt.minute(), dt.second())
+}
+
+fn format_iso8601(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+    
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        dt.year(), dt.month() as u8, dt.day(),
+        dt.hour(), dt.minute(), dt.second())
+}
+
+fn sign_policy(policy: &str, secret: &str, date: &str, region: &str) -> String {
+    let date_key = hmac_sha256(
+        format!("AWS4{}", secret).as_bytes(),
+        date.as_bytes()
+    );
+    let region_key = hmac_sha256(&date_key, region.as_bytes());
+    let service_key = hmac_sha256(&region_key, b"s3");
+    let signing_key = hmac_sha256(&service_key, b"aws4_request");
+    
+    hex::encode(hmac_sha256(&signing_key, policy.as_bytes()))
+}
+
+fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(key)
+        .expect("HMAC can take key of any size");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
+}
+
+
 // src/core/api/actions.rs
 use std::result::Result;
 
 use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::UserID}, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
 
-use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
+use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
 
 
 #[derive(Debug, Clone)]
@@ -394,7 +651,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     };
 
                     // Perform deletion
-                    match delete_file(&file_id) {
+                    match delete_file(&file_id, payload.permanent) {
                         Ok(_) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
                             file_id,
                             path_to_trash: file.full_file_path
@@ -448,8 +705,8 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let mut deleted_folders = Vec::with_capacity(2000);
 
                     // Perform deletion with collection vectors
-                    match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files) {
-                        Ok(()) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
+                    match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files, payload.permanent) {
+                        Ok(driveFullFilePath) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
                             folder_id,
                             path_to_trash: folder.full_folder_path,
                             deleted_files: Some(deleted_files),
@@ -667,11 +924,21 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::RestoreTrash => {
             match action.payload {
                 DirectoryActionPayload::RestoreTrash(payload) => {
-                    // Implementation for restoring trash
-                    todo!("Implement restore trash")
+                    let resource_id = action.target.resource_id.ok_or_else(|| DirectoryActionErrorInfo {
+                        code: 400,
+                        message: "Resource ID is required for restore operation".to_string()
+                    })?;
+        
+                    match restore_from_trash(&resource_id, &payload) {
+                        Ok(result) => Ok(result),
+                        Err(e) => Err(DirectoryActionErrorInfo {
+                            code: 500,
+                            message: format!("Failed to restore from trash: {}", e)
+                        })
+                    }
                 }
                 _ => Err(DirectoryActionErrorInfo {
-                    code: 500,
+                    code: 400,
                     message: "Invalid payload for RESTORE_TRASH action".to_string()
                 })
             }
@@ -695,7 +962,7 @@ pub mod drive {
                 },
                 disks::types::{DiskID, DiskTypeEnum},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
-        }, rest::{directory::types::{DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest}, webhooks::types::SortDirection}
+        }, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
     pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
@@ -861,6 +1128,7 @@ pub mod drive {
             deleted: false,
             canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
             expires_at,
+            restore_trash_prior_folder_path: None,
         };
 
         // Update version chain if we're replacing
@@ -936,7 +1204,8 @@ pub mod drive {
                     // Delete existing folder and create new one
                     let mut deleted_files = Vec::new();
                     let mut deleted_folders = Vec::new();
-                    delete_folder(&existing_folder_uuid, &mut deleted_folders, &mut deleted_files)?;
+                    let permanent_delete = true;
+                    delete_folder(&existing_folder_uuid, &mut deleted_folders, &mut deleted_files, permanent_delete)?;
                 },
                 FileConflictResolutionEnum::KEEP_NEWER => {
                     // Compare timestamps and keep newer one
@@ -947,7 +1216,8 @@ pub mod drive {
                         // Delete older folder
                         let mut deleted_files = Vec::new();
                         let mut deleted_folders = Vec::new();
-                        delete_folder(&existing_folder_uuid, &mut deleted_folders, &mut deleted_files)?;
+                        let permanent_delete = true;
+                        delete_folder(&existing_folder_uuid, &mut deleted_folders, &mut deleted_files, permanent_delete)?;
                     }
                 },
                 FileConflictResolutionEnum::KEEP_ORIGINAL => {
@@ -1176,126 +1446,167 @@ pub mod drive {
         folder_id: &FolderUUID,
         all_deleted_folders: &mut Vec<FolderUUID>,
         all_deleted_files: &mut Vec<FileUUID>,
-    ) -> Result<(), String> {
-        ic_cdk::println!("Attempting to delete folder. Folder ID: {}", folder_id);
-        
-        // Get folder data before modifications
+        permanent: bool,
+    ) -> Result<DriveFullFilePath, String> {
+        // Get folder metadata
         let folder = folder_uuid_to_metadata
             .get(folder_id)
-            .ok_or_else(|| {
-                ic_cdk::println!("Error: Folder not found. Folder ID: {}", folder_id);
-                "Folder not found".to_string()
-            })?;
+            .ok_or_else(|| "Folder not found".to_string())?;
     
-        let folder_path = folder.full_folder_path.clone();
-        let subfolder_ids = folder.subfolder_uuids.clone();
-        let file_ids = folder.file_uuids.clone();
-        
-        ic_cdk::println!("Folder found. Full path: {}", folder_path);
+        // Prevent deletion of root and .trash folders
+        if folder.parent_folder_uuid.is_none() || folder.name == ".trash" {
+            return Err("Cannot delete root or .trash folders".to_string());
+        }
+    
+        // If folder is already in trash, only allow permanent deletion
+        if let Some(_) = folder.restore_trash_prior_folder_path {
+            if !permanent {
+                return Err("Cannot move to trash: item is already in trash".to_string());
+            }
+        }
+    
+        if permanent {
+            // Permanent deletion logic
+            let folder_path = folder.full_folder_path.clone();
+            let subfolder_ids = folder.subfolder_uuids.clone();
+            let file_ids = folder.file_uuids.clone();
+    
+            // Delete files
+            for file_id in file_ids {
+                if let Ok((driveFullFilePath)) = delete_file(&file_id, true) {
+                    if all_deleted_files.len() < 2000 {
+                        all_deleted_files.push(file_id);
+                    }
+                }
+            }
+    
+            // Recursively delete subfolders
+            for subfolder_id in subfolder_ids {
+                if let Ok(driveFullFilePath) = delete_folder(&subfolder_id, all_deleted_folders, all_deleted_files, true) {
+                    if all_deleted_folders.len() < 2000 {
+                        all_deleted_folders.push(subfolder_id);
+                    }
+                }
+            }
+    
+            // Remove folder metadata and path mapping
+            folder_uuid_to_metadata.remove(folder_id);
+            full_folder_path_to_uuid.remove(&folder_path);
+    
+            // Remove from parent's subfolder list
+            if let Some(parent_id) = folder.parent_folder_uuid {
+                folder_uuid_to_metadata.with_mut(|map| {
+                    if let Some(parent) = map.get_mut(&parent_id) {
+                        parent.subfolder_uuids.retain(|id| id != folder_id);
+                    }
+                });
+            }
+            // Return the full path of the deleted folder
+            Ok(DriveFullFilePath("".to_string()))
+        } else {
+            // Move to trash
+            // Get .trash folder UUID
+            let trash_path = DriveFullFilePath(format!("{}::.trash/", folder.disk_id.to_string()));
+            let trash_uuid = full_folder_path_to_uuid
+                .get(&trash_path)
+                .ok_or_else(|| "Trash folder not found".to_string())?;
+    
+            // Store original parent for restore
+            let original_parent = folder.parent_folder_uuid.clone();
+    
+            // Move folder to .trash
+            let folder_in_trash = move_folder(
+                folder_id,
+                &folder_uuid_to_metadata.get(&trash_uuid).unwrap(),
+                Some(FileConflictResolutionEnum::KEEP_BOTH),
+            )?;
+    
+            // Update restore_trash_prior_folder_path
+            folder_uuid_to_metadata.with_mut(|map| {
+                if let Some(folder) = map.get_mut(folder_id) {
+                    folder.restore_trash_prior_folder_path = original_parent;
+                }
+            });
 
-        // Add this folder's files to the deleted files list, respecting the limit
-        for file_id in file_ids.clone() {
-            if all_deleted_files.len() >= 2000 {
-                break;
-            }
-            ic_cdk::println!("Deleting file: {}", file_id);
-            if let Ok(()) = delete_file(&file_id) {
-                all_deleted_files.push(file_id);
-            }
-        }
-
-        // First delete files in the current folder
-        ic_cdk::println!("Deleting files in the folder");
-        for file_id in file_ids {
-            ic_cdk::println!("Deleting file: {}", file_id);
-            if let Err(e) = delete_file(&file_id) {
-                ic_cdk::println!("Error deleting file {}: {}", file_id, e);
-                return Err(format!("Failed to delete file {}: {}", file_id, e));
-            }
-            
-            // Only add to deleted files list after successful deletion
-            if all_deleted_files.len() < 2000 {
-                all_deleted_files.push(file_id);
-            }
+            // return the new path in trash
+            Ok(folder_in_trash.full_folder_path)
         }
     
-        // Recursively delete subfolders, passing the same vectors
-        for subfolder_id in subfolder_ids {
-            if let Err(e) = delete_folder(&subfolder_id, all_deleted_folders, all_deleted_files) {
-                ic_cdk::println!("Error deleting subfolder {}: {}", subfolder_id, e);
-            }
-        }
-    
-    
-        // Mark the folder as deleted
-        folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(folder_id) {
-                folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
-                folder.deleted = true;
-            }
-        });
-        
-        // Remove folder path mapping
-        ic_cdk::println!("Removing folder path from full_folder_path_to_uuid");
-        full_folder_path_to_uuid.remove(&folder_path);
-
-        // Add to deleted folders list after successful deletion
-        if all_deleted_folders.len() < 2000 {
-            all_deleted_folders.push(folder_id.clone());
-        }
-    
-        ic_cdk::println!("Folder deleted successfully");
-        Ok(())
     }
-    
-    pub fn delete_file(file_id: &FileUUID) -> Result<(), String> {
-        ic_cdk::println!("Attempting to delete file: {}", file_id);
-        
-        // Get file data before modifications
+
+    pub fn delete_file(file_id: &FileUUID, permanent: bool) -> Result<DriveFullFilePath, String> {
+        // Get file metadata
         let file = file_uuid_to_metadata
             .get(file_id)
-            .ok_or_else(|| {
-                ic_cdk::println!("Error: File not found. File ID: {}", file_id);
-                "File not found".to_string()
-            })?;
+            .ok_or_else(|| "File not found".to_string())?;
     
-        let file_path = file.full_file_path.clone();
-        // Use ref in pattern matching to avoid moving the values
-        let ref prior_version = file.prior_version;
-        let ref next_version = file.next_version;
+        // If file is already in trash, only allow permanent deletion
+        if let Some(_) = file.restore_trash_prior_folder_path {
+            if !permanent {
+                return Err("Cannot move to trash: item is already in trash".to_string());
+            }
+        }
         
-        ic_cdk::println!("File found. Full path: {}", file_path);
-        
-        // Remove file path mapping
-        ic_cdk::println!("Removing file path from full_file_path_to_uuid");
-        full_file_path_to_uuid.remove(&file_path);
+        if permanent {
+            // Permanent deletion logic
+            let file_path = file.full_file_path.clone();
+            let folder_uuid = file.folder_uuid.clone();
+            
+            // Handle version chain
+            if let Some(prior_id) = &file.prior_version {
+                file_uuid_to_metadata.with_mut(|map| {
+                    if let Some(prior_file) = map.get_mut(prior_id) {
+                        prior_file.next_version = file.next_version.clone();
+                    }
+                });
+            }
     
-        // Handle versioning
-        if let Some(ref prior_id) = prior_version {
-            ic_cdk::println!("Updating prior version. Prior version ID: {}", prior_id);
-            file_uuid_to_metadata.with_mut(|map| {
-                if let Some(prior_file) = map.get_mut(&prior_id) {
-                    prior_file.next_version = next_version.clone();
-                    ic_cdk::println!("Updated prior file's next_version: {:?}", prior_file.next_version);
+            if let Some(next_id) = &file.next_version {
+                file_uuid_to_metadata.with_mut(|map| {
+                    if let Some(next_file) = map.get_mut(next_id) {
+                        next_file.prior_version = file.prior_version.clone();
+                    }
+                });
+            }
+    
+            // Remove metadata and path mapping
+            file_uuid_to_metadata.remove(file_id);
+            full_file_path_to_uuid.remove(&file_path);
+    
+            // Remove from parent folder's file list
+            folder_uuid_to_metadata.with_mut(|map| {
+                if let Some(folder) = map.get_mut(&folder_uuid) {
+                    folder.file_uuids.retain(|id| id != file_id);
                 }
             });
-        }
+
+            Ok(DriveFullFilePath("".to_string()))
+        } else {
+            // Move to trash
+            // Get .trash folder UUID
+            let trash_path = DriveFullFilePath(format!("{}::.trash/", file.disk_id.to_string()));
+            let trash_uuid = full_folder_path_to_uuid
+                .get(&trash_path)
+                .ok_or_else(|| "Trash folder not found".to_string())?;
     
-        if let Some(ref next_id) = next_version {
-            ic_cdk::println!("Updating next version. Next version ID: {}", next_id);
+            // Store original parent for restore
+            let original_parent = file.folder_uuid.clone();
+    
+            // Move file to .trash
+            let trashed_file = move_file(
+                file_id,
+                &folder_uuid_to_metadata.get(&trash_uuid).unwrap(),
+                Some(FileConflictResolutionEnum::KEEP_BOTH),
+            )?;
+    
+            // Update restore_trash_prior_folder_path
             file_uuid_to_metadata.with_mut(|map| {
-                if let Some(next_file) = map.get_mut(next_id) {
-                    next_file.prior_version = prior_version.clone();
-                    ic_cdk::println!("Updated next file's prior_version: {:?}", next_file.prior_version);
+                if let Some(file) = map.get_mut(file_id) {
+                    file.restore_trash_prior_folder_path = Some(original_parent);
                 }
             });
+            Ok(trashed_file.full_file_path)
         }
-    
-        // Remove file metadata
-        file_uuid_to_metadata.remove(file_id);
-    
-        ic_cdk::println!("File deleted successfully");
-        Ok(())
     }
 
     pub fn copy_file(
@@ -1307,6 +1618,11 @@ pub mod drive {
         let source_file = file_uuid_to_metadata
             .get(file_id)
             .ok_or_else(|| "Source file not found".to_string())?;
+
+        // Check if source and destination are on the same disk
+        if source_file.disk_id != destination_folder.disk_id {
+            return Err("Cannot copy files between different disks".to_string());
+        }
 
         // Construct new file path in destination
         let new_path = format!("{}{}", destination_folder.full_folder_path.0, source_file.name);
@@ -1367,6 +1683,10 @@ pub mod drive {
             .get(folder_id)
             .ok_or_else(|| "Source folder not found".to_string())?;
 
+         // Check if source and destination are on the same disk
+        if source_folder.disk_id != destination_folder.disk_id {
+            return Err("Cannot copy folders between different disks".to_string());
+        }
         
         // Handle naming conflicts
         let (final_name, final_path) = resolve_naming_conflict(
@@ -1437,6 +1757,11 @@ pub mod drive {
             .get(file_id)
             .ok_or_else(|| "Source file not found".to_string())?;
     
+        // Check if source and destination are on the same disk
+        if source_file.disk_id != destination_folder.disk_id {
+            return Err("Cannot move files between different disks".to_string());
+        }
+
         // Get source folder to update its file_uuids
         let source_folder_id = source_file.folder_uuid.clone();
         
@@ -1498,6 +1823,11 @@ pub mod drive {
             .get(folder_id)
             .ok_or_else(|| "Source folder not found".to_string())?;
     
+        // Check if source and destination are on the same disk
+        if source_folder.disk_id != destination_folder.disk_id {
+            return Err("Cannot move folders between different disks".to_string());
+        }
+
         // Check for circular reference
         let mut current_folder = Some(destination_folder.id.clone());
         while let Some(folder_id) = current_folder {
@@ -1558,7 +1888,137 @@ pub mod drive {
     
         Ok(folder_uuid_to_metadata.get(folder_id).unwrap().clone())
     }
+
+    pub fn restore_from_trash(
+        resource_id: &str,
+        payload: &RestoreTrashPayload,
+    ) -> Result<DirectoryActionResult, String> {
+        // Check if resource exists as a folder
+        let folder_id = FolderUUID(resource_id.to_string());
+        if let Some(folder) = folder_uuid_to_metadata.get(&folder_id) {
+            // Verify folder is actually in trash
+            if folder.restore_trash_prior_folder_path.is_none() {
+                return Err("Folder is not in trash".to_string());
+            }
+    
+            // Determine target restore location
+            let target_folder_id = if let Some(restore_to) = &payload.restore_to_folder {
+                // User specified location takes precedence
+                restore_to.clone()
+            } else {
+                // Fall back to original location
+                folder.restore_trash_prior_folder_path.clone().unwrap()
+            };
+    
+            // Verify target folder exists and is not in trash
+            let target_folder = folder_uuid_to_metadata
+                .get(&target_folder_id)
+                .ok_or_else(|| "Target folder not found".to_string())?;
+    
+            if target_folder.restore_trash_prior_folder_path.is_some() {
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
+            }
+    
+            // Move folder to target location
+            let restored_folder = move_folder(
+                &folder_id,
+                &target_folder,
+                payload.file_conflict_resolution.clone(),
+            )?;
+    
+            // Clear restore_trash_prior_folder_path for the folder and all its contents
+            let mut stack = vec![folder_id.clone()];
+            let mut restored_folders = vec![folder_id.clone()];
+            let mut restored_files = Vec::new();
+    
+            while let Some(current_folder_id) = stack.pop() {
+                if let Some(current_folder) = folder_uuid_to_metadata.get(&current_folder_id) {
+                    // Process subfolders
+                    for subfolder_id in &current_folder.subfolder_uuids {
+                        folder_uuid_to_metadata.with_mut(|map| {
+                            if let Some(subfolder) = map.get_mut(subfolder_id) {
+                                subfolder.restore_trash_prior_folder_path = None;
+                            }
+                        });
+                        restored_folders.push(subfolder_id.clone());
+                        stack.push(subfolder_id.clone());
+                    }
+    
+                    // Process files
+                    for file_id in &current_folder.file_uuids {
+                        file_uuid_to_metadata.with_mut(|map| {
+                            if let Some(file) = map.get_mut(file_id) {
+                                file.restore_trash_prior_folder_path = None;
+                            }
+                        });
+                        restored_files.push(file_id.clone());
+                    }
+                }
+            }
+    
+            // Clear restore_trash_prior_folder_path for the main folder
+            folder_uuid_to_metadata.with_mut(|map| {
+                if let Some(folder) = map.get_mut(&folder_id) {
+                    folder.restore_trash_prior_folder_path = None;
+                }
+            });
+    
+            Ok(DirectoryActionResult::RestoreTrash(RestoreTrashResponse {
+                restored_folders,
+                restored_files,
+            }))
+        }
+        // Check if resource exists as a file
+        else if let Some(file) = file_uuid_to_metadata.get(&FileUUID(resource_id.to_string())) {
+            // Verify file is actually in trash
+            if file.restore_trash_prior_folder_path.is_none() {
+                return Err("File is not in trash".to_string());
+            }
+    
+            // Determine target restore location
+            let target_folder_id = if let Some(restore_to) = &payload.restore_to_folder {
+                // User specified location takes precedence
+                restore_to.clone()
+            } else {
+                // Fall back to original location
+                file.restore_trash_prior_folder_path.clone().unwrap()
+            };
+    
+            // Verify target folder exists and is not in trash
+            let target_folder = folder_uuid_to_metadata
+                .get(&target_folder_id)
+                .ok_or_else(|| "Target folder not found".to_string())?;
+    
+            if target_folder.restore_trash_prior_folder_path.is_some() {
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}",target_folder.full_folder_path).to_string());
+            }
+    
+            let file_id = FileUUID(resource_id.to_string());
+    
+            // Move file to target location
+            let restored_file = move_file(
+                &file_id,
+                &target_folder,
+                payload.file_conflict_resolution.clone(),
+            )?;
+    
+            // Clear restore_trash_prior_folder_path
+            file_uuid_to_metadata.with_mut(|map| {
+                if let Some(file) = map.get_mut(&file_id) {
+                    file.restore_trash_prior_folder_path = None;
+                }
+            });
+    
+            Ok(DirectoryActionResult::RestoreTrash(RestoreTrashResponse {
+                restored_folders: Vec::new(),
+                restored_files: vec![file_id],
+            }))
+        } else {
+            Err("Resource not found in trash".to_string())
+        }
+    }
 }
+
 
 // src/core/api/internals.rs
 pub mod drive_internals {
@@ -1596,7 +2056,7 @@ pub mod drive_internals {
         } else {
             canister_id.clone()
         };
-        if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
+        let root_uuid = if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
             uuid.clone()
         } else {
             let root_folder_uuid = generate_unique_id("FolderUUID", "");
@@ -1604,9 +2064,38 @@ pub mod drive_internals {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),
                 parent_folder_uuid: None,
+                restore_trash_prior_folder_path: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_folder_path: root_path.clone(),
+                tags: Vec::new(),
+                created_by: user_id.clone(),
+                created_date_ms: ic_cdk::api::time(),
+                disk_id: disk_id.clone(),
+                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
+                last_updated_by: user_id.clone(),
+                deleted: false,
+                canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+                expires_at: -1,
+            };
+    
+            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
+            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid.clone()), root_folder);
+            FolderUUID(root_folder_uuid)
+        };
+
+        // Ensure .trash folder exists
+        let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
+        if !full_folder_path_to_uuid.contains_key(&trash_path) {
+            let trash_folder_uuid = generate_unique_id("FolderUUID", "");
+            let trash_folder = FolderMetadata {
+                id: FolderUUID(trash_folder_uuid.clone()),
+                name: ".trash".to_string(),
+                parent_folder_uuid: Some(root_uuid.clone()),
+                restore_trash_prior_folder_path: None,
+                subfolder_uuids: Vec::new(),
+                file_uuids: Vec::new(),
+                full_folder_path: trash_path.clone(),
                 tags: Vec::new(),
                 created_by: user_id.clone(),
                 created_date_ms: ic_cdk::api::time(),
@@ -1618,11 +2107,18 @@ pub mod drive_internals {
                 expires_at: -1,
             };
 
-            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid.clone()), root_folder);
-
-            FolderUUID(root_folder_uuid)
+            full_folder_path_to_uuid.insert(trash_path, FolderUUID(trash_folder_uuid.clone()));
+            folder_uuid_to_metadata.insert(FolderUUID(trash_folder_uuid.clone()), trash_folder);
+            
+            // Add trash folder to root's subfolders
+            folder_uuid_to_metadata.with_mut(|map| {
+                if let Some(root_folder) = map.get_mut(&root_uuid) {
+                    root_folder.subfolder_uuids.push(FolderUUID(trash_folder_uuid));
+                }
+            });
         }
+
+        root_uuid
     }
 
     pub fn update_subfolder_paths(folder_id: &FolderUUID, old_path: &str, new_path: &str) {
@@ -1724,6 +2220,7 @@ pub mod drive_internals {
                     deleted: false,
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at: -1,
+                    restore_trash_prior_folder_path: None,
                 };
 
                 full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
@@ -1745,6 +2242,8 @@ pub mod drive_internals {
                     .clone();
             }
         }
+
+            
 
         parent_uuid
     }
@@ -1890,6 +2389,7 @@ pub mod drive_internals {
     }
 }
 
+
 // src/core/state/directory/state.rs
 
 pub mod state {
@@ -2012,7 +2512,6 @@ pub mod state {
 }
 
 
-
 use std::fmt;
 
 // src/core/state/directory/types.rs
@@ -2069,6 +2568,7 @@ pub struct FolderMetadata {
     pub(crate) deleted: bool,
     pub(crate) expires_at: i64,
     pub(crate) canister_id: ICPPrincipalString,
+    pub(crate) restore_trash_prior_folder_path: Option<FolderUUID>,
 }
 
 
@@ -2093,6 +2593,7 @@ pub struct FileMetadata {
     pub(crate) deleted: bool,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,
+    pub(crate) restore_trash_prior_folder_path: Option<FolderUUID>,
 }
 
 
@@ -2103,6 +2604,636 @@ pub struct PathTranslationResponse {
     pub folder: Option<FolderMetadata>,
     pub file: Option<FileMetadata>,
 }
+
+// src/rest/directory/handler.rs
+
+
+pub mod directorys_handlers {
+    use crate::{
+        core::{api::{disks::aws_s3::{generate_s3_upload_url, generate_s3_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        
+    };
+    
+    use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+    use matchit::Params;
+    use serde::Deserialize;
+    use urlencoding::decode;
+    #[derive(Deserialize, Default)]
+    struct ListQueryParams {
+        title: Option<String>,
+        completed: Option<bool>,
+    }
+
+    pub fn search_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        let response = DirectoryListResponse {
+            folders: Vec::new(),
+            files: Vec::new(),
+            total_folders: 0,
+            total_files: 0,
+            cursor: None,
+        };
+    
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&response).expect("Failed to serialize response")
+        )
+    }
+
+    pub fn list_directorys_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Only owner can access directories
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        // Parse request body
+        let list_request: ListDirectoryRequest = match serde_json::from_slice(request.body()) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        match fetch_files_at_folder_path(list_request) {
+            Ok(response) => create_response(
+                StatusCode::OK,
+                serde_json::to_vec(&response).expect("Failed to serialize response")
+            ),
+            Err(err) => create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, format!("Failed to list directory: {:?}", err)).encode()
+            )
+        }
+    }
+
+    pub fn action_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        let action_batch: DirectoryActionRequestBody = match serde_json::from_slice(request.body()) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        let mut outcomes = Vec::new();
+        
+        for action in action_batch.actions {
+            let outcome_id = DirectoryActionOutcomeID(generate_unique_id("DirectoryActionOutcomeID", ""));
+            let outcome = match crate::core::api::actions::pipe_action(action.clone(), requester_api_key.user_id.clone()) {
+                Ok(result) => DirectoryActionOutcome {
+                    id: outcome_id,
+                    success: true,
+                    action: action.action,
+                    target: action.target,
+                    payload: action.payload,
+                    result: Some(result),
+                    error: None,
+                },
+                Err(error_info) => DirectoryActionOutcome {
+                    id: outcome_id,
+                    success: false,
+                    action: action.action,
+                    target: action.target,
+                    payload: action.payload,
+                    result: None,
+                    error: Some(DirectoryActionError {
+                        code: error_info.code,
+                        message: error_info.message,
+                    }),
+                },
+            };
+            outcomes.push(outcome);
+        }
+    
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&outcomes).expect("Failed to serialize response")
+        )
+    }
+
+    pub fn handle_upload_chunk(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+        debug_log!("Handling upload chunk request");
+
+        let upload_req: UploadChunkRequest = match serde_json::from_slice(req.body()) {
+            Ok(req) => req,
+            Err(_) => {
+                debug_log!("handle_upload_chunk: Failed to deserialize request");
+                return create_raw_upload_error_response("Invalid request format")
+            }
+        };
+
+        debug_log!("handle_upload_chunk: Handling chunk upload");
+        debug_log!("  file_id      = {}", upload_req.file_id);
+        debug_log!("  chunk_index  = {}", upload_req.chunk_index);
+        debug_log!("  total_chunks = {}", upload_req.total_chunks);
+        debug_log!("  chunk_size   = {}", upload_req.chunk_data.len());
+    
+        if upload_req.chunk_data.len() > CHUNK_SIZE {
+            return create_raw_upload_error_response("Chunk too large");
+        }
+    
+        let chunk_id = ChunkId(format!("{}-{}", upload_req.file_id, upload_req.chunk_index));
+        
+        let chunk = FileChunk {
+            id: chunk_id.clone(),
+            file_id: upload_req.file_id,
+            chunk_index: upload_req.chunk_index,
+            data: upload_req.chunk_data.clone(),
+            size: upload_req.chunk_data.len()
+        };
+        debug_log!("handle_upload_chunk: Storing chunk {:?}", chunk.id);
+    
+        store_chunk(chunk);
+    
+        let response = UploadChunkResponse {
+            chunk_id: chunk_id.0,
+            bytes_received: upload_req.chunk_data.len()
+        };
+    
+        debug_log!("handle_upload_chunk: Successfully stored chunk");
+        create_success_response(&response)
+    }
+    
+    pub fn handle_complete_upload(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+        let complete_req: CompleteUploadRequest = match serde_json::from_slice(req.body()) {
+            Ok(req) => req,
+            Err(_) => return create_raw_upload_error_response("Invalid request format")
+        };
+        debug_log!("handle_complete_upload: Completing upload");
+        debug_log!("  file_id = {}", complete_req.file_id);
+
+        store_filename(&complete_req.file_id, &complete_req.filename);
+    
+        let chunks = get_file_chunks(&complete_req.file_id);
+        debug_log!("handle_complete_upload: Found {} chunks", chunks.len());
+
+        let total_size: usize = chunks.iter().map(|c| c.size).sum();
+        debug_log!("handle_complete_upload: Total size = {} bytes", total_size);
+    
+        let response = CompleteUploadResponse {
+            file_id: complete_req.file_id,
+            size: total_size,
+            chunks: chunks.len() as u32,
+            filename: complete_req.filename
+        };
+         debug_log!("handle_complete_upload: Returning final response with size={} chunks={}", response.size, response.chunks);
+    
+        create_success_response(&response)
+    }
+
+    /// Returns the metadata about a file: total size, total chunks, etc.
+    pub fn download_file_metadata_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+        debug_log!("download_file_metadata_handler: Handling file metadata request");
+
+        // // 1. Optionally authenticate, if required
+        // let requester_api_key = match authenticate_request(req) {
+        //     Some(key) => key,
+        //     None => return create_auth_error_response(),
+        // };
+
+        // // 2. Check if user is owner, if that's your policy
+        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // if !is_owner {
+        //     return create_auth_error_response();
+        // }
+
+        // 3. Parse query string for file_id
+        let raw_query_string = req.get_query().unwrap_or(Some("".to_string()));
+        let query_string = raw_query_string.as_deref().unwrap_or("");
+        let query_map = crate::rest::helpers::parse_query_string(&query_string);
+
+        let file_id = match query_map.get("file_id") {
+            Some(fid) => fid,
+            None => {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Missing file_id in query".to_string()).encode()
+                );
+            }
+        };
+        let file_id = decode(file_id).unwrap_or_else(|_| file_id.into());
+
+        debug_log!("download_file_metadata_handler: file_id={}", file_id);
+
+        // 4. Collect chunks for this file, if any
+        let mut chunks = get_file_chunks(&file_id);
+        if chunks.is_empty() {
+            return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "File not found".to_string()).encode()
+            );
+        }
+
+        // 5. Sort by chunk index and compute total size
+        chunks.sort_by_key(|c| c.chunk_index);
+        let total_size: usize = chunks.iter().map(|c| c.size).sum();
+        let total_chunks = chunks.len() as u32;
+
+        let filename: String = FILE_META.with(|map| 
+            map.borrow()
+                .get(&file_id.to_string())
+                .clone()  // Change cloned() to clone()
+        ).unwrap_or_else(|| "unknown.bin".to_string());
+
+        // Create a JSON response with metadata
+        let metadata_response = FileMetadataResponse {
+            file_id: file_id.clone().to_string(),
+            total_size,
+            total_chunks,
+            filename
+        };
+
+        debug_log!(
+            "download_file_metadata_handler: total_size={}, total_chunks={}",
+            total_size,
+            total_chunks
+        );
+
+        create_success_response(&metadata_response)
+    }
+
+    /// Returns the data for a single chunk by index.
+    pub fn download_file_chunk_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+        debug_log!("download_file_chunk_handler: Handling file chunk request");
+
+        // // 1. Optionally authenticate
+        // let requester_api_key = match authenticate_request(req) {
+        //     Some(key) => key,
+        //     None => return create_auth_error_response(),
+        // };
+
+        // // 2. Owner check, if you want
+        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // if !is_owner {
+        //     return create_auth_error_response();
+        // }
+
+        // 3. Parse query for file_id & chunk_index
+        let raw_query_string = req.get_query().unwrap_or(Some("".to_string()));
+        let query_string = raw_query_string.as_deref().unwrap_or("");
+        let query_map = crate::rest::helpers::parse_query_string(query_string);
+
+        let file_id = match query_map.get("file_id") {
+            Some(fid) => fid,
+            None => {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Missing file_id".to_string()).encode()
+                );
+            }
+        };
+        let file_id = decode(file_id).unwrap_or_else(|_| file_id.into());
+
+        let chunk_index_str = match query_map.get("chunk_index") {
+            Some(cix) => cix,
+            None => {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Missing chunk_index".to_string()).encode()
+                );
+            }
+        };
+        let chunk_index: u32 = match chunk_index_str.parse() {
+            Ok(num) => num,
+            Err(_) => {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid chunk_index".to_string()).encode()
+                );
+            }
+        };
+
+        debug_log!("download_file_chunk_handler: file_id={}, chunk_index={}", file_id, chunk_index);
+
+        // 4. Retrieve all chunks, or just the one
+        let mut chunks = get_file_chunks(&file_id);
+        chunks.sort_by_key(|c| c.chunk_index);
+
+        // Check if chunk_index is valid
+        if chunk_index as usize >= chunks.len() {
+            return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Chunk index out of range".to_string()).encode()
+            );
+        }
+
+        let chunk = &chunks[chunk_index as usize];
+        debug_log!("download_file_chunk_handler: Found chunk size={}", chunk.size);
+
+        // 5. Return the chunk data in the HTTP body
+        //    We'll set the content-type to "application/octet-stream".
+        HttpResponse::builder()
+            .with_status_code(StatusCode::OK)
+            .with_headers(vec![
+                ("content-type".to_string(), "application/octet-stream".to_string()),
+                ("cache-control".to_string(), "no-store, max-age=0".to_string()),
+            ])
+            .with_body(chunk.data.clone())
+            .build()
+    }
+
+    pub fn request_clientside_upload_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(req) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // 2. Only owner can request uploads
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        // 3. Parse request body
+        let upload_req: ClientSideUploadRequest = match serde_json::from_slice(req.body()) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // 4. Validate the disk exists and is AWS type
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow()
+                .get(&DiskID(upload_req.disk_id.clone()))
+                .cloned()
+        });
+    
+        let disk = match disk {
+            Some(d) => d,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Disk not found".to_string()).encode()
+            ),
+        };
+    
+        if disk.disk_type != DiskTypeEnum::AwsBucket {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Disk is not an AWS S3 bucket".to_string()).encode()
+            );
+        }
+    
+        // 5. Parse AWS credentials from disk auth_json
+        let aws_auth: AwsBucketAuth = match disk.auth_json {
+            Some(auth_str) => match serde_json::from_str(&auth_str) {
+                Ok(auth) => auth,
+                Err(_) => return create_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorResponse::err(500, "Invalid AWS credentials format".to_string()).encode()
+                ),
+            },
+            None => return create_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorResponse::err(500, "Missing AWS credentials".to_string()).encode()
+            ),
+        };
+    
+        // 6. Generate the upload URL and signature
+        // Set reasonable limits: 100GB max size, 24 hour expiry
+        let max_file_size = 100 * 1024 * 1024 * 1024; // 10GB in bytes
+        let expires_in = 3600 * 24; // 24 hours in seconds
+    
+        let s3_response = generate_s3_upload_url(
+            &upload_req.folder_path,
+            &aws_auth,
+            max_file_size,
+            expires_in
+        );
+    
+        // 7. Return the signed URL and fields
+        let response = ClientSideUploadResponse {
+            signature: s3_response,  // Contains URL and form fields
+        };
+    
+        create_success_response(&response)
+    }
+
+    pub fn get_raw_url_proxy_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+        debug_log!("get_raw_url_proxy_handler: Handling raw URL proxy request");
+    
+        // 1. Extract file_id from URL parameters
+        let file_id_with_extension = match params.get("file_id_with_extension") {
+            Some(id) => id,
+            None => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Missing file ID in URL".to_string()).encode()
+            ),
+        };
+    
+        // Strip extension from file_id if present
+        let file_id = match file_id_with_extension.rfind('.') {
+            Some(pos) => &file_id_with_extension[..pos],
+            None => file_id_with_extension,
+        };
+    
+        debug_log!("get_raw_url_proxy_handler: file_id={}", file_id.clone());
+    
+        
+        // 2. Look up file metadata
+        let file_meta = file_uuid_to_metadata.get(&FileUUID(file_id.to_string()));
+        let file_meta = match file_meta {
+            Some(meta) => meta,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "File not found".to_string()).encode()
+            ),
+        };
+    
+        // 3. Get disk info to access AWS credentials
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow()
+                .iter()
+                .find(|(_, disk)| disk.disk_type == DiskTypeEnum::AwsBucket)
+                .map(|(_, disk)| disk.clone())
+        });
+    
+        let disk = match disk {
+            Some(d) => d,
+            None => return create_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorResponse::err(500, "No S3 disk configured".to_string()).encode()
+            ),
+        };
+    
+        // 4. Parse AWS credentials
+        let aws_auth: AwsBucketAuth = match disk.auth_json {
+            Some(auth_str) => match serde_json::from_str(&auth_str) {
+                Ok(auth) => auth,
+                Err(_) => return create_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorResponse::err(500, "Invalid AWS credentials".to_string()).encode()
+                ),
+            },
+            None => return create_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorResponse::err(500, "Missing AWS credentials".to_string()).encode()
+            ),
+        };
+        
+        // 5. Generate the download filename (original filename with extension)
+        let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
+        
+        // 6. Generate presigned URL with content-disposition header
+        let presigned_url = generate_s3_view_url(
+            &format!("{}/{}", file_id, file_meta.name),  // S3 key
+            &aws_auth,
+            Some(3600),
+            Some(&download_filename)
+        );
+    
+        debug_log!("get_raw_url_proxy_handler: Redirecting to presigned URL");
+    
+        // 7. Return 302 redirect response
+        HttpResponse::builder()
+            .with_status_code(StatusCode::FOUND) // 302 Found
+            .with_headers(vec![
+                ("location".to_string(), presigned_url),
+                ("cache-control".to_string(), "no-store, max-age=0".to_string()),
+            ])
+            .with_body(Vec::new())
+            .build()
+    }
+
+    fn json_decode<T>(value: &[u8]) -> T
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        serde_json::from_slice(value).expect("Failed to deserialize value")
+    }
+
+    fn create_response(status_code: StatusCode, body: Vec<u8>) -> HttpResponse<'static> {
+        HttpResponse::builder()
+            .with_status_code(status_code)
+            .with_headers(vec![
+                ("content-type".to_string(), "application/json".to_string()),
+                (
+                    "strict-transport-security".to_string(),
+                    "max-age=31536000; includeSubDomains".to_string(),
+                ),
+                ("x-content-type-options".to_string(), "nosniff".to_string()),
+                ("referrer-policy".to_string(), "no-referrer".to_string()),
+                (
+                    "cache-control".to_string(),
+                    "no-store, max-age=0".to_string(),
+                ),
+                ("pragma".to_string(), "no-cache".to_string()),
+            ])
+            .with_body(body)
+            .build()
+    }
+
+    fn create_success_response<T: serde::Serialize>(data: &T) -> HttpResponse<'static> {
+        let body = serde_json::to_vec(data).expect("Failed to serialize response");
+        create_response(StatusCode::OK, body)
+    }
+    
+}
+
+
+// src/rest/directory/route.rs
+use crate::debug_log;
+use crate::rest::router;
+use crate::types::RouteHandler;
+
+pub const DIRECTORYS_SEARCH_PATH: &str = "/directory/search";
+pub const DIRECTORYS_LIST_PATH: &str = "/directory/list";
+pub const DIRECTORYS_ACTION_PATH: &str = "/directory/action";
+pub const UPLOAD_CHUNK_PATH: &str = "/directory/raw_upload/chunk";
+pub const COMPLETE_UPLOAD_PATH: &str = "/directory/raw_upload/complete";
+pub const RAW_DOWNLOAD_META_PATH: &str = "/directory/raw_download/meta";
+pub const RAW_DOWNLOAD_CHUNK_PATH: &str = "/directory/raw_download/chunk";
+pub const RAW_URL_PROXY_PATH: &str = "/directory/asset/{file_id_with_extension}"; // for proxying raw urls 302 redirect to temp presigned s3 urls
+
+pub const REQUEST_CLIENTSIDE_UPLOAD: &str = "/directory/testing/aws_s3";
+
+type HandlerEntry = (&'static str, &'static str, RouteHandler);
+
+pub fn init_routes() {
+    let routes: &[HandlerEntry] = &[
+        (
+            "POST",
+            DIRECTORYS_SEARCH_PATH,
+            crate::rest::directory::handler::directorys_handlers::search_directory_handler,
+        ),
+        (
+            "POST",
+            DIRECTORYS_LIST_PATH,
+            crate::rest::directory::handler::directorys_handlers::list_directorys_handler,
+        ),
+        (
+            "POST",
+            DIRECTORYS_ACTION_PATH,
+            crate::rest::directory::handler::directorys_handlers::action_directory_handler,
+        ),
+        (
+            "POST",
+            UPLOAD_CHUNK_PATH,
+            crate::rest::directory::handler::directorys_handlers::handle_upload_chunk,
+        ),
+        (
+            "POST",
+            COMPLETE_UPLOAD_PATH,
+            crate::rest::directory::handler::directorys_handlers::handle_complete_upload,
+        ),
+        (
+            "GET",
+            RAW_DOWNLOAD_META_PATH,
+            crate::rest::directory::handler::directorys_handlers::download_file_metadata_handler,
+        ),
+        (
+            "GET",
+            RAW_DOWNLOAD_CHUNK_PATH,
+            crate::rest::directory::handler::directorys_handlers::download_file_chunk_handler,
+        ),
+        (
+            "POST",
+            REQUEST_CLIENTSIDE_UPLOAD,
+            crate::rest::directory::handler::directorys_handlers::request_clientside_upload_handler,
+        ),
+        (
+            "GET",
+            RAW_URL_PROXY_PATH,
+            crate::rest::directory::handler::directorys_handlers::get_raw_url_proxy_handler,
+        ),
+    ];
+
+    for &(method, path, handler) in routes {
+        debug_log!("Registering {} route: {}", method, path);
+        router::insert_route(method, path, handler);
+    }
+
+}
+
 
 use std::fmt;
 
@@ -2439,6 +3570,7 @@ pub struct DeleteFolderResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreTrashPayload {
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub restore_to_folder: Option<FolderUUID>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,7 +1,7 @@
 // src/core/api/actions.rs
 use std::result::Result;
 
-use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::UserID}, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
+use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
 
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
 
@@ -91,51 +91,63 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::CreateFile => {
             match action.payload {
                 DirectoryActionPayload::CreateFile(payload) => {
-                    // Get parent folder path from either resource_path or resource_id
-                    let parent_folder = if let Some(path) = action.target.resource_path {
-                        match translate_path_to_id(path) {
-                            PathTranslationResponse { folder: Some(folder), .. } => folder,
-                            _ => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Parent folder not found at specified path".to_string()
-                            })
+                    // Determine the full file path.
+                    // If the user provided a resource_path, we try to translate it.
+                    // - If translation finds a folder, we use its full path.
+                    // - Otherwise, we use the user’s resource_path as provided (ensuring it ends with a '/').
+                    // If no resource_path is provided but a resource_id is,
+                    // then we require that get_folder_by_id returns a valid folder.
+                    let full_file_path = if let Some(user_resource_path) = action.target.resource_path {
+                        let translation = translate_path_to_id(user_resource_path.clone());
+                        if let Some(folder) = translation.folder {
+                            let resulting_path = format!("{}/{}", folder.full_folder_path.0.trim_end_matches('/'), payload.name);
+                            debug_log!("if full_file_path = {}", resulting_path);
+                            resulting_path
+                        } else {
+                            // No folder found from the given path.
+                            // That’s fine – let the drive API create parent folders.
+                            let parent_path = if user_resource_path.to_string().ends_with('/') {
+                                user_resource_path.to_string()
+                            } else {
+                                format!("{}/", user_resource_path)
+                            };
+                            let resulting_path = format!("{}{}", parent_path, payload.name);
+                            debug_log!("else full_file_path = {}", resulting_path);
+                            resulting_path
                         }
                     } else if let Some(id) = action.target.resource_id {
-                        match get_folder_by_id(FolderUUID(id)) {
-                            Ok(folder) => folder,
-                            Err(e) => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: format!("Parent folder not found: {}", e)
-                            })
-                        }
+                        // For resource_id, a valid parent folder MUST be found.
+                        let folder = get_folder_by_id(FolderUUID(id)).map_err(|e| DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Parent folder not found: {}", e)
+                        })?;
+                        let resulting_path = format!("{}/{}", folder.full_folder_path.0.trim_end_matches('/'), payload.name);
+                        debug_log!("else if full_file_path = {}", resulting_path);
+                        resulting_path
                     } else {
                         return Err(DirectoryActionErrorInfo {
                             code: 400,
                             message: "Neither resource_path nor resource_id provided for parent folder".to_string()
                         });
                     };
+
+                    debug_log!("full_file_path = {}", full_file_path);
         
-                    // Construct full file path by combining parent folder path with new file name
-                    let full_file_path = format!("{}{}", parent_folder.full_folder_path.0, payload.name);
-        
-                    // Create file using the drive API
+                    // Create file using the drive API.
                     match create_file(
                         full_file_path,
                         payload.disk_id,
-                        user_id.clone(), // Assuming this is passed in the DirectoryAction struct
+                        user_id.clone(),
                         payload.file_size,
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
                     ) {
-                        Ok(file_metadata) => {
-                            // TODO: Generate upload signature based on the file conflict resolution strategy
-                            let upload_signature = "TODO: Generate proper upload signature".to_string();
-                            
+                        Ok((file_metadata, upload_response)) => {
                             Ok(DirectoryActionResult::CreateFile(CreateFileResponse {
-                                upload_signature,
-                                notes: "File created successfully".to_string(),
                                 file: file_metadata,
+                                upload: upload_response,
+                                notes: "File created successfully".to_string(),
                             }))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
@@ -144,12 +156,20 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         })
                     }
                 }
-                _ => Err(DirectoryActionErrorInfo {
-                    code: 400,
-                    message: "Invalid payload for CREATE_FILE action".to_string()
-                })
+                other => {
+                    let error_msg = format!(
+                        "Invalid payload for CREATE_FILE action. Expected CreateFile, got: {:?}",
+                        other
+                    );
+                    ic_cdk::println!("Payload error: {}", error_msg);
+                    Err(DirectoryActionErrorInfo {
+                        code: 400,
+                        message: error_msg
+                    })
+                }
             }
         }
+        
         
         DirectoryActionEnum::CreateFolder => {
             match action.payload {
@@ -392,9 +412,9 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
 
                     // Perform deletion
                     match delete_file(&file_id, payload.permanent) {
-                        Ok(_) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
+                        Ok(path_to_trash) => Ok(DirectoryActionResult::DeleteFile(DeleteFileResponse {
                             file_id,
-                            trash_full_path: file.full_file_path
+                            path_to_trash
                         })),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -446,9 +466,9 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
 
                     // Perform deletion with collection vectors
                     match delete_folder(&folder_id, &mut deleted_folders, &mut deleted_files, payload.permanent) {
-                        Ok(driveFullFilePath) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
+                        Ok(path_to_trash) => Ok(DirectoryActionResult::DeleteFolder(DeleteFolderResponse {
                             folder_id,
-                            trash_full_path: folder.full_folder_path,
+                            path_to_trash,
                             deleted_files: Some(deleted_files),
                             deleted_folders: Some(deleted_folders),
                         })),
@@ -486,11 +506,17 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source file".to_string()
                         });
                     };
+
+                    // get the file from directory state
+                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_file.disk_id,
+                        user_id,
+                        preexisting_file.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -535,11 +561,22 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source folder".to_string()
                         });
                     };
+
+                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Folder not found: {}", e)
+                        })
+                    };
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_folder.disk_id,
+                        user_id,
+                        preexisting_folder.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -584,11 +621,16 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source file".to_string()
                         });
                     };
+
+                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_file.disk_id,
+                        user_id,
+                        preexisting_file.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -633,11 +675,23 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source folder".to_string()
                         });
                     };
+
+                    // get the folder metadata
+                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Folder not found: {}", e)
+                        })
+                    };
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_folder.disk_id,
+                        user_id,
+                        preexisting_folder.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
