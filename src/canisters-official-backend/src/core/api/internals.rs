@@ -1,7 +1,7 @@
 // src/core/api/internals.rs
 pub mod drive_internals {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
+        core::{api::{drive::drive::get_folder_by_id, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
         
     };
     
@@ -300,7 +300,7 @@ pub mod drive_internals {
     ) -> (String, String) {
         let mut final_name = name.to_string();
         let mut final_path = if is_folder {
-            format!("{}{}/", base_path.trim_end_matches('/'), final_name)
+            format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
         } else {
             format!("{}/{}", base_path.trim_end_matches('/'), final_name) // Ensure `/` separator for files
         };
@@ -355,22 +355,38 @@ pub mod drive_internals {
     
 
     // Helper function to get destination folder from either ID or path
-    pub fn get_destination_folder(folder_id: Option<FolderUUID>, folder_path: Option<DriveFullFilePath>) -> Result<FolderMetadata, String> {
+    pub fn get_destination_folder(
+        folder_id: Option<FolderUUID>, 
+        folder_path: Option<DriveFullFilePath>,
+        disk_id: DiskID,
+        user_id: UserID,
+        canister_id: String,
+    ) -> Result<FolderMetadata, String> {
         if let Some(id) = folder_id {
             folder_uuid_to_metadata
                 .get(&id)
                 .clone()
                 .ok_or_else(|| "Destination folder not found".to_string())
         } else if let Some(path) = folder_path {
-            let translation = translate_path_to_id(path);
-            translation
-                .folder
-                .clone()
-                .ok_or_else(|| "Destination folder not found at specified path".to_string())
+            let translation = translate_path_to_id(path.clone());
+            if let Some(folder) = translation.folder {
+                Ok(folder)
+            } else {
+                // Folder not found at the given path; create the folder structure.
+                let new_folder_uuid = ensure_folder_structure(
+                    &path.to_string(),
+                    disk_id,
+                    user_id,
+                    canister_id,
+                );
+                // Retrieve the folder metadata using the new UUID.
+                get_folder_by_id(new_folder_uuid)
+            }
         } else {
             Err("Neither destination folder ID nor path provided".to_string())
         }
     }
+    
 
     /// Validates that if the disk type is AwsBucket or StorjWeb3,
     /// then auth_json is provided and can be deserialized into AwsBucketAuth.

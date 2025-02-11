@@ -458,7 +458,7 @@ pub mod drive {
     
         // Update parent folder reference if needed
         if !parent_path.is_empty() {
-            let parent_full_path = format!("{}::{}", storage_part, parent_path);
+            let parent_full_path = format!("{}::{}{}", storage_part, parent_path, "/");
             if let Some(parent_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(parent_full_path.clone())) {
                 folder_uuid_to_metadata.with_mut(|map| {
                     if let Some(parent_folder) = map.get_mut(&parent_uuid) {

@@ -1,12 +1,14 @@
-use std::{collections::HashMap, fmt};
 
 // src/rest/directory/types.rs
-use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fmt};
+use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
 use crate::{core::{api::disks::aws_s3::S3UploadResponse, state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
 };
+use serde::de;
+use serde_json::Value;
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -100,11 +102,18 @@ pub struct ClientSideUploadResponse {
 // --------------------------------------------
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DirectoryAction {
     pub action: DirectoryActionEnum,
     pub target: ResourceIdentifier,
     pub payload: DirectoryActionPayload,
+}
+
+#[derive(Deserialize)]
+struct RawDirectoryAction {
+    action: DirectoryActionEnum,
+    target: ResourceIdentifier,
+    payload: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -126,13 +135,113 @@ pub struct DirectoryActionRequestBody {
     pub actions: Vec<DirectoryAction>,
 }
 
+// Custom deserialization for DirectoryAction.
+impl<'de> Deserialize<'de> for DirectoryAction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawDirectoryAction::deserialize(deserializer)?;
+        // Dispatch based on the action enum to convert the raw JSON payload.
+        let payload = match raw.action {
+            DirectoryActionEnum::GetFile => {
+                DirectoryActionPayload::GetFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::GetFolder => {
+                DirectoryActionPayload::GetFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CreateFile => {
+                DirectoryActionPayload::CreateFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CreateFolder => {
+                DirectoryActionPayload::CreateFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::UpdateFile => {
+                DirectoryActionPayload::UpdateFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::UpdateFolder => {
+                DirectoryActionPayload::UpdateFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::DeleteFile => {
+                DirectoryActionPayload::DeleteFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::DeleteFolder => {
+                DirectoryActionPayload::DeleteFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CopyFile => {
+                DirectoryActionPayload::CopyFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CopyFolder => {
+                DirectoryActionPayload::CopyFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::MoveFile => {
+                DirectoryActionPayload::MoveFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::MoveFolder => {
+                DirectoryActionPayload::MoveFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::RestoreTrash => {
+                DirectoryActionPayload::RestoreTrash(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+        };
+
+        Ok(DirectoryAction {
+            action: raw.action,
+            target: raw.target,
+            payload,
+        })
+    }
+}
+
+// Custom serialization for DirectoryAction.
+impl Serialize for DirectoryAction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("DirectoryAction", 3)?;
+        state.serialize_field("action", &self.action)?;
+        state.serialize_field("target", &self.target)?;
+        // Match on the payload variant so that it serializes as a plain JSON object.
+        match &self.payload {
+            DirectoryActionPayload::GetFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::GetFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CreateFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CreateFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::UpdateFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::UpdateFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::DeleteFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::DeleteFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CopyFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CopyFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::MoveFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::MoveFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::RestoreTrash(p) => state.serialize_field("payload", p)?,
+        }
+        state.end()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryActionError {
     pub code: i32,
     pub message: String,
 }
 
-#[derive(Debug, Clone,Serialize,  Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryActionEnum {
     GetFile,
@@ -180,7 +289,6 @@ pub struct ResourceIdentifier {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 pub enum DirectoryActionPayload {
     GetFile(GetFilePayload),
     GetFolder(GetFolderPayload),

@@ -1,7 +1,7 @@
 // src/core/api/actions.rs
 use std::result::Result;
 
-use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::UserID}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
+use crate::{core::{state::directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult}};
 
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}};
 
@@ -506,11 +506,17 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source file".to_string()
                         });
                     };
+
+                    // get the file from directory state
+                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_file.disk_id,
+                        user_id,
+                        preexisting_file.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -555,11 +561,22 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source folder".to_string()
                         });
                     };
+
+                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Folder not found: {}", e)
+                        })
+                    };
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_folder.disk_id,
+                        user_id,
+                        preexisting_folder.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -604,11 +621,16 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source file".to_string()
                         });
                     };
+
+                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_file.disk_id,
+                        user_id,
+                        preexisting_file.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -653,11 +675,23 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "Neither resource_id nor resource_path provided for source folder".to_string()
                         });
                     };
+
+                    // get the folder metadata
+                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Folder not found: {}", e)
+                        })
+                    };
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
+                        preexisting_folder.disk_id,
+                        user_id,
+                        preexisting_folder.canister_id.to_string()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
