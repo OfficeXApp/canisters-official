@@ -598,7 +598,7 @@ pub mod drive {
                 return Err("Cannot move to trash: item is already in trash".to_string());
             }
         }
-    
+        
         if permanent {
             // Permanent deletion logic
             let file_path = file.full_file_path.clone();
