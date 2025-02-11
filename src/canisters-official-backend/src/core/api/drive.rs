@@ -671,6 +671,11 @@ pub mod drive {
             .get(file_id)
             .ok_or_else(|| "Source file not found".to_string())?;
 
+        // Check if source and destination are on the same disk
+        if source_file.disk_id != destination_folder.disk_id {
+            return Err("Cannot copy files between different disks".to_string());
+        }
+
         // Construct new file path in destination
         let new_path = format!("{}{}", destination_folder.full_folder_path.0, source_file.name);
         
@@ -730,6 +735,10 @@ pub mod drive {
             .get(folder_id)
             .ok_or_else(|| "Source folder not found".to_string())?;
 
+         // Check if source and destination are on the same disk
+        if source_folder.disk_id != destination_folder.disk_id {
+            return Err("Cannot copy folders between different disks".to_string());
+        }
         
         // Handle naming conflicts
         let (final_name, final_path) = resolve_naming_conflict(
@@ -800,6 +809,11 @@ pub mod drive {
             .get(file_id)
             .ok_or_else(|| "Source file not found".to_string())?;
     
+        // Check if source and destination are on the same disk
+        if source_file.disk_id != destination_folder.disk_id {
+            return Err("Cannot move files between different disks".to_string());
+        }
+
         // Get source folder to update its file_uuids
         let source_folder_id = source_file.folder_uuid.clone();
         
@@ -861,6 +875,11 @@ pub mod drive {
             .get(folder_id)
             .ok_or_else(|| "Source folder not found".to_string())?;
     
+        // Check if source and destination are on the same disk
+        if source_folder.disk_id != destination_folder.disk_id {
+            return Err("Cannot move folders between different disks".to_string());
+        }
+
         // Check for circular reference
         let mut current_folder = Some(destination_folder.id.clone());
         while let Some(folder_id) = current_folder {
