@@ -43,9 +43,6 @@ impl fmt::Display for DiskTypeEnum {
     }
 }
 
-pub const DEFAULT_CANISTER_DISK_ID: &str = "DEFAULT_CANISTER_DISK_ID";
-pub const DEFAULT_BROWSERCACHE_DISK_ID: &str = "DEFAULT_BROWSERCACHE_DISK_ID";
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AwsBucketAuth {

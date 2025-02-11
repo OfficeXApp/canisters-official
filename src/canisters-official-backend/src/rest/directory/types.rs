@@ -198,12 +198,15 @@ pub enum DirectoryActionPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GetFilePayload {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GetFolderPayload {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateFilePayload {
     pub name: String,
     pub extension: String,
@@ -216,6 +219,7 @@ pub struct CreateFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateFolderPayload {
     pub name: String,
     pub tags: Vec<Tag>,
@@ -225,6 +229,7 @@ pub struct CreateFolderPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateFilePayload {
     pub name: Option<String>,
     pub tags: Option<Vec<Tag>>,
@@ -233,6 +238,7 @@ pub struct UpdateFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateFolderPayload {
     pub name: Option<String>,
     pub tags: Option<Vec<Tag>>,
@@ -240,16 +246,19 @@ pub struct UpdateFolderPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteFilePayload {
     pub permanent: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteFolderPayload {
     pub permanent: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CopyFilePayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
@@ -257,6 +266,7 @@ pub struct CopyFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CopyFolderPayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
@@ -264,6 +274,7 @@ pub struct CopyFolderPayload {
 }
 
 #[derive(Debug, Clone,Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MoveFilePayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
@@ -271,12 +282,21 @@ pub struct MoveFilePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MoveFolderPayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RestoreTrashPayload {
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub restore_to_folder: Option<FolderUUID>,
+}
 
 
 // Response types remain the same as before
@@ -328,13 +348,6 @@ pub struct DeleteFolderResponse {
     pub deleted_folders: Option<Vec<FolderUUID>>,
 }
 
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RestoreTrashPayload {
-    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    pub restore_to_folder: Option<FolderUUID>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreTrashResponse {

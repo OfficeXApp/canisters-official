@@ -1,31 +1,28 @@
 // src/core/api/internals.rs
 pub mod drive_internals {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
+        core::{api::uuid::generate_unique_id, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
         
     };
     
     use regex::Regex;
 
     pub fn sanitize_file_path(file_path: &str) -> String {
+        let original = file_path.to_string();
         let mut parts = file_path.splitn(2, "::");
         let storage_part = parts.next().unwrap_or("");
         let path_part = parts.next().unwrap_or("");
     
         let sanitized = path_part.replace(':', ";");
-
-        // Compile a regex to match one or more consecutive slashes
         let re = Regex::new(r"/+").unwrap();
         let sanitized = re.replace_all(&sanitized, "/").to_string();
-
-        // Remove leading and trailing slashes
         let sanitized = sanitized.trim_matches('/').to_string();
-
-        // Additional sanitization can be performed here if necessary
     
-        // Reconstruct the full path
-        format!("{}::{}", storage_part, sanitized)
+        let final_path = format!("{}::{}", storage_part, sanitized);
+        ic_cdk::println!("sanitize_file_path: {} -> {}", original, final_path);
+        final_path
     }
+    
 
     pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderUUID {
         let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
@@ -227,8 +224,9 @@ pub mod drive_internals {
     }
 
     pub fn split_path(full_path: &str) -> (String, String) {
+        let original = full_path.to_string();
         let parts: Vec<&str> = full_path.rsplitn(2, '/').collect();
-        match parts.as_slice() {
+        let (folder, filename) = match parts.as_slice() {
             [file_name, folder_path] => (folder_path.to_string(), file_name.to_string()),
             [single_part] => {
                 let storage_parts: Vec<&str> = single_part.splitn(2, "::").collect();
@@ -238,8 +236,11 @@ pub mod drive_internals {
                 }
             },
             _ => (String::new(), String::new()),
-        }
+        };
+        ic_cdk::println!("split_path: {} -> ({}, {})", original, folder, filename);
+        (folder, filename)
     }
+    
 
     pub fn update_folder_file_uuids(folder_uuid: &FolderUUID, file_uuid: &FileUUID, is_add: bool) {
         folder_uuid_to_metadata.with_mut(|map| {
@@ -299,30 +300,34 @@ pub mod drive_internals {
     ) -> (String, String) {
         let mut final_name = name.to_string();
         let mut final_path = if is_folder {
-            format!("{}{}/", base_path, name)
+            format!("{}{}/", base_path.trim_end_matches('/'), final_name)
         } else {
-            format!("{}{}", base_path, name)
+            format!("{}/{}", base_path.trim_end_matches('/'), final_name) // Ensure `/` separator for files
         };
+    
+        ic_cdk::println!(
+            "resolve_naming_conflict: base_path={} name={} is_folder={} -> ({}, {})",
+            base_path, name, is_folder, final_name, final_path
+        );
     
         match resolution.unwrap_or(FileConflictResolutionEnum::KEEP_BOTH) {
             FileConflictResolutionEnum::REPLACE => (final_name, final_path),
             FileConflictResolutionEnum::KEEP_ORIGINAL => {
-                if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
-                   (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                    || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                {
                     return (String::new(), String::new()); // Signal to keep original
                 }
                 (final_name, final_path)
             }
-            FileConflictResolutionEnum::KEEP_NEWER => {
-                // For KEEP_NEWER, we'll implement timestamp comparison in the caller
-                (final_name, final_path)
-            }
+            FileConflictResolutionEnum::KEEP_NEWER => (final_name, final_path),
             FileConflictResolutionEnum::KEEP_BOTH => {
                 let mut counter = 1;
-                while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) ||
-                      (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone()))) {
+                while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                    || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
+                {
                     counter += 1;
-                    
+    
                     // Split name and extension for files
                     let (base_name, ext) = if !is_folder && name.contains('.') {
                         let parts: Vec<&str> = name.rsplitn(2, '.').collect();
@@ -338,15 +343,16 @@ pub mod drive_internals {
                     };
     
                     final_path = if is_folder {
-                        format!("{}{}/", base_path, final_name)
+                        format!("{}{}/", base_path.trim_end_matches('/'), final_name)
                     } else {
-                        format!("{}{}", base_path, final_name)
+                        format!("{}/{}", base_path.trim_end_matches('/'), final_name)
                     };
                 }
                 (final_name, final_path)
             }
         }
     }
+    
 
     // Helper function to get destination folder from either ID or path
     pub fn get_destination_folder(folder_id: Option<FolderUUID>, folder_path: Option<DriveFullFilePath>) -> Result<FolderMetadata, String> {
@@ -365,4 +371,23 @@ pub mod drive_internals {
             Err("Neither destination folder ID nor path provided".to_string())
         }
     }
+
+    /// Validates that if the disk type is AwsBucket or StorjWeb3,
+    /// then auth_json is provided and can be deserialized into AwsBucketAuth.
+    pub fn validate_auth_json(disk_type: &DiskTypeEnum, auth_json: &Option<String>) -> Result<(), String> {
+        if *disk_type == DiskTypeEnum::AwsBucket || *disk_type == DiskTypeEnum::StorjWeb3 {
+            match auth_json {
+                Some(json_str) => {
+                    // Try to parse the provided JSON string into AwsBucketAuth.
+                    serde_json::from_str::<AwsBucketAuth>(json_str)
+                        .map_err(|e| format!("Invalid auth_json for {}: {}", disk_type, e))?;
+                    Ok(())
+                },
+                None => Err(format!("auth_json is required for disk type {}", disk_type)),
+            }
+        } else {
+            Ok(())
+        }
+    }
+
 }

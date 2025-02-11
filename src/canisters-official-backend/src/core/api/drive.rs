@@ -133,6 +133,13 @@ pub mod drive {
         
         let full_file_path = final_path;
         let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
+
+        ic_cdk::println!(
+            "Checking full path: {} -> {}",
+            sanitized_file_path,
+            full_file_path_to_uuid.get(&DriveFullFilePath(sanitized_file_path.clone())).is_some()
+        );
+        
     
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
@@ -298,6 +305,8 @@ pub mod drive {
         } else {
             canister_id.clone()
         };
+
+        
     
         // Check if folder already exists
         if let Some(existing_folder_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(sanitized_path.clone())) {
@@ -364,7 +373,7 @@ pub mod drive {
             if let Some(folder) = map.get_mut(&new_folder_uuid) {
                 folder.expires_at = expires_at;
             }
-        });
+        });        
     
         // Get and return the updated folder metadata
         folder_uuid_to_metadata
