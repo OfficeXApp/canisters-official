@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::aws_s3::{generate_s3_upload_url, generate_s3_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::aws_s3::{generate_s3_upload_url, generate_s3_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -103,23 +103,31 @@ pub mod directorys_handlers {
                 Ok(result) => DirectoryActionOutcome {
                     id: outcome_id,
                     success: true,
-                    action: action.action,
-                    target: action.target,
-                    payload: action.payload,
-                    result: Some(result),
-                    error: None,
+                    request: DirectoryAction {
+                        action: action.action,
+                        target: action.target,
+                        payload: action.payload,
+                    },
+                    response: DirectoryActionResponse {
+                        result: Some(result),
+                        error: None,
+                    }
                 },
                 Err(error_info) => DirectoryActionOutcome {
                     id: outcome_id,
                     success: false,
-                    action: action.action,
-                    target: action.target,
-                    payload: action.payload,
-                    result: None,
-                    error: Some(DirectoryActionError {
-                        code: error_info.code,
-                        message: error_info.message,
-                    }),
+                    request: DirectoryAction {
+                        action: action.action,
+                        target: action.target,
+                        payload: action.payload,
+                    },
+                    response: DirectoryActionResponse {
+                        result: None,
+                        error: Some(DirectoryActionError {
+                            code: error_info.code,
+                            message: error_info.message,
+                        }),
+                    }
                 },
             };
             outcomes.push(outcome);

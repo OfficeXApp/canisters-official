@@ -123,9 +123,11 @@ pub struct DirectoryActionOutcomeID(pub String);
 pub struct DirectoryActionOutcome {
     pub id: DirectoryActionOutcomeID,
     pub success: bool,
-    pub action: DirectoryActionEnum,
-    pub target: ResourceIdentifier,
-    pub payload: DirectoryActionPayload,
+    pub request: DirectoryAction,
+    pub response: DirectoryActionResponse,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionResponse {
     pub result: Option<DirectoryActionResult>,
     pub error: Option<DirectoryActionError>,
 }

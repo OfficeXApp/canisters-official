@@ -57,3 +57,18 @@ The best place to store files is not the canister, its 3rd party integrations li
 ## Copy/Move Files Across Disks
 
 OfficeX does not support copy/move between disks (users must manual download/reupload when moving between disks). while s3/storj allow for transfering files to other buckets via REST API, its not always possible on other destination disks like localSSD or cross platform s3 to storj. they would require manual download/reupload. for simplicity, we require all cross-disk transfers to require manual download/reupload. this may change in future with advanced functionality.
+
+## CORS
+
+When adding AWS S3 Buckets disks, users are responsible for enabling cors! In the AWS Console GUI it can be done by navigating to `AWS S3 > YourBucket > Permissions > Cross-Origin resource sharing (CORS)` and pasting this permissive cors policy:
+
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "POST", "PUT"],
+    "AllowedOrigins": ["*"],
+    "ExposeHeaders": []
+  }
+]
+```
