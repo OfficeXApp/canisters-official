@@ -252,7 +252,7 @@ pub mod drive {
                 .cloned()
         }).ok_or_else(|| "Disk not found".to_string())?;
     
-        if disk.disk_type != DiskTypeEnum::AwsBucket {
+        if disk.disk_type != DiskTypeEnum::AwsBucket && disk.disk_type != DiskTypeEnum::StorjWeb3 {
             return Err("Only S3 buckets are supported for file uploads".to_string());
         }
     
