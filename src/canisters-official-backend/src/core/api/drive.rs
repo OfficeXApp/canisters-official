@@ -3,7 +3,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::aws_s3::{copy_s3_object, generate_s3_upload_url, S3UploadResponse}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
             },
             state::{
                 directory::{
@@ -12,7 +12,7 @@ pub mod drive {
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
-        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
     pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
@@ -104,8 +104,8 @@ pub mod drive {
         expires_at: i64,
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    ) -> Result<(FileMetadata, S3UploadResponse), String> {
-        let sanitized_file_path = sanitize_file_path(&file_path);
+    ) -> Result<(FileMetadata, DiskUploadResponse), String> {
+        let sanitized_file_path: String = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
         
         // Handle naming conflicts
@@ -173,13 +173,37 @@ pub mod drive {
                                 let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
                                     .map_err(|_| "Invalid AWS credentials format".to_string())?;
     
-                                let upload_response = generate_s3_upload_url(
-                                    &existing_uuid.0,
-                                    &existing_file.extension,
-                                    &aws_auth,
-                                    file_size,
-                                    3600
-                                )?;
+                                // Example using an "existing file" upload.
+                                let upload_response = match existing_file.disk_type {
+                                    DiskTypeEnum::AwsBucket => {
+                                        generate_s3_upload_url(
+                                            &existing_uuid.0,           // file_id
+                                            &existing_file.extension,   // file_extension
+                                            &aws_auth.clone(),                  // AWS credentials
+                                            file_size,
+                                            3600
+                                        )?
+                                    }
+                                    DiskTypeEnum::StorjWeb3 => {
+                                        generate_storj_upload_url(
+                                            &existing_uuid.0,           // file_id
+                                            &existing_file.extension,   // file_extension
+                                            &aws_auth.clone(),                // Storj credentials (make sure to define this)
+                                            file_size,
+                                            3600
+                                        )?
+                                    }
+                                    // Optionally handle other disk types
+                                    _ => {
+                                        panic!(
+                                            "Unsupported disk type for generating an upload URL: {:?}",
+                                            existing_file.disk_type
+                                        );
+                                    }
+                                };
+
+                                println!("Upload response: {:?}", upload_response);
+
     
                                 Ok((existing_file, upload_response))
                             },
@@ -259,13 +283,35 @@ pub mod drive {
         let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
             .map_err(|_| "Invalid AWS credentials format".to_string())?;
     
-        let upload_response = generate_s3_upload_url(
-            &new_file_uuid.0,
-            file_metadata.extension.as_str(),
-            &aws_auth,
-            file_size,
-            3600
-        )?;
+        let upload_response = match file_metadata.disk_type {
+            DiskTypeEnum::AwsBucket => {
+                generate_s3_upload_url(
+                    &new_file_uuid.0,                // file_id
+                    file_metadata.extension.as_str(),// file_extension
+                    &aws_auth.clone(),                       // AWS credentials
+                    file_size,
+                    3600
+                )?
+            }
+            DiskTypeEnum::StorjWeb3 => {
+                generate_storj_upload_url(
+                    &new_file_uuid.0,                // file_id
+                    file_metadata.extension.as_str(),// file_extension
+                    &aws_auth.clone(),                     // Storj credentials
+                    file_size,
+                    3600
+                )?
+            }
+            _ => {
+                panic!(
+                    "Unsupported disk type for generating an upload URL: {:?}",
+                    file_metadata.disk_type
+                );
+            }
+        };
+        
+        println!("Upload response: {:?}", upload_response);
+            
     
         Ok((file_metadata, upload_response))
     }

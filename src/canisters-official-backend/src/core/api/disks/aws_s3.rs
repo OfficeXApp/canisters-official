@@ -6,7 +6,7 @@ use base64::{Engine as _, engine::general_purpose};
 use ic_cdk::api::management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod};
 use serde::{Serialize, Deserialize};
 use time::{Duration, OffsetDateTime};
-use crate::core::state::disks::types::AwsBucketAuth;
+use crate::{core::state::disks::types::AwsBucketAuth, rest::directory::types::DiskUploadResponse};
 use num_traits::cast::ToPrimitive;
 
 pub fn generate_s3_view_url(
@@ -127,11 +127,6 @@ fn sha256_hash(data: &[u8]) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct S3UploadResponse {
-    pub url: String,
-    pub fields: HashMap<String, String>,
-}
 
 pub fn generate_s3_upload_url(
     file_id: &str,
@@ -139,7 +134,7 @@ pub fn generate_s3_upload_url(
     auth: &AwsBucketAuth,
     max_size: u64,
     expires_in: u64
-) -> Result<S3UploadResponse, String> {
+) -> Result<DiskUploadResponse, String> {
     let current_time = ic_cdk::api::time();
     let expiration_time = current_time + (expires_in * 1_000_000_000);
 
@@ -191,7 +186,7 @@ pub fn generate_s3_upload_url(
     fields.insert("policy".to_string(), policy_base64);
     fields.insert("x-amz-signature".to_string(), signature);
 
-    Ok(S3UploadResponse {
+    Ok(DiskUploadResponse {
         url: format!("{}/{}", auth.endpoint, auth.bucket),
         fields,
     })

@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::aws_s3::{generate_s3_upload_url, generate_s3_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -424,13 +424,31 @@ pub mod directorys_handlers {
     
         // 5. Generate presigned URL with content-disposition header
         let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
-        let presigned_url = generate_s3_view_url(
-            &file_meta.id.0,          // file_id
-            &file_meta.extension,     // file_extension
-            &aws_auth,
-            Some(3600),
-            Some(&download_filename)
-        );
+        let presigned_url = match file_meta.disk_type {
+            DiskTypeEnum::AwsBucket => {
+                generate_s3_view_url(
+                    &file_meta.id.0,          // file_id
+                    &file_meta.extension,     // file_extension
+                    &aws_auth.clone(),                // AWS credentials
+                    Some(3600),
+                    Some(&download_filename)
+                )
+            }
+            DiskTypeEnum::StorjWeb3 => {
+                generate_storj_view_url(
+                    &file_meta.id.0,          // file_id
+                    &file_meta.extension,     // file_extension
+                    &aws_auth.clone(),              // Storj credentials (assumed to be defined)
+                    Some(3600),
+                    Some(&download_filename)
+                )
+            }
+            _ => {
+                // For unsupported disk types, you can either return an error,
+                // panic!, or handle it in another appropriate way.
+                panic!("Unsupported disk type for generating a presigned URL: {:?}", file_meta.disk_type);
+            }
+        };
     
         debug_log!("get_raw_url_proxy_handler: Redirecting to presigned URL");
     
