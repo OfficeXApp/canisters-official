@@ -1,7 +1,7 @@
 // src/rest/router.rs
 use crate::{debug_log, rest::helpers};
 use crate::types::RouteHandler;
-use ic_http_certification::{HttpRequest, HttpResponse};
+use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use matchit::Router;
 use std::{cell::RefCell, collections::HashMap};
 
@@ -28,8 +28,14 @@ pub fn init_routes() {
     crate::rest::disks::route::init_routes();
     crate::rest::directory::route::init_routes();
 
+    insert_route(
+        "OPTIONS",
+        "/*",
+        handle_options_request,
+    );
+
     // Handle not found for all methods with wildcard routes
-    let wildcard_methods = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "TRACE", "CONNECT"];
+    let wildcard_methods = ["GET", "HEAD", "PUT", "POST", "DELETE", "TRACE", "CONNECT"];
     for &method in &wildcard_methods {
         insert_route(
             method,
@@ -70,4 +76,19 @@ pub(crate) fn insert_route(method: &str, path: &str, route_handler: RouteHandler
         let method_router = router.entry(method.to_string()).or_default();
         method_router.insert(path, route_handler).unwrap();
     });
+}
+
+
+pub fn handle_options_request(_req: &HttpRequest, _params: &matchit::Params) -> HttpResponse<'static> {
+    let headers = vec![
+        ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+        ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
+        ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key".to_string()),
+        ("Access-Control-Max-Age".to_string(), "86400".to_string()),
+    ];
+
+    HttpResponse::builder()
+        .with_status_code(StatusCode::NO_CONTENT)
+        .with_headers(headers)
+        .build()
 }

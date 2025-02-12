@@ -7,16 +7,20 @@ use super::helpers::create_response;
 
 // Add this helper function in your apikeys_handlers module
 pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
-    // First extract the api key header
-    let api_key_str = match req.headers().iter().find(|(k, _)| k == "api-key") {
+    // Extract the Authorization header
+    let auth_header = match req.headers().iter().find(|(k, _)| k == "authorization") {
         Some((_, value)) => value,
         None => return None,
     };
 
-    debug_log!("api_key_str: {}", api_key_str);
+    // Parse "Bearer <token>"
+    let token = match auth_header.strip_prefix("Bearer ") {
+        Some(token) => token.trim(),
+        None => return None,
+    };
 
     // Convert to ApiKeyValue type
-    let api_key_value = ApiKeyValue(api_key_str.to_string());
+    let api_key_value = ApiKeyValue(token.to_string());
 
     debug_log!("api_key_value: {}", api_key_value);
     debug_log!("Current state: {}", debug_state());

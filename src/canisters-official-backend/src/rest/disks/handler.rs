@@ -3,7 +3,7 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::validate_auth_json, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::state::state::OWNER_ID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::validate_auth_json, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -243,6 +243,7 @@ pub mod disks_handlers {
                         ),
                     };
 
+
                     // Update fields
                     if let Some(name) = update_req.name {
                         disk.name = name;
@@ -286,6 +287,7 @@ pub mod disks_handlers {
                             ErrorResponse::err(400, err_msg).encode()
                         );
                     }
+
                     
                     // Create new disk
                     let disk_type_suffix = format!("__DiskType_{}", create_req.disk_type);
