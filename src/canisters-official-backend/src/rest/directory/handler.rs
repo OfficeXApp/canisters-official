@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::aws_s3::{generate_s3_upload_url, generate_s3_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -103,23 +103,31 @@ pub mod directorys_handlers {
                 Ok(result) => DirectoryActionOutcome {
                     id: outcome_id,
                     success: true,
-                    action: action.action,
-                    target: action.target,
-                    payload: action.payload,
-                    result: Some(result),
-                    error: None,
+                    request: DirectoryAction {
+                        action: action.action,
+                        target: action.target,
+                        payload: action.payload,
+                    },
+                    response: DirectoryActionResponse {
+                        result: Some(result),
+                        error: None,
+                    }
                 },
                 Err(error_info) => DirectoryActionOutcome {
                     id: outcome_id,
                     success: false,
-                    action: action.action,
-                    target: action.target,
-                    payload: action.payload,
-                    result: None,
-                    error: Some(DirectoryActionError {
-                        code: error_info.code,
-                        message: error_info.message,
-                    }),
+                    request: DirectoryAction {
+                        action: action.action,
+                        target: action.target,
+                        payload: action.payload,
+                    },
+                    response: DirectoryActionResponse {
+                        result: None,
+                        error: Some(DirectoryActionError {
+                            code: error_info.code,
+                            message: error_info.message,
+                        }),
+                    }
                 },
             };
             outcomes.push(outcome);
@@ -371,9 +379,8 @@ pub mod directorys_handlers {
             None => file_id_with_extension,
         };
     
-        debug_log!("get_raw_url_proxy_handler: file_id={}", file_id.clone());
+        debug_log!("get_raw_url_proxy_handler: file_id={}", file_id);
     
-        
         // 2. Look up file metadata
         let file_meta = file_uuid_to_metadata.get(&FileUUID(file_id.to_string()));
         let file_meta = match file_meta {
@@ -386,10 +393,7 @@ pub mod directorys_handlers {
     
         // 3. Get disk info to access AWS credentials
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
-            map.borrow()
-                .iter()
-                .find(|(_, disk)| disk.disk_type == DiskTypeEnum::AwsBucket)
-                .map(|(_, disk)| disk.clone())
+            map.borrow().get(&file_meta.disk_id).cloned()
         });
     
         let disk = match disk {
@@ -414,21 +418,38 @@ pub mod directorys_handlers {
                 ErrorResponse::err(500, "Missing AWS credentials".to_string()).encode()
             ),
         };
-        
-        // 5. Generate the download filename (original filename with extension)
+    
+        // 5. Generate presigned URL with content-disposition header
         let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
-        
-        // 6. Generate presigned URL with content-disposition header
-        let presigned_url = generate_s3_view_url(
-            &format!("{}/{}", file_id, file_meta.name),  // S3 key
-            &aws_auth,
-            Some(3600),
-            Some(&download_filename)
-        );
+        let presigned_url = match file_meta.disk_type {
+            DiskTypeEnum::AwsBucket => {
+                generate_s3_view_url(
+                    &file_meta.id.0,          // file_id
+                    &file_meta.extension,     // file_extension
+                    &aws_auth.clone(),                // AWS credentials
+                    Some(3600),
+                    Some(&download_filename)
+                )
+            }
+            DiskTypeEnum::StorjWeb3 => {
+                generate_storj_view_url(
+                    &file_meta.id.0,          // file_id
+                    &file_meta.extension,     // file_extension
+                    &aws_auth.clone(),              // Storj credentials (assumed to be defined)
+                    Some(3600),
+                    Some(&download_filename)
+                )
+            }
+            _ => {
+                // For unsupported disk types, you can either return an error,
+                // panic!, or handle it in another appropriate way.
+                panic!("Unsupported disk type for generating a presigned URL: {:?}", file_meta.disk_type);
+            }
+        };
     
         debug_log!("get_raw_url_proxy_handler: Redirecting to presigned URL");
     
-        // 7. Return 302 redirect response
+        // 6. Return 302 redirect response
         HttpResponse::builder()
             .with_status_code(StatusCode::FOUND) // 302 Found
             .with_headers(vec![
@@ -473,3 +494,6 @@ pub mod directorys_handlers {
     }
     
 }
+
+
+

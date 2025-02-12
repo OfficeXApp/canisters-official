@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{api::disks::aws_s3::S3UploadResponse, state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
+use crate::{core::{state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -40,6 +40,12 @@ pub struct DirectoryListResponse {
 
 fn default_page_size() -> usize {
     50
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskUploadResponse {
+    pub url: String,
+    pub fields: HashMap<String, String>,
 }
 
 
@@ -123,9 +129,11 @@ pub struct DirectoryActionOutcomeID(pub String);
 pub struct DirectoryActionOutcome {
     pub id: DirectoryActionOutcomeID,
     pub success: bool,
-    pub action: DirectoryActionEnum,
-    pub target: ResourceIdentifier,
-    pub payload: DirectoryActionPayload,
+    pub request: DirectoryAction,
+    pub response: DirectoryActionResponse,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionResponse {
     pub result: Option<DirectoryActionResult>,
     pub error: Option<DirectoryActionError>,
 }
@@ -430,7 +438,7 @@ pub enum DirectoryActionResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFileResponse {
     pub file: FileMetadata,
-    pub upload: S3UploadResponse,
+    pub upload: DiskUploadResponse,
     pub notes: String,
 }
 

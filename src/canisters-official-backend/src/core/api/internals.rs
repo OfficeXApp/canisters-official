@@ -287,7 +287,7 @@ pub mod drive_internals {
         extension: String,
     ) -> String {
         format!(
-            "https://{}.raw.icp0.io/asset/{file_uuid}.{extension}",
+            "https://{}.raw.icp0.io/directory/asset/{file_uuid}.{extension}",
             ic_cdk::api::id().to_text()
         )
     }

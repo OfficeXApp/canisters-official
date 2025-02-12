@@ -1,3 +1,393 @@
+// OfficeX filesharing app (clone of google drive)
+// where possible, show the code changes as green diffs without the +/- symbols
+
+// src/core/api/disks/storj_web3.rs
+use std::collections::HashMap;
+use base64::{engine::general_purpose, Engine as _};
+use ic_cdk::api::management_canister::http_request::{
+    http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod,
+};
+use serde::{Deserialize, Serialize};
+use time::{Duration, OffsetDateTime};
+use crate::{core::state::disks::types::AwsBucketAuth, rest::directory::types::DiskUploadResponse};
+use num_traits::cast::ToPrimitive;
+
+//
+// Helper: Extract host from the Storj endpoint URL.
+//
+fn extract_host(endpoint: &str) -> String {
+    // This uses the url crate. You can add it to Cargo.toml.
+    let url = url::Url::parse(endpoint).expect("Invalid endpoint URL");
+    url.host_str()
+        .expect("No host in endpoint URL")
+        .to_string()
+}
+
+//
+// VIEW URL: Create a presigned GET URL for accessing an object.
+//
+pub fn generate_storj_view_url(
+    file_id: &str,
+    file_extension: &str,  // file extension, e.g. "jpg"
+    auth: &AwsBucketAuth,
+    expires_in: Option<u64>,
+    download_filename: Option<&str>,
+) -> String {
+    let DEFAULT_EXPIRATION: u64 = 3600; // seconds
+    let current_time = ic_cdk::api::time();
+    let date = format_date(current_time);         // YYYYMMDD
+    let date_time = format_datetime(current_time); // YYYYMMDDTHHMMSSZ
+
+    // Build credential string (same as AWS)
+    let credential = format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region);
+    let expiration = expires_in.unwrap_or(DEFAULT_EXPIRATION).to_string();
+
+    // Instead of computing an AWS S3 host, use the Storj gateway.
+    // (Make sure your auth.endpoint is something like "https://gateway.storjshare.io")
+    let endpoint = auth.endpoint.trim_end_matches('/');
+    let host = extract_host(endpoint);
+
+    // Build the S3 key as before.
+    let s3_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+    // For path‐style, the canonical URI includes the bucket.
+    let canonical_uri = format!("/{}/{}", auth.bucket, s3_key);
+
+    // Revised code with owned values:
+    let content_disposition: Option<String> = download_filename.map(|filename| {
+        let encoded_filename = url_encode(filename);
+        format!("attachment; filename=\"{}\"", encoded_filename)
+    });
+
+    let mut query_params: Vec<(String, String)> = vec![
+        ("X-Amz-Algorithm".to_string(), "AWS4-HMAC-SHA256".to_string()),
+        ("X-Amz-Credential".to_string(), credential),
+        ("X-Amz-Date".to_string(), date_time.clone()),
+        ("X-Amz-Expires".to_string(), expiration),
+        ("X-Amz-SignedHeaders".to_string(), "host".to_string()),
+    ];
+
+    if let Some(disposition) = content_disposition {
+        query_params.push(("response-content-disposition".to_string(), disposition));
+    }
+
+    // Sort and join the query parameters.
+    query_params.sort_by(|a, b| a.0.cmp(&b.0));
+    let canonical_query_string = query_params
+        .iter()
+        .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
+        .collect::<Vec<_>>()
+        .join("&");
+
+    // Build the canonical headers and canonical request.
+    let canonical_headers = format!("host:{}\n", host);
+    let canonical_request = format!(
+        "GET\n{}\n{}\n{}\n{}\nUNSIGNED-PAYLOAD",
+        canonical_uri, canonical_query_string, canonical_headers, "host"
+    );
+
+    // Build the string to sign.
+    let string_to_sign = format!(
+        "AWS4-HMAC-SHA256\n{}\n{}/{}/s3/aws4_request\n{}",
+        date_time,
+        date,
+        auth.region,
+        hex::encode(sha256_hash(canonical_request.as_bytes()))
+    );
+
+    // Derive the signing key and compute the signature.
+    let signing_key = derive_signing_key(&auth.secret_key, &date, &auth.region, "s3");
+    let signature = hex::encode(hmac_sha256(&signing_key, string_to_sign.as_bytes()));
+
+    // Construct the final presigned URL.
+    // Note that the bucket is now part of the path.
+    format!(
+        "{}/{}/{}?{}&X-Amz-Signature={}",
+        endpoint,
+        auth.bucket,
+        s3_key,
+        canonical_query_string,
+        signature
+    )
+}
+
+//
+// UPLOAD URL: Create a presigned POST policy for uploading an object.
+//
+pub fn generate_storj_upload_url(
+    file_id: &str,
+    file_extension: &str,
+    auth: &AwsBucketAuth,
+    max_size: u64,
+    expires_in: u64,
+) -> Result<DiskUploadResponse, String> {
+    let current_time = ic_cdk::api::time();
+    let expiration_time = current_time + (expires_in * 1_000_000_000);
+
+    // Convert timestamps to the required formats.
+    let date = format_date(current_time);
+    let date_time = format_datetime(current_time);
+    let expiration = format_iso8601(expiration_time);
+
+    // Build the object key (does not include bucket here).
+    let target_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+
+    // Create the policy document.
+    let policy = format!(
+        r#"{{
+            "expiration": "{}",
+            "conditions": [
+                {{"bucket": "{}"}},
+                {{"key": "{}"}},
+                {{"acl": "private"}},
+                ["content-length-range", 0, {}],
+                {{"x-amz-algorithm": "AWS4-HMAC-SHA256"}},
+                {{"x-amz-credential": "{}/{}/{}/s3/aws4_request"}},
+                {{"x-amz-date": "{}"}}
+            ]
+        }}"#,
+        expiration,
+        auth.bucket,
+        target_key,
+        max_size,
+        auth.access_key,
+        date,
+        auth.region,
+        date_time
+    );
+
+    let policy_base64 = general_purpose::STANDARD.encode(policy);
+    let signature = sign_policy(&policy_base64, &auth.secret_key, &date, &auth.region);
+
+    // Build the fields for the form POST.
+    let mut fields = HashMap::new();
+    fields.insert("key".to_string(), target_key);
+    fields.insert("acl".to_string(), "private".to_string());
+    fields.insert("x-amz-algorithm".to_string(), "AWS4-HMAC-SHA256".to_string());
+    fields.insert(
+        "x-amz-credential".to_string(),
+        format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region),
+    );
+    fields.insert("x-amz-date".to_string(), date_time);
+    fields.insert("policy".to_string(), policy_base64);
+    fields.insert("x-amz-signature".to_string(), signature);
+
+    // For uploads the URL is the Storj gateway endpoint with the bucket in the path.
+    Ok(DiskUploadResponse {
+        url: format!("{}/{}", auth.endpoint.trim_end_matches('/'), auth.bucket),
+        fields,
+    })
+}
+
+//
+// COPY OBJECT: Adjust an object copy to work with Storj’s path-style URLs.
+//
+pub async fn copy_storj_object(
+    source_key: &str,
+    destination_key: &str,
+    auth: &AwsBucketAuth,
+) -> Result<(), String> {
+    let endpoint = auth.endpoint.trim_end_matches('/');
+    let host = extract_host(endpoint);
+
+    let current_time = ic_cdk::api::time();
+    let date = format_date(current_time);
+    let date_time = format_datetime(current_time);
+    let credential = format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region);
+
+    // For path‑style requests the source must include the bucket.
+    let copy_source = format!("/{}/{}", auth.bucket, source_key);
+
+    let headers = vec![
+        HttpHeader {
+            name: "Host".to_string(),
+            value: host.clone(),
+        },
+        HttpHeader {
+            name: "x-amz-date".to_string(),
+            value: date_time.clone(),
+        },
+        HttpHeader {
+            name: "x-amz-copy-source".to_string(),
+            value: copy_source.clone(),
+        },
+        HttpHeader {
+            name: "x-amz-content-sha256".to_string(),
+            value: "UNSIGNED-PAYLOAD".to_string(),
+        },
+    ];
+
+    // The canonical URI now includes the bucket.
+    let canonical_uri = format!("/{}/{}", auth.bucket, destination_key);
+    let canonical_headers = format!(
+        "host:{}\nx-amz-content-sha256:UNSIGNED-PAYLOAD\nx-amz-copy-source:{}\nx-amz-date:{}\n",
+        host, copy_source, date_time
+    );
+    let signed_headers = "host;x-amz-content-sha256;x-amz-copy-source;x-amz-date";
+
+    let canonical_request = format!(
+        "PUT\n{}\n{}\n{}\n{}\nUNSIGNED-PAYLOAD",
+        canonical_uri, "", canonical_headers, signed_headers
+    );
+
+    let string_to_sign = format!(
+        "AWS4-HMAC-SHA256\n{}\n{}/{}/s3/aws4_request\n{}",
+        date_time,
+        date,
+        auth.region,
+        hex::encode(sha256_hash(canonical_request.as_bytes()))
+    );
+
+    // Use the same signing method as in the view URL.
+    let signing_key = derive_signing_key(&auth.secret_key, &date, &auth.region, "s3");
+    let signature = hex::encode(hmac_sha256(&signing_key, string_to_sign.as_bytes()));
+
+    let authorization = format!(
+        "AWS4-HMAC-SHA256 Credential={},SignedHeaders={},Signature={}",
+        credential, signed_headers, signature
+    );
+
+    let mut final_headers = headers;
+    final_headers.push(HttpHeader {
+        name: "Authorization".to_string(),
+        value: authorization,
+    });
+
+    let request = CanisterHttpRequestArgument {
+        // The destination URL includes the endpoint, bucket, and destination key.
+        url: format!("{}/{}/{}", endpoint, auth.bucket, destination_key),
+        method: HttpMethod::POST, // Use PUT for S3 copy
+        headers: final_headers,
+        body: None,
+        max_response_bytes: Some(2048),
+        transform: None,
+    };
+
+    // Issue the HTTP request.
+    let cycles: u128 = 100_000_000_000;
+    match http_request(request, cycles).await {
+        Ok((response,)) => {
+            let status_u16: u16 = response.status.0.to_u64()
+                .and_then(|n| {
+                    if n <= u16::MAX as u64 {
+                        Some(n as u16)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(500);
+
+            if status_u16 < 200 || status_u16 >= 300 {
+                Err(format!(
+                    "S3 copy failed with status {}: {}",
+                    status_u16,
+                    String::from_utf8_lossy(&response.body)
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        Err((code, msg)) => Err(format!("HTTP request failed: {:?} - {}", code, msg)),
+    }
+}
+
+//
+// UTILITY FUNCTIONS
+//
+fn derive_signing_key(secret: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
+    let k_date = hmac_sha256(format!("AWS4{}", secret).as_bytes(), date.as_bytes());
+    let k_region = hmac_sha256(&k_date, region.as_bytes());
+    let k_service = hmac_sha256(&k_region, service.as_bytes());
+    hmac_sha256(&k_service, b"aws4_request")
+}
+
+fn url_encode(s: &str) -> String {
+    let mut encoded = String::new();
+    for c in s.chars() {
+        match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '_' | '-' | '~' | '.' => encoded.push(c),
+            _ => {
+                encoded.push_str(&format!("%{:02X}", c as u8));
+            }
+        }
+    }
+    encoded
+}
+
+fn sha256_hash(data: &[u8]) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().to_vec()
+}
+
+fn format_date(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    format!("{:04}{:02}{:02}", dt.year(), dt.month() as u8, dt.day())
+}
+
+fn format_datetime(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    format!(
+        "{:04}{:02}{:02}T{:02}{:02}{:02}Z",
+        dt.year(),
+        dt.month() as u8,
+        dt.day(),
+        dt.hour(),
+        dt.minute(),
+        dt.second()
+    )
+}
+
+fn format_iso8601(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        dt.year(),
+        dt.month() as u8,
+        dt.day(),
+        dt.hour(),
+        dt.minute(),
+        dt.second()
+    )
+}
+
+fn sign_policy(policy: &str, secret: &str, date: &str, region: &str) -> String {
+    let date_key = hmac_sha256(format!("AWS4{}", secret).as_bytes(), date.as_bytes());
+    let region_key = hmac_sha256(&date_key, region.as_bytes());
+    let service_key = hmac_sha256(&region_key, b"s3");
+    let signing_key = hmac_sha256(&service_key, b"aws4_request");
+    hex::encode(hmac_sha256(&signing_key, policy.as_bytes()))
+}
+
+fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(key)
+        .expect("HMAC can take key of any size");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
+}
+
+
 // src/core/api/drive.rs
 pub mod drive {
     use crate::{
@@ -1341,3 +1731,798 @@ pub mod drive {
 
 
 }
+
+use std::fmt;
+
+// src/core/state/directory/types.rs
+use serde::{Serialize, Deserialize};
+
+use crate::core::{state::disks::types::{DiskID, DiskTypeEnum}, types::{ICPPrincipalString, UserID}};
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FolderUUID(pub String);
+impl fmt::Display for FolderUUID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FileUUID(pub String);
+impl fmt::Display for FileUUID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DriveFullFilePath(pub String);
+impl fmt::Display for DriveFullFilePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Tag(pub String);
+
+
+
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FolderMetadata {
+    pub(crate) id: FolderUUID,
+    pub(crate) name: String,
+    pub(crate) parent_folder_uuid: Option<FolderUUID>,
+    pub(crate) subfolder_uuids: Vec<FolderUUID>,
+    pub(crate) file_uuids: Vec<FileUUID>,
+    pub(crate) full_folder_path: DriveFullFilePath,
+    pub(crate) tags: Vec<Tag>,
+    pub(crate) created_by: UserID,
+    pub(crate) created_date_ms: u64, // unix ms
+    pub(crate) last_updated_date_ms: u64,  // unix ms
+    pub(crate) last_updated_by: UserID,
+    pub(crate) disk_id: DiskID,
+    pub(crate) deleted: bool,
+    pub(crate) expires_at: i64,
+    pub(crate) canister_id: ICPPrincipalString,
+    pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FileMetadata {
+    pub(crate) id: FileUUID,
+    pub(crate) name: String,
+    pub(crate) folder_uuid: FolderUUID,
+    pub(crate) file_version: u32,
+    pub(crate) prior_version: Option<FileUUID>,
+    pub(crate) next_version: Option<FileUUID>,
+    pub(crate) extension: String,
+    pub(crate) full_file_path: DriveFullFilePath,
+    pub(crate) tags: Vec<Tag>,
+    pub(crate) created_by: UserID,
+    pub(crate) created_date_ms: u64, // unix ms
+    pub(crate) disk_id: DiskID,
+    pub(crate) disk_type: DiskTypeEnum,
+    pub(crate) file_size: u64,
+    pub(crate) raw_url: String,
+    pub(crate) last_updated_date_ms: u64,  // unix ms
+    pub(crate) last_updated_by: UserID,
+    pub(crate) deleted: bool,
+    pub(crate) canister_id: ICPPrincipalString,
+    pub(crate) expires_at: i64,
+    pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
+}
+
+
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PathTranslationResponse {
+    pub folder: Option<FolderMetadata>,
+    pub file: Option<FileMetadata>,
+}
+
+// src/core/state/disks/types.rs
+use serde::{Serialize, Deserialize};
+use std::fmt;
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DiskID(pub String);
+impl fmt::Display for DiskID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Disk {
+    pub id: DiskID,
+    pub name: String,
+    pub disk_type: DiskTypeEnum,
+    pub private_note: Option<String>,
+    pub public_note: Option<String>,
+    pub auth_json: Option<String>,
+    pub external_id: Option<String>,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum DiskTypeEnum {
+    BrowserCache,
+    LocalSSD,
+    AwsBucket,
+    StorjWeb3,
+    IcpCanister,
+}
+impl fmt::Display for DiskTypeEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DiskTypeEnum::BrowserCache => write!(f, "BrowserCache"),
+            DiskTypeEnum::LocalSSD => write!(f, "LocalSSD"),
+            DiskTypeEnum::AwsBucket => write!(f, "AwsBucket"),
+            DiskTypeEnum::StorjWeb3 => write!(f, "StorjWeb3"),
+            DiskTypeEnum::IcpCanister => write!(f, "IcpCanister"),
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwsBucketAuth {
+    pub(crate) endpoint: String,
+    pub(crate) access_key: String,
+    pub(crate) secret_key: String,
+    pub(crate) bucket: String,
+    pub(crate) region: String,  
+}
+
+
+
+
+// src/rest/directory/types.rs
+use std::{collections::HashMap, fmt};
+use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
+use crate::{core::{state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
+use crate::core::{
+    state::disks::types::{DiskID, DiskTypeEnum},
+    types::{ICPPrincipalString, UserID}
+};
+use serde::de;
+use serde_json::Value;
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchDirectoryRequest {
+    pub query_string: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListDirectoryRequest {
+    pub folder_id: Option<String>,
+    pub path: Option<String>,
+    #[serde(default)]
+    pub filters: String,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    #[serde(default)]
+    pub direction: SortDirection,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryListResponse {
+    pub folders: Vec<FolderMetadata>,
+    pub files: Vec<FileMetadata>,
+    pub total_files: usize,
+    pub total_folders: usize,
+    pub cursor: Option<String>,
+}
+
+fn default_page_size() -> usize {
+    50
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskUploadResponse {
+    pub url: String,
+    pub fields: HashMap<String, String>,
+}
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UploadChunkRequest {
+    pub file_id: String,
+    pub chunk_index: u32,
+    pub chunk_data: Vec<u8>,
+    pub total_chunks: u32
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadChunkResponse {
+    pub chunk_id: String,
+    pub bytes_received: usize
+}
+
+#[derive(Debug, Clone, Deserialize)] 
+pub struct CompleteUploadRequest {
+    pub file_id: String,
+    pub filename: String
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompleteUploadResponse {
+    pub file_id: String,
+    pub size: usize,
+    pub chunks: u32,
+    pub filename: String
+}
+
+
+#[derive(serde::Serialize, Deserialize)]
+pub struct FileMetadataResponse {
+    pub file_id: String,
+    pub total_size: usize,
+    pub total_chunks: u32,
+    pub filename: String
+}
+
+pub type SearchDirectoryResponse = DirectoryListResponse;
+
+pub type DirectoryResponse<'a, T> = crate::rest::drives::types::DriveResponse<'a, T>;
+pub type ErrorResponse<'a> = DirectoryResponse<'a, ()>;
+
+
+
+#[derive(Debug, Clone, Deserialize)] 
+pub struct ClientSideUploadRequest {
+    pub disk_id: String,
+    pub folder_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientSideUploadResponse {
+    pub signature: String,
+}
+
+
+// --------------------------------------------
+
+
+#[derive(Debug, Clone)]
+pub struct DirectoryAction {
+    pub action: DirectoryActionEnum,
+    pub target: ResourceIdentifier,
+    pub payload: DirectoryActionPayload,
+}
+
+#[derive(Deserialize)]
+struct RawDirectoryAction {
+    action: DirectoryActionEnum,
+    target: ResourceIdentifier,
+    payload: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DirectoryActionOutcomeID(pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionOutcome {
+    pub id: DirectoryActionOutcomeID,
+    pub success: bool,
+    pub request: DirectoryAction,
+    pub response: DirectoryActionResponse,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionResponse {
+    pub result: Option<DirectoryActionResult>,
+    pub error: Option<DirectoryActionError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionRequestBody {
+    pub actions: Vec<DirectoryAction>,
+}
+
+// Custom deserialization for DirectoryAction.
+impl<'de> Deserialize<'de> for DirectoryAction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawDirectoryAction::deserialize(deserializer)?;
+        // Dispatch based on the action enum to convert the raw JSON payload.
+        let payload = match raw.action {
+            DirectoryActionEnum::GetFile => {
+                DirectoryActionPayload::GetFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::GetFolder => {
+                DirectoryActionPayload::GetFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CreateFile => {
+                DirectoryActionPayload::CreateFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CreateFolder => {
+                DirectoryActionPayload::CreateFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::UpdateFile => {
+                DirectoryActionPayload::UpdateFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::UpdateFolder => {
+                DirectoryActionPayload::UpdateFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::DeleteFile => {
+                DirectoryActionPayload::DeleteFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::DeleteFolder => {
+                DirectoryActionPayload::DeleteFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CopyFile => {
+                DirectoryActionPayload::CopyFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::CopyFolder => {
+                DirectoryActionPayload::CopyFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::MoveFile => {
+                DirectoryActionPayload::MoveFile(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::MoveFolder => {
+                DirectoryActionPayload::MoveFolder(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+            DirectoryActionEnum::RestoreTrash => {
+                DirectoryActionPayload::RestoreTrash(serde_json::from_value(raw.payload)
+                    .map_err(de::Error::custom)?)
+            }
+        };
+
+        Ok(DirectoryAction {
+            action: raw.action,
+            target: raw.target,
+            payload,
+        })
+    }
+}
+
+// Custom serialization for DirectoryAction.
+impl Serialize for DirectoryAction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("DirectoryAction", 3)?;
+        state.serialize_field("action", &self.action)?;
+        state.serialize_field("target", &self.target)?;
+        // Match on the payload variant so that it serializes as a plain JSON object.
+        match &self.payload {
+            DirectoryActionPayload::GetFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::GetFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CreateFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CreateFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::UpdateFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::UpdateFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::DeleteFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::DeleteFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CopyFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::CopyFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::MoveFile(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::MoveFolder(p) => state.serialize_field("payload", p)?,
+            DirectoryActionPayload::RestoreTrash(p) => state.serialize_field("payload", p)?,
+        }
+        state.end()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryActionError {
+    pub code: i32,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum DirectoryActionEnum {
+    GetFile,
+    GetFolder,
+    CreateFile,
+    CreateFolder,
+    UpdateFile,
+    UpdateFolder,
+    DeleteFile,
+    DeleteFolder,
+    CopyFile,
+    CopyFolder,
+    MoveFile,
+    MoveFolder,
+    RestoreTrash,
+}
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FileConflictResolutionEnum {
+    REPLACE,
+    KEEP_BOTH,
+    KEEP_ORIGINAL,
+    KEEP_NEWER,
+}
+impl fmt::Display for FileConflictResolutionEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FileConflictResolutionEnum::REPLACE => write!(f, "REPLACE"),
+            FileConflictResolutionEnum::KEEP_BOTH => write!(f, "KEEP_BOTH"),
+            FileConflictResolutionEnum::KEEP_ORIGINAL => write!(f, "KEEP_ORIGINAL"),
+            FileConflictResolutionEnum::KEEP_NEWER => write!(f, "KEEP_NEWER"),
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceIdentifier {
+    #[serde(default)]
+    pub resource_path: Option<DriveFullFilePath>, // points to file/folder itself, except in create file/folder operations would be a parent folder
+    #[serde(default)]
+    pub resource_id: Option<String>,  // points to file/folder itself, except in create file/folder operations would be a parent folder
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DirectoryActionPayload {
+    GetFile(GetFilePayload),
+    GetFolder(GetFolderPayload),
+    CreateFile(CreateFilePayload),
+    CreateFolder(CreateFolderPayload),
+    UpdateFile(UpdateFilePayload),
+    UpdateFolder(UpdateFolderPayload),
+    DeleteFile(DeleteFilePayload),
+    DeleteFolder(DeleteFolderPayload),
+    CopyFile(CopyFilePayload),
+    CopyFolder(CopyFolderPayload),
+    MoveFile(MoveFilePayload),
+    MoveFolder(MoveFolderPayload),
+    RestoreTrash(RestoreTrashPayload),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GetFilePayload {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GetFolderPayload {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateFilePayload {
+    pub name: String,
+    pub extension: String,
+    pub tags: Vec<Tag>,
+    pub file_size: u64,
+    pub raw_url: String,
+    pub disk_id: DiskID,
+    pub expires_at: Option<i64>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateFolderPayload {
+    pub name: String,
+    pub tags: Vec<Tag>,
+    pub disk_id: DiskID,
+    pub expires_at: Option<i64>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateFilePayload {
+    pub name: Option<String>,
+    pub tags: Option<Vec<Tag>>,
+    pub raw_url: Option<String>,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateFolderPayload {
+    pub name: Option<String>,
+    pub tags: Option<Vec<Tag>>,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteFilePayload {
+    pub permanent: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteFolderPayload {
+    pub permanent: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CopyFilePayload {
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CopyFolderPayload {
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+
+#[derive(Debug, Clone,Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MoveFilePayload {
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MoveFolderPayload {
+    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_path: Option<DriveFullFilePath>,
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RestoreTrashPayload {
+    pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub restore_to_folder_path: Option<DriveFullFilePath>,
+}
+
+
+// Response types remain the same as before
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DirectoryActionResult {
+    GetFile(FileMetadata),
+    GetFolder(FolderMetadata),
+    CreateFile(CreateFileResponse),
+    CreateFolder(FolderMetadata),
+    UpdateFile(FileMetadata),
+    UpdateFolder(FolderMetadata),
+    DeleteFile(DeleteFileResponse),
+    DeleteFolder(DeleteFolderResponse),
+    CopyFile(FileMetadata),
+    CopyFolder(FolderMetadata),
+    MoveFile(FileMetadata),
+    MoveFolder(FolderMetadata),
+    RestoreTrash(RestoreTrashResponse)
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFileResponse {
+    pub file: FileMetadata,
+    pub upload: DiskUploadResponse,
+    pub notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFolderResponse {
+    pub notes: String,
+    pub folder: FolderMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteFileResponse {
+    pub file_id: FileUUID,
+    pub path_to_trash: DriveFullFilePath,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteFolderResponse {
+    pub folder_id: FolderUUID,
+    pub path_to_trash: DriveFullFilePath, // if empty then its permanently deleted
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_files: Option<Vec<FileUUID>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_folders: Option<Vec<FolderUUID>>,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestoreTrashResponse {
+    pub restored_files: Vec<FileUUID>,
+    pub restored_folders: Vec<FolderUUID>,
+}
+
+// Example JSON requests:
+/*
+1. GET_FILE request (by path):
+{
+    "action": "GET_FILE",
+    "target": {
+        "resource_path": "/user/documents/report.pdf"
+    },
+    "payload": {}
+}
+
+2. GET_FILE request (by id):
+{
+    "action": "GET_FILE",
+    "target": {
+        "resource_id": "file-uuid-123"
+    },
+    "payload": {}
+}
+
+3. GET_FOLDER request:
+{
+    "action": "GET_FOLDER",
+    "target": {
+        "resource_id": "folder-uuid-456"
+    },
+    "payload": {}
+}
+
+4. CREATE_FILE request:
+{
+    "action": "CREATE_FILE",
+    "target": {
+        "resource_path": "/user/documents/report.pdf"
+    },
+    "payload": {
+        "name": "report.pdf",
+        "folder_uuid": "folder-uuid-789",
+        "extension": "pdf",
+        "tags": ["work", "2024"],
+        "file_size": 1024567,
+        "raw_url": "https://example.com/files/raw/123",
+        "disk_id": "disk-1",
+        "expires_at": 1735689600000
+    }
+}
+
+5. CREATE_FOLDER request:
+{
+    "action": "CREATE_FOLDER",
+    "target": {
+        "resource_path": "/user/documents/project-alpha"
+    },
+    "payload": {
+        "name": "project-alpha",
+        "parent_folder_uuid": "folder-uuid-123",
+        "tags": ["project", "active"],
+        "disk_id": "disk-1",
+        "expires_at": 1735689600000
+    }
+}
+
+6. UPDATE_FILE request:
+{
+    "action": "UPDATE_FILE",
+    "target": {
+        "resource_id": "file-uuid-123"
+    },
+    "payload": {
+        "name": "updated-report.pdf",
+        "folder_uuid": "folder-uuid-new",
+        "tags": ["work", "2024", "reviewed"],
+        "raw_url": "https://example.com/files/raw/124",
+        "expires_at": 1735689600000
+    }
+}
+
+7. UPDATE_FOLDER request:
+{
+    "action": "UPDATE_FOLDER",
+    "target": {
+        "resource_id": "folder-uuid-456"
+    },
+    "payload": {
+        "name": "project-beta",
+        "parent_folder_uuid": "folder-uuid-new-parent",
+        "tags": ["project", "active", "phase-2"],
+        "expires_at": 1735689600000
+    }
+}
+
+8. DELETE_FILE request:
+{
+    "action": "DELETE_FILE",
+    "target": {
+        "resource_id": "file-uuid-123"
+    },
+    "payload": {
+        "permanent": false
+    }
+}
+
+9. DELETE_FOLDER request:
+{
+    "action": "DELETE_FOLDER",
+    "target": {
+        "resource_id": "folder-uuid-456"
+    },
+    "payload": {
+        "permanent": false,
+        "recursive": true
+    }
+}
+
+10. COPY_FILE request:
+{
+    "action": "COPY_FILE",
+    "target": {
+        "resource_id": "file-uuid-123"
+    },
+    "payload": {
+        "destination_folder_id": "folder-uuid-destination",
+        "new_name": "report-copy.pdf"
+    }
+}
+
+11. COPY_FOLDER request:
+{
+    "action": "COPY_FOLDER",
+    "target": {
+        "resource_id": "folder-uuid-456"
+    },
+    "payload": {
+        "destination_parent_id": "folder-uuid-destination",
+        "new_name": "project-alpha-backup",
+        "recursive": true
+    }
+}
+
+12. MOVE_FILE request:
+{
+    "action": "MOVE_FILE",
+    "target": {
+        "resource_id": "file-uuid-123"
+    },
+    "payload": {
+        "destination_folder_id": "folder-uuid-destination",
+        "new_name": "report-new-location.pdf"
+    }
+}
+
+13. MOVE_FOLDER request:
+{
+    "action": "MOVE_FOLDER",
+    "target": {
+        "resource_id": "folder-uuid-456"
+    },
+    "payload": {
+        "destination_parent_id": "folder-uuid-destination",
+        "new_name": "project-alpha-archived"
+    }
+}
+
+14. RESTORE_TRASH request:
+{
+    "action": "RESTORE_TRASH",
+    "target": {
+        "resource_id": "folder-uuid-456"
+    },
+*/

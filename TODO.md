@@ -12,6 +12,8 @@
 
 - [🔵] Implement aws s3 storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time. also implement copy/move operations (dont need to wait for ACL since generating access token logic is same)
 - [🔵] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time. also implement copy/move operations (dont need to wait for ACL since generating access token logic is same)
+- [🔵] Add compatibility for storjweb3 alongside aws s3. test with private acl and upload.
+
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Figure out best way to elegantly handle in-canister vs off-canister raw file storage (potentially also `disks` logic holding auth creds)
