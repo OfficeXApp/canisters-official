@@ -379,9 +379,8 @@ pub mod directorys_handlers {
             None => file_id_with_extension,
         };
     
-        debug_log!("get_raw_url_proxy_handler: file_id={}", file_id.clone());
+        debug_log!("get_raw_url_proxy_handler: file_id={}", file_id);
     
-        
         // 2. Look up file metadata
         let file_meta = file_uuid_to_metadata.get(&FileUUID(file_id.to_string()));
         let file_meta = match file_meta {
@@ -422,13 +421,12 @@ pub mod directorys_handlers {
                 ErrorResponse::err(500, "Missing AWS credentials".to_string()).encode()
             ),
         };
-        
-        // 5. Generate the download filename (original filename with extension)
+    
+        // 5. Generate presigned URL with content-disposition header
         let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
-        
-        // 6. Generate presigned URL with content-disposition header
         let presigned_url = generate_s3_view_url(
-            &format!("{}/{}", file_id, file_meta.name),  // S3 key
+            &file_meta.id.0,          // file_id
+            &file_meta.extension,     // file_extension
             &aws_auth,
             Some(3600),
             Some(&download_filename)
@@ -436,7 +434,7 @@ pub mod directorys_handlers {
     
         debug_log!("get_raw_url_proxy_handler: Redirecting to presigned URL");
     
-        // 7. Return 302 redirect response
+        // 6. Return 302 redirect response
         HttpResponse::builder()
             .with_status_code(StatusCode::FOUND) // 302 Found
             .with_headers(vec![
@@ -481,3 +479,6 @@ pub mod directorys_handlers {
     }
     
 }
+
+
+

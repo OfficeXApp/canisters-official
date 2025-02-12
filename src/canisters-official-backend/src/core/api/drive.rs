@@ -175,6 +175,7 @@ pub mod drive {
     
                                 let upload_response = generate_s3_upload_url(
                                     &existing_uuid.0,
+                                    &existing_file.extension,
                                     &aws_auth,
                                     file_size,
                                     3600
@@ -260,6 +261,7 @@ pub mod drive {
     
         let upload_response = generate_s3_upload_url(
             &new_file_uuid.0,
+            file_metadata.extension.as_str(),
             &aws_auth,
             file_size,
             3600

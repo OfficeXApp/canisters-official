@@ -9,24 +9,19 @@ use time::{Duration, OffsetDateTime};
 use crate::core::state::disks::types::AwsBucketAuth;
 use num_traits::cast::ToPrimitive;
 
- pub fn generate_s3_view_url(
-        file_key: &str,
-        auth: &AwsBucketAuth,
-        expires_in: Option<u64>,
-        download_filename: Option<&str>  // New parameter
-    ) -> String {
-
+pub fn generate_s3_view_url(
+    file_id: &str,
+    file_extension: &str,  // Added parameter for file extension
+    auth: &AwsBucketAuth,
+    expires_in: Option<u64>,
+    download_filename: Option<&str>
+) -> String {
     let DEFAULT_EXPIRATION: u64 = 3600; // 1 hour in seconds
-
     let current_time = ic_cdk::api::time();
     
     // Format dates
     let date = format_date(current_time);         // YYYYMMDD
     let date_time = format_datetime(current_time); // YYYYMMDDTHHMMSSZ
-    
-    // Construct canonical request components
-    let http_method = "GET";
-    let canonical_uri = format!("/{}/{}", auth.bucket, file_key);
     
     // Query parameters
     let credential = format!("{}/{}/{}/s3/aws4_request", 
@@ -34,6 +29,11 @@ use num_traits::cast::ToPrimitive;
     
     let expiration = expires_in.unwrap_or(DEFAULT_EXPIRATION).to_string();
 
+    // Host construction
+    let host = format!("{}.s3.{}.amazonaws.com", auth.bucket, auth.region);
+
+    // Construct the S3 key using the same format as upload
+    let s3_key = format!("{}/{}.{}", file_id, file_id, file_extension);
 
     // Create content disposition string if filename provided
     let content_disposition = download_filename.map(|filename| {
@@ -41,7 +41,7 @@ use num_traits::cast::ToPrimitive;
         format!("attachment; filename=\"{}\"", encoded_filename)
     });
 
-    // Create query parameters including content-disposition if filename provided
+    // Create sorted query parameters
     let mut query_params = vec![
         ("X-Amz-Algorithm", "AWS4-HMAC-SHA256"),
         ("X-Amz-Credential", &credential),
@@ -49,39 +49,32 @@ use num_traits::cast::ToPrimitive;
         ("X-Amz-Expires", &expiration),
         ("X-Amz-SignedHeaders", "host")
     ];
-     
 
     // Add content-disposition if present
     if let Some(ref disposition) = content_disposition {
         query_params.push(("response-content-disposition", disposition));
     }
-    
+
     // Sort query parameters
     query_params.sort_by(|a, b| a.0.cmp(b.0));
-    
+
     // Create canonical query string
     let canonical_query_string = query_params
         .iter()
-        .map(|(k, v)| format!("{}={}", 
-            url_encode(k), 
-            url_encode(v)))
+        .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    
+
     // Create canonical headers
-    let host = format!("{}.s3.{}.amazonaws.com", auth.bucket, auth.region);
     let canonical_headers = format!("host:{}\n", host);
-    
+
     // Create canonical request
-    let canonical_request = format!("{}\n{}\n{}\n{}\n{}\n{}",
-        http_method,
-        canonical_uri,
+    let canonical_request = format!("GET\n/{}\n{}\n{}\nhost\nUNSIGNED-PAYLOAD",
+        s3_key,
         canonical_query_string,
-        canonical_headers,
-        "host",  // signed headers
-        "UNSIGNED-PAYLOAD"
+        canonical_headers
     );
-    
+
     // Create string to sign
     let string_to_sign = format!(
         "AWS4-HMAC-SHA256\n{}\n{}/{}/s3/aws4_request\n{}",
@@ -90,18 +83,26 @@ use num_traits::cast::ToPrimitive;
         auth.region,
         hex::encode(sha256_hash(canonical_request.as_bytes()))
     );
-    
+
     // Calculate signature
-    let signature = sign_policy(&string_to_sign, &auth.secret_key, &date, &auth.region);
-    
+    let signing_key = derive_signing_key(&auth.secret_key, &date, &auth.region, "s3");
+    let signature = hex::encode(hmac_sha256(&signing_key, string_to_sign.as_bytes()));
+
     // Construct final URL
     format!(
         "https://{}/{}?{}&X-Amz-Signature={}",
         host,
-        file_key,
+        s3_key,
         canonical_query_string,
         signature
     )
+}
+
+fn derive_signing_key(secret: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
+    let k_date = hmac_sha256(format!("AWS4{}", secret).as_bytes(), date.as_bytes());
+    let k_region = hmac_sha256(&k_date, region.as_bytes());
+    let k_service = hmac_sha256(&k_region, service.as_bytes());
+    hmac_sha256(&k_service, b"aws4_request")
 }
 
 // URL encode function that follows AWS rules
@@ -133,7 +134,8 @@ pub struct S3UploadResponse {
 }
 
 pub fn generate_s3_upload_url(
-    parent_folder_id: &str,
+    file_id: &str,
+    file_extension: &str,
     auth: &AwsBucketAuth,
     max_size: u64,
     expires_in: u64
@@ -146,13 +148,16 @@ pub fn generate_s3_upload_url(
     let date_time = format_datetime(current_time); 
     let expiration = format_iso8601(expiration_time);
 
-    // Policy document restricting uploads to folder
+    // Create the target key using fileId for both directory and filename
+    let target_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+
+    // Policy document with exact key instead of starts-with
     let policy = format!(
         r#"{{
             "expiration": "{}",
             "conditions": [
                 {{"bucket": "{}"}},
-                ["starts-with", "$key", "{}/"],
+                {{"key": "{}"}},
                 {{"acl": "private"}},
                 ["content-length-range", 0, {}],
                 {{"x-amz-algorithm": "AWS4-HMAC-SHA256"}},
@@ -162,7 +167,7 @@ pub fn generate_s3_upload_url(
         }}"#,
         expiration,
         auth.bucket,
-        parent_folder_id,
+        target_key,
         max_size,
         auth.access_key,
         date,
@@ -173,9 +178,9 @@ pub fn generate_s3_upload_url(
     let policy_base64 = general_purpose::STANDARD.encode(policy);
     let signature = sign_policy(&policy_base64, &auth.secret_key, &date, &auth.region);
 
-    // Construct fields map
+    // Construct fields map with exact key
     let mut fields = HashMap::new();
-    fields.insert("key".to_string(), format!("{}/{{filename}}", parent_folder_id));
+    fields.insert("key".to_string(), target_key);
     fields.insert("acl".to_string(), "private".to_string());
     fields.insert("x-amz-algorithm".to_string(), "AWS4-HMAC-SHA256".to_string());
     fields.insert(
