@@ -1,88 +1,91 @@
 // OfficeX filesharing app (clone of google drive)
 // where possible, show the code changes as green diffs without the +/- symbols
 
-// src/core/api/disks/aws_s3.rs
-
+// src/core/api/disks/storj_web3.rs
 use std::collections::HashMap;
-
-use base64::{Engine as _, engine::general_purpose};
-use ic_cdk::api::management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod};
-use serde::{Serialize, Deserialize};
+use base64::{engine::general_purpose, Engine as _};
+use ic_cdk::api::management_canister::http_request::{
+    http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod,
+};
+use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
-use crate::core::state::disks::types::{AwsBucketAuth, DiskTypeEnum};
+use crate::{core::state::disks::types::AwsBucketAuth, rest::directory::types::DiskUploadResponse};
 use num_traits::cast::ToPrimitive;
 
-pub fn generate_s3_view_url(
+//
+// Helper: Extract host from the Storj endpoint URL.
+//
+fn extract_host(endpoint: &str) -> String {
+    // This uses the url crate. You can add it to Cargo.toml.
+    let url = url::Url::parse(endpoint).expect("Invalid endpoint URL");
+    url.host_str()
+        .expect("No host in endpoint URL")
+        .to_string()
+}
+
+//
+// VIEW URL: Create a presigned GET URL for accessing an object.
+//
+pub fn generate_storj_view_url(
     file_id: &str,
-    file_extension: &str,  // Added parameter for file extension
+    file_extension: &str,  // file extension, e.g. "jpg"
     auth: &AwsBucketAuth,
-    disk_type: &DiskTypeEnum,
     expires_in: Option<u64>,
-    download_filename: Option<&str>
+    download_filename: Option<&str>,
 ) -> String {
-    let DEFAULT_EXPIRATION: u64 = 3600; // 1 hour in seconds
+    let DEFAULT_EXPIRATION: u64 = 3600; // seconds
     let current_time = ic_cdk::api::time();
-    
-    // Format dates
     let date = format_date(current_time);         // YYYYMMDD
     let date_time = format_datetime(current_time); // YYYYMMDDTHHMMSSZ
-    
-    // Query parameters
-    let credential = format!("{}/{}/{}/s3/aws4_request", 
-        auth.access_key, date, auth.region);
-    
+
+    // Build credential string (same as AWS)
+    let credential = format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region);
     let expiration = expires_in.unwrap_or(DEFAULT_EXPIRATION).to_string();
 
-    // Host construction
-    let host = match disk_type {
-        DiskTypeEnum::StorjWeb3 => auth.endpoint.trim_start_matches("https://").to_string(),
-        _ => format!("{}.s3.{}.amazonaws.com", auth.bucket, auth.region)
-    };
+    // Instead of computing an AWS S3 host, use the Storj gateway.
+    // (Make sure your auth.endpoint is something like "https://gateway.storjshare.io")
+    let endpoint = auth.endpoint.trim_end_matches('/');
+    let host = extract_host(endpoint);
 
-    // Construct the S3 key using the same format as upload
+    // Build the S3 key as before.
     let s3_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+    // For path‐style, the canonical URI includes the bucket.
+    let canonical_uri = format!("/{}/{}", auth.bucket, s3_key);
 
-    // Create content disposition string if filename provided
-    let content_disposition = download_filename.map(|filename| {
+    // Revised code with owned values:
+    let content_disposition: Option<String> = download_filename.map(|filename| {
         let encoded_filename = url_encode(filename);
         format!("attachment; filename=\"{}\"", encoded_filename)
     });
 
-    // Create sorted query parameters
-    let mut query_params = vec![
-        ("X-Amz-Algorithm", "AWS4-HMAC-SHA256"),
-        ("X-Amz-Credential", &credential),
-        ("X-Amz-Date", &date_time),
-        ("X-Amz-Expires", &expiration),
-        ("X-Amz-SignedHeaders", "host")
+    let mut query_params: Vec<(String, String)> = vec![
+        ("X-Amz-Algorithm".to_string(), "AWS4-HMAC-SHA256".to_string()),
+        ("X-Amz-Credential".to_string(), credential),
+        ("X-Amz-Date".to_string(), date_time.clone()),
+        ("X-Amz-Expires".to_string(), expiration),
+        ("X-Amz-SignedHeaders".to_string(), "host".to_string()),
     ];
 
-    // Add content-disposition if present
-    if let Some(ref disposition) = content_disposition {
-        query_params.push(("response-content-disposition", disposition));
+    if let Some(disposition) = content_disposition {
+        query_params.push(("response-content-disposition".to_string(), disposition));
     }
 
-    // Sort query parameters
-    query_params.sort_by(|a, b| a.0.cmp(b.0));
-
-    // Create canonical query string
+    // Sort and join the query parameters.
+    query_params.sort_by(|a, b| a.0.cmp(&b.0));
     let canonical_query_string = query_params
         .iter()
         .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
 
-    // Create canonical headers
+    // Build the canonical headers and canonical request.
     let canonical_headers = format!("host:{}\n", host);
-
-    // Create canonical request
-    let canonical_request = format!("GET\n/{}\n{}\n{}\nhost\nUNSIGNED-PAYLOAD",
-        s3_key,
-        canonical_query_string,
-        canonical_headers
+    let canonical_request = format!(
+        "GET\n{}\n{}\n{}\n{}\nUNSIGNED-PAYLOAD",
+        canonical_uri, canonical_query_string, canonical_headers, "host"
     );
 
-    // Create string to sign
+    // Build the string to sign.
     let string_to_sign = format!(
         "AWS4-HMAC-SHA256\n{}\n{}/{}/s3/aws4_request\n{}",
         date_time,
@@ -91,85 +94,44 @@ pub fn generate_s3_view_url(
         hex::encode(sha256_hash(canonical_request.as_bytes()))
     );
 
-    // Calculate signature
+    // Derive the signing key and compute the signature.
     let signing_key = derive_signing_key(&auth.secret_key, &date, &auth.region, "s3");
     let signature = hex::encode(hmac_sha256(&signing_key, string_to_sign.as_bytes()));
 
-    // Construct final URL
-    match disk_type {
-        DiskTypeEnum::StorjWeb3 => format!(
-            "{}/{}/{}?{}&X-Amz-Signature={}",
-            auth.endpoint,
-            auth.bucket,
-            s3_key,
-            canonical_query_string,
-            signature
-        ),
-        _ => format!(
-            "https://{}/{}?{}&X-Amz-Signature={}",
-            host,
-            s3_key,
-            canonical_query_string,
-            signature
-        )
-    }
+    // Construct the final presigned URL.
+    // Note that the bucket is now part of the path.
+    format!(
+        "{}/{}/{}?{}&X-Amz-Signature={}",
+        endpoint,
+        auth.bucket,
+        s3_key,
+        canonical_query_string,
+        signature
+    )
 }
 
-fn derive_signing_key(secret: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
-    let k_date = hmac_sha256(format!("AWS4{}", secret).as_bytes(), date.as_bytes());
-    let k_region = hmac_sha256(&k_date, region.as_bytes());
-    let k_service = hmac_sha256(&k_region, service.as_bytes());
-    hmac_sha256(&k_service, b"aws4_request")
-}
-
-// URL encode function that follows AWS rules
-fn url_encode(s: &str) -> String {
-    let mut encoded = String::new();
-    for c in s.chars() {
-        match c {
-            'A'..='Z' | 'a'..='z' | '0'..='9' | '_' | '-' | '~' | '.' => encoded.push(c),
-            _ => {
-                encoded.push_str(&format!("%{:02X}", c as u8));
-            }
-        }
-    }
-    encoded
-}
-
-// SHA256 hash function
-fn sha256_hash(data: &[u8]) -> Vec<u8> {
-    use sha2::{Sha256, Digest};
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hasher.finalize().to_vec()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct S3UploadResponse {
-    pub url: String,
-    pub fields: HashMap<String, String>,
-}
-
-pub fn generate_s3_upload_url(
+//
+// UPLOAD URL: Create a presigned POST policy for uploading an object.
+//
+pub fn generate_storj_upload_url(
     file_id: &str,
     file_extension: &str,
     auth: &AwsBucketAuth,
-    disk_type: &DiskTypeEnum,
     max_size: u64,
-    expires_in: u64
-) -> Result<S3UploadResponse, String> {
+    expires_in: u64,
+) -> Result<DiskUploadResponse, String> {
     let current_time = ic_cdk::api::time();
     let expiration_time = current_time + (expires_in * 1_000_000_000);
 
-    // Convert timestamps to required formats
-    let date = format_date(current_time);         
-    let date_time = format_datetime(current_time); 
+    // Convert timestamps to the required formats.
+    let date = format_date(current_time);
+    let date_time = format_datetime(current_time);
     let expiration = format_iso8601(expiration_time);
 
-    // Create the target key using fileId for both directory and filename
+    // Build the object key (does not include bucket here).
     let target_key = format!("{}/{}.{}", file_id, file_id, file_extension);
 
-    // Policy document with exact key instead of starts-with
+    // Create the policy document.
     let policy = format!(
         r#"{{
             "expiration": "{}",
@@ -196,116 +158,45 @@ pub fn generate_s3_upload_url(
     let policy_base64 = general_purpose::STANDARD.encode(policy);
     let signature = sign_policy(&policy_base64, &auth.secret_key, &date, &auth.region);
 
-    // Construct fields map with exact key
+    // Build the fields for the form POST.
     let mut fields = HashMap::new();
     fields.insert("key".to_string(), target_key);
     fields.insert("acl".to_string(), "private".to_string());
     fields.insert("x-amz-algorithm".to_string(), "AWS4-HMAC-SHA256".to_string());
     fields.insert(
-        "x-amz-credential".to_string(), 
-        format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region)
+        "x-amz-credential".to_string(),
+        format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region),
     );
     fields.insert("x-amz-date".to_string(), date_time);
     fields.insert("policy".to_string(), policy_base64);
     fields.insert("x-amz-signature".to_string(), signature);
 
-    // Use appropriate endpoint URL based on service type
-    let url = match disk_type {
-        DiskTypeEnum::StorjWeb3 => format!("{}/{}", auth.endpoint, auth.bucket),
-        _ => format!("https://{}.s3.{}.amazonaws.com", auth.bucket, auth.region)
-    };
-
-    Ok(S3UploadResponse {
-        url,
+    // For uploads the URL is the Storj gateway endpoint with the bucket in the path.
+    Ok(DiskUploadResponse {
+        url: format!("{}/{}", auth.endpoint.trim_end_matches('/'), auth.bucket),
         fields,
     })
 }
 
-
-fn format_date(time: u64) -> String {
-    let nanoseconds = time as i64;
-    let seconds = nanoseconds / 1_000_000_000;
-    let nanos_remainder = nanoseconds % 1_000_000_000;
-    
-    let dt = OffsetDateTime::from_unix_timestamp(seconds)
-        .unwrap()
-        .saturating_add(Duration::nanoseconds(nanos_remainder));
-    
-    format!("{:04}{:02}{:02}", 
-        dt.year(), dt.month() as u8, dt.day())
-}
-
-fn format_datetime(time: u64) -> String {
-    let nanoseconds = time as i64;
-    let seconds = nanoseconds / 1_000_000_000;
-    let nanos_remainder = nanoseconds % 1_000_000_000;
-    
-    let dt = OffsetDateTime::from_unix_timestamp(seconds)
-        .unwrap()
-        .saturating_add(Duration::nanoseconds(nanos_remainder));
-    
-    format!("{:04}{:02}{:02}T{:02}{:02}{:02}Z",
-        dt.year(), dt.month() as u8, dt.day(),
-        dt.hour(), dt.minute(), dt.second())
-}
-
-fn format_iso8601(time: u64) -> String {
-    let nanoseconds = time as i64;
-    let seconds = nanoseconds / 1_000_000_000;
-    let nanos_remainder = nanoseconds % 1_000_000_000;
-    
-    let dt = OffsetDateTime::from_unix_timestamp(seconds)
-        .unwrap()
-        .saturating_add(Duration::nanoseconds(nanos_remainder));
-    
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        dt.year(), dt.month() as u8, dt.day(),
-        dt.hour(), dt.minute(), dt.second())
-}
-
-fn sign_policy(policy: &str, secret: &str, date: &str, region: &str) -> String {
-    let date_key = hmac_sha256(
-        format!("AWS4{}", secret).as_bytes(),
-        date.as_bytes()
-    );
-    let region_key = hmac_sha256(&date_key, region.as_bytes());
-    let service_key = hmac_sha256(&region_key, b"s3");
-    let signing_key = hmac_sha256(&service_key, b"aws4_request");
-    
-    hex::encode(hmac_sha256(&signing_key, policy.as_bytes()))
-}
-
-fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
-    use hmac::{Hmac, Mac};
-    use sha2::Sha256;
-    
-    type HmacSha256 = Hmac<Sha256>;
-    let mut mac = HmacSha256::new_from_slice(key)
-        .expect("HMAC can take key of any size");
-    mac.update(data);
-    mac.finalize().into_bytes().to_vec()
-}
-
-
-
-pub async fn copy_s3_object(
+//
+// COPY OBJECT: Adjust an object copy to work with Storj’s path-style URLs.
+//
+pub async fn copy_storj_object(
     source_key: &str,
-    destination_key: &str, 
+    destination_key: &str,
     auth: &AwsBucketAuth,
 ) -> Result<(), String> {
-    let host = format!("{}.s3.{}.amazonaws.com", auth.bucket, auth.region);
+    let endpoint = auth.endpoint.trim_end_matches('/');
+    let host = extract_host(endpoint);
+
     let current_time = ic_cdk::api::time();
     let date = format_date(current_time);
     let date_time = format_datetime(current_time);
+    let credential = format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region);
 
-    // Create the canonical request components for AWS Signature V4
-    let credential = format!("{}/{}/{}/s3/aws4_request", 
-        auth.access_key, date, auth.region);
+    // For path‑style requests the source must include the bucket.
+    let copy_source = format!("/{}/{}", auth.bucket, source_key);
 
-    // Create copy source header
-    let copy_source = format!("{}/{}", auth.bucket, source_key);
-    
-    // Construct the request headers
     let headers = vec![
         HttpHeader {
             name: "Host".to_string(),
@@ -325,23 +216,19 @@ pub async fn copy_s3_object(
         },
     ];
 
-    // Create canonical request
-    let canonical_uri = format!("/{}", destination_key);
+    // The canonical URI now includes the bucket.
+    let canonical_uri = format!("/{}/{}", auth.bucket, destination_key);
     let canonical_headers = format!(
         "host:{}\nx-amz-content-sha256:UNSIGNED-PAYLOAD\nx-amz-copy-source:{}\nx-amz-date:{}\n",
         host, copy_source, date_time
     );
     let signed_headers = "host;x-amz-content-sha256;x-amz-copy-source;x-amz-date";
 
-    let canonical_request = format!("{}\n{}\n\n{}\n{}\n{}",
-        "PUT",
-        canonical_uri,
-        canonical_headers,
-        signed_headers,
-        "UNSIGNED-PAYLOAD"
+    let canonical_request = format!(
+        "PUT\n{}\n{}\n{}\n{}\nUNSIGNED-PAYLOAD",
+        canonical_uri, "", canonical_headers, signed_headers
     );
 
-    // Create string to sign
     let string_to_sign = format!(
         "AWS4-HMAC-SHA256\n{}\n{}/{}/s3/aws4_request\n{}",
         date_time,
@@ -350,59 +237,155 @@ pub async fn copy_s3_object(
         hex::encode(sha256_hash(canonical_request.as_bytes()))
     );
 
-    // Calculate signature
-    let signature = sign_policy(&string_to_sign, &auth.secret_key, &date, &auth.region);
+    // Use the same signing method as in the view URL.
+    let signing_key = derive_signing_key(&auth.secret_key, &date, &auth.region, "s3");
+    let signature = hex::encode(hmac_sha256(&signing_key, string_to_sign.as_bytes()));
 
-    // Create Authorization header
     let authorization = format!(
         "AWS4-HMAC-SHA256 Credential={},SignedHeaders={},Signature={}",
         credential, signed_headers, signature
     );
 
-    // Add Authorization header to headers vec
     let mut final_headers = headers;
     final_headers.push(HttpHeader {
         name: "Authorization".to_string(),
         value: authorization,
     });
 
-    // Create the HTTP request
     let request = CanisterHttpRequestArgument {
-        url: format!("https://{}/{}", host, destination_key),
-        method: HttpMethod::POST,
+        // The destination URL includes the endpoint, bucket, and destination key.
+        url: format!("{}/{}/{}", endpoint, auth.bucket, destination_key),
+        method: HttpMethod::POST, // Use PUT for S3 copy
         headers: final_headers,
         body: None,
         max_response_bytes: Some(2048),
         transform: None,
     };
 
-    // Make the HTTP request using IC management canister
+    // Issue the HTTP request.
     let cycles: u128 = 100_000_000_000;
-    
     match http_request(request, cycles).await {
         Ok((response,)) => {
-            let status_u16: u16 = response.status.0.to_u64() // Convert BigUint to u64 first
+            let status_u16: u16 = response.status.0.to_u64()
                 .and_then(|n| {
                     if n <= u16::MAX as u64 {
-                        Some(n as u16) // Safely narrow to u16
+                        Some(n as u16)
                     } else {
-                        None // Handle overflow
+                        None
                     }
                 })
-                .unwrap_or(500); // Fallback to 500 if conversion fails
+                .unwrap_or(500);
 
             if status_u16 < 200 || status_u16 >= 300 {
-                Err(format!("S3 copy failed with status {}: {}", 
+                Err(format!(
+                    "S3 copy failed with status {}: {}",
                     status_u16,
-                    String::from_utf8_lossy(&response.body)))
+                    String::from_utf8_lossy(&response.body)
+                ))
             } else {
                 Ok(())
             }
-        },
-        Err((code, msg)) => Err(format!("HTTP request failed: {:?} - {}", code, msg))
+        }
+        Err((code, msg)) => Err(format!("HTTP request failed: {:?} - {}", code, msg)),
     }
 }
 
+//
+// UTILITY FUNCTIONS
+//
+fn derive_signing_key(secret: &str, date: &str, region: &str, service: &str) -> Vec<u8> {
+    let k_date = hmac_sha256(format!("AWS4{}", secret).as_bytes(), date.as_bytes());
+    let k_region = hmac_sha256(&k_date, region.as_bytes());
+    let k_service = hmac_sha256(&k_region, service.as_bytes());
+    hmac_sha256(&k_service, b"aws4_request")
+}
+
+fn url_encode(s: &str) -> String {
+    let mut encoded = String::new();
+    for c in s.chars() {
+        match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '_' | '-' | '~' | '.' => encoded.push(c),
+            _ => {
+                encoded.push_str(&format!("%{:02X}", c as u8));
+            }
+        }
+    }
+    encoded
+}
+
+fn sha256_hash(data: &[u8]) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().to_vec()
+}
+
+fn format_date(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    format!("{:04}{:02}{:02}", dt.year(), dt.month() as u8, dt.day())
+}
+
+fn format_datetime(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    format!(
+        "{:04}{:02}{:02}T{:02}{:02}{:02}Z",
+        dt.year(),
+        dt.month() as u8,
+        dt.day(),
+        dt.hour(),
+        dt.minute(),
+        dt.second()
+    )
+}
+
+fn format_iso8601(time: u64) -> String {
+    let nanoseconds = time as i64;
+    let seconds = nanoseconds / 1_000_000_000;
+    let nanos_remainder = nanoseconds % 1_000_000_000;
+
+    let dt = OffsetDateTime::from_unix_timestamp(seconds)
+        .unwrap()
+        .saturating_add(Duration::nanoseconds(nanos_remainder));
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        dt.year(),
+        dt.month() as u8,
+        dt.day(),
+        dt.hour(),
+        dt.minute(),
+        dt.second()
+    )
+}
+
+fn sign_policy(policy: &str, secret: &str, date: &str, region: &str) -> String {
+    let date_key = hmac_sha256(format!("AWS4{}", secret).as_bytes(), date.as_bytes());
+    let region_key = hmac_sha256(&date_key, region.as_bytes());
+    let service_key = hmac_sha256(&region_key, b"s3");
+    let signing_key = hmac_sha256(&service_key, b"aws4_request");
+    hex::encode(hmac_sha256(&signing_key, policy.as_bytes()))
+}
+
+fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(key)
+        .expect("HMAC can take key of any size");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
+}
 
 
 // src/core/api/drive.rs
@@ -410,7 +393,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::aws_s3::{copy_s3_object, generate_s3_upload_url, S3UploadResponse}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
             },
             state::{
                 directory::{
@@ -419,7 +402,7 @@ pub mod drive {
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
             }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
-        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
     pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
@@ -511,8 +494,8 @@ pub mod drive {
         expires_at: i64,
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    ) -> Result<(FileMetadata, S3UploadResponse), String> {
-        let sanitized_file_path = sanitize_file_path(&file_path);
+    ) -> Result<(FileMetadata, DiskUploadResponse), String> {
+        let sanitized_file_path: String = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
         
         // Handle naming conflicts
@@ -580,14 +563,37 @@ pub mod drive {
                                 let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
                                     .map_err(|_| "Invalid AWS credentials format".to_string())?;
     
-                                let upload_response = generate_s3_upload_url(
-                                    &existing_uuid.0,
-                                    &existing_file.extension,
-                                    &aws_auth,
-                                    &existing_file.disk_type,
-                                    file_size,
-                                    3600
-                                )?;
+                                // Example using an "existing file" upload.
+                                let upload_response = match existing_file.disk_type {
+                                    DiskTypeEnum::AwsBucket => {
+                                        generate_s3_upload_url(
+                                            &existing_uuid.0,           // file_id
+                                            &existing_file.extension,   // file_extension
+                                            &aws_auth.clone(),                  // AWS credentials
+                                            file_size,
+                                            3600
+                                        )?
+                                    }
+                                    DiskTypeEnum::StorjWeb3 => {
+                                        generate_storj_upload_url(
+                                            &existing_uuid.0,           // file_id
+                                            &existing_file.extension,   // file_extension
+                                            &aws_auth.clone(),                // Storj credentials (make sure to define this)
+                                            file_size,
+                                            3600
+                                        )?
+                                    }
+                                    // Optionally handle other disk types
+                                    _ => {
+                                        panic!(
+                                            "Unsupported disk type for generating an upload URL: {:?}",
+                                            existing_file.disk_type
+                                        );
+                                    }
+                                };
+
+                                println!("Upload response: {:?}", upload_response);
+
     
                                 Ok((existing_file, upload_response))
                             },
@@ -667,14 +673,35 @@ pub mod drive {
         let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
             .map_err(|_| "Invalid AWS credentials format".to_string())?;
     
-        let upload_response = generate_s3_upload_url(
-            &new_file_uuid.0,
-            file_metadata.extension.as_str(),
-            &aws_auth,
-            &file_metadata.disk_type,
-            file_size,
-            3600
-        )?;
+        let upload_response = match file_metadata.disk_type {
+            DiskTypeEnum::AwsBucket => {
+                generate_s3_upload_url(
+                    &new_file_uuid.0,                // file_id
+                    file_metadata.extension.as_str(),// file_extension
+                    &aws_auth.clone(),                       // AWS credentials
+                    file_size,
+                    3600
+                )?
+            }
+            DiskTypeEnum::StorjWeb3 => {
+                generate_storj_upload_url(
+                    &new_file_uuid.0,                // file_id
+                    file_metadata.extension.as_str(),// file_extension
+                    &aws_auth.clone(),                     // Storj credentials
+                    file_size,
+                    3600
+                )?
+            }
+            _ => {
+                panic!(
+                    "Unsupported disk type for generating an upload URL: {:?}",
+                    file_metadata.disk_type
+                );
+            }
+        };
+        
+        println!("Upload response: {:?}", upload_response);
+            
     
         Ok((file_metadata, upload_response))
     }
@@ -1705,579 +1732,6 @@ pub mod drive {
 
 }
 
-// src/core/api/internals.rs
-pub mod drive_internals {
-    use crate::{
-        core::{api::{drive::drive::get_folder_by_id, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
-        
-    };
-    
-    use regex::Regex;
-
-    pub fn sanitize_file_path(file_path: &str) -> String {
-        let original = file_path.to_string();
-        let mut parts = file_path.splitn(2, "::");
-        let storage_part = parts.next().unwrap_or("");
-        let path_part = parts.next().unwrap_or("");
-    
-        let sanitized = path_part.replace(':', ";");
-        let re = Regex::new(r"/+").unwrap();
-        let sanitized = re.replace_all(&sanitized, "/").to_string();
-        let sanitized = sanitized.trim_matches('/').to_string();
-    
-        let final_path = format!("{}::{}", storage_part, sanitized);
-        ic_cdk::println!("sanitize_file_path: {} -> {}", original, final_path);
-        final_path
-    }
-    
-
-    pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderUUID {
-        let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
-        let canister_icp_principal_string = if canister_id.is_empty() {
-            ic_cdk::api::id().to_text()
-        } else {
-            canister_id.clone()
-        };
-        let root_uuid = if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
-            uuid.clone()
-        } else {
-            let root_folder_uuid = generate_unique_id("FolderUUID", "");
-            let root_folder = FolderMetadata {
-                id: FolderUUID(root_folder_uuid.clone()),
-                name: String::new(),
-                parent_folder_uuid: None,
-                restore_trash_prior_folder_path: None,
-                subfolder_uuids: Vec::new(),
-                file_uuids: Vec::new(),
-                full_folder_path: root_path.clone(),
-                tags: Vec::new(),
-                created_by: user_id.clone(),
-                created_date_ms: ic_cdk::api::time(),
-                disk_id: disk_id.clone(),
-                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
-                last_updated_by: user_id.clone(),
-                deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
-                expires_at: -1,
-            };
-    
-            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid.clone()), root_folder);
-            FolderUUID(root_folder_uuid)
-        };
-
-        // Ensure .trash folder exists
-        let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
-        if !full_folder_path_to_uuid.contains_key(&trash_path) {
-            let trash_folder_uuid = generate_unique_id("FolderUUID", "");
-            let trash_folder = FolderMetadata {
-                id: FolderUUID(trash_folder_uuid.clone()),
-                name: ".trash".to_string(),
-                parent_folder_uuid: Some(root_uuid.clone()),
-                restore_trash_prior_folder_path: None,
-                subfolder_uuids: Vec::new(),
-                file_uuids: Vec::new(),
-                full_folder_path: trash_path.clone(),
-                tags: Vec::new(),
-                created_by: user_id.clone(),
-                created_date_ms: ic_cdk::api::time(),
-                disk_id: disk_id.clone(),
-                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
-                last_updated_by: user_id.clone(),
-                deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string)),
-                expires_at: -1,
-            };
-
-            full_folder_path_to_uuid.insert(trash_path, FolderUUID(trash_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(trash_folder_uuid.clone()), trash_folder);
-            
-            // Add trash folder to root's subfolders
-            folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(root_folder) = map.get_mut(&root_uuid) {
-                    root_folder.subfolder_uuids.push(FolderUUID(trash_folder_uuid));
-                }
-            });
-        }
-
-        root_uuid
-    }
-
-    pub fn update_subfolder_paths(folder_id: &FolderUUID, old_path: &str, new_path: &str) {
-        // Get folder metadata first
-        let folder = match folder_uuid_to_metadata.get(folder_id) {
-            Some(f) => f,
-            None => return,
-        };
-    
-        // Clone the vectors we need to iterate over to avoid borrowing issues
-        let subfolder_uuids = folder.subfolder_uuids.clone();
-        let file_uuids = folder.file_uuids.clone();
-    
-        // Update subfolders
-        for subfolder_id in &subfolder_uuids {
-            // Get old path before updating
-            let old_subfolder_path = if let Some(subfolder) = folder_uuid_to_metadata.get(subfolder_id) {
-                subfolder.full_folder_path.clone()
-            } else {
-                continue;
-            };
-    
-            let new_subfolder_path = DriveFullFilePath(old_subfolder_path.to_string().replace(old_path, new_path));
-            
-            // Update folder metadata
-            folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(subfolder) = map.get_mut(subfolder_id) {
-                    subfolder.full_folder_path = new_subfolder_path.clone();
-                }
-            });
-            
-            // Update path mappings
-            full_folder_path_to_uuid.remove(&old_subfolder_path);
-            full_folder_path_to_uuid.insert(new_subfolder_path.clone(), subfolder_id.clone());
-            
-            // Recursively update paths for this subfolder
-            update_subfolder_paths(subfolder_id, &old_subfolder_path.to_string(), &new_subfolder_path.to_string());
-        }
-    
-        // Update file paths
-        for file_id in &file_uuids {
-            // Get old path before updating
-            let old_file_path = if let Some(file) = file_uuid_to_metadata.get(file_id) {
-                file.full_file_path.clone()
-            } else {
-                continue;
-            };
-    
-            let new_file_path = DriveFullFilePath(old_file_path.to_string().replace(old_path, new_path));
-            
-            // Update file metadata
-            file_uuid_to_metadata.with_mut(|map| {
-                if let Some(file) = map.get_mut(file_id) {
-                    file.full_file_path = new_file_path.clone();
-                }
-            });
-            
-            // Update path mappings
-            full_file_path_to_uuid.remove(&old_file_path);
-            full_file_path_to_uuid.insert(new_file_path, file_id.clone());
-        }
-    }
-
-    pub fn ensure_folder_structure(
-        folder_path: &str,
-        disk_id: DiskID,
-        user_id: UserID,
-        canister_id: String,
-    ) -> FolderUUID {
-        let path_parts: Vec<&str> = folder_path.split("::").collect();
-        let mut current_path = format!("{}::", path_parts[0]);
-
-        let canister_icp_principal_string = if canister_id.is_empty() {
-            ic_cdk::api::id().to_text()
-        } else {
-            canister_id.clone()
-        };
-
-        let mut parent_uuid = ensure_root_folder(&disk_id, &user_id, canister_icp_principal_string.clone());
-
-        for part in path_parts[1].split('/').filter(|&p| !p.is_empty()) {
-            current_path = format!("{}{}/", current_path.clone(), part);
-            
-            if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
-                let new_folder_uuid = FolderUUID(generate_unique_id("FolderUUID",""));
-                let new_folder = FolderMetadata {
-                    id: new_folder_uuid.clone(),
-                    name: part.to_string(),
-                    parent_folder_uuid: Some(parent_uuid.clone()),
-                    subfolder_uuids: Vec::new(),
-                    file_uuids: Vec::new(),
-                    full_folder_path: DriveFullFilePath(current_path.clone()),
-                    tags: Vec::new(),
-                    created_by: user_id.clone(),
-                    created_date_ms: ic_cdk::api::time(),
-                    disk_id: disk_id.clone(),
-                    last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
-                    last_updated_by: user_id.clone(),
-                    deleted: false,
-                    canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
-                    expires_at: -1,
-                    restore_trash_prior_folder_path: None,
-                };
-
-                full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
-                folder_uuid_to_metadata.insert(new_folder_uuid.clone(), new_folder);
-
-                // Update parent folder's subfolder_uuids
-                folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(parent_folder) = map.get_mut(&parent_uuid) {
-                        if !parent_folder.subfolder_uuids.contains(&new_folder_uuid) {
-                            parent_folder.subfolder_uuids.push(new_folder_uuid.clone());
-                        }
-                    }
-                });
-
-                parent_uuid = new_folder_uuid;
-            } else {
-                parent_uuid = full_folder_path_to_uuid.get(&DriveFullFilePath(current_path.clone()))
-                    .expect("Folder UUID not found")
-                    .clone();
-            }
-        }
-
-            
-
-        parent_uuid
-    }
-
-    pub fn split_path(full_path: &str) -> (String, String) {
-        let original = full_path.to_string();
-        let parts: Vec<&str> = full_path.rsplitn(2, '/').collect();
-        let (folder, filename) = match parts.as_slice() {
-            [file_name, folder_path] => (folder_path.to_string(), file_name.to_string()),
-            [single_part] => {
-                let storage_parts: Vec<&str> = single_part.splitn(2, "::").collect();
-                match storage_parts.as_slice() {
-                    [storage, file_name] => (format!("{}::", storage), file_name.to_string()),
-                    _ => (String::new(), single_part.to_string()),
-                }
-            },
-            _ => (String::new(), String::new()),
-        };
-        ic_cdk::println!("split_path: {} -> ({}, {})", original, folder, filename);
-        (folder, filename)
-    }
-    
-
-    pub fn update_folder_file_uuids(folder_uuid: &FolderUUID, file_uuid: &FileUUID, is_add: bool) {
-        folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(folder_uuid) {
-                if is_add {
-                    if !folder.file_uuids.contains(file_uuid) {
-                        folder.file_uuids.push(file_uuid.clone());
-                    }
-                } else {
-                    folder.file_uuids.retain(|uuid| uuid != file_uuid);
-                }
-            }
-        });
-    }
-    
-    pub fn translate_path_to_id(path: DriveFullFilePath) -> PathTranslationResponse {
-        // Check if path ends with '/' to determine if we're looking for a folder
-        let is_folder_path = path.0.ends_with('/');
-        
-        let mut response = PathTranslationResponse {
-            folder: None,
-            file: None,
-        };
-
-        if is_folder_path {
-            // Look up folder UUID first
-            if let Some(folder_uuid) = full_folder_path_to_uuid.get(&path) {
-                // Then get the folder metadata
-                response.folder = folder_uuid_to_metadata.get(&folder_uuid);
-            }
-        } else {
-            // Look up file UUID first
-            if let Some(file_uuid) = full_file_path_to_uuid.get(&path) {
-                // Then get the file metadata
-                response.file = file_uuid_to_metadata.get(&file_uuid);
-            }
-        }
-
-        response
-    }
-
-    pub fn format_file_asset_path (
-        file_uuid: FileUUID,
-        extension: String,
-    ) -> String {
-        format!(
-            "https://{}.raw.icp0.io/directory/asset/{file_uuid}.{extension}",
-            ic_cdk::api::id().to_text()
-        )
-    }
-
-    pub fn resolve_naming_conflict(
-        base_path: &str,
-        name: &str,
-        is_folder: bool,
-        resolution: Option<FileConflictResolutionEnum>,
-    ) -> (String, String) {
-        // Start with the initial name and computed full path.
-        let mut final_name = name.to_string();
-        let mut final_path = if is_folder {
-            format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
-        } else {
-            format!("{}/{}", base_path.trim_end_matches('/'), final_name)
-        };
-    
-        debug_log!(
-            "resolve_naming_conflict: initial base_path: '{}', name: '{}', is_folder: {} -> final_name: '{}', final_path: '{}'",
-            base_path, name, is_folder, final_name, final_path
-        );
-    
-        match resolution.unwrap_or(FileConflictResolutionEnum::KEEP_BOTH) {
-            FileConflictResolutionEnum::REPLACE => {
-                debug_log!(
-                    "resolve_naming_conflict: Using REPLACE. Returning final_name: '{}' and final_path: '{}'",
-                    final_name,
-                    final_path
-                );
-                (final_name, final_path)
-            },
-            FileConflictResolutionEnum::KEEP_ORIGINAL => {
-                if (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
-                    || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
-                {
-                    debug_log!(
-                        "resolve_naming_conflict (KEEP_ORIGINAL): Conflict found for final_path: '{}'. Returning empty strings to keep original.",
-                        final_path
-                    );
-                    return (String::new(), String::new()); // Signal to keep original
-                }
-                debug_log!(
-                    "resolve_naming_conflict (KEEP_ORIGINAL): No conflict for final_path: '{}'. Returning final_name: '{}' and final_path: '{}'",
-                    final_path, final_name, final_path
-                );
-                (final_name, final_path)
-            },
-            FileConflictResolutionEnum::KEEP_NEWER => {
-                debug_log!(
-                    "resolve_naming_conflict: Using KEEP_NEWER. Returning final_name: '{}' and final_path: '{}'",
-                    final_name,
-                    final_path
-                );
-                (final_name, final_path)
-            },
-            FileConflictResolutionEnum::KEEP_BOTH => {
-                let mut counter = 1;
-                while (is_folder && full_folder_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
-                    || (!is_folder && full_file_path_to_uuid.contains_key(&DriveFullFilePath(final_path.clone())))
-                {
-                    debug_log!(
-                        "resolve_naming_conflict (KEEP_BOTH): Conflict for final_path: '{}'. Counter: {}",
-                        final_path,
-                        counter
-                    );
-                    counter += 1;
-    
-                    // Split name and extension for files.
-                    let (base_name, ext) = if !is_folder && name.contains('.') {
-                        let parts: Vec<&str> = name.rsplitn(2, '.').collect();
-                        (parts[1], parts[0])
-                    } else {
-                        (name, "")
-                    };
-    
-                    final_name = if ext.is_empty() {
-                        format!("{} ({})", base_name, counter)
-                    } else {
-                        format!("{} ({}).{}", base_name, counter, ext)
-                    };
-    
-                    final_path = if is_folder {
-                        format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
-                    } else {
-                        format!("{}/{}", base_path.trim_end_matches('/'), final_name)
-                    };
-    
-                    debug_log!(
-                        "resolve_naming_conflict (KEEP_BOTH): New computed final_name: '{}', final_path: '{}'",
-                        final_name,
-                        final_path
-                    );
-                }
-                debug_log!(
-                    "resolve_naming_conflict (KEEP_BOTH): Final resolved final_name: '{}', final_path: '{}'",
-                    final_name,
-                    final_path
-                );
-                (final_name, final_path)
-            }
-        }
-    }
-    
-    
-
-    // Helper function to get destination folder from either ID or path
-    pub fn get_destination_folder(
-        folder_id: Option<FolderUUID>, 
-        folder_path: Option<DriveFullFilePath>,
-        disk_id: DiskID,
-        user_id: UserID,
-        canister_id: String,
-    ) -> Result<FolderMetadata, String> {
-        if let Some(id) = folder_id {
-            folder_uuid_to_metadata
-                .get(&id)
-                .clone()
-                .ok_or_else(|| "Destination folder not found".to_string())
-        } else if let Some(path) = folder_path {
-            let translation = translate_path_to_id(path.clone());
-            if let Some(folder) = translation.folder {
-                Ok(folder)
-            } else {
-                // Folder not found at the given path; create the folder structure.
-                let new_folder_uuid = ensure_folder_structure(
-                    &path.to_string(),
-                    disk_id,
-                    user_id,
-                    canister_id,
-                );
-                // Retrieve the folder metadata using the new UUID.
-                get_folder_by_id(new_folder_uuid)
-            }
-        } else {
-            Err("Neither destination folder ID nor path provided".to_string())
-        }
-    }
-    
-
-    /// Validates that if the disk type is AwsBucket or StorjWeb3,
-    /// then auth_json is provided and can be deserialized into AwsBucketAuth.
-    pub fn validate_auth_json(disk_type: &DiskTypeEnum, auth_json: &Option<String>) -> Result<(), String> {
-        if *disk_type == DiskTypeEnum::AwsBucket || *disk_type == DiskTypeEnum::StorjWeb3 {
-            match auth_json {
-                Some(json_str) => {
-                    // Try to parse the provided JSON string into AwsBucketAuth.
-                    serde_json::from_str::<AwsBucketAuth>(json_str)
-                        .map_err(|e| format!("Invalid auth_json for {}: {}", disk_type, e))?;
-                    Ok(())
-                },
-                None => Err(format!("auth_json is required for disk type {}", disk_type)),
-            }
-        } else {
-            Ok(())
-        }
-    }
-
-}
-
-// src/core/state/directory/state.rs
-
-pub mod state {
-    use std::cell::{RefCell, RefMut};
-    use std::collections::HashMap;
-    use std::ops::Deref;
-
-    use crate::core::state::{
-        directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID},
-        templates::types::{TemplateID, TemplateItem},
-    };
-
-    // Wrapper types that implement Deref
-    pub struct FolderMap;
-    pub struct FileMap;
-    pub struct FolderPathMap;
-    pub struct FilePathMap;
-
-    impl FolderMap {
-        pub fn get(&self, key: &FolderUUID) -> Option<FolderMetadata> {
-            folder_uuid_to_metadata_inner.with(|map| map.borrow().get(key).cloned())
-        }
-
-        pub fn insert(&self, key: FolderUUID, value: FolderMetadata) {
-            folder_uuid_to_metadata_inner.with(|map| map.borrow_mut().insert(key, value));
-        }
-
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<FolderUUID, FolderMetadata>) -> R) -> R {
-            folder_uuid_to_metadata_inner.with(|map| f(&mut map.borrow_mut()))
-        }
-    
-        pub fn contains_key(&self, key: &FolderUUID) -> bool {
-            folder_uuid_to_metadata_inner.with(|map| map.borrow().contains_key(key))
-        }
-    
-        pub fn remove(&self, key: &FolderUUID) -> Option<FolderMetadata> {
-            folder_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
-        }
-    }
-
-    impl FileMap {
-        pub fn get(&self, key: &FileUUID) -> Option<FileMetadata> {
-            file_uuid_to_metadata_inner.with(|map| map.borrow().get(key).cloned())
-        }
-
-        pub fn insert(&self, key: FileUUID, value: FileMetadata) {
-            file_uuid_to_metadata_inner.with(|map| map.borrow_mut().insert(key, value));
-        }
-
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<FileUUID, FileMetadata>) -> R) -> R {
-            file_uuid_to_metadata_inner.with(|map| f(&mut map.borrow_mut()))
-        }
-    
-        pub fn contains_key(&self, key: &FileUUID) -> bool {
-            file_uuid_to_metadata_inner.with(|map| map.borrow().contains_key(key))
-        }
-    
-        pub fn remove(&self, key: &FileUUID) -> Option<FileMetadata> {
-            file_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
-        }
-    }
-
-    impl FolderPathMap {
-        pub fn get(&self, key: &DriveFullFilePath) -> Option<FolderUUID> {
-            full_folder_path_to_uuid_inner.with(|map| map.borrow().get(key).cloned())
-        }
-
-        pub fn insert(&self, key: DriveFullFilePath, value: FolderUUID) {
-            full_folder_path_to_uuid_inner.with(|map| map.borrow_mut().insert(key, value));
-        }
-
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<DriveFullFilePath, FolderUUID>) -> R) -> R {
-            full_folder_path_to_uuid_inner.with(|map| f(&mut map.borrow_mut()))
-        }
-
-        pub fn contains_key(&self, key: &DriveFullFilePath) -> bool {
-            full_folder_path_to_uuid_inner.with(|map| map.borrow().contains_key(key))
-        }
-    
-        pub fn remove(&self, key: &DriveFullFilePath) -> Option<FolderUUID> {
-            full_folder_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
-        }
-    }
-
-    impl FilePathMap {
-        pub fn get(&self, key: &DriveFullFilePath) -> Option<FileUUID> {
-            full_file_path_to_uuid_inner.with(|map| map.borrow().get(key).cloned())
-        }
-
-        pub fn insert(&self, key: DriveFullFilePath, value: FileUUID) {
-            full_file_path_to_uuid_inner.with(|map| map.borrow_mut().insert(key, value));
-        }
-
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<DriveFullFilePath, FileUUID>) -> R) -> R {
-            full_file_path_to_uuid_inner.with(|map| f(&mut map.borrow_mut()))
-        }
-    
-        pub fn contains_key(&self, key: &DriveFullFilePath) -> bool {
-            full_file_path_to_uuid_inner.with(|map| map.borrow().contains_key(key))
-        }
-    
-        pub fn remove(&self, key: &DriveFullFilePath) -> Option<FileUUID> {
-            full_file_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
-        }
-    }
-
-    // Private thread_local storage
-    thread_local! {
-        static folder_uuid_to_metadata_inner: RefCell<HashMap<FolderUUID, FolderMetadata>> = RefCell::new(HashMap::new());
-        static file_uuid_to_metadata_inner: RefCell<HashMap<FileUUID, FileMetadata>> = RefCell::new(HashMap::new());
-        static full_folder_path_to_uuid_inner: RefCell<HashMap<DriveFullFilePath, FolderUUID>> = RefCell::new(HashMap::new());
-        static full_file_path_to_uuid_inner: RefCell<HashMap<DriveFullFilePath, FileUUID>> = RefCell::new(HashMap::new());
-    }
-
-    // Public instances with original names
-    pub static folder_uuid_to_metadata: FolderMap = FolderMap;
-    pub static file_uuid_to_metadata: FileMap = FileMap;
-    pub static full_folder_path_to_uuid: FolderPathMap = FolderPathMap;
-    pub static full_file_path_to_uuid: FilePathMap = FilePathMap;
-}
-
-
-
 use std::fmt;
 
 // src/core/state/directory/types.rs
@@ -2372,105 +1826,6 @@ pub struct PathTranslationResponse {
     pub file: Option<FileMetadata>,
 }
 
-// src/core/state/disks/state.rs
-pub mod state {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-
-    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::{CANISTER_ID, OWNER_ID}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log};
-    
-    thread_local! {
-        pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
-        pub(crate) static DISKS_BY_EXTERNAL_ID_HASHTABLE: RefCell<HashMap<String, DiskID>> = RefCell::new(HashMap::new());
-        pub(crate) static DISKS_BY_TIME_LIST: RefCell<Vec<DiskID>> = RefCell::new(Vec::new());
-    }
-
-    pub fn init_default_disks() {
-
-        debug_log!("Initializing default admin api key...");
-
-        let current_canister_disk_id = generate_unique_id("DiskID", &format!("__DiskType_{}", DiskTypeEnum::IcpCanister));
-        let default_canister_disk = Disk {
-            id: DiskID(current_canister_disk_id.clone()),
-            name: "Self Canister Storage (Default)".to_string(),
-            disk_type: DiskTypeEnum::IcpCanister,
-            private_note: Some("Default Canister Storage".to_string()),
-            public_note: Some("Default Canister Storage".to_string()),
-            auth_json: None,
-            external_id: Some(ic_cdk::api::id().to_text()),
-        };
-        let browsercache_disk_id = generate_unique_id("DiskID", &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
-        let default_browsercache_disk = Disk {
-            id: DiskID(browsercache_disk_id.clone()),
-            name: "Ephemeral Browser Storage (Default)".to_string(),
-            disk_type: DiskTypeEnum::BrowserCache,
-            private_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
-            public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
-            auth_json: None,
-            external_id: Some(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text())),
-        };
-
-        let default_disks = vec![default_canister_disk, default_browsercache_disk];
-
-        for disk in default_disks {
-            DISKS_BY_ID_HASHTABLE.with(|map| {
-                map.borrow_mut().insert(disk.id.clone(), disk.clone());
-            });
-
-            DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|map| {
-                map.borrow_mut().insert(disk.external_id.clone().unwrap(), disk.id.clone());
-            });
-
-            DISKS_BY_TIME_LIST.with(|list| {
-                list.borrow_mut().push(disk.id.clone());
-            });
-
-            OWNER_ID.with(|owner_id| {
-                ensure_disk_root_folder(
-                    &disk.id,
-                    &owner_id.clone(),
-                    &ic_cdk::api::id().to_text()
-                );
-            });
-        }
-
-    }
-
-    // Helper function to create root folder for a disk
-    pub fn ensure_disk_root_folder(disk_id: &DiskID, owner_id: &UserID, canister_id: &str) {
-        let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
-        
-        // Only create if root folder doesn't exist
-        if !full_folder_path_to_uuid.contains_key(&root_path) {
-            let root_folder_uuid = generate_unique_id("FolderUUID", "");
-            let root_folder = FolderMetadata {
-                id: FolderUUID(root_folder_uuid.clone()),
-                name: String::new(),
-                parent_folder_uuid: None,
-                subfolder_uuids: Vec::new(),
-                file_uuids: Vec::new(),
-                full_folder_path: root_path.clone(),
-                tags: Vec::new(),
-                created_by: owner_id.clone(),
-                created_date_ms: ic_cdk::api::time(),
-                disk_id: disk_id.clone(),
-                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
-                last_updated_by: owner_id.clone(),
-                deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyBLS(canister_id.to_string())),
-                expires_at: -1,
-                restore_trash_prior_folder_path: None,
-            };
-
-            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid), root_folder);
-        }
-    }
-}
-
-
-
-
 // src/core/state/disks/types.rs
 use serde::{Serialize, Deserialize};
 use std::fmt;
@@ -2528,565 +1883,11 @@ pub struct AwsBucketAuth {
 
 
 
-// src/rest/directory/handler.rs
-
-
-pub mod directorys_handlers {
-    use crate::{
-        core::{api::{disks::aws_s3::{generate_s3_upload_url, generate_s3_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_unique_id}, state::{directory::{state::state::file_uuid_to_metadata, types::FileUUID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
-        
-    };
-    
-    use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-    use matchit::Params;
-    use serde::Deserialize;
-    use urlencoding::decode;
-    #[derive(Deserialize, Default)]
-    struct ListQueryParams {
-        title: Option<String>,
-        completed: Option<bool>,
-    }
-
-    pub fn search_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let requester_api_key = match authenticate_request(request) {
-            Some(key) => key,
-            None => return create_auth_error_response(),
-        };
-    
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
-    
-        let response = DirectoryListResponse {
-            folders: Vec::new(),
-            files: Vec::new(),
-            total_folders: 0,
-            total_files: 0,
-            cursor: None,
-        };
-    
-        create_response(
-            StatusCode::OK,
-            serde_json::to_vec(&response).expect("Failed to serialize response")
-        )
-    }
-
-    pub fn list_directorys_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        // Authenticate request
-        let requester_api_key = match authenticate_request(request) {
-            Some(key) => key,
-            None => return create_auth_error_response(),
-        };
-    
-        // Only owner can access directories
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
-    
-        // Parse request body
-        let list_request: ListDirectoryRequest = match serde_json::from_slice(request.body()) {
-            Ok(req) => req,
-            Err(_) => return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            ),
-        };
-    
-        match fetch_files_at_folder_path(list_request) {
-            Ok(response) => create_response(
-                StatusCode::OK,
-                serde_json::to_vec(&response).expect("Failed to serialize response")
-            ),
-            Err(err) => create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, format!("Failed to list directory: {:?}", err)).encode()
-            )
-        }
-    }
-
-    pub fn action_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let requester_api_key = match authenticate_request(request) {
-            Some(key) => key,
-            None => return create_auth_error_response(),
-        };
-    
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
-    
-        let action_batch: DirectoryActionRequestBody = match serde_json::from_slice(request.body()) {
-            Ok(req) => req,
-            Err(_) => return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            ),
-        };
-    
-        let mut outcomes = Vec::new();
-        
-        for action in action_batch.actions {
-            let outcome_id = DirectoryActionOutcomeID(generate_unique_id("DirectoryActionOutcomeID", ""));
-            let outcome = match crate::core::api::actions::pipe_action(action.clone(), requester_api_key.user_id.clone()) {
-                Ok(result) => DirectoryActionOutcome {
-                    id: outcome_id,
-                    success: true,
-                    request: DirectoryAction {
-                        action: action.action,
-                        target: action.target,
-                        payload: action.payload,
-                    },
-                    response: DirectoryActionResponse {
-                        result: Some(result),
-                        error: None,
-                    }
-                },
-                Err(error_info) => DirectoryActionOutcome {
-                    id: outcome_id,
-                    success: false,
-                    request: DirectoryAction {
-                        action: action.action,
-                        target: action.target,
-                        payload: action.payload,
-                    },
-                    response: DirectoryActionResponse {
-                        result: None,
-                        error: Some(DirectoryActionError {
-                            code: error_info.code,
-                            message: error_info.message,
-                        }),
-                    }
-                },
-            };
-            outcomes.push(outcome);
-        }
-    
-        create_response(
-            StatusCode::OK,
-            serde_json::to_vec(&outcomes).expect("Failed to serialize response")
-        )
-    }
-
-    pub fn handle_upload_chunk(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
-        debug_log!("Handling upload chunk request");
-
-        let upload_req: UploadChunkRequest = match serde_json::from_slice(req.body()) {
-            Ok(req) => req,
-            Err(_) => {
-                debug_log!("handle_upload_chunk: Failed to deserialize request");
-                return create_raw_upload_error_response("Invalid request format")
-            }
-        };
-
-        debug_log!("handle_upload_chunk: Handling chunk upload");
-        debug_log!("  file_id      = {}", upload_req.file_id);
-        debug_log!("  chunk_index  = {}", upload_req.chunk_index);
-        debug_log!("  total_chunks = {}", upload_req.total_chunks);
-        debug_log!("  chunk_size   = {}", upload_req.chunk_data.len());
-    
-        if upload_req.chunk_data.len() > CHUNK_SIZE {
-            return create_raw_upload_error_response("Chunk too large");
-        }
-    
-        let chunk_id = ChunkId(format!("{}-{}", upload_req.file_id, upload_req.chunk_index));
-        
-        let chunk = FileChunk {
-            id: chunk_id.clone(),
-            file_id: upload_req.file_id,
-            chunk_index: upload_req.chunk_index,
-            data: upload_req.chunk_data.clone(),
-            size: upload_req.chunk_data.len()
-        };
-        debug_log!("handle_upload_chunk: Storing chunk {:?}", chunk.id);
-    
-        store_chunk(chunk);
-    
-        let response = UploadChunkResponse {
-            chunk_id: chunk_id.0,
-            bytes_received: upload_req.chunk_data.len()
-        };
-    
-        debug_log!("handle_upload_chunk: Successfully stored chunk");
-        create_success_response(&response)
-    }
-    
-    pub fn handle_complete_upload(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
-        let complete_req: CompleteUploadRequest = match serde_json::from_slice(req.body()) {
-            Ok(req) => req,
-            Err(_) => return create_raw_upload_error_response("Invalid request format")
-        };
-        debug_log!("handle_complete_upload: Completing upload");
-        debug_log!("  file_id = {}", complete_req.file_id);
-
-        store_filename(&complete_req.file_id, &complete_req.filename);
-    
-        let chunks = get_file_chunks(&complete_req.file_id);
-        debug_log!("handle_complete_upload: Found {} chunks", chunks.len());
-
-        let total_size: usize = chunks.iter().map(|c| c.size).sum();
-        debug_log!("handle_complete_upload: Total size = {} bytes", total_size);
-    
-        let response = CompleteUploadResponse {
-            file_id: complete_req.file_id,
-            size: total_size,
-            chunks: chunks.len() as u32,
-            filename: complete_req.filename
-        };
-         debug_log!("handle_complete_upload: Returning final response with size={} chunks={}", response.size, response.chunks);
-    
-        create_success_response(&response)
-    }
-
-    /// Returns the metadata about a file: total size, total chunks, etc.
-    pub fn download_file_metadata_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
-        debug_log!("download_file_metadata_handler: Handling file metadata request");
-
-        // // 1. Optionally authenticate, if required
-        // let requester_api_key = match authenticate_request(req) {
-        //     Some(key) => key,
-        //     None => return create_auth_error_response(),
-        // };
-
-        // // 2. Check if user is owner, if that's your policy
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // if !is_owner {
-        //     return create_auth_error_response();
-        // }
-
-        // 3. Parse query string for file_id
-        let raw_query_string = req.get_query().unwrap_or(Some("".to_string()));
-        let query_string = raw_query_string.as_deref().unwrap_or("");
-        let query_map = crate::rest::helpers::parse_query_string(&query_string);
-
-        let file_id = match query_map.get("file_id") {
-            Some(fid) => fid,
-            None => {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Missing file_id in query".to_string()).encode()
-                );
-            }
-        };
-        let file_id = decode(file_id).unwrap_or_else(|_| file_id.into());
-
-        debug_log!("download_file_metadata_handler: file_id={}", file_id);
-
-        // 4. Collect chunks for this file, if any
-        let mut chunks = get_file_chunks(&file_id);
-        if chunks.is_empty() {
-            return create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "File not found".to_string()).encode()
-            );
-        }
-
-        // 5. Sort by chunk index and compute total size
-        chunks.sort_by_key(|c| c.chunk_index);
-        let total_size: usize = chunks.iter().map(|c| c.size).sum();
-        let total_chunks = chunks.len() as u32;
-
-        let filename: String = FILE_META.with(|map| 
-            map.borrow()
-                .get(&file_id.to_string())
-                .clone()  // Change cloned() to clone()
-        ).unwrap_or_else(|| "unknown.bin".to_string());
-
-        // Create a JSON response with metadata
-        let metadata_response = FileMetadataResponse {
-            file_id: file_id.clone().to_string(),
-            total_size,
-            total_chunks,
-            filename
-        };
-
-        debug_log!(
-            "download_file_metadata_handler: total_size={}, total_chunks={}",
-            total_size,
-            total_chunks
-        );
-
-        create_success_response(&metadata_response)
-    }
-
-    /// Returns the data for a single chunk by index.
-    pub fn download_file_chunk_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
-        debug_log!("download_file_chunk_handler: Handling file chunk request");
-
-        // // 1. Optionally authenticate
-        // let requester_api_key = match authenticate_request(req) {
-        //     Some(key) => key,
-        //     None => return create_auth_error_response(),
-        // };
-
-        // // 2. Owner check, if you want
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // if !is_owner {
-        //     return create_auth_error_response();
-        // }
-
-        // 3. Parse query for file_id & chunk_index
-        let raw_query_string = req.get_query().unwrap_or(Some("".to_string()));
-        let query_string = raw_query_string.as_deref().unwrap_or("");
-        let query_map = crate::rest::helpers::parse_query_string(query_string);
-
-        let file_id = match query_map.get("file_id") {
-            Some(fid) => fid,
-            None => {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Missing file_id".to_string()).encode()
-                );
-            }
-        };
-        let file_id = decode(file_id).unwrap_or_else(|_| file_id.into());
-
-        let chunk_index_str = match query_map.get("chunk_index") {
-            Some(cix) => cix,
-            None => {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Missing chunk_index".to_string()).encode()
-                );
-            }
-        };
-        let chunk_index: u32 = match chunk_index_str.parse() {
-            Ok(num) => num,
-            Err(_) => {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid chunk_index".to_string()).encode()
-                );
-            }
-        };
-
-        debug_log!("download_file_chunk_handler: file_id={}, chunk_index={}", file_id, chunk_index);
-
-        // 4. Retrieve all chunks, or just the one
-        let mut chunks = get_file_chunks(&file_id);
-        chunks.sort_by_key(|c| c.chunk_index);
-
-        // Check if chunk_index is valid
-        if chunk_index as usize >= chunks.len() {
-            return create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "Chunk index out of range".to_string()).encode()
-            );
-        }
-
-        let chunk = &chunks[chunk_index as usize];
-        debug_log!("download_file_chunk_handler: Found chunk size={}", chunk.size);
-
-        // 5. Return the chunk data in the HTTP body
-        //    We'll set the content-type to "application/octet-stream".
-        HttpResponse::builder()
-            .with_status_code(StatusCode::OK)
-            .with_headers(vec![
-                ("content-type".to_string(), "application/octet-stream".to_string()),
-                ("cache-control".to_string(), "no-store, max-age=0".to_string()),
-            ])
-            .with_body(chunk.data.clone())
-            .build()
-    }
-
-
-    pub fn get_raw_url_proxy_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
-        debug_log!("get_raw_url_proxy_handler: Handling raw URL proxy request");
-    
-        // 1. Extract file_id from URL parameters
-        let file_id_with_extension = match params.get("file_id_with_extension") {
-            Some(id) => id,
-            None => return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Missing file ID in URL".to_string()).encode()
-            ),
-        };
-    
-        // Strip extension from file_id if present
-        let file_id = match file_id_with_extension.rfind('.') {
-            Some(pos) => &file_id_with_extension[..pos],
-            None => file_id_with_extension,
-        };
-    
-        debug_log!("get_raw_url_proxy_handler: file_id={}", file_id);
-    
-        // 2. Look up file metadata
-        let file_meta = file_uuid_to_metadata.get(&FileUUID(file_id.to_string()));
-        let file_meta = match file_meta {
-            Some(meta) => meta,
-            None => return create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "File not found".to_string()).encode()
-            ),
-        };
-    
-        // 3. Get disk info to access AWS credentials
-        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
-            map.borrow()
-                .iter()
-                .find(|(_, disk)| disk.disk_type == DiskTypeEnum::AwsBucket || disk.disk_type == DiskTypeEnum::StorjWeb3)
-                .map(|(_, disk)| disk.clone())
-        });
-    
-        let disk = match disk {
-            Some(d) => d,
-            None => return create_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::err(500, "No S3 disk configured".to_string()).encode()
-            ),
-        };
-    
-        // 4. Parse AWS credentials
-        let aws_auth: AwsBucketAuth = match disk.auth_json {
-            Some(auth_str) => match serde_json::from_str(&auth_str) {
-                Ok(auth) => auth,
-                Err(_) => return create_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorResponse::err(500, "Invalid AWS credentials".to_string()).encode()
-                ),
-            },
-            None => return create_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::err(500, "Missing AWS credentials".to_string()).encode()
-            ),
-        };
-    
-        // 5. Generate presigned URL with content-disposition header
-        let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
-        let presigned_url = generate_s3_view_url(
-            &file_meta.id.0,          // file_id
-            &file_meta.extension,     // file_extension
-            &aws_auth,
-            &file_meta.disk_type,
-            Some(3600),
-            Some(&download_filename)
-        );
-    
-        debug_log!("get_raw_url_proxy_handler: Redirecting to presigned URL");
-    
-        // 6. Return 302 redirect response
-        HttpResponse::builder()
-            .with_status_code(StatusCode::FOUND) // 302 Found
-            .with_headers(vec![
-                ("location".to_string(), presigned_url),
-                ("cache-control".to_string(), "no-store, max-age=0".to_string()),
-            ])
-            .with_body(Vec::new())
-            .build()
-    }
-
-    fn json_decode<T>(value: &[u8]) -> T
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        serde_json::from_slice(value).expect("Failed to deserialize value")
-    }
-
-    fn create_response(status_code: StatusCode, body: Vec<u8>) -> HttpResponse<'static> {
-        HttpResponse::builder()
-            .with_status_code(status_code)
-            .with_headers(vec![
-                ("content-type".to_string(), "application/json".to_string()),
-                (
-                    "strict-transport-security".to_string(),
-                    "max-age=31536000; includeSubDomains".to_string(),
-                ),
-                ("x-content-type-options".to_string(), "nosniff".to_string()),
-                ("referrer-policy".to_string(), "no-referrer".to_string()),
-                (
-                    "cache-control".to_string(),
-                    "no-store, max-age=0".to_string(),
-                ),
-                ("pragma".to_string(), "no-cache".to_string()),
-            ])
-            .with_body(body)
-            .build()
-    }
-
-    fn create_success_response<T: serde::Serialize>(data: &T) -> HttpResponse<'static> {
-        let body = serde_json::to_vec(data).expect("Failed to serialize response");
-        create_response(StatusCode::OK, body)
-    }
-    
-}
-
-
-
-
-// src/rest/directory/route.rs
-use crate::debug_log;
-use crate::rest::router;
-use crate::types::RouteHandler;
-
-pub const DIRECTORYS_SEARCH_PATH: &str = "/directory/search";
-pub const DIRECTORYS_LIST_PATH: &str = "/directory/list";
-pub const DIRECTORYS_ACTION_PATH: &str = "/directory/action";
-pub const UPLOAD_CHUNK_PATH: &str = "/directory/raw_upload/chunk";
-pub const COMPLETE_UPLOAD_PATH: &str = "/directory/raw_upload/complete";
-pub const RAW_DOWNLOAD_META_PATH: &str = "/directory/raw_download/meta";
-pub const RAW_DOWNLOAD_CHUNK_PATH: &str = "/directory/raw_download/chunk";
-pub const RAW_URL_PROXY_PATH: &str = "/directory/asset/{file_id_with_extension}"; // for proxying raw urls 302 redirect to temp presigned s3 urls
-
-
-type HandlerEntry = (&'static str, &'static str, RouteHandler);
-
-pub fn init_routes() {
-    let routes: &[HandlerEntry] = &[
-        (
-            "POST",
-            DIRECTORYS_SEARCH_PATH,
-            crate::rest::directory::handler::directorys_handlers::search_directory_handler,
-        ),
-        (
-            "POST",
-            DIRECTORYS_LIST_PATH,
-            crate::rest::directory::handler::directorys_handlers::list_directorys_handler,
-        ),
-        (
-            "POST",
-            DIRECTORYS_ACTION_PATH,
-            crate::rest::directory::handler::directorys_handlers::action_directory_handler,
-        ),
-        (
-            "POST",
-            UPLOAD_CHUNK_PATH,
-            crate::rest::directory::handler::directorys_handlers::handle_upload_chunk,
-        ),
-        (
-            "POST",
-            COMPLETE_UPLOAD_PATH,
-            crate::rest::directory::handler::directorys_handlers::handle_complete_upload,
-        ),
-        (
-            "GET",
-            RAW_DOWNLOAD_META_PATH,
-            crate::rest::directory::handler::directorys_handlers::download_file_metadata_handler,
-        ),
-        (
-            "GET",
-            RAW_DOWNLOAD_CHUNK_PATH,
-            crate::rest::directory::handler::directorys_handlers::download_file_chunk_handler,
-        ),
-        (
-            "GET",
-            RAW_URL_PROXY_PATH,
-            crate::rest::directory::handler::directorys_handlers::get_raw_url_proxy_handler,
-        ),
-    ];
-
-    for &(method, path, handler) in routes {
-        debug_log!("Registering {} route: {}", method, path);
-        router::insert_route(method, path, handler);
-    }
-
-}
-
 
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{api::disks::aws_s3::S3UploadResponse, state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
+use crate::{core::{state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -3124,6 +1925,12 @@ pub struct DirectoryListResponse {
 
 fn default_page_size() -> usize {
     50
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskUploadResponse {
+    pub url: String,
+    pub fields: HashMap<String, String>,
 }
 
 
@@ -3516,7 +2323,7 @@ pub enum DirectoryActionResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFileResponse {
     pub file: FileMetadata,
-    pub upload: S3UploadResponse,
+    pub upload: DiskUploadResponse,
     pub notes: String,
 }
 
@@ -3719,158 +2526,3 @@ pub struct RestoreTrashResponse {
         "resource_id": "folder-uuid-456"
     },
 */
-
-// src/core/state/disks/state.rs
-pub mod state {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-
-    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::{CANISTER_ID, OWNER_ID}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log};
-    
-    thread_local! {
-        pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
-        pub(crate) static DISKS_BY_EXTERNAL_ID_HASHTABLE: RefCell<HashMap<String, DiskID>> = RefCell::new(HashMap::new());
-        pub(crate) static DISKS_BY_TIME_LIST: RefCell<Vec<DiskID>> = RefCell::new(Vec::new());
-    }
-
-    pub fn init_default_disks() {
-
-        debug_log!("Initializing default admin api key...");
-
-        let current_canister_disk_id = generate_unique_id("DiskID", &format!("__DiskType_{}", DiskTypeEnum::IcpCanister));
-        let default_canister_disk = Disk {
-            id: DiskID(current_canister_disk_id.clone()),
-            name: "Self Canister Storage (Default)".to_string(),
-            disk_type: DiskTypeEnum::IcpCanister,
-            private_note: Some("Default Canister Storage".to_string()),
-            public_note: Some("Default Canister Storage".to_string()),
-            auth_json: None,
-            external_id: Some(ic_cdk::api::id().to_text()),
-        };
-        let browsercache_disk_id = generate_unique_id("DiskID", &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
-        let default_browsercache_disk = Disk {
-            id: DiskID(browsercache_disk_id.clone()),
-            name: "Ephemeral Browser Storage (Default)".to_string(),
-            disk_type: DiskTypeEnum::BrowserCache,
-            private_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
-            public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
-            auth_json: None,
-            external_id: Some(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text())),
-        };
-
-        let default_disks = vec![default_canister_disk, default_browsercache_disk];
-
-        for disk in default_disks {
-            DISKS_BY_ID_HASHTABLE.with(|map| {
-                map.borrow_mut().insert(disk.id.clone(), disk.clone());
-            });
-
-            DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|map| {
-                map.borrow_mut().insert(disk.external_id.clone().unwrap(), disk.id.clone());
-            });
-
-            DISKS_BY_TIME_LIST.with(|list| {
-                list.borrow_mut().push(disk.id.clone());
-            });
-
-            OWNER_ID.with(|owner_id| {
-                ensure_disk_root_folder(
-                    &disk.id,
-                    &owner_id.clone(),
-                    &ic_cdk::api::id().to_text()
-                );
-            });
-        }
-
-    }
-
-    // Helper function to create root folder for a disk
-    pub fn ensure_disk_root_folder(disk_id: &DiskID, owner_id: &UserID, canister_id: &str) {
-        let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
-        
-        // Only create if root folder doesn't exist
-        if !full_folder_path_to_uuid.contains_key(&root_path) {
-            let root_folder_uuid = generate_unique_id("FolderUUID", "");
-            let root_folder = FolderMetadata {
-                id: FolderUUID(root_folder_uuid.clone()),
-                name: String::new(),
-                parent_folder_uuid: None,
-                subfolder_uuids: Vec::new(),
-                file_uuids: Vec::new(),
-                full_folder_path: root_path.clone(),
-                tags: Vec::new(),
-                created_by: owner_id.clone(),
-                created_date_ms: ic_cdk::api::time(),
-                disk_id: disk_id.clone(),
-                last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
-                last_updated_by: owner_id.clone(),
-                deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyBLS(canister_id.to_string())),
-                expires_at: -1,
-                restore_trash_prior_folder_path: None,
-            };
-
-            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid), root_folder);
-        }
-    }
-}
-
-
-
-
-// src/core/state/disks/types.rs
-use serde::{Serialize, Deserialize};
-use std::fmt;
-
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DiskID(pub String);
-impl fmt::Display for DiskID {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Disk {
-    pub id: DiskID,
-    pub name: String,
-    pub disk_type: DiskTypeEnum,
-    pub private_note: Option<String>,
-    pub public_note: Option<String>,
-    pub auth_json: Option<String>,
-    pub external_id: Option<String>,
-}
-
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum DiskTypeEnum {
-    BrowserCache,
-    LocalSSD,
-    AwsBucket,
-    StorjWeb3,
-    IcpCanister,
-}
-impl fmt::Display for DiskTypeEnum {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            DiskTypeEnum::BrowserCache => write!(f, "BrowserCache"),
-            DiskTypeEnum::LocalSSD => write!(f, "LocalSSD"),
-            DiskTypeEnum::AwsBucket => write!(f, "AwsBucket"),
-            DiskTypeEnum::StorjWeb3 => write!(f, "StorjWeb3"),
-            DiskTypeEnum::IcpCanister => write!(f, "IcpCanister"),
-        }
-    }
-}
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AwsBucketAuth {
-    pub(crate) endpoint: String,
-    pub(crate) access_key: String,
-    pub(crate) secret_key: String,
-    pub(crate) bucket: String,
-    pub(crate) region: String,  
-}
-
