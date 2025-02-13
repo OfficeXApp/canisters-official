@@ -14,15 +14,10 @@ pub struct ResourcePermissionInfo {
 
 // Upsert Permissions
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpsertPermissionsRequest {
-    pub permissions: Vec<PermissionEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PermissionEntry {
+pub struct UpsertPermissionsRequestBody {
     pub id: Option<DirectoryPermissionID>,
-    pub resource_id: DirectoryResourceID,
-    pub granted_to: Option<DirectoryGranteeID>,
+    pub resource_id: String,
+    pub granted_to: Option<String>,
     pub permission_types: Vec<DirectoryPermissionType>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
@@ -32,9 +27,9 @@ pub struct PermissionEntry {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UpsertPermissionsResponseData {
-    pub permissions: Vec<DirectoryPermission>,
-    pub failed_indices: Vec<(usize, String)>, // Index and error message for failed operations
+    pub permission: DirectoryPermission,
 }
+
 
 // Delete Permissions
 #[derive(Debug, Clone, Deserialize)]
@@ -50,8 +45,8 @@ pub struct DeletePermissionResponseData {
 // Check Permissions
 #[derive(Debug, Clone, Deserialize)]
 pub struct PermissionCheckRequest {
-    pub resource_id: DirectoryResourceID,
-    pub grantee_id: DirectoryGranteeID,
+    pub resource_id: String,
+    pub grantee_id: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
