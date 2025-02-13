@@ -1,7 +1,7 @@
 // src/core/state/contacts/types.rs
 use serde::{Serialize, Deserialize};
 
-use crate::core::{state::teams::types::TeamID, types::{ICPPrincipalString, PublicKeyBLS, UserID}};
+use crate::core::{state::teams::types::TeamID, types::{ICPPrincipalString, PublicKeyICP, UserID}};
 
 
 

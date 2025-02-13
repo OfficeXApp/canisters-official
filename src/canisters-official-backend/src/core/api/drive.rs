@@ -11,7 +11,7 @@ pub mod drive {
                     types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
-            }, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID},
+            }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
         }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
@@ -246,7 +246,7 @@ pub mod drive {
             last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
             last_updated_by: user_id,
             deleted: false,
-            canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+            canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
             expires_at,
             restore_trash_prior_folder_path: None,
             has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use crate::core::state::drives::types::{DriveID, Drive};
-use crate::core::types::PublicKeyBLS;
+use crate::core::types::PublicKeyICP;
 use crate::rest::webhooks::types::SortDirection;
 
 #[derive(Debug, Clone, Serialize)]

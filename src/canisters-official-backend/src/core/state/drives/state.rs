@@ -11,12 +11,12 @@ pub mod state {
     use crate::core::state::drives::types::DriveID;
     use crate::core::types::ICPPrincipalString;
     use crate::core::types::IDPrefix;
-    use crate::core::types::{UserID,PublicKeyBLS};
+    use crate::core::types::{UserID,PublicKeyICP};
 
     thread_local! {
         // self info
         pub(crate) static DRIVE_ID: DriveID = DriveID(generate_unique_id(IDPrefix::Drive, ""));
-        pub(crate) static CANISTER_ID: PublicKeyBLS = PublicKeyBLS(ic_cdk::api::id().to_text());
+        pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
         pub(crate) static OWNER_ID: UserID = UserID("Anonymous_Owner".to_string());
         pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
         // hashtables
@@ -30,7 +30,7 @@ pub mod state {
             name: "Anonymous_Canister".to_string(),
             public_note: Some("".to_string()),
             private_note: Some("".to_string()),
-            icp_principal: ICPPrincipalString(PublicKeyBLS(ic_cdk::api::id().to_text())),
+            icp_principal: ICPPrincipalString(PublicKeyICP(ic_cdk::api::id().to_text())),
         };
 
         DRIVES_BY_ID_HASHTABLE.with(|map| {
