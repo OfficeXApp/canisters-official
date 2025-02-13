@@ -10,8 +10,6 @@
 
 ## Urgent Next
 
-- [🔵] Refactor all ID generation to use prefix, and handle all multi-type IDs with conversion
-- [🔵] Implement permissions for directory
 - [🔵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [ ] Implement permissions for system (disks, teams, drives, contacts)
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
@@ -73,3 +71,5 @@
 - [x] Implement web3storj storage --> has raw_url but we should be generating on-the-fly urls with temp access token each time. also implement copy/move operations (dont need to wait for ACL since generating access token logic is same)
 - [x] Add compatibility for storjweb3 alongside aws s3. test with private acl and upload.
 - [x] Write the `directory` REST routes and particularly the file action logic
+- [x] Refactor all ID generation to use prefix, and handle all multi-type IDs with conversion
+- [x] Implement permissions for directory

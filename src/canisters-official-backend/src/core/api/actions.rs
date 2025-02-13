@@ -712,233 +712,419 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         DirectoryActionEnum::CopyFile => {
             match action.payload {
                 DirectoryActionPayload::CopyFile(payload) => {
-                    // Get the file ID from either resource_id or resource_path
+                    // Get source file ID
                     let file_id = if let Some(id) = action.target.resource_id {
-                        FileUUID(id.to_string())
+                        match id {
+                            DirectoryResourceID::File(file_id) => file_id,
+                            DirectoryResourceID::Folder(_) => return Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "Expected file ID but got folder ID".to_string(),
+                            }),
+                        }
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.file {
                             Some(file) => file.id,
                             None => return Err(DirectoryActionErrorInfo {
                                 code: 404,
-                                message: "Source file not found at specified path".to_string()
+                                message: "Source file not found at specified path".to_string(),
                             })
                         }
                     } else {
                         return Err(DirectoryActionErrorInfo {
                             code: 400,
-                            message: "Neither resource_id nor resource_path provided for source file".to_string()
+                            message: "Neither resource_id nor resource_path provided for source file".to_string(),
                         });
                     };
-
-                    // get the file from directory state
-                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
         
-                    // Get destination folder
+                    // Get source file metadata
+                    let source_file = match get_file_by_id(file_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("Source file not found: {}", e),
+                        }),
+                    };
+        
+                    // Check if user has View permission on source file
+                    let source_resource_id = DirectoryResourceID::File(file_id.clone());
+                    let user_permissions = check_directory_permissions(
+                        source_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    if !user_permissions.contains(&DirectoryPermissionType::View) {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to view this file".to_string(),
+                        });
+                    }
+        
+                    // Get destination folder metadata
                     let destination_folder = match get_destination_folder(
-                        payload.destination_folder_id,
-                        payload.destination_folder_path,
-                        preexisting_file.disk_id,
-                        user_id,
-                        preexisting_file.canister_id.to_string()
+                        payload.destination_folder_id.clone(),
+                        payload.destination_folder_path.clone(),
+                        source_file.disk_id.clone(),
+                        user_id.clone(),
+                        source_file.canister_id.0.0.clone(),
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
                             code: 404,
-                            message: format!("Destination folder not found: {}", e)
-                        })
+                            message: format!("Destination folder not found: {}", e),
+                        }),
                     };
         
+                    // Check if user has Upload/Edit/Manage permission on destination folder
+                    let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
+                    let dest_permissions = check_directory_permissions(
+                        dest_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
+                       !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
+                       !dest_permissions.contains(&DirectoryPermissionType::Manage) {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to copy files to this folder".to_string(),
+                        });
+                    }
+        
+                    // Perform the copy operation
                     match copy_file(&file_id, &destination_folder, payload.file_conflict_resolution) {
                         Ok(file) => Ok(DirectoryActionResult::CopyFile(file)),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
-                            message: format!("Failed to copy file: {}", e)
-                        })
+                            message: format!("Failed to copy file: {}", e),
+                        }),
                     }
-                }
+                },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
-                    message: "Invalid payload for COPY_FILE action".to_string()
-                })
+                    message: "Invalid payload for COPY_FILE action".to_string(),
+                }),
             }
-        }
+        },
         
         DirectoryActionEnum::CopyFolder => {
             match action.payload {
                 DirectoryActionPayload::CopyFolder(payload) => {
-                    // Get the folder ID from either resource_id or resource_path
+                    // Get source folder ID
                     let folder_id = if let Some(id) = action.target.resource_id {
-                        FolderUUID(id.to_string())
+                        match id {
+                            DirectoryResourceID::Folder(folder_id) => folder_id,
+                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "Expected folder ID but got file ID".to_string(),
+                            }),
+                        }
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.folder {
                             Some(folder) => folder.id,
                             None => return Err(DirectoryActionErrorInfo {
                                 code: 404,
-                                message: "Source folder not found at specified path".to_string()
+                                message: "Source folder not found at specified path".to_string(),
                             })
                         }
                     } else {
                         return Err(DirectoryActionErrorInfo {
                             code: 400,
-                            message: "Neither resource_id nor resource_path provided for source folder".to_string()
+                            message: "Neither resource_id nor resource_path provided for source folder".to_string(),
                         });
                     };
-
-                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+        
+                    // Get source folder metadata
+                    let source_folder = match get_folder_by_id(folder_id.clone()) {
                         Ok(f) => f,
                         Err(e) => return Err(DirectoryActionErrorInfo {
                             code: 404,
-                            message: format!("Folder not found: {}", e)
-                        })
+                            message: format!("Source folder not found: {}", e),
+                        }),
                     };
         
-                    // Get destination folder
+                    // Check if user has View permission on source folder
+                    let source_resource_id = DirectoryResourceID::Folder(folder_id.clone());
+                    let user_permissions = check_directory_permissions(
+                        source_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    if !user_permissions.contains(&DirectoryPermissionType::View) {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to view this folder".to_string(),
+                        });
+                    }
+        
+                    // Get destination folder metadata
                     let destination_folder = match get_destination_folder(
-                        payload.destination_folder_id,
-                        payload.destination_folder_path,
-                        preexisting_folder.disk_id,
-                        user_id,
-                        preexisting_folder.canister_id.to_string()
+                        payload.destination_folder_id.clone(),
+                        payload.destination_folder_path.clone(),
+                        source_folder.disk_id.clone(),
+                        user_id.clone(),
+                        source_folder.canister_id.0.0.clone(),
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
                             code: 404,
-                            message: format!("Destination folder not found: {}", e)
-                        })
+                            message: format!("Destination folder not found: {}", e),
+                        }),
                     };
         
+                    // Check if user has Upload/Edit/Manage permission on destination folder
+                    let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
+                    let dest_permissions = check_directory_permissions(
+                        dest_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
+                       !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
+                       !dest_permissions.contains(&DirectoryPermissionType::Manage) {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to copy folders to this location".to_string(),
+                        });
+                    }
+        
+                    // Perform the copy operation
                     match copy_folder(&folder_id, &destination_folder, payload.file_conflict_resolution) {
                         Ok(folder) => Ok(DirectoryActionResult::CopyFolder(folder)),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
-                            message: format!("Failed to copy folder: {}", e)
-                        })
+                            message: format!("Failed to copy folder: {}", e),
+                        }),
                     }
-                }
+                },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
-                    message: "Invalid payload for COPY_FOLDER action".to_string()
-                })
+                    message: "Invalid payload for COPY_FOLDER action".to_string(),
+                }),
             }
-        }
-        
+        },
+
         DirectoryActionEnum::MoveFile => {
             match action.payload {
                 DirectoryActionPayload::MoveFile(payload) => {
                     // Get the file ID from either resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
-                        FileUUID(id.to_string())
+                        match id {
+                            DirectoryResourceID::File(file_id) => file_id,
+                            DirectoryResourceID::Folder(_) => return Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "Expected file ID but got folder ID".to_string(),
+                            }),
+                        }
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.file {
                             Some(file) => file.id,
                             None => return Err(DirectoryActionErrorInfo {
                                 code: 404,
-                                message: "Source file not found at specified path".to_string()
+                                message: "Source file not found at specified path".to_string(),
                             })
                         }
                     } else {
                         return Err(DirectoryActionErrorInfo {
                             code: 400,
-                            message: "Neither resource_id nor resource_path provided for source file".to_string()
+                            message: "Neither resource_id nor resource_path provided for source file".to_string(),
                         });
                     };
-
-                    let preexisting_file = file_uuid_to_metadata.get(&file_id).unwrap();
+        
+                    // Get file metadata
+                    let file = match get_file_by_id(file_id.clone()) {
+                        Ok(f) => f,
+                        Err(e) => return Err(DirectoryActionErrorInfo {
+                            code: 404,
+                            message: format!("File not found: {}", e),
+                        }),
+                    };
+        
+                    // Check source file permissions
+                    let source_resource_id = DirectoryResourceID::File(file_id.clone());
+                    let source_permissions = check_directory_permissions(
+                        source_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    // Check if user has permission to move the file from source
+                    let is_creator_with_upload = file.created_by == user_id && 
+                        (source_permissions.contains(&DirectoryPermissionType::Upload) ||
+                         source_permissions.contains(&DirectoryPermissionType::Edit) ||
+                         source_permissions.contains(&DirectoryPermissionType::Manage));
+        
+                    let has_move_permission = source_permissions.contains(&DirectoryPermissionType::Edit) ||
+                                            source_permissions.contains(&DirectoryPermissionType::Manage);
+        
+                    if !is_creator_with_upload && !has_move_permission {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to move this file from its current location".to_string(),
+                        });
+                    }
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
-                        preexisting_file.disk_id,
-                        user_id,
-                        preexisting_file.canister_id.to_string()
+                        file.disk_id,
+                        user_id.clone(),
+                        file.canister_id.0.0.clone()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
                             code: 404,
-                            message: format!("Destination folder not found: {}", e)
-                        })
+                            message: format!("Destination folder not found: {}", e),
+                        }),
                     };
+        
+                    // Check destination folder permissions
+                    let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
+                    let dest_permissions = check_directory_permissions(
+                        dest_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
+                       !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
+                       !dest_permissions.contains(&DirectoryPermissionType::Manage) {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to move files to the destination folder".to_string(),
+                        });
+                    }
         
                     match move_file(&file_id, &destination_folder, payload.file_conflict_resolution) {
                         Ok(file) => Ok(DirectoryActionResult::MoveFile(file)),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
-                            message: format!("Failed to move file: {}", e)
-                        })
+                            message: format!("Failed to move file: {}", e),
+                        }),
                     }
                 }
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
-                    message: "Invalid payload for MOVE_FILE action".to_string()
+                    message: "Invalid payload for MOVE_FILE action".to_string(),
                 })
             }
-        }
+        },
         
         DirectoryActionEnum::MoveFolder => {
             match action.payload {
                 DirectoryActionPayload::MoveFolder(payload) => {
                     // Get the folder ID from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
-                        FolderUUID(id.to_string())
+                        match id {
+                            DirectoryResourceID::Folder(folder_id) => folder_id,
+                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "Expected folder ID but got file ID".to_string(),
+                            }),
+                        }
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.folder {
                             Some(folder) => folder.id,
                             None => return Err(DirectoryActionErrorInfo {
                                 code: 404,
-                                message: "Source folder not found at specified path".to_string()
+                                message: "Source folder not found at specified path".to_string(),
                             })
                         }
                     } else {
                         return Err(DirectoryActionErrorInfo {
                             code: 400,
-                            message: "Neither resource_id nor resource_path provided for source folder".to_string()
+                            message: "Neither resource_id nor resource_path provided for source folder".to_string(),
                         });
                     };
-
-                    // get the folder metadata
-                    let preexisting_folder = match get_folder_by_id(folder_id.clone()) {
+        
+                    // Get folder metadata
+                    let folder = match get_folder_by_id(folder_id.clone()) {
                         Ok(f) => f,
                         Err(e) => return Err(DirectoryActionErrorInfo {
                             code: 404,
-                            message: format!("Folder not found: {}", e)
-                        })
+                            message: format!("Folder not found: {}", e),
+                        }),
                     };
+        
+                    // Prevent moving root folder
+                    if folder.parent_folder_uuid.is_none() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "Cannot move root folder".to_string(),
+                        });
+                    }
+        
+                    // Check source folder permissions
+                    let source_resource_id = DirectoryResourceID::Folder(folder_id.clone());
+                    let source_permissions = check_directory_permissions(
+                        source_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    // Check if user has permission to move the folder from source
+                    let is_creator_with_upload = folder.created_by == user_id && 
+                        (source_permissions.contains(&DirectoryPermissionType::Upload) ||
+                         source_permissions.contains(&DirectoryPermissionType::Edit) ||
+                         source_permissions.contains(&DirectoryPermissionType::Manage));
+        
+                    let has_move_permission = source_permissions.contains(&DirectoryPermissionType::Edit) ||
+                                            source_permissions.contains(&DirectoryPermissionType::Manage);
+        
+                    if !is_creator_with_upload && !has_move_permission {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to move this folder from its current location".to_string(),
+                        });
+                    }
         
                     // Get destination folder
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id,
                         payload.destination_folder_path,
-                        preexisting_folder.disk_id,
-                        user_id,
-                        preexisting_folder.canister_id.to_string()
+                        folder.disk_id,
+                        user_id.clone(),
+                        folder.canister_id.0.0.clone()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
                             code: 404,
-                            message: format!("Destination folder not found: {}", e)
-                        })
+                            message: format!("Destination folder not found: {}", e),
+                        }),
                     };
+        
+                    // Check destination folder permissions
+                    let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
+                    let dest_permissions = check_directory_permissions(
+                        dest_resource_id,
+                        DirectoryGranteeID::User(user_id.clone())
+                    );
+        
+                    if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
+                       !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
+                       !dest_permissions.contains(&DirectoryPermissionType::Manage) {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 403,
+                            message: "You don't have permission to move folders to the destination folder".to_string(),
+                        });
+                    }
         
                     match move_folder(&folder_id, &destination_folder, payload.file_conflict_resolution) {
                         Ok(folder) => Ok(DirectoryActionResult::MoveFolder(folder)),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
-                            message: format!("Failed to move folder: {}", e)
-                        })
+                            message: format!("Failed to move folder: {}", e),
+                        }),
                     }
                 }
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
-                    message: "Invalid payload for MOVE_FOLDER action".to_string()
+                    message: "Invalid payload for MOVE_FOLDER action".to_string(),
                 })
             }
-        }
-        
+        },
+
         DirectoryActionEnum::RestoreTrash => {
             match action.payload {
                 DirectoryActionPayload::RestoreTrash(payload) => {
@@ -947,17 +1133,114 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         message: "Resource ID is required for restore operation".to_string()
                     })?;
         
-                    match restore_from_trash(&resource_id.to_string(), &payload) {
-                        Ok(result) => Ok(result),
-                        Err(e) => Err(DirectoryActionErrorInfo {
-                            code: 500,
-                            message: format!("Failed to restore from trash: {}", e)
-                        })
+                    // First check if it's a folder
+                    let folder_id = match &resource_id {
+                        DirectoryResourceID::Folder(id) => Some(id.clone()),
+                        _ => None,
+                    };
+        
+                    if let Some(folder_id) = folder_id {
+                        // Get folder metadata
+                        let folder = folder_uuid_to_metadata
+                            .get(&folder_id)
+                            .ok_or_else(|| DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "Folder not found".to_string(),
+                            })?;
+        
+                        // Verify folder is actually in trash
+                        if folder.restore_trash_prior_folder_path.is_none() {
+                            return Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "Folder is not in trash".to_string(),
+                            });
+                        }
+        
+                        // Check permissions on the folder itself
+                        let folder_resource_id = DirectoryResourceID::Folder(folder_id.clone());
+                        let folder_permissions = check_directory_permissions(
+                            folder_resource_id,
+                            DirectoryGranteeID::User(user_id.clone())
+                        );
+        
+                        // User needs Edit/Manage permission OR be creator with Upload permission to restore
+                        let is_creator_with_upload = folder.created_by == user_id && 
+                            folder_permissions.contains(&DirectoryPermissionType::Upload);
+                        let has_restore_permission = folder_permissions.contains(&DirectoryPermissionType::Edit) ||
+                                                  folder_permissions.contains(&DirectoryPermissionType::Manage);
+        
+                        if !is_creator_with_upload && !has_restore_permission {
+                            return Err(DirectoryActionErrorInfo {
+                                code: 403,
+                                message: "You don't have permission to restore this folder".to_string(),
+                            });
+                        }
+        
+                        match restore_from_trash(&folder_id.to_string(), &payload) {
+                            Ok(result) => Ok(result),
+                            Err(e) => Err(DirectoryActionErrorInfo {
+                                code: 500,
+                                message: format!("Failed to restore folder from trash: {}", e),
+                            })
+                        }
+                    } else {
+                        // Try as a file
+                        let file_id = match &resource_id {
+                            DirectoryResourceID::File(id) => id.clone(),
+                            _ => return Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "Invalid resource ID format".to_string(),
+                            }),
+                        };
+        
+                        // Get file metadata
+                        let file = file_uuid_to_metadata
+                            .get(&file_id)
+                            .ok_or_else(|| DirectoryActionErrorInfo {
+                                code: 404,
+                                message: "File not found".to_string(),
+                            })?;
+        
+                        // Verify file is actually in trash
+                        if file.restore_trash_prior_folder_path.is_none() {
+                            return Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "File is not in trash".to_string(),
+                            });
+                        }
+        
+                        // Check permissions on the file itself
+                        let file_resource_id = DirectoryResourceID::File(file_id.clone());
+                        let file_permissions = check_directory_permissions(
+                            file_resource_id,
+                            DirectoryGranteeID::User(user_id.clone())
+                        );
+        
+                        // User needs Edit/Manage permission OR be creator with Upload permission to restore
+                        let is_creator_with_upload = file.created_by == user_id && 
+                            file_permissions.contains(&DirectoryPermissionType::Upload);
+                        let has_restore_permission = file_permissions.contains(&DirectoryPermissionType::Edit) ||
+                                                  file_permissions.contains(&DirectoryPermissionType::Manage);
+        
+                        if !is_creator_with_upload && !has_restore_permission {
+                            return Err(DirectoryActionErrorInfo {
+                                code: 403,
+                                message: "You don't have permission to restore this file".to_string(),
+                            });
+                        }
+        
+                        match restore_from_trash(&file_id.to_string(), &payload) {
+                            Ok(result) => Ok(result),
+                            Err(e) => Err(DirectoryActionErrorInfo {
+                                code: 500,
+                                message: format!("Failed to restore file from trash: {}", e),
+                            })
+                        }
                     }
                 }
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
-                    message: "Invalid payload for RESTORE_TRASH action".to_string()
+                    message: "Invalid payload for RESTORE_TRASH action".to_string(),
                 })
             }
         }
