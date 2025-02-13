@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType, PlaceholderDirectoryPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType, PlaceholderDirectoryPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -52,7 +52,7 @@ pub mod drive_internals {
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: user_id.clone(),
                 deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+                canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
                 expires_at: -1,
                 has_sovereign_permissions: false,
             };
@@ -81,7 +81,7 @@ pub mod drive_internals {
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: user_id.clone(),
                 deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string)),
+                canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string)),
                 expires_at: -1,
                 has_sovereign_permissions: true,
             };
@@ -198,7 +198,7 @@ pub mod drive_internals {
                     last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                     last_updated_by: user_id.clone(),
                     deleted: false,
-                    canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
+                    canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
                     expires_at: -1,
                     restore_trash_prior_folder_path: None,
                     // only set if its the final folder and has sovereign permissions

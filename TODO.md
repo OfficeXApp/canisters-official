@@ -12,7 +12,7 @@
 
 - [🔵] Refactor all ID generation to use prefix, and handle all multi-type IDs with conversion
 - [🔵] Implement permissions for directory
-- [🔵] Allow BLS signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
+- [🔵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [ ] Implement permissions for system (disks, teams, drives, contacts)
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
 - [ ] Write the `permissions` REST routes (https://youtu.be/5GG-VUvruzE?si=lEC0epAhFlD9-2Bp&t=1165)
@@ -36,7 +36,7 @@
 - [ ] Refactor list to apply filter on all appropriate route items
 - [ ] Refactor all CRUD creates/updates/deletes to accept array to support bulk operations (hard to change API spec after)
 - [ ] Implement file/folder tags
-- [ ] Consider the danger of UserID values that dont comply with ICP Principals ThresholdBLS and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
+- [ ] Consider the danger of UserID values that dont comply with ICP Principals and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
 - [ ] Consider whether we need historical action logs and replayability (eg. who did what when, can we "rollback"?)
 - [ ] Test whether the s3/storj copy operation works (does raw_storage actually get duplicated?)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
@@ -63,7 +63,7 @@
 - [x] Write the `team_invites` REST routes
 - [x] Write the `drives` REST routes
 - [x] Write the `disks` REST routes
-- [x] Consider whether we need to decouple IDs from BLS public address, and instead let it be uuid and have `Contact.icp_principal` and `Contact.external_id` and save for `Drive.icp_principal` and `Drive.external_id`. --> Yes we decoupled it. There is no `Contact.external_id` as all communication must use PublicKeyBLS
+- [x] Consider whether we need to decouple IDs from ICP public address, and instead let it be uuid and have `Contact.icp_principal` and `Contact.external_id` and save for `Drive.icp_principal` and `Drive.external_id`. --> Yes we decoupled it. There is no `Contact.external_id` as all communication must use PublicKeyICP
 - [x] Migrate & refactor core drive code --> in front of every POST /directory/action:getFile we need to generate a new raw_url (and potentially also track access_tokens for reuse, at least for public)
 - [x] Implement in-canister raw file storage, perhaps we should try a pure asset container? --> has raw_url but only if we add asset-canister functionality --> in the end we settled for in-canister filestorage via persistent chunked binary data. while the data is stored & streamed onchain, its slow expensive and cant be accessed via plain url string, must be via webapp to render.
 - [x] Refactor how recycling bin works.

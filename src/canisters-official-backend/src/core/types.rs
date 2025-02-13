@@ -4,9 +4,9 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PublicKeyBLS(pub String);
+pub struct PublicKeyICP(pub String);
 
-impl fmt::Display for PublicKeyBLS {
+impl fmt::Display for PublicKeyICP {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -14,7 +14,7 @@ impl fmt::Display for PublicKeyBLS {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ICPPrincipalString(pub PublicKeyBLS);
+pub struct ICPPrincipalString(pub PublicKeyICP);
 
 impl fmt::Display for ICPPrincipalString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

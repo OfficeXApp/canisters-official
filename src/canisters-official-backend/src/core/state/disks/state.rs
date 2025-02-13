@@ -3,7 +3,7 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::{CANISTER_ID, OWNER_ID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID}}, debug_log};
+    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::{CANISTER_ID, OWNER_ID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
     
     thread_local! {
         pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
@@ -83,7 +83,7 @@ pub mod state {
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: owner_id.clone(),
                 deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyBLS(canister_id.to_string())),
+                canister_id: ICPPrincipalString(PublicKeyICP(canister_id.to_string())),
                 expires_at: -1,
                 restore_trash_prior_folder_path: None,
                 has_sovereign_permissions: true

@@ -1,7 +1,7 @@
 // src/core/state/drives/types.rs
 use serde::{Serialize, Deserialize};
 
-use crate::core::types::{ICPPrincipalString, PublicKeyBLS};
+use crate::core::types::{ICPPrincipalString, PublicKeyICP};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
