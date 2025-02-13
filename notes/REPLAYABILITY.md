@@ -28,6 +28,7 @@ const state = { id: "my-count", data: { counter: 0 } };
 const diffs: Diff[] = [
   {
     id: Date.now(), // e.g. 1707175440000
+    atomic_tx: "tx_123", // tracer to batch diffs into an atomic tx
     path: ["data", "counter"],
     from: 0,
     to: 1,
@@ -52,3 +53,13 @@ function replay(initial: any, diffs: Diff[]): any {
     }, initial);
 }
 ```
+
+## Revision
+
+We can use rust crate `serde-diff` to handle diffing two objects. It will efficiently handle the diffing process and we get bidirectional replayability out of the box. It handles large arrays well.
+
+We can apply atomic transactions on a batch of state changes, as we dont need such granular changes. This would mean we need a tracer_id/or/atomic_txid to represent a state change (which rolls up multiple state changes into one final diff).
+
+If the state gets very large, like 10k records which is 20mb state that needs to be cloned, it will cost about ~$0.01 for every diff operation. mainly due to the cloning of the large state. if 100k records this cost can increase 10x, resulting in quite expensive audit logging. especially if its doing 1000 operations per day, can cost $100/day. however for most retail users they would only have 10k records x 10 operations per day, for a cost of $0.1 per day.
+
+However note that users can just disable audit logs altogether and the cost becomes $0.
