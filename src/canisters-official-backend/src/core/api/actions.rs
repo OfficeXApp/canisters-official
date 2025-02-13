@@ -19,7 +19,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::GetFile(_) => {
                     // First try resource_id
                     if let Some(id) = action.target.resource_id {
-                        match get_file_by_id(FileUUID(id)) {
+                        match get_file_by_id(FileUUID(id.to_string())) {
                             Ok(file) => Ok(DirectoryActionResult::GetFile(file)),
                             Err(e) => Err(DirectoryActionErrorInfo {
                                 code: 404,
@@ -56,7 +56,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::GetFolder(_) => {
                     // First try resource_id
                     if let Some(id) = action.target.resource_id {
-                        match get_folder_by_id(FolderUUID(id)) {
+                        match get_folder_by_id(FolderUUID(id.to_string())) {
                             Ok(folder) => Ok(DirectoryActionResult::GetFolder(folder)),
                             Err(e) => Err(DirectoryActionErrorInfo {
                                 code: 404,
@@ -117,7 +117,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         }
                     } else if let Some(id) = action.target.resource_id {
                         // For resource_id, a valid parent folder MUST be found.
-                        let folder = get_folder_by_id(FolderUUID(id)).map_err(|e| DirectoryActionErrorInfo {
+                        let folder = get_folder_by_id(FolderUUID(id.to_string())).map_err(|e| DirectoryActionErrorInfo {
                             code: 404,
                             message: format!("Parent folder not found: {}", e)
                         })?;
@@ -142,6 +142,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
+                        payload.has_sovereign_permissions
                     ) {
                         Ok((file_metadata, upload_response)) => {
                             Ok(DirectoryActionResult::CreateFile(CreateFileResponse {
@@ -169,8 +170,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 }
             }
         }
-        
-        
+         
         DirectoryActionEnum::CreateFolder => {
             match action.payload {
                 DirectoryActionPayload::CreateFolder(payload) => {
@@ -187,7 +187,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             }
                         }
                     } else if let Some(id) = action.target.resource_id {
-                        match get_folder_by_id(FolderUUID(id)) {
+                        match get_folder_by_id(FolderUUID(id.to_string())) {
                             Ok(folder) => DriveFullFilePath(format!("{}{}/", folder.full_folder_path.0, payload.name)),
                             Err(_) => return Err(DirectoryActionErrorInfo {
                                 code: 404,
@@ -209,6 +209,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         payload.expires_at.unwrap_or(-1),
                         String::new(),
                         payload.file_conflict_resolution,
+                        payload.has_sovereign_permissions
                     ) {
                         Ok(folder) => Ok(DirectoryActionResult::CreateFolder(folder)),
                         Err(e) => match e.as_str() {
@@ -235,7 +236,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::UpdateFile(payload) => {
                     // Get the file ID from either resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
-                        FileUUID(id)
+                        FileUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.file {
@@ -311,7 +312,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::UpdateFolder(payload) => {
                     // Get the folder ID from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
-                        FolderUUID(id)
+                        FolderUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.folder {
@@ -384,7 +385,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::DeleteFile(payload) => {
                     // Get the file first to ensure it exists and get its metadata
                     let file_id = if let Some(id) = action.target.resource_id {
-                        FileUUID(id)
+                        FileUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.file {
@@ -434,7 +435,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::DeleteFolder(payload) => {
                     // Get the folder first to ensure it exists and get its metadata
                     let folder_id = if let Some(id) = action.target.resource_id {
-                        FolderUUID(id)
+                        FolderUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.folder {
@@ -490,7 +491,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::CopyFile(payload) => {
                     // Get the file ID from either resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
-                        FileUUID(id)
+                        FileUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.file {
@@ -545,7 +546,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::CopyFolder(payload) => {
                     // Get the folder ID from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
-                        FolderUUID(id)
+                        FolderUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.folder {
@@ -605,7 +606,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::MoveFile(payload) => {
                     // Get the file ID from either resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
-                        FileUUID(id)
+                        FileUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.file {
@@ -659,7 +660,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                 DirectoryActionPayload::MoveFolder(payload) => {
                     // Get the folder ID from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
-                        FolderUUID(id)
+                        FolderUUID(id.to_string())
                     } else if let Some(path) = action.target.resource_path {
                         let translation = translate_path_to_id(path);
                         match translation.folder {
@@ -723,7 +724,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         message: "Resource ID is required for restore operation".to_string()
                     })?;
         
-                    match restore_from_trash(&resource_id, &payload) {
+                    match restore_from_trash(&resource_id.to_string(), &payload) {
                         Ok(result) => Ok(result),
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,

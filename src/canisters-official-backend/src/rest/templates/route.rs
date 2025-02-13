@@ -25,7 +25,7 @@ pub fn init_routes() {
         (
             "POST",
             TEMPLATES_UPSERT_PATH,
-            crate::rest::templates::handler::templates_handlers::create_template_handler,
+            crate::rest::templates::handler::templates_handlers::upsert_template_handler,
         ),
         (
             "POST",

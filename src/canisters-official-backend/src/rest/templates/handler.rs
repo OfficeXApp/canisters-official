@@ -3,7 +3,7 @@
 
 pub mod templates_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::templates::{state::state::TEMPLATE_ITEMS, types::TemplateID}}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
+        core::{api::uuid::generate_unique_id, state::templates::{state::state::TEMPLATE_ITEMS, types::TemplateID}, types::IDPrefix}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
         
     };
     use crate::core::state::templates::{
@@ -69,10 +69,10 @@ pub mod templates_handlers {
         create_response(StatusCode::OK, body)
     }
 
-    pub fn create_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn upsert_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(req.body());
 
-        let id = TemplateID(generate_unique_id("TemplateID", ""));
+        let id = TemplateID(generate_unique_id(IDPrefix::User, ""));
 
         let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let template_item = TemplateItem {
@@ -87,38 +87,6 @@ pub mod templates_handlers {
 
         let body = CreateTemplateResponse::ok(&template_item).encode();
         create_response(StatusCode::CREATED, body)
-    }
-
-    pub fn update_template_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
-        let req_body: UpdateTemplateRequest = json_decode(req.body());
-        let id = TemplateID(params.get("id").unwrap().to_string());
-
-        TEMPLATE_ITEMS.with_borrow_mut(|items| {
-            let item = items.get_mut(&id).unwrap();
-
-            if let Some(title) = req_body.title {
-                item.title = title;
-            }
-
-            if let Some(completed) = req_body.completed {
-                item.completed = completed;
-            }
-        });
-
-        let updated_template_item = TEMPLATE_ITEMS.with_borrow(|items| {
-            items.get(&id).cloned()
-        });
-
-        match updated_template_item {
-            Some(key) => create_response(
-                StatusCode::OK,
-                UpdateTemplateResponse::ok(&key).encode()
-            ),
-            None => create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "Template not found".to_string()).encode()
-            ),
-        }
     }
 
     pub fn delete_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {

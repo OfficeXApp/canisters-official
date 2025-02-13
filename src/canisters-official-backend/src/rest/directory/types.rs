@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}}, rest::webhooks::types::SortDirection};
+use crate::{core::{state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}, types::IDPrefix}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -288,12 +288,38 @@ impl fmt::Display for FileConflictResolutionEnum {
 }
 
 
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DirectoryResourceID {
+    File(FileUUID),
+    Folder(FolderUUID),
+}
+impl fmt::Display for DirectoryResourceID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DirectoryResourceID::File(id) => write!(f, "{}", id),
+            DirectoryResourceID::Folder(id) => write!(f, "{}", id),
+        }
+    }
+}
+impl DirectoryResourceID {
+    fn from_string(id: String) -> Option<Self> {
+        if id.starts_with(IDPrefix::File.as_str()) {
+            Some(DirectoryResourceID::File(FileUUID(id)))
+        } else if id.starts_with(IDPrefix::Folder.as_str()) {
+            Some(DirectoryResourceID::Folder(FolderUUID(id)))
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceIdentifier {
     #[serde(default)]
     pub resource_path: Option<DriveFullFilePath>, // points to file/folder itself, except in create file/folder operations would be a parent folder
     #[serde(default)]
-    pub resource_id: Option<String>,  // points to file/folder itself, except in create file/folder operations would be a parent folder
+    pub resource_id: Option<DirectoryResourceID>,  // points to file/folder itself, except in create file/folder operations would be a parent folder
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -332,6 +358,7 @@ pub struct CreateFilePayload {
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub has_sovereign_permissions: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -342,6 +369,7 @@ pub struct CreateFolderPayload {
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub has_sovereign_permissions: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

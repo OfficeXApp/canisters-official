@@ -10,11 +10,12 @@ pub mod state {
     use crate::core::state::drives::types::Drive;
     use crate::core::state::drives::types::DriveID;
     use crate::core::types::ICPPrincipalString;
+    use crate::core::types::IDPrefix;
     use crate::core::types::{UserID,PublicKeyBLS};
 
     thread_local! {
         // self info
-        pub(crate) static DRIVE_ID: DriveID = DriveID(generate_unique_id("DriveID", ""));
+        pub(crate) static DRIVE_ID: DriveID = DriveID(generate_unique_id(IDPrefix::Drive, ""));
         pub(crate) static CANISTER_ID: PublicKeyBLS = PublicKeyBLS(ic_cdk::api::id().to_text());
         pub(crate) static OWNER_ID: UserID = UserID("Anonymous_Owner".to_string());
         pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);

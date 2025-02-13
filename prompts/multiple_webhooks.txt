@@ -1,3 +1,144 @@
+// OfficeX filesharing app (clone of google drive)
+// where possible, show the code changes as green diffs without the +/- symbols
+
+// src/core/state/webhooks/state.rs
+pub mod state {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::core::state::webhooks::types::{Webhook, WebhookAltIndexID, WebhookID};
+    
+    thread_local! {
+        // users pass in api key value, we O(1) lookup the api key id + O(1) lookup the api key
+        pub(crate) static WEBHOOKS_BY_ALT_INDEX_HASHTABLE: RefCell<HashMap<WebhookAltIndexID, Vec<WebhookID>>> = RefCell::new(HashMap::new());
+        // default is to use the api key id to lookup the api key
+        pub(crate) static WEBHOOKS_BY_ID_HASHTABLE: RefCell<HashMap<WebhookID, Webhook>> = RefCell::new(HashMap::new());
+        // track in hashtable users list of ApiKeyIDs
+        pub(crate) static WEBHOOKS_BY_TIME_LIST: RefCell<Vec<WebhookID>> = RefCell::new(Vec::new());
+    }
+
+}
+
+
+
+
+// src/core/state/webhooks/types.rs
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct WebhookID(pub String);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct WebhookAltIndexID(pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Webhook {
+    pub id: WebhookID,
+    pub url: String,
+    pub alt_index: WebhookAltIndexID,
+    pub event: WebhookEventLabel,
+    pub signature: String,
+    pub description: String,
+    pub active: bool,
+}
+
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WebhookEventLabel {
+    #[serde(rename = "file.viewed")]
+    FileViewed,
+    #[serde(rename = "file.created")]
+    FileCreated,
+    #[serde(rename = "file.updated")]
+    FileUpdated,
+    #[serde(rename = "file.deleted")]
+    FileDeleted,
+    #[serde(rename = "file.shared")]
+    FileShared,
+    #[serde(rename = "folder.viewed")]
+    FolderViewed,
+    #[serde(rename = "folder.created")]
+    FolderCreated,
+    #[serde(rename = "folder.updated")]
+    FolderUpdated,
+    #[serde(rename = "folder.deleted")]
+    FolderDeleted,
+    #[serde(rename = "folder.shared")]
+    FolderShared,
+    #[serde(rename = "folder.file.created")]
+    FolderFileCreated,
+    #[serde(rename = "folder.file.updated")]
+    FolderFileUpdated,
+    #[serde(rename = "folder.file.deleted")]
+    FolderFileDeleted,
+    #[serde(rename = "folder.file.shared")]
+    FolderFileShared,
+    #[serde(rename = "team.invite.created")]
+    TeamInviteCreated,
+    #[serde(rename = "team.invite.updated")]
+    TeamInviteUpdated,
+    #[serde(rename = "drive.gas_low")]
+    DriveGasLow,
+    #[serde(rename = "drive.sync_completed")]
+    DriveSyncCompleted,
+}
+
+impl std::str::FromStr for WebhookEventLabel {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "file.viewed" => Ok(Self::FileViewed),
+            "file.created" => Ok(Self::FileCreated),
+            "file.updated" => Ok(Self::FileUpdated),
+            "file.deleted" => Ok(Self::FileDeleted),
+            "file.shared" => Ok(Self::FileShared),
+            "folder.viewed" => Ok(Self::FolderViewed),
+            "folder.created" => Ok(Self::FolderCreated),
+            "folder.updated" => Ok(Self::FolderUpdated),
+            "folder.deleted" => Ok(Self::FolderDeleted),
+            "folder.shared" => Ok(Self::FolderShared),
+            "folder.file.created" => Ok(Self::FolderFileCreated),
+            "folder.file.updated" => Ok(Self::FolderFileUpdated),
+            "folder.file.deleted" => Ok(Self::FolderFileDeleted),
+            "folder.file.shared" => Ok(Self::FolderFileShared),
+            "team.invite.created" => Ok(Self::TeamInviteCreated),
+            "team.invite.updated" => Ok(Self::TeamInviteUpdated),
+            "drive.gas_low" => Ok(Self::DriveGasLow),
+            "drive.sync_completed" => Ok(Self::DriveSyncCompleted),
+            _ => Err(format!("Invalid webhook event: {}", s)),
+        }
+    }
+}
+
+// Optionally, if you need to convert back to string representation
+impl ToString for WebhookEventLabel {
+    fn to_string(&self) -> String {
+        match self {
+            Self::FileViewed => "file.viewed",
+            Self::FileCreated => "file.created",
+            Self::FileUpdated => "file.updated",
+            Self::FileDeleted => "file.deleted",
+            Self::FileShared => "file.shared",
+            Self::FolderViewed => "folder.viewed",
+            Self::FolderCreated => "folder.created",
+            Self::FolderUpdated => "folder.updated",
+            Self::FolderDeleted => "folder.deleted",
+            Self::FolderShared => "folder.shared",
+            Self::FolderFileCreated => "folder.file.created",
+            Self::FolderFileUpdated => "folder.file.updated",
+            Self::FolderFileDeleted => "folder.file.deleted",
+            Self::FolderFileShared => "folder.file.shared",
+            Self::TeamInviteCreated => "team.invite.created",
+            Self::TeamInviteUpdated => "team.invite.updated",
+            Self::DriveGasLow => "drive.gas_low",
+            Self::DriveSyncCompleted => "drive.sync_completed",
+        }.to_string()
+    }
+}
+
 // src/rest/webhooks/handler.rs
 
 
@@ -9,7 +150,7 @@ pub mod webhooks_handlers {
             api::uuid::generate_unique_id,
             state::{drives::state::state::OWNER_ID, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
-            }}, types::IDPrefix
+            }}
         },
         debug_log,
         rest::{
@@ -266,7 +407,7 @@ pub mod webhooks_handlers {
                 UpsertWebhookRequestBody::Create(create_req) => {
 
                     // Create new webhook
-                    let webhook_id = WebhookID(generate_unique_id(IDPrefix::Webhook, ""));
+                    let webhook_id = WebhookID(generate_unique_id("WebhookID", ""));
                     let alt_index = WebhookAltIndexID(create_req.alt_index);
                     let webhook = Webhook {
                         id: webhook_id.clone(),
@@ -278,16 +419,21 @@ pub mod webhooks_handlers {
                         active: true,
                     };
 
-                    // Update state tables – now storing a Vec<WebhookID> without removing others
+                    // Update state tables - note we now allow overwriting existing alt_index
                     WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
+                        // If there's an existing webhook with this alt_index, we need to clean it up
                         let mut store = store.borrow_mut();
-                        store.entry(alt_index.clone())
-                            .and_modify(|vec_ids| {
-                                if !vec_ids.contains(&webhook_id) {
-                                    vec_ids.push(webhook_id.clone());
-                                }
-                            })
-                            .or_insert_with(|| vec![webhook_id.clone()]);
+                        if let Some(existing_webhook_id) = store.get(&alt_index).cloned() {
+                            // Remove the existing webhook from other tables
+                            WEBHOOKS_BY_ID_HASHTABLE.with(|id_store| {
+                                id_store.borrow_mut().remove(&existing_webhook_id);
+                            });
+                            WEBHOOKS_BY_TIME_LIST.with(|time_list| {
+                                time_list.borrow_mut().retain(|id| id != &existing_webhook_id);
+                            });
+                        }
+                        // Insert new mapping
+                        store.insert(alt_index, webhook_id.clone());
                     });
 
                     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
@@ -386,13 +532,7 @@ pub mod webhooks_handlers {
 
         // Remove from all hashtables
         WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
-            let mut map = store.borrow_mut();
-            if let Some(ids) = map.get_mut(&webhook.alt_index) {
-                ids.retain(|id| id != &webhook_id);
-                if ids.is_empty() {
-                    map.remove(&webhook.alt_index);
-                }
-            }
+            store.borrow_mut().remove(&webhook.alt_index);
         });
 
         WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
@@ -440,3 +580,176 @@ pub mod webhooks_handlers {
             .build()
     }
 }
+
+
+// src/rest/webhooks/route.rs
+use crate::debug_log;
+use crate::rest::router;
+use crate::types::RouteHandler;
+
+pub const WEBHOOKS_GET_PATH: &str = "/webhooks/get/{webhook_id}";
+pub const WEBHOOKS_LIST_PATH: &str = "/webhooks/list";
+pub const WEBHOOKS_UPSERT_PATH: &str = "/webhooks/upsert";
+pub const WEBHOOKS_DELETE_PATH: &str = "/webhooks/delete";
+
+type HandlerEntry = (&'static str, &'static str, RouteHandler);
+
+pub fn init_routes() {
+    let routes: &[HandlerEntry] = &[
+        (
+            "GET",
+            WEBHOOKS_GET_PATH,
+            crate::rest::webhooks::handler::webhooks_handlers::get_webhook_handler,
+        ),
+        (
+            "POST",
+            WEBHOOKS_LIST_PATH,
+            crate::rest::webhooks::handler::webhooks_handlers::list_webhooks_handler,
+        ),
+        (
+            "POST",
+            WEBHOOKS_UPSERT_PATH,
+            crate::rest::webhooks::handler::webhooks_handlers::upsert_webhook_handler,
+        ),
+        (
+            "POST",
+            WEBHOOKS_DELETE_PATH,
+            crate::rest::webhooks::handler::webhooks_handlers::delete_webhook_handler,
+        )
+    ];
+
+    for &(method, path, handler) in routes {
+        debug_log!("Registering {} route: {}", method, path);
+        router::insert_route(method, path, handler);
+    }
+
+}
+
+// src/rest/webhooks/types.rs
+
+use serde::{Deserialize, Serialize};
+use crate::core::state::webhooks::types::WebhookEventLabel;
+use crate::core::state::webhooks::types::{WebhookID, Webhook};
+
+#[derive(Debug, Clone, Serialize)]
+pub enum WebhookResponse<'a, T = ()> {
+    #[serde(rename = "ok")]
+    Ok { data: &'a T },
+    #[serde(rename = "err")]
+    Err { code: u16, message: String },
+}
+
+impl<'a, T: Serialize> WebhookResponse<'a, T> {
+    pub fn ok(data: &'a T) -> WebhookResponse<'a, T> { 
+        Self::Ok { data }
+    }
+
+    pub fn not_found() -> Self {
+        Self::err(404, "Not found".to_string())
+    }
+
+    pub fn unauthorized() -> Self {
+        Self::err(401, "Unauthorized".to_string())
+    }
+
+    pub fn err(code: u16, message: String) -> Self {
+        Self::Err { code, message }
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("Failed to serialize value")
+    }
+}
+
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+impl Default for SortDirection {
+    fn default() -> Self {
+        SortDirection::Asc
+    }
+}
+
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListWebhooksRequestBody {
+    #[serde(default)]
+    pub filters: String,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    #[serde(default)]
+    pub direction: SortDirection,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+fn default_page_size() -> usize {
+    50
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListWebhooksResponseData {
+    pub items: Vec<Webhook>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateWebhookRequestBody {
+    pub alt_index: String,
+    pub url: String,
+    pub event: String,
+    pub signature: Option<String>,
+    pub description: Option<String>,
+}
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateWebhookRequestBody {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum UpsertWebhookRequestBody {
+    Create(CreateWebhookRequestBody),
+    Update(UpdateWebhookRequestBody),
+}
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeleteWebhookRequest {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeletedWebhookData {
+    pub id: WebhookID,
+    pub deleted: bool
+}
+
+
+pub type GetWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
+pub type ListWebhooksResponse<'a> = WebhookResponse<'a, ListWebhooksResponseData>;
+pub type CreateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
+pub type UpdateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
+pub type DeleteWebhookResponse<'a> = WebhookResponse<'a, DeletedWebhookData>;
+pub type ErrorResponse<'a> = WebhookResponse<'a, ()>;
