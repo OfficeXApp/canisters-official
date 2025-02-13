@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{internals::drive_internals::{can_user_access_permission, check_directory_permissions, get_inherited_resources_list, has_manage_permission, parse_directory_grantee_id, parse_directory_resource_id}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{GRANTEE_PERMISSIONS_HASHTABLE, PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE, PERMISSIONS_BY_TIME_LIST}, types::{DirectoryGranteeID, DirectoryGranteeType, DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, DirectoryShareDeferredID}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, ErrorResponse, PermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData}},
+        core::{api::{internals::drive_internals::{can_user_access_permission, check_directory_permissions, get_inherited_resources_list, has_manage_permission, parse_directory_grantee_id, parse_directory_resource_id}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{GRANTEE_PERMISSIONS_HASHTABLE, PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE, PERMISSIONS_BY_TIME_LIST}, types::{DirectoryGranteeID, DirectoryGranteeType, DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PlaceholderDirectoryPermissionGranteeID}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, UpsertPermissionsRequestBody, UpsertPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -196,7 +196,7 @@ pub mod permissions_handlers {
             }
         } else {
             // Create a new deferred link ID for sharing
-            DirectoryGranteeID::OneTimeLink(DirectoryShareDeferredID(
+            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderDirectoryPermissionGranteeID(
                 generate_unique_id(IDPrefix::DirectoryShareDeferred, "")
             ))
         };
@@ -300,7 +300,7 @@ pub mod permissions_handlers {
                     DirectoryGranteeID::Public => DirectoryGranteeType::Public,
                     DirectoryGranteeID::User(_) => DirectoryGranteeType::User,
                     DirectoryGranteeID::Team(_) => DirectoryGranteeType::Team,
-                    DirectoryGranteeID::OneTimeLink(_) => DirectoryGranteeType::OneTimeLink,
+                    DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(_) => DirectoryGranteeType::PlaceholderDirectoryPermissionGrantee,
                 },
                 granted_to: grantee_id.clone(),
                 granted_by: requester_api_key.user_id.clone(),
@@ -311,7 +311,7 @@ pub mod permissions_handlers {
                 note: upsert_request.note.unwrap_or_default(),
                 created_at: current_time,
                 last_modified_at: current_time,
-                from_one_time_link: None,
+                from_placeholder_grantee: None,
             };
     
             // Update all state indices
@@ -439,6 +439,96 @@ pub mod permissions_handlers {
             StatusCode::OK,
             serde_json::to_vec(&DeletePermissionResponseData {
                 deleted_id: delete_request.permission_id,
+            }).expect("Failed to serialize response")
+        )
+    }
+
+    pub fn redeem_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+        // 1. Parse request body
+        let body: &[u8] = req.body();
+        let redeem_request = match serde_json::from_slice::<RedeemPermissionRequest>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // 2. Convert permission_id string to DirectoryPermissionID
+        let permission_id = DirectoryPermissionID(redeem_request.permission_id);
+    
+        // 3. Get existing permission
+        let mut permission = match PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+            permissions.borrow().get(&permission_id).cloned()
+        }) {
+            Some(p) => p,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Permission not found".to_string()).encode()
+            ),
+        };
+    
+        // 4. Check if permission is actually a one-time link and not already redeemed
+        match &permission.granted_to {
+            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(link_id) => {
+                if permission.from_placeholder_grantee.is_some() {
+                    return create_response(
+                        StatusCode::BAD_REQUEST,
+                        ErrorResponse::err(400, "Permission has already been redeemed".to_string()).encode()
+                    );
+                }
+                
+                // Store the one-time link ID
+                permission.from_placeholder_grantee = Some(link_id.clone());
+            },
+            _ => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Permission is not a one-time link".to_string()).encode()
+            ),
+        }
+    
+        // 5. Parse the user_id string into a DirectoryGranteeID
+        let new_grantee = match parse_directory_grantee_id(&redeem_request.user_id) {
+            Ok(grantee_id) => match grantee_id {
+                DirectoryGranteeID::User(_) => grantee_id,
+                _ => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid user ID format".to_string()).encode()
+                ),
+            },
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid user ID format".to_string()).encode()
+            ),
+        };
+    
+        // 6. Update permission and state
+        let old_grantee = permission.granted_to.clone();
+        permission.granted_to = new_grantee.clone();
+        permission.grantee_type = DirectoryGranteeType::User;
+        permission.last_modified_at = ic_cdk::api::time() / 1_000_000; // Convert ns to ms
+    
+        // Update all state tables
+        PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+            permissions.borrow_mut().insert(permission_id.clone(), permission.clone());
+        });
+    
+        // Update grantee permissions - remove old, add new
+        GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
+            let mut table = grantee_permissions.borrow_mut();
+            // Remove from old grantee's set
+            table.remove(&old_grantee);
+            // Add to new grantee's set
+            table.entry(new_grantee)
+                .or_insert_with(HashSet::new)
+                .insert(permission_id);
+        });
+    
+        // 7. Return updated permission
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&RedeemPermissionResponseData {
+                permission,
             }).expect("Failed to serialize response")
         )
     }

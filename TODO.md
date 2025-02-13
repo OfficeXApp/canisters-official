@@ -12,6 +12,7 @@
 
 - [🔵] Refactor all ID generation to use prefix, and handle all multi-type IDs with conversion
 - [🔵] Implement permissions for directory
+- [🔵] Allow BLS signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence.
 - [ ] Implement permissions for system (disks, teams, drives, contacts)
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
 - [ ] Write the `permissions` REST routes (https://youtu.be/5GG-VUvruzE?si=lEC0epAhFlD9-2Bp&t=1165)
@@ -45,7 +46,6 @@
 ## Backlog
 
 - [ ] Decide if we want to add a route `GET /contacts/get/principal/{icp_principal}` alongside `GET /contacts/get/id/{user_id}` (smells since breaks pattern of routes. maybe should be url param like `GET /contacts/get/{user_id}?icp_principal={icp_principal}`)
-- [ ] Allow BLS signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence.
 - [ ] Figure out how to handle CRUD of canisters when someone shares a file with you and you accept. Also how to share a file with an anon person? --> current theory, we can generate an API key for them and set the API key user_id to a hardcoded non-principal value. then the receivers client ui can generate an icp principal and tell our canister which then updates the API key's user_id
 - [ ] Unit Tests (https://www.startearly.ai/)
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi (this is moreso for NodeJS)

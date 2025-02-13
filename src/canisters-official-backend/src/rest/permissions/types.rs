@@ -56,6 +56,20 @@ pub struct CheckPermissionResult {
     pub permissions: Vec<DirectoryPermissionType>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RedeemPermissionRequest {
+    pub permission_id: String,
+    pub user_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RedeemPermissionResponseData {
+    pub permission: DirectoryPermission,
+}
+
+pub type RedeemPermissionResponse<'a> = DriveResponse<'a, RedeemPermissionResponseData>;
+
+
 // Response type aliases using DriveResponse
 pub type GetPermissionResponse<'a> = DriveResponse<'a, DirectoryPermission>;
 pub type UpsertPermissionsResponse<'a> = DriveResponse<'a, UpsertPermissionsResponseData>;

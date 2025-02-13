@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType, DirectoryShareDeferredID, PUBLIC_GRANTEE_ID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType, PlaceholderDirectoryPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -534,7 +534,7 @@ pub mod drive_internals {
             DirectoryGranteeID::Public => {
                 return true; // Everyone can see public permissions
             }
-            DirectoryGranteeID::OneTimeLink(_) => {
+            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(_) => {
                 // One-time links can only be accessed by the creator
                 return permission.granted_by == *user_id;
             }
@@ -673,8 +673,8 @@ pub mod drive_internals {
                                         false
                                     }
                                 },
-                                DirectoryGranteeID::OneTimeLink(permission_link_id) => {
-                                    if let DirectoryGranteeID::OneTimeLink(request_link_id) = grantee_id {
+                                DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
+                                    if let DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
                                         permission_link_id.0 == request_link_id.0
                                     } else {
                                         false
@@ -727,7 +727,7 @@ pub mod drive_internals {
             match prefix_str {
                 "UserID" => Ok(DirectoryGranteeID::User(UserID(id_str.to_string()))),
                 "TeamID" => Ok(DirectoryGranteeID::Team(TeamID(id_str.to_string()))),
-                "DirectoryShareDeferredID" => Ok(DirectoryGranteeID::OneTimeLink(DirectoryShareDeferredID(id_str.to_string()))),
+                "PlaceholderDirectoryPermissionGranteeID" => Ok(DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderDirectoryPermissionGranteeID(id_str.to_string()))),
                 _ => Err(DirectoryIDError::InvalidPrefix),
             }
         } else {

@@ -21,9 +21,9 @@ impl fmt::Display for DirectoryPermissionID {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DirectoryShareDeferredID(pub String);
+pub struct PlaceholderDirectoryPermissionGranteeID(pub String);
 
-impl fmt::Display for DirectoryShareDeferredID {
+impl fmt::Display for PlaceholderDirectoryPermissionGranteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -45,7 +45,7 @@ pub enum DirectoryGranteeID {
     Public,
     User(UserID),
     Team(TeamID),
-    OneTimeLink(DirectoryShareDeferredID),
+    PlaceholderDirectoryPermissionGrantee(PlaceholderDirectoryPermissionGranteeID),
 }
 impl fmt::Display for DirectoryGranteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -53,7 +53,7 @@ impl fmt::Display for DirectoryGranteeID {
             DirectoryGranteeID::Public => write!(f, "{}", PUBLIC_GRANTEE_ID),
             DirectoryGranteeID::User(user_id) => write!(f, "{}", user_id),
             DirectoryGranteeID::Team(team_id) => write!(f, "{}", team_id),
-            DirectoryGranteeID::OneTimeLink(link_id) => write!(f, "{}", link_id),
+            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => write!(f, "{}", placeholder_id),
         }
     }
 }
@@ -65,7 +65,7 @@ pub enum DirectoryGranteeType {
     Public,
     User,
     Team,
-    OneTimeLink,
+    PlaceholderDirectoryPermissionGrantee,
 }
 
 
@@ -84,5 +84,5 @@ pub struct DirectoryPermission {
     pub note: String,
     pub created_at: u64,
     pub last_modified_at: u64,
-    pub from_one_time_link: Option<DirectoryShareDeferredID>,
+    pub from_placeholder_grantee: Option<PlaceholderDirectoryPermissionGranteeID>,
 }

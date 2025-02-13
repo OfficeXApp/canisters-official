@@ -7,6 +7,7 @@ pub const PERMISSIONS_GET_PATH: &str = "/permissions/directory/get/{directory_pe
 pub const PERMISSIONS_UPSERT_PATH: &str = "/permissions/directory/upsert";
 pub const PERMISSIONS_DELETE_PATH: &str = "/permissions/directory/delete";
 pub const PERMISSIONS_CHECK_PATH: &str = "/permissions/directory/check";
+pub const PERMISSIONS_REDEEM_PATH: &str = "/permissions/directory/redeem";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -31,6 +32,11 @@ pub fn init_routes() {
             "POST", 
             PERMISSIONS_CHECK_PATH,
             crate::rest::permissions::handler::permissions_handlers::check_permissions_handler,
+        ),
+        (
+            "POST", 
+            PERMISSIONS_REDEEM_PATH,
+            crate::rest::permissions::handler::permissions_handlers::redeem_permissions_handler,
         )
     ];
 

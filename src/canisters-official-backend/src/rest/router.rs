@@ -27,6 +27,7 @@ pub fn init_routes() {
     crate::rest::drives::route::init_routes();
     crate::rest::disks::route::init_routes();
     crate::rest::directory::route::init_routes();
+    crate::rest::permissions::route::init_routes();
 
     insert_route(
         "OPTIONS",
