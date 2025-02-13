@@ -3,7 +3,7 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::{CANISTER_ID, OWNER_ID}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log};
+    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::{CANISTER_ID, OWNER_ID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID}}, debug_log};
     
     thread_local! {
         pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
@@ -15,7 +15,7 @@ pub mod state {
 
         debug_log!("Initializing default admin api key...");
 
-        let current_canister_disk_id = generate_unique_id("DiskID", &format!("__DiskType_{}", DiskTypeEnum::IcpCanister));
+        let current_canister_disk_id = generate_unique_id(IDPrefix::Disk, &format!("__DiskType_{}", DiskTypeEnum::IcpCanister));
         let default_canister_disk = Disk {
             id: DiskID(current_canister_disk_id.clone()),
             name: "Self Canister Storage (Default)".to_string(),
@@ -25,7 +25,7 @@ pub mod state {
             auth_json: None,
             external_id: Some(ic_cdk::api::id().to_text()),
         };
-        let browsercache_disk_id = generate_unique_id("DiskID", &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
+        let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
         let default_browsercache_disk = Disk {
             id: DiskID(browsercache_disk_id.clone()),
             name: "Ephemeral Browser Storage (Default)".to_string(),
@@ -68,7 +68,7 @@ pub mod state {
         
         // Only create if root folder doesn't exist
         if !full_folder_path_to_uuid.contains_key(&root_path) {
-            let root_folder_uuid = generate_unique_id("FolderUUID", "");
+            let root_folder_uuid = generate_unique_id(IDPrefix::Folder, "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),

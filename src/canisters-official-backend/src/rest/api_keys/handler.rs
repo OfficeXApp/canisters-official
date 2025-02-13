@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::state::state::OWNER_ID}, types::{PublicKeyBLS, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyBLS, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -132,7 +132,7 @@ pub mod apikeys_handlers {
             
                     // Generate new API key with proper user_id
                     let new_api_key = ApiKey {
-                        id: ApiKeyID(generate_unique_id("ApiKeyID", "")),
+                        id: ApiKeyID(generate_unique_id(IDPrefix::ApiKey, "")),
                         value: ApiKeyValue(generate_api_key()),
                         user_id: key_user_id, 
                         name: create_req.name,

@@ -22,9 +22,7 @@ pub struct UpsertPermissionsRequest {
 pub struct PermissionEntry {
     pub id: Option<DirectoryPermissionID>,
     pub resource_id: DirectoryResourceID,
-    pub resource_path: String,
-    pub grantee_type: DirectoryGranteeType,
-    pub granted_to: DirectoryGranteeID,
+    pub granted_to: Option<DirectoryGranteeID>,
     pub permission_types: Vec<DirectoryPermissionType>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
@@ -40,14 +38,13 @@ pub struct UpsertPermissionsResponseData {
 
 // Delete Permissions
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeletePermissionsRequest {
-    pub permission_ids: Vec<DirectoryPermissionID>,
+pub struct DeletePermissionRequest {
+    pub permission_id: DirectoryPermissionID,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DeletePermissionsResponseData {
-    pub deleted_ids: Vec<DirectoryPermissionID>,
-    pub failed_deletions: Vec<(DirectoryPermissionID, String)>, // ID and error message for failed deletions
+pub struct DeletePermissionResponseData {
+    pub deleted_id: DirectoryPermissionID,
 }
 
 // Check Permissions
@@ -67,6 +64,6 @@ pub struct CheckPermissionResult {
 // Response type aliases using DriveResponse
 pub type GetPermissionResponse<'a> = DriveResponse<'a, DirectoryPermission>;
 pub type UpsertPermissionsResponse<'a> = DriveResponse<'a, UpsertPermissionsResponseData>;
-pub type DeletePermissionsResponse<'a> = DriveResponse<'a, DeletePermissionsResponseData>;
+pub type DeletePermissionResponse<'a> = DriveResponse<'a, DeletePermissionResponseData>;
 pub type CheckPermissionResponse<'a> = DriveResponse<'a, CheckPermissionResult>;
 pub type ErrorResponse<'a> = DriveResponse<'a, ()>;

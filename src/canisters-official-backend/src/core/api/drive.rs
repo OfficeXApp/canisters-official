@@ -11,7 +11,7 @@ pub mod drive {
                     types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
-            }, types::{ICPPrincipalString, PublicKeyBLS, UserID},
+            }, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID},
         }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
@@ -133,7 +133,7 @@ pub mod drive {
         }).ok_or_else(|| "Disk not found".to_string())?;
         
         let full_file_path = final_path;
-        let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
+        let new_file_uuid = FileUUID(generate_unique_id(IDPrefix::File, ""));
 
         ic_cdk::println!(
             "Checking full path: {} -> {}",
@@ -880,7 +880,7 @@ pub mod drive {
         }
 
         // Generate new UUID for the copy
-        let new_file_uuid = FileUUID(generate_unique_id("FileID", ""));
+        let new_file_uuid = FileUUID(generate_unique_id(IDPrefix::File, ""));
 
         // If this is an S3 or Storj bucket, perform copy operation
         if source_file.disk_type == DiskTypeEnum::AwsBucket || 
@@ -962,7 +962,7 @@ pub mod drive {
         );
     
         // Generate new UUID for the copy
-        let new_folder_uuid = FolderUUID(generate_unique_id("FolderUUID", ""));
+        let new_folder_uuid = FolderUUID(generate_unique_id(IDPrefix::Folder, ""));
     
         // Create new metadata for the copy
         let mut new_folder_metadata = source_folder.clone();

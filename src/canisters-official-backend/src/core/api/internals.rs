@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType, DirectoryShareDeferredID, PUBLIC_GRANTEE_ID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -36,7 +36,7 @@ pub mod drive_internals {
         let root_uuid = if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
             uuid.clone()
         } else {
-            let root_folder_uuid = generate_unique_id("FolderUUID", "");
+            let root_folder_uuid = generate_unique_id(IDPrefix::Folder, "");
             let root_folder = FolderMetadata {
                 id: FolderUUID(root_folder_uuid.clone()),
                 name: String::new(),
@@ -65,7 +65,7 @@ pub mod drive_internals {
         // Ensure .trash folder exists
         let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
         if !full_folder_path_to_uuid.contains_key(&trash_path) {
-            let trash_folder_uuid = generate_unique_id("FolderUUID", "");
+            let trash_folder_uuid = generate_unique_id(IDPrefix::Folder, "");
             let trash_folder = FolderMetadata {
                 id: FolderUUID(trash_folder_uuid.clone()),
                 name: ".trash".to_string(),
@@ -183,7 +183,7 @@ pub mod drive_internals {
             current_path = format!("{}{}/", current_path.clone(), part);
             
             if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
-                let new_folder_uuid = FolderUUID(generate_unique_id("FolderUUID",""));
+                let new_folder_uuid = FolderUUID(generate_unique_id(IDPrefix::Folder,""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
                     name: part.to_string(),
@@ -513,9 +513,14 @@ pub mod drive_internals {
         if permission.granted_by == *user_id {
             return true;
         }
+
+        let permission_granted_to = match parse_directory_grantee_id(&permission.granted_to.to_string()) {
+            Ok(parsed_grantee) => parsed_grantee,
+            Err(_) => return false, // Skip if parsing fails
+        };
     
         // Check if user is the direct grantee
-        match &permission.granted_to {
+        match &permission_granted_to {
             DirectoryGranteeID::User(granted_user_id) => {
                 if granted_user_id == user_id {
                     return true;
@@ -543,23 +548,32 @@ pub mod drive_internals {
         grantee_id: DirectoryGranteeID,
     ) -> Vec<DirectoryPermissionType> {
         // First, build the list of resources to check by traversing up the hierarchy
-        let resources_to_check = get_resources_to_check(resource_id);
+        let resources_to_check = get_inherited_resources_list(resource_id.clone());
         
         // Then check permissions for each resource and combine them
         let mut all_permissions = HashSet::new();
         for resource in resources_to_check {
-            let resource_permissions = check_resource_permissions(&resource, &grantee_id);
+            let resource_permissions = check_resource_permissions(
+                &resource, 
+                &grantee_id,
+                resource != resource_id
+            );
             all_permissions.extend(resource_permissions);
         }
         
         all_permissions.into_iter().collect()
     }
     
-    fn get_resources_to_check(resource_id: DirectoryResourceID) -> Vec<DirectoryResourceID> {
+    pub fn get_inherited_resources_list(resource_id: DirectoryResourceID) -> Vec<DirectoryResourceID> {
         let mut resources = Vec::new();
+
+        let parsed_resource_id = match parse_directory_resource_id(&resource_id.to_string()) {
+            Ok(parsed_resource) => parsed_resource,
+            Err(_) => return Vec::new(), // Skip if parsing fails
+        };
         
         // First check if the resource exists and get initial folder ID for traversal
-        let initial_folder_id = match &resource_id {
+        let initial_folder_id = match &parsed_resource_id {
             DirectoryResourceID::File(file_id) => {
                 match file_uuid_to_metadata.get(file_id) {
                     Some(file_metadata) => {
@@ -609,6 +623,7 @@ pub mod drive_internals {
     fn check_resource_permissions(
         resource_id: &DirectoryResourceID,
         grantee_id: &DirectoryGranteeID,
+        is_parent_for_inheritance: bool,
     ) -> HashSet<DirectoryPermissionType> {
         let mut permissions_set = HashSet::new();
         
@@ -629,9 +644,18 @@ pub mod drive_internals {
                             if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
                                 continue;
                             }
+                            // Skip if permission lacks inheritance and is_parent_for_inheritance
+                            if !permission.inheritable && is_parent_for_inheritance {
+                                continue;
+                            }
+
+                            let permission_granted_to = match parse_directory_grantee_id(&permission.granted_to.to_string()) {
+                                Ok(parsed_grantee) => parsed_grantee,
+                                Err(_) => continue, // Skip if parsing fails
+                            };
     
                             // Check if permission applies to this grantee
-                            let applies = match &permission.granted_to {
+                            let applies = match &permission_granted_to {
                                 // If permission is public, anyone can access
                                 DirectoryGranteeID::Public => true,
                                 // For other types, just match the raw IDs since we don't validate type
@@ -677,5 +701,37 @@ pub mod drive_internals {
             DirectoryGranteeID::User(user_id.clone())
         );
         permissions.contains(&DirectoryPermissionType::Invite)
+    }
+
+    pub fn parse_directory_resource_id(id_str: &str) -> Result<DirectoryResourceID, DirectoryIDError> {
+        // Check if the string contains a valid prefix
+        if let Some(prefix_str) = id_str.splitn(2, '_').next() {
+            match prefix_str {
+                "FileID" => Ok(DirectoryResourceID::File(FileUUID(id_str.to_string()))),
+                "FolderID" => Ok(DirectoryResourceID::Folder(FolderUUID(id_str.to_string()))),
+                _ => Err(DirectoryIDError::InvalidPrefix),
+            }
+        } else {
+            Err(DirectoryIDError::MalformedID)
+        }
+    }
+
+    pub fn parse_directory_grantee_id(id_str: &str) -> Result<DirectoryGranteeID, DirectoryIDError> {
+        // First check if it's the public grantee
+        if id_str == PUBLIC_GRANTEE_ID {
+            return Ok(DirectoryGranteeID::Public);
+        }
+
+        // Check if the string contains a valid prefix
+        if let Some(prefix_str) = id_str.splitn(2, '_').next() {
+            match prefix_str {
+                "UserID" => Ok(DirectoryGranteeID::User(UserID(id_str.to_string()))),
+                "TeamID" => Ok(DirectoryGranteeID::Team(TeamID(id_str.to_string()))),
+                "DirectoryShareDeferredID" => Ok(DirectoryGranteeID::OneTimeLink(DirectoryShareDeferredID(id_str.to_string()))),
+                _ => Err(DirectoryIDError::InvalidPrefix),
+            }
+        } else {
+            Err(DirectoryIDError::MalformedID)
+        }
     }
 }

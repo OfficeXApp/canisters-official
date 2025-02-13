@@ -3,7 +3,7 @@
 
 pub mod templates_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::templates::{state::state::TEMPLATE_ITEMS, types::TemplateID}}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
+        core::{api::uuid::generate_unique_id, state::templates::{state::state::TEMPLATE_ITEMS, types::TemplateID}, types::IDPrefix}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
         
     };
     use crate::core::state::templates::{
@@ -72,7 +72,7 @@ pub mod templates_handlers {
     pub fn upsert_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(req.body());
 
-        let id = TemplateID(generate_unique_id("TemplateID", ""));
+        let id = TemplateID(generate_unique_id(IDPrefix::User, ""));
 
         let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let template_item = TemplateItem {

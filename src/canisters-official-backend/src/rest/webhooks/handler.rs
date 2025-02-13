@@ -9,7 +9,7 @@ pub mod webhooks_handlers {
             api::uuid::generate_unique_id,
             state::{drives::state::state::OWNER_ID, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
-            }}
+            }}, types::IDPrefix
         },
         debug_log,
         rest::{
@@ -266,7 +266,7 @@ pub mod webhooks_handlers {
                 UpsertWebhookRequestBody::Create(create_req) => {
 
                     // Create new webhook
-                    let webhook_id = WebhookID(generate_unique_id("WebhookID", ""));
+                    let webhook_id = WebhookID(generate_unique_id(IDPrefix::Webhook, ""));
                     let alt_index = WebhookAltIndexID(create_req.alt_index);
                     let webhook = Webhook {
                         id: webhook_id.clone(),

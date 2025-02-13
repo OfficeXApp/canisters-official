@@ -21,9 +21,9 @@ impl fmt::Display for DirectoryPermissionID {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct OneTimeLinkID(pub String);
+pub struct DirectoryShareDeferredID(pub String);
 
-impl fmt::Display for OneTimeLinkID {
+impl fmt::Display for DirectoryShareDeferredID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -37,6 +37,7 @@ pub enum DirectoryPermissionType {
     Delete,   // Can delete peer files
     Webhooks, // Can set webhooks
     Invite,   // Can invite other users with same or lower permissions
+    Manage,   // Can do anything on this directory resource
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -44,18 +45,19 @@ pub enum DirectoryGranteeID {
     Public,
     User(UserID),
     Team(TeamID),
-    OneTimeLink(OneTimeLinkID),
+    OneTimeLink(DirectoryShareDeferredID),
 }
 impl fmt::Display for DirectoryGranteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DirectoryGranteeID::Public => write!(f, "public"),
+            DirectoryGranteeID::Public => write!(f, "{}", PUBLIC_GRANTEE_ID),
             DirectoryGranteeID::User(user_id) => write!(f, "{}", user_id),
             DirectoryGranteeID::Team(team_id) => write!(f, "{}", team_id),
             DirectoryGranteeID::OneTimeLink(link_id) => write!(f, "{}", link_id),
         }
     }
 }
+pub const PUBLIC_GRANTEE_ID: &str = "PUBLIC";
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -82,5 +84,5 @@ pub struct DirectoryPermission {
     pub note: String,
     pub created_at: u64,
     pub last_modified_at: u64,
-    pub from_one_time_link: Option<OneTimeLinkID>,
+    pub from_one_time_link: Option<DirectoryShareDeferredID>,
 }

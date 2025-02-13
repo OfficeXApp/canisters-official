@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyBLS, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -288,7 +288,7 @@ pub mod contacts_handlers {
                 UpsertContactRequestBody::Create(create_req) => {
 
                     // Create new webhook
-                    let contact_id = UserID(generate_unique_id("UserID", ""));
+                    let contact_id = UserID(generate_unique_id(IDPrefix::User, ""));
                     let contact = Contact {
                         id: contact_id.clone(),
                         nickname: create_req.nickname,

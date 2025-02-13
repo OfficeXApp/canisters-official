@@ -10,6 +10,7 @@
 
 ## Urgent Next
 
+- [🔵] Refactor all ID generation to use prefix, and handle all multi-type IDs with conversion
 - [🔵] Implement permissions for directory
 - [ ] Implement permissions for system (disks, teams, drives, contacts)
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
