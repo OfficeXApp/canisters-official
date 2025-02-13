@@ -2,21 +2,23 @@
 
 ## Sprints Roadmap
 
-1. Implement webhooks
-2. Implement permissions (including deterministics principal ids)
+1. Implement permissions (including deterministics principal ids)
+2. Implement webhooks
 3. Implement replayability
 4. Cleanup & testing backend
 5. Refactor frontend & implement torrents for browser-cache/local-ssd sharing
 
 ## Urgent Next
 
-- [🔵] Connect relevant REST routes with relevant `webhook` firing
-
-## Near Future
-
+- [🔵] Implement permissions for directory
+- [ ] Implement permissions for system (disks, teams, drives, contacts)
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
 - [ ] Write the `permissions` REST routes (https://youtu.be/5GG-VUvruzE?si=lEC0epAhFlD9-2Bp&t=1165)
 - [ ] Auth check `permissions` on all REST routes
+
+## Near Future
+
+- [ ] Connect relevant REST routes with relevant `webhook` firing
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
 - [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks

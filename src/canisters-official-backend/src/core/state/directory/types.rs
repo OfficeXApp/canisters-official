@@ -55,6 +55,7 @@ pub struct FolderMetadata {
     pub(crate) expires_at: i64,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
+    pub(crate) has_sovereign_permissions: bool,
 }
 
 
@@ -81,6 +82,7 @@ pub struct FileMetadata {
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,
     pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
+    pub(crate) has_sovereign_permissions: bool,
 }
 
 

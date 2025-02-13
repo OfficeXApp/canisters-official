@@ -104,6 +104,7 @@ pub mod drive {
         expires_at: i64,
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
+        has_sovereign_permissions: Option<bool>,
     ) -> Result<(FileMetadata, DiskUploadResponse), String> {
         let sanitized_file_path: String = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
@@ -147,7 +148,13 @@ pub mod drive {
             canister_id.clone()
         };
     
-        let folder_uuid = ensure_folder_structure(&folder_path, disk_id.clone(), user_id.clone(), canister_icp_principal_string.clone());
+        let folder_uuid = ensure_folder_structure(
+            &folder_path, 
+            disk_id.clone(), 
+            user_id.clone(), 
+            canister_icp_principal_string.clone(),
+            false
+        );
     
         let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
     
@@ -242,6 +249,7 @@ pub mod drive {
             canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
             expires_at,
             restore_trash_prior_folder_path: None,
+            has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),
         };
     
         // Update version chain if we're replacing
@@ -323,6 +331,7 @@ pub mod drive {
         expires_at: i64,
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
+        has_sovereign_permissions: Option<bool>
     ) -> Result<FolderMetadata, String> {
         // Ensure the path ends with a slash
         let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
@@ -414,6 +423,7 @@ pub mod drive {
             disk_id,
             user_id.clone(),
             canister_icp_principal_string,
+            has_sovereign_permissions.unwrap_or(false)
         );
     
         // Update the metadata with the correct expires_at value
@@ -1181,6 +1191,7 @@ pub mod drive {
                         folder.disk_id.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
+                        folder.has_sovereign_permissions.clone()
                     );
                     
                     folder_uuid_to_metadata
@@ -1200,6 +1211,7 @@ pub mod drive {
                         folder.disk_id.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
+                        folder.has_sovereign_permissions.clone()
                     );
                     
                     folder_uuid_to_metadata
@@ -1282,6 +1294,7 @@ pub mod drive {
                         file.disk_id.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
+                        file.has_sovereign_permissions.clone()
                     );
                     
                     folder_uuid_to_metadata
@@ -1301,6 +1314,7 @@ pub mod drive {
                         file.disk_id.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
+                        file.has_sovereign_permissions.clone()
                     );
                     
                     folder_uuid_to_metadata

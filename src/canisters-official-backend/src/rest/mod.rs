@@ -15,3 +15,4 @@ pub mod team_invites;
 pub mod drives;
 pub mod disks;
 pub mod directory;
+pub mod permissions;

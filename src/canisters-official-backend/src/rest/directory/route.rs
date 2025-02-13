@@ -56,7 +56,7 @@ pub fn init_routes() {
             "GET",
             RAW_URL_PROXY_PATH,
             crate::rest::directory::handler::directorys_handlers::get_raw_url_proxy_handler,
-        ),
+        )
     ];
 
     for &(method, path, handler) in routes {

@@ -1,7 +1,9 @@
 // src/core/api/internals.rs
 pub mod drive_internals {
+    use std::collections::HashSet;
+
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::FileConflictResolutionEnum, 
+        core::{api::{drive::drive::get_folder_by_id, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, PublicKeyBLS, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -52,6 +54,7 @@ pub mod drive_internals {
                 deleted: false,
                 canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                 expires_at: -1,
+                has_sovereign_permissions: false,
             };
     
             full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
@@ -80,6 +83,7 @@ pub mod drive_internals {
                 deleted: false,
                 canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string)),
                 expires_at: -1,
+                has_sovereign_permissions: true,
             };
 
             full_folder_path_to_uuid.insert(trash_path, FolderUUID(trash_folder_uuid.clone()));
@@ -162,6 +166,7 @@ pub mod drive_internals {
         disk_id: DiskID,
         user_id: UserID,
         canister_id: String,
+        has_sovereign_permissions: bool,
     ) -> FolderUUID {
         let path_parts: Vec<&str> = folder_path.split("::").collect();
         let mut current_path = format!("{}::", path_parts[0]);
@@ -196,6 +201,12 @@ pub mod drive_internals {
                     canister_id: ICPPrincipalString(PublicKeyBLS(canister_icp_principal_string.clone())),
                     expires_at: -1,
                     restore_trash_prior_folder_path: None,
+                    // only set if its the final folder and has sovereign permissions
+                    has_sovereign_permissions: if part == path_parts[1].split('/').filter(|&p| !p.is_empty()).last().unwrap() {
+                        has_sovereign_permissions
+                    } else {
+                        false
+                    },
                 };
 
                 full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
@@ -418,6 +429,7 @@ pub mod drive_internals {
                     disk_id,
                     user_id,
                     canister_id,
+                    false
                 );
                 // Retrieve the folder metadata using the new UUID.
                 get_folder_by_id(new_folder_uuid)
@@ -446,4 +458,224 @@ pub mod drive_internals {
         }
     }
 
+    pub fn is_user_in_team(user_id: &UserID, team_id: &TeamID) -> bool {
+        // First check if team exists and user is owner
+        let is_owner = TEAMS_BY_ID_HASHTABLE.with(|teams| {
+            teams.borrow()
+                .get(team_id)
+                .map(|team| team.owner == *user_id)
+                .unwrap_or(false)
+        });
+    
+        if is_owner {
+            return true;
+        }
+    
+        // Check active invites for the user
+        INVITES_BY_ID_HASHTABLE.with(|invites| {
+            // Get all user's invites
+            let user_invites = USERS_INVITES_LIST_HASHTABLE.with(|user_invites| {
+                user_invites.borrow()
+                    .get(user_id)
+                    .cloned()
+                    .unwrap_or_default()
+            });
+    
+            // Check if any of the user's invites are active for this team
+            let now = ic_cdk::api::time();
+            user_invites.iter().any(|invite_id| {
+                if let Some(invite) = invites.borrow().get(invite_id) {
+                    // Check if invite is for this team
+                    invite.team_id == *team_id && 
+                    // Check if invite is active (not expired and after active_from)
+                    invite.expires_at > 0 &&
+                    now >= invite.active_from &&
+                    now < invite.expires_at as u64
+                } else {
+                    false
+                }
+            })
+        })
+    }
+
+
+    pub fn can_user_access_permission(
+        user_id: &UserID,
+        permission: &DirectoryPermission,
+        is_owner: bool
+    ) -> bool {
+        // System owner can access all permissions
+        if is_owner {
+            return true;
+        }
+    
+        // User who granted the permission can access it
+        if permission.granted_by == *user_id {
+            return true;
+        }
+    
+        // Check if user is the direct grantee
+        match &permission.granted_to {
+            DirectoryGranteeID::User(granted_user_id) => {
+                if granted_user_id == user_id {
+                    return true;
+                }
+            }
+            DirectoryGranteeID::Team(team_id) => {
+                if is_user_in_team(user_id, team_id) {
+                    return true;
+                }
+            }
+            DirectoryGranteeID::Public => {
+                return true; // Everyone can see public permissions
+            }
+            DirectoryGranteeID::OneTimeLink(_) => {
+                // One-time links can only be accessed by the creator
+                return permission.granted_by == *user_id;
+            }
+        }
+    
+        false
+    }
+
+    pub fn check_directory_permissions(
+        resource_id: DirectoryResourceID,
+        grantee_id: DirectoryGranteeID,
+    ) -> Vec<DirectoryPermissionType> {
+        // First, build the list of resources to check by traversing up the hierarchy
+        let resources_to_check = get_resources_to_check(resource_id);
+        
+        // Then check permissions for each resource and combine them
+        let mut all_permissions = HashSet::new();
+        for resource in resources_to_check {
+            let resource_permissions = check_resource_permissions(&resource, &grantee_id);
+            all_permissions.extend(resource_permissions);
+        }
+        
+        all_permissions.into_iter().collect()
+    }
+    
+    fn get_resources_to_check(resource_id: DirectoryResourceID) -> Vec<DirectoryResourceID> {
+        let mut resources = Vec::new();
+        
+        // First check if the resource exists and get initial folder ID for traversal
+        let initial_folder_id = match &resource_id {
+            DirectoryResourceID::File(file_id) => {
+                match file_uuid_to_metadata.get(file_id) {
+                    Some(file_metadata) => {
+                        resources.push(resource_id.clone());
+                        if file_metadata.has_sovereign_permissions {
+                            return resources;
+                        }
+                        Some(file_metadata.folder_uuid.clone())
+                    },
+                    None => return Vec::new() // File not found
+                }
+            },
+            DirectoryResourceID::Folder(folder_id) => {
+                match folder_uuid_to_metadata.get(folder_id) {
+                    Some(folder_metadata) => {
+                        resources.push(resource_id.clone());
+                        if folder_metadata.has_sovereign_permissions {
+                            return resources;
+                        }
+                        folder_metadata.parent_folder_uuid.clone()
+                    },
+                    None => return Vec::new() // Folder not found
+                }
+            }
+        };
+        
+        // Traverse up through parent folders
+        let mut current_folder_id = initial_folder_id;
+        while let Some(folder_id) = current_folder_id {
+            match folder_uuid_to_metadata.get(&folder_id) {
+                Some(folder_metadata) => {
+                    let folder_resource = DirectoryResourceID::Folder(folder_id.clone());
+                    resources.push(folder_resource);
+                    
+                    if folder_metadata.has_sovereign_permissions {
+                        break;
+                    }
+                    current_folder_id = folder_metadata.parent_folder_uuid.clone();
+                },
+                None => break
+            }
+        }
+        
+        resources
+    }
+    
+    fn check_resource_permissions(
+        resource_id: &DirectoryResourceID,
+        grantee_id: &DirectoryGranteeID,
+    ) -> HashSet<DirectoryPermissionType> {
+        let mut permissions_set = HashSet::new();
+        
+        // Get all permission IDs for this resource
+        PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+            if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
+                // Check each permission
+                PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
+                    let permissions = permissions_by_id.borrow();
+                    
+                    for permission_id in permission_ids {
+                        if let Some(permission) = permissions.get(permission_id) {
+                            // Skip if permission is expired or not yet active
+                            let current_time = ic_cdk::api::time() as i64;
+                            if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
+                                continue;
+                            }
+                            if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
+                                continue;
+                            }
+    
+                            // Check if permission applies to this grantee
+                            let applies = match &permission.granted_to {
+                                // If permission is public, anyone can access
+                                DirectoryGranteeID::Public => true,
+                                // For other types, just match the raw IDs since we don't validate type
+                                DirectoryGranteeID::User(permission_user_id) => {
+                                    if let DirectoryGranteeID::User(request_user_id) = grantee_id {
+                                        permission_user_id.0 == request_user_id.0
+                                    } else {
+                                        false
+                                    }
+                                },
+                                DirectoryGranteeID::Team(permission_team_id) => {
+                                    if let DirectoryGranteeID::Team(request_team_id) = grantee_id {
+                                        permission_team_id.0 == request_team_id.0
+                                    } else {
+                                        false
+                                    }
+                                },
+                                DirectoryGranteeID::OneTimeLink(permission_link_id) => {
+                                    if let DirectoryGranteeID::OneTimeLink(request_link_id) = grantee_id {
+                                        permission_link_id.0 == request_link_id.0
+                                    } else {
+                                        false
+                                    }
+                                }
+                            };
+    
+                            if applies {
+                                permissions_set.extend(permission.permission_types.iter().cloned());
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        
+        permissions_set
+    }
+
+    pub fn has_manage_permission(user_id: &UserID, resource_id: &DirectoryResourceID) -> bool {
+        // Use our existing check_directory_permissions which already handles inheritance
+        let permissions = check_directory_permissions(
+            resource_id.clone(),
+            DirectoryGranteeID::User(user_id.clone())
+        );
+        permissions.contains(&DirectoryPermissionType::Invite)
+    }
 }
