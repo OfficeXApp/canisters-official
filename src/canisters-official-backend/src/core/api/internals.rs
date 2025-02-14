@@ -499,7 +499,7 @@ pub mod drive_internals {
     }
 
 
-    pub fn can_user_access_permission(
+    pub fn can_user_access_directory_permission(
         user_id: &UserID,
         permission: &DirectoryPermission,
         is_owner: bool
@@ -514,7 +514,7 @@ pub mod drive_internals {
             return true;
         }
 
-        let permission_granted_to = match parse_directory_grantee_id(&permission.granted_to.to_string()) {
+        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
             Ok(parsed_grantee) => parsed_grantee,
             Err(_) => return false, // Skip if parsing fails
         };
@@ -553,7 +553,7 @@ pub mod drive_internals {
         // Then check permissions for each resource and combine them
         let mut all_permissions = HashSet::new();
         for resource in resources_to_check {
-            let resource_permissions = check_resource_permissions(
+            let resource_permissions = check_directory_resource_permissions(
                 &resource, 
                 &grantee_id,
                 resource != resource_id
@@ -620,7 +620,7 @@ pub mod drive_internals {
         resources
     }
     
-    fn check_resource_permissions(
+    fn check_directory_resource_permissions(
         resource_id: &DirectoryResourceID,
         grantee_id: &PermissionGranteeID,
         is_parent_for_inheritance: bool,
@@ -649,7 +649,7 @@ pub mod drive_internals {
                                 continue;
                             }
 
-                            let permission_granted_to = match parse_directory_grantee_id(&permission.granted_to.to_string()) {
+                            let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
                                 Ok(parsed_grantee) => parsed_grantee,
                                 Err(_) => continue, // Skip if parsing fails
                             };
@@ -694,7 +694,7 @@ pub mod drive_internals {
         permissions_set
     }
 
-    pub fn has_manage_permission(user_id: &UserID, resource_id: &DirectoryResourceID) -> bool {
+    pub fn has_directory_manage_permission(user_id: &UserID, resource_id: &DirectoryResourceID) -> bool {
         // Use our existing check_directory_permissions which already handles inheritance
         let permissions = check_directory_permissions(
             resource_id.clone(),
@@ -716,7 +716,7 @@ pub mod drive_internals {
         }
     }
 
-    pub fn parse_directory_grantee_id(id_str: &str) -> Result<PermissionGranteeID, DirectoryIDError> {
+    pub fn parse_permission_grantee_id(id_str: &str) -> Result<PermissionGranteeID, DirectoryIDError> {
         // First check if it's the public grantee
         if id_str == PUBLIC_GRANTEE_ID {
             return Ok(PermissionGranteeID::Public);

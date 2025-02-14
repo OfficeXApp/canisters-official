@@ -113,6 +113,7 @@ pub enum SystemTableEnum {
     Contacts,
     Teams,
     ApiKeys,
+    Permissions,
 }
 
 impl fmt::Display for SystemTableEnum {
@@ -123,6 +124,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Contacts => write!(f, "contacts"),
             SystemTableEnum::Teams => write!(f, "teams"),
             SystemTableEnum::ApiKeys => write!(f, "api_keys"),
+            SystemTableEnum::Permissions => write!(f, "permissions"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
         }
     }
 }
