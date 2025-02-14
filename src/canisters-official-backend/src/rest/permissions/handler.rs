@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{internals::drive_internals::{can_user_access_permission, check_directory_permissions, get_inherited_resources_list, has_manage_permission, parse_directory_grantee_id, parse_directory_resource_id}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{GRANTEE_PERMISSIONS_HASHTABLE, PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE, PERMISSIONS_BY_TIME_LIST}, types::{DirectoryGranteeID, DirectoryGranteeType, DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PlaceholderDirectoryPermissionGranteeID}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, UpsertPermissionsRequestBody, UpsertPermissionsResponseData}},
+        core::{api::{internals::drive_internals::{can_user_access_permission, check_directory_permissions, get_inherited_resources_list, has_manage_permission, parse_directory_grantee_id, parse_directory_resource_id}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{GRANTEE_PERMISSIONS_HASHTABLE, PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE, PERMISSIONS_BY_TIME_LIST}, types::{PermissionGranteeID, PermissionGranteeType, DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PlaceholderPermissionGranteeID}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, UpsertPermissionsRequestBody, UpsertPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -17,7 +17,7 @@ pub mod permissions_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_permissions_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub fn get_directory_permissions_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -65,7 +65,7 @@ pub mod permissions_handlers {
 
     }
 
-    pub fn check_permissions_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn check_directory_permissions_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -109,8 +109,8 @@ pub mod permissions_handlers {
             true
         } else {
             match &grantee_id {
-                DirectoryGranteeID::User(user_id) if user_id.0 == requester_api_key.user_id.0 => true,
-                DirectoryGranteeID::Team(team_id) => {
+                PermissionGranteeID::User(user_id) if user_id.0 == requester_api_key.user_id.0 => true,
+                PermissionGranteeID::Team(team_id) => {
                     is_team_admin(&requester_api_key.user_id, team_id) && 
                     is_user_on_team(&UserID(grantee_id.to_string()), team_id)
                 },
@@ -159,7 +159,7 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn upsert_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn upsert_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -196,7 +196,7 @@ pub mod permissions_handlers {
             }
         } else {
             // Create a new deferred link ID for sharing
-            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderDirectoryPermissionGranteeID(
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
                 generate_unique_id(IDPrefix::DirectoryShareDeferred, "")
             ))
         };
@@ -227,7 +227,7 @@ pub mod permissions_handlers {
                 .flat_map(|resource_id| {
                     check_directory_permissions(
                         resource_id.clone(),
-                        DirectoryGranteeID::User(requester_api_key.user_id.clone())
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
                     )
                 })
                 .collect();
@@ -297,10 +297,10 @@ pub mod permissions_handlers {
                 resource_id: resource_id.clone(),
                 resource_path: DriveFullFilePath(resource_id.to_string()),
                 grantee_type: match &grantee_id {
-                    DirectoryGranteeID::Public => DirectoryGranteeType::Public,
-                    DirectoryGranteeID::User(_) => DirectoryGranteeType::User,
-                    DirectoryGranteeID::Team(_) => DirectoryGranteeType::Team,
-                    DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(_) => DirectoryGranteeType::PlaceholderDirectoryPermissionGrantee,
+                    PermissionGranteeID::Public => PermissionGranteeType::Public,
+                    PermissionGranteeID::User(_) => PermissionGranteeType::User,
+                    PermissionGranteeID::Team(_) => PermissionGranteeType::Team,
+                    PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_) => PermissionGranteeType::PlaceholderDirectoryPermissionGrantee,
                 },
                 granted_to: grantee_id.clone(),
                 granted_by: requester_api_key.user_id.clone(),
@@ -346,7 +346,7 @@ pub mod permissions_handlers {
         }
     }
 
-    pub fn delete_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn delete_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(req) {
             Some(key) => key,
@@ -385,7 +385,7 @@ pub mod permissions_handlers {
         let has_manage = resources_to_check.iter().any(|resource_id| {
             check_directory_permissions(
                 resource_id.clone(),
-                DirectoryGranteeID::User(requester_api_key.user_id.clone())
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
             ).contains(&DirectoryPermissionType::Manage)
         });
     
@@ -443,7 +443,7 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn redeem_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub fn redeem_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
         // 1. Parse request body
         let body: &[u8] = req.body();
         let redeem_request = match serde_json::from_slice::<RedeemPermissionRequest>(body) {
@@ -470,7 +470,7 @@ pub mod permissions_handlers {
     
         // 4. Check if permission is actually a one-time link and not already redeemed
         match &permission.granted_to {
-            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(link_id) => {
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(link_id) => {
                 if permission.from_placeholder_grantee.is_some() {
                     return create_response(
                         StatusCode::BAD_REQUEST,
@@ -487,10 +487,10 @@ pub mod permissions_handlers {
             ),
         }
     
-        // 5. Parse the user_id string into a DirectoryGranteeID
+        // 5. Parse the user_id string into a PermissionGranteeID
         let new_grantee = match parse_directory_grantee_id(&redeem_request.user_id) {
             Ok(grantee_id) => match grantee_id {
-                DirectoryGranteeID::User(_) => grantee_id,
+                PermissionGranteeID::User(_) => grantee_id,
                 _ => return create_response(
                     StatusCode::BAD_REQUEST,
                     ErrorResponse::err(400, "Invalid user ID format".to_string()).encode()
@@ -505,7 +505,7 @@ pub mod permissions_handlers {
         // 6. Update permission and state
         let old_grantee = permission.granted_to.clone();
         permission.granted_to = new_grantee.clone();
-        permission.grantee_type = DirectoryGranteeType::User;
+        permission.grantee_type = PermissionGranteeType::User;
         permission.last_modified_at = ic_cdk::api::time() / 1_000_000; // Convert ns to ms
     
         // Update all state tables

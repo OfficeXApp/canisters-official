@@ -1,7 +1,7 @@
 // src/core/api/actions.rs
 use std::result::Result;
 
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{DirectoryGranteeID, DirectoryPermissionType}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{PermissionGranteeID, DirectoryPermissionType}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}};
 
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{check_directory_permissions, get_destination_folder, translate_path_to_id}};
 
@@ -55,7 +55,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let resource_id = DirectoryResourceID::File(file_id.clone());
                     let user_permissions = check_directory_permissions(
                         resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     // User needs at least View permission to get file details
@@ -117,7 +117,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let resource_id = DirectoryResourceID::Folder(folder_id.clone());
                     let user_permissions = check_directory_permissions(
                         resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) {
@@ -168,7 +168,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let parent_resource_id = DirectoryResourceID::Folder(parent_folder_id.clone());
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !user_permissions.contains(&DirectoryPermissionType::Upload) && 
@@ -255,7 +255,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let parent_resource_id = DirectoryResourceID::Folder(parent_folder_id.clone());
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !user_permissions.contains(&DirectoryPermissionType::Upload) && 
@@ -351,7 +351,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let parent_resource_id = DirectoryResourceID::Folder(parent_folder_id);
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
 
                     // Check permissions:
@@ -468,7 +468,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
 
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
 
                     // Check permissions:
@@ -574,7 +574,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let resource_id = DirectoryResourceID::Folder(parent_folder_id);
                     let user_permissions = check_directory_permissions(
                         resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     // Check permissions:
@@ -663,7 +663,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
         
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     // Check permissions:
@@ -750,7 +750,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let source_resource_id = DirectoryResourceID::File(file_id.clone());
                     let user_permissions = check_directory_permissions(
                         source_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) {
@@ -779,7 +779,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
@@ -848,7 +848,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let source_resource_id = DirectoryResourceID::Folder(folder_id.clone());
                     let user_permissions = check_directory_permissions(
                         source_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) {
@@ -877,7 +877,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
@@ -946,7 +946,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let source_resource_id = DirectoryResourceID::File(file_id.clone());
                     let source_permissions = check_directory_permissions(
                         source_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     // Check if user has permission to move the file from source
@@ -984,7 +984,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
@@ -1060,7 +1060,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let source_resource_id = DirectoryResourceID::Folder(folder_id.clone());
                     let source_permissions = check_directory_permissions(
                         source_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     // Check if user has permission to move the folder from source
@@ -1098,7 +1098,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_resource_id = DirectoryResourceID::Folder(destination_folder.id.clone());
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
-                        DirectoryGranteeID::User(user_id.clone())
+                        PermissionGranteeID::User(user_id.clone())
                     );
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
@@ -1160,7 +1160,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         let folder_resource_id = DirectoryResourceID::Folder(folder_id.clone());
                         let folder_permissions = check_directory_permissions(
                             folder_resource_id,
-                            DirectoryGranteeID::User(user_id.clone())
+                            PermissionGranteeID::User(user_id.clone())
                         );
         
                         // User needs Edit/Manage permission OR be creator with Upload permission to restore
@@ -1213,7 +1213,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         let file_resource_id = DirectoryResourceID::File(file_id.clone());
                         let file_permissions = check_directory_permissions(
                             file_resource_id,
-                            DirectoryGranteeID::User(user_id.clone())
+                            PermissionGranteeID::User(user_id.clone())
                         );
         
                         // User needs Edit/Manage permission OR be creator with Upload permission to restore

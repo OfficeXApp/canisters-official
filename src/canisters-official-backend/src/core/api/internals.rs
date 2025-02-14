@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryGranteeID, DirectoryPermission, DirectoryPermissionType, PlaceholderDirectoryPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{PERMISSIONS_BY_ID_HASHTABLE, PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, DirectoryPermission, DirectoryPermissionType, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -521,20 +521,20 @@ pub mod drive_internals {
     
         // Check if user is the direct grantee
         match &permission_granted_to {
-            DirectoryGranteeID::User(granted_user_id) => {
+            PermissionGranteeID::User(granted_user_id) => {
                 if granted_user_id == user_id {
                     return true;
                 }
             }
-            DirectoryGranteeID::Team(team_id) => {
+            PermissionGranteeID::Team(team_id) => {
                 if is_user_in_team(user_id, team_id) {
                     return true;
                 }
             }
-            DirectoryGranteeID::Public => {
+            PermissionGranteeID::Public => {
                 return true; // Everyone can see public permissions
             }
-            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(_) => {
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_) => {
                 // One-time links can only be accessed by the creator
                 return permission.granted_by == *user_id;
             }
@@ -545,7 +545,7 @@ pub mod drive_internals {
 
     pub fn check_directory_permissions(
         resource_id: DirectoryResourceID,
-        grantee_id: DirectoryGranteeID,
+        grantee_id: PermissionGranteeID,
     ) -> Vec<DirectoryPermissionType> {
         // First, build the list of resources to check by traversing up the hierarchy
         let resources_to_check = get_inherited_resources_list(resource_id.clone());
@@ -622,7 +622,7 @@ pub mod drive_internals {
     
     fn check_resource_permissions(
         resource_id: &DirectoryResourceID,
-        grantee_id: &DirectoryGranteeID,
+        grantee_id: &PermissionGranteeID,
         is_parent_for_inheritance: bool,
     ) -> HashSet<DirectoryPermissionType> {
         let mut permissions_set = HashSet::new();
@@ -657,24 +657,24 @@ pub mod drive_internals {
                             // Check if permission applies to this grantee
                             let applies = match &permission_granted_to {
                                 // If permission is public, anyone can access
-                                DirectoryGranteeID::Public => true,
+                                PermissionGranteeID::Public => true,
                                 // For other types, just match the raw IDs since we don't validate type
-                                DirectoryGranteeID::User(permission_user_id) => {
-                                    if let DirectoryGranteeID::User(request_user_id) = grantee_id {
+                                PermissionGranteeID::User(permission_user_id) => {
+                                    if let PermissionGranteeID::User(request_user_id) = grantee_id {
                                         permission_user_id.0 == request_user_id.0
                                     } else {
                                         false
                                     }
                                 },
-                                DirectoryGranteeID::Team(permission_team_id) => {
-                                    if let DirectoryGranteeID::Team(request_team_id) = grantee_id {
+                                PermissionGranteeID::Team(permission_team_id) => {
+                                    if let PermissionGranteeID::Team(request_team_id) = grantee_id {
                                         permission_team_id.0 == request_team_id.0
                                     } else {
                                         false
                                     }
                                 },
-                                DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
-                                    if let DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
+                                PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
+                                    if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
                                         permission_link_id.0 == request_link_id.0
                                     } else {
                                         false
@@ -698,7 +698,7 @@ pub mod drive_internals {
         // Use our existing check_directory_permissions which already handles inheritance
         let permissions = check_directory_permissions(
             resource_id.clone(),
-            DirectoryGranteeID::User(user_id.clone())
+            PermissionGranteeID::User(user_id.clone())
         );
         permissions.contains(&DirectoryPermissionType::Invite)
     }
@@ -716,18 +716,18 @@ pub mod drive_internals {
         }
     }
 
-    pub fn parse_directory_grantee_id(id_str: &str) -> Result<DirectoryGranteeID, DirectoryIDError> {
+    pub fn parse_directory_grantee_id(id_str: &str) -> Result<PermissionGranteeID, DirectoryIDError> {
         // First check if it's the public grantee
         if id_str == PUBLIC_GRANTEE_ID {
-            return Ok(DirectoryGranteeID::Public);
+            return Ok(PermissionGranteeID::Public);
         }
 
         // Check if the string contains a valid prefix
         if let Some(prefix_str) = id_str.splitn(2, '_').next() {
             match prefix_str {
-                "UserID" => Ok(DirectoryGranteeID::User(UserID(id_str.to_string()))),
-                "TeamID" => Ok(DirectoryGranteeID::Team(TeamID(id_str.to_string()))),
-                "PlaceholderDirectoryPermissionGranteeID" => Ok(DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderDirectoryPermissionGranteeID(id_str.to_string()))),
+                "UserID" => Ok(PermissionGranteeID::User(UserID(id_str.to_string()))),
+                "TeamID" => Ok(PermissionGranteeID::Team(TeamID(id_str.to_string()))),
+                "PlaceholderPermissionGranteeID" => Ok(PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(id_str.to_string()))),
                 _ => Err(DirectoryIDError::InvalidPrefix),
             }
         } else {

@@ -21,9 +21,9 @@ impl fmt::Display for DirectoryPermissionID {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PlaceholderDirectoryPermissionGranteeID(pub String);
+pub struct PlaceholderPermissionGranteeID(pub String);
 
-impl fmt::Display for PlaceholderDirectoryPermissionGranteeID {
+impl fmt::Display for PlaceholderPermissionGranteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -41,19 +41,19 @@ pub enum DirectoryPermissionType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum DirectoryGranteeID {
+pub enum PermissionGranteeID {
     Public,
     User(UserID),
     Team(TeamID),
-    PlaceholderDirectoryPermissionGrantee(PlaceholderDirectoryPermissionGranteeID),
+    PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID),
 }
-impl fmt::Display for DirectoryGranteeID {
+impl fmt::Display for PermissionGranteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DirectoryGranteeID::Public => write!(f, "{}", PUBLIC_GRANTEE_ID),
-            DirectoryGranteeID::User(user_id) => write!(f, "{}", user_id),
-            DirectoryGranteeID::Team(team_id) => write!(f, "{}", team_id),
-            DirectoryGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => write!(f, "{}", placeholder_id),
+            PermissionGranteeID::Public => write!(f, "{}", PUBLIC_GRANTEE_ID),
+            PermissionGranteeID::User(user_id) => write!(f, "{}", user_id),
+            PermissionGranteeID::Team(team_id) => write!(f, "{}", team_id),
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => write!(f, "{}", placeholder_id),
         }
     }
 }
@@ -61,7 +61,7 @@ pub const PUBLIC_GRANTEE_ID: &str = "PUBLIC";
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum DirectoryGranteeType {
+pub enum PermissionGranteeType {
     Public,
     User,
     Team,
@@ -74,8 +74,8 @@ pub struct DirectoryPermission {
     pub id: DirectoryPermissionID,
     pub resource_id: DirectoryResourceID,
     pub resource_path: DriveFullFilePath,
-    pub grantee_type: DirectoryGranteeType,
-    pub granted_to: DirectoryGranteeID,
+    pub grantee_type: PermissionGranteeType,
+    pub granted_to: PermissionGranteeID,
     pub granted_by: UserID,
     pub permission_types: HashSet<DirectoryPermissionType>,
     pub begin_date_ms: i64,     // -1: not yet active, 0: immediate, >0: unix ms
@@ -84,5 +84,76 @@ pub struct DirectoryPermission {
     pub note: String,
     pub created_at: u64,
     pub last_modified_at: u64,
-    pub from_placeholder_grantee: Option<PlaceholderDirectoryPermissionGranteeID>,
+    pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SystemPermissionID(pub String);
+
+impl fmt::Display for SystemPermissionID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SystemTablePermissionType {
+    Create,
+    Update,
+    Delete,
+    View,
+    Invite,
+    Manage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SystemTableEnum {
+    Drives,
+    Disks,
+    Contacts,
+    Teams,
+    ApiKeys,
+}
+
+impl fmt::Display for SystemTableEnum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SystemTableEnum::Drives => write!(f, "drives"),
+            SystemTableEnum::Disks => write!(f, "disks"),
+            SystemTableEnum::Contacts => write!(f, "contacts"),
+            SystemTableEnum::Teams => write!(f, "teams"),
+            SystemTableEnum::ApiKeys => write!(f, "api_keys"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SystemResourceID {
+    Table(SystemTableEnum),
+    Record(String), // Stores the full ID like "DiskID_123"
+}
+
+impl fmt::Display for SystemResourceID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SystemResourceID::Table(table) => write!(f, "Table_{}", table),
+            SystemResourceID::Record(id) => write!(f, "{}", id),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemPermission {
+    pub id: SystemPermissionID,
+    pub resource_id: SystemResourceID,
+    pub grantee_type: PermissionGranteeType,  // Reuse from directory permissions
+    pub granted_to: PermissionGranteeID,      // Reuse from directory permissions
+    pub granted_by: UserID,
+    pub permission_types: HashSet<SystemTablePermissionType>,
+    pub begin_date_ms: i64,     // -1: not yet active, 0: immediate, >0: unix ms
+    pub expiry_date_ms: i64,    // -1: never expires, 0: expired, >0: unix ms
+    pub note: String,
+    pub created_at: u64,
+    pub last_modified_at: u64,
+    pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
 }
