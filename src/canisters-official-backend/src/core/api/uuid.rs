@@ -1,9 +1,12 @@
 // src/core/api/uuid.rs
-
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use crate::core::{state::drives::state::state::GLOBAL_UUID_NONCE, types::IDPrefix};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::time::{UNIX_EPOCH};
+
+use super::types::{AuthHeaderByApiKeySchema, AuthType};
+
 
 pub fn generate_unique_id(prefix: IDPrefix, suffix: &str) -> String {
     let drive_id = ic_cdk::api::id().to_string();          // Canister's unique ID
@@ -32,7 +35,17 @@ pub fn generate_api_key() -> String {
     
     let mut hasher = Sha256::new();
     hasher.update(combined.as_bytes());
-    let hash = hasher.finalize();
+    let hash = hex::encode(hasher.finalize());
     
-    hex::encode(hash)
+    // Create the payload object
+    let payload = AuthHeaderByApiKeySchema {
+        auth_type: AuthType::ApiKey,
+        hash: hash,
+    };
+
+    // Convert to JSON string and then to base64
+    let json_string = serde_json::to_string(&payload)
+        .expect("Failed to serialize payload");
+    
+    base64.encode(json_string)
 }

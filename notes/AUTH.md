@@ -154,19 +154,7 @@ async function verifySignature(proof) {
 
 ```rust
 // server
-import { Principal } from "@dfinity/principal";
-import { Secp256k1KeyIdentity } from "@dfinity/identity";
 
-async function verifySignature(proof) {
-    const principal = Principal.fromText(proof.principal);
-    const challengeBytes = new TextEncoder().encode(
-        JSON.stringify(proof.challenge)
-    );
-    return await identity.verify(
-        challengeBytes,
-        new Uint8Array(proof.signature)
-    );
-}
 ```
 
 ## Headers

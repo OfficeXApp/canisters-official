@@ -1,9 +1,66 @@
+use candid::Principal;
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::{core::state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyValue}}, debug_log};
+use crate::{core::{api::types::AuthHeaderBySignatureSchema, state::{api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyValue}}, drives::state::state::CANISTER_ID}, types::PublicKeyICP}, debug_log};
 use crate::rest::api_keys::types::ErrorResponse;
+use ic_cdk::api::call::arg_data;
 
 use super::helpers::create_response;
+
+const SIGNATURE_EXPIRY_MS: u64 = 60_000; // 60 seconds in milliseconds
+
+
+
+pub fn verify_signature(
+    public_key: &PublicKeyICP,
+    message: &[u8],
+    signature: &[u8]
+) -> Result<bool, String> {
+    // // Convert the public key from hex string to bytes
+    // let pk_bytes = hex::decode(&public_key.0)
+    //     .map_err(|e| format!("Invalid public key hex: {}", e))?;
+
+    // // Use ic_cdk::sign for verification
+    // sign::verify_signature(&pk_bytes, message, signature)
+    //     .map_err(|e| format!("Signature verification failed: {}", e))
+}
+
+
+pub fn validate_auth_signature_method(
+    signature_auth: &AuthHeaderBySignatureSchema
+) -> Result<bool, String> {
+    // 1. Verify timestamp is within 60,000 ms (60 seconds)
+    let current_time_ms = ic_cdk::api::time();
+    let challenge_age_ms = current_time_ms - signature_auth.challenge.timestamp_ms;
+    
+    if challenge_age_ms > SIGNATURE_EXPIRY_MS {
+        return Err("Signature challenge has expired".to_string());
+    }
+
+    // 2. Verify canister ID matches
+    if signature_auth.challenge.drive_canister_id != CANISTER_ID {
+        return Err("Invalid drive canister ID".to_string());
+    }
+
+    // 3. Verify signature using public key from challenge
+    let challenge_bytes = serde_json::to_vec(&signature_auth.challenge)
+        .map_err(|e| format!("Failed to serialize challenge: {}", e))?;
+
+    match verify_signature(
+        &signature_auth.challenge.user_icp_public_key,  // Use public key from challenge
+        &challenge_bytes,
+        &signature_auth.signature
+    ) {
+        Ok(is_valid) => {
+            if !is_valid {
+                return Err("Invalid signature".to_string());
+            }
+            Ok(true)
+        },
+        Err(e) => Err(format!("Signature verification failed: {}", e))
+    }
+}
+
 
 // Add this helper function in your apikeys_handlers module
 pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {

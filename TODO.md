@@ -13,8 +13,8 @@
 - [🔵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [ ] Implement permissions for system (disks, teams, drives, contacts)
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
-- [ ] Write the `permissions` REST routes (https://youtu.be/5GG-VUvruzE?si=lEC0epAhFlD9-2Bp&t=1165)
-- [ ] Auth check `permissions` on all REST routes
+- [ ] Test auth check `permissions` REST routes (https://youtu.be/5GG-VUvruzE?si=lEC0epAhFlD9-2Bp&t=1165)
+- [ ] Test auth check `permissions` on all REST routes
 
 ## Near Future
 
