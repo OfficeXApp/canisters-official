@@ -1,9 +1,9 @@
 // src/core/api/actions.rs
 use std::result::Result;
 
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{PermissionGranteeID, DirectoryPermissionType}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}};
 
-use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::directory::check_directory_permissions};
+use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::directory::{check_directory_permissions, preview_directory_permissions}};
 
 
 #[derive(Debug, Clone)]
@@ -54,7 +54,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     // Check if user has View permission on the file
                     let resource_id = DirectoryResourceID::File(file_id.clone());
                     let user_permissions = check_directory_permissions(
-                        resource_id,
+                        resource_id.clone(),
                         PermissionGranteeID::User(user_id.clone())
                     );
         
@@ -65,9 +65,15 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "You don't have permission to view this file".to_string(), 
                         });
                     }
-        
+
+                    let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+                    let get_file_response = GetFileResponse {
+                        file,
+                        permissions: your_permissions,
+                        requester_id: user_id,
+                    };
                     // If we get here, user is authorized - return the file metadata
-                    Ok(DirectoryActionResult::GetFile(file))
+                    Ok(DirectoryActionResult::GetFile(get_file_response))
                 },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
@@ -116,7 +122,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     // Check if user has View permission on the folder
                     let resource_id = DirectoryResourceID::Folder(folder_id.clone());
                     let user_permissions = check_directory_permissions(
-                        resource_id,
+                        resource_id.clone(),
                         PermissionGranteeID::User(user_id.clone())
                     );
         
@@ -126,8 +132,15 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                             message: "You don't have permission to view this folder".to_string(),
                         });
                     }
+
+                    let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+                    let get_folder_response = GetFolderResponse {
+                        folder,
+                        permissions: your_permissions,
+                        requester_id: user_id,
+                    };
         
-                    Ok(DirectoryActionResult::GetFolder(folder))
+                    Ok(DirectoryActionResult::GetFolder(get_folder_response))
                 },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,

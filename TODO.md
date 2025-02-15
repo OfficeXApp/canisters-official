@@ -10,12 +10,8 @@
 
 ## Urgent Next
 
-- [🔵] Implement routes `/permissions/system/*`
-- [🔵] Auth check `permissions` on all REST CRUD
-- [ ] Implement meta-permission to allow teams/users to edit ALL permission records `SystemTableEnum.Permissions`
-- [ ] Include permissions in the response body of GET system records and `directory/action`
+- [🔵] Add deferred join team links, with ICP signature as proof of user icp principal
 - [ ] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
-- [ ] Add deferred join team links, with ICP signature as proof of user icp principal
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
 
 ## Near Future
@@ -77,3 +73,7 @@
 - [x] Write the `directory` REST routes and particularly the file action logic
 - [x] Refactor all ID generation to use prefix, and handle all multi-type IDs with conversion
 - [x] Implement routes `permissions/directory/*`
+- [x] Implement routes `/permissions/system/*`
+- [x] Auth check `permissions` on all REST CRUD
+- [x] Implement meta-permission to allow teams/users to edit ALL permission records `SystemTableEnum.Permissions`
+- [x] Include permissions in the response body of GET system records and `directory/action`

@@ -1,6 +1,8 @@
+// src/core/api/permissions/directory.rs
+
 use std::collections::HashSet;
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID}, rest::directory::types::DirectoryResourceID};
+use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
 
 
 // Check if a user can CRUD the permission record
@@ -239,4 +241,50 @@ pub fn parse_permission_grantee_id(id_str: &str) -> Result<PermissionGranteeID, 
     } else {
         Err(DirectoryIDError::MalformedID)
     }
+}
+
+// Add a helper function to get permissions for a resource
+pub fn preview_directory_permissions(
+    resource_id: &DirectoryResourceID,
+    user_id: &UserID,
+) -> Vec<DirectoryResourcePermissionFE> {
+    
+    // Get permission IDs for each permission type
+    let mut resource_permissions = Vec::new();
+    
+    DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+        if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
+            DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
+                let permissions = permissions_by_id.borrow();
+                
+                for permission_id in permission_ids {
+                    if let Some(permission) = permissions.get(permission_id) {
+                        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
+                            Ok(parsed_grantee) => parsed_grantee,
+                            Err(_) => continue,
+                        };
+
+                        // Check if permission applies to this user
+                        let applies = match &permission_granted_to {
+                            PermissionGranteeID::Public => true,
+                            PermissionGranteeID::User(permission_user_id) => permission_user_id == user_id,
+                            PermissionGranteeID::Team(team_id) => is_user_in_team(user_id, team_id),
+                            _ => false
+                        };
+
+                        if applies {
+                            for grant_type in &permission.permission_types {
+                                resource_permissions.push(DirectoryResourcePermissionFE {
+                                    permission_id: permission_id.clone(),
+                                    grant_type: grant_type.clone(),
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    resource_permissions
 }
