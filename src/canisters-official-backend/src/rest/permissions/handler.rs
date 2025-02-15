@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, has_system_manage_permission}}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PermissionGranteeType, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PermissionGranteeType, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -553,6 +553,12 @@ pub mod permissions_handlers {
         let permission = SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
             permissions.borrow().get(&permission_id).cloned()
         });
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // 4. First check table-level permission
+        if !check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::View, is_owner) {
+            return create_auth_error_response();
+        }
     
         // 4. Verify access rights
         match &permission {
@@ -641,18 +647,21 @@ pub mod permissions_handlers {
         // 5. Check authorization
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
         
-        if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) {
-            return create_response(
-                StatusCode::FORBIDDEN,
-                ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
-            );
-        }
     
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
     
         // 6. Handle update vs create based on ID presence
         if let Some(id) = upsert_request.id {
+
             // UPDATE case
+            let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Update, is_owner);
+            if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) &&!has_table_permission {
+                return create_response(
+                    StatusCode::FORBIDDEN,
+                    ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
+                );
+            }
+
             let mut existing_permission = match SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
                 permissions.borrow().get(&id).cloned()
             ) {
@@ -683,6 +692,14 @@ pub mod permissions_handlers {
             )
         } else {
             // CREATE case
+            let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Create, is_owner);
+            if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) &&!has_table_permission {
+                return create_response(
+                    StatusCode::FORBIDDEN,
+                    ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
+                );
+            }
+
             let permission_id = SystemPermissionID(generate_unique_id(IDPrefix::SystemPermission, ""));
             
             let new_permission = SystemPermission {
@@ -770,8 +787,9 @@ pub mod permissions_handlers {
         // 4. Check authorization
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
         let is_granter = permission.granted_by == requester_api_key.user_id;
+        let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Delete, is_owner);
     
-        if !is_owner && !is_granter {
+        if !is_owner && !is_granter && !has_table_permission {
             return create_response(
                 StatusCode::FORBIDDEN,
                 ErrorResponse::err(403, "Not authorized to delete this permission".to_string()).encode()
@@ -888,7 +906,13 @@ pub mod permissions_handlers {
                     is_team_admin(&requester_api_key.user_id, team_id) && 
                     is_user_on_team(&UserID(grantee_id.to_string()), team_id)
                 },
-                _ => has_system_manage_permission(&requester_api_key.user_id, &resource_id)
+                _ => {
+                    if (has_system_manage_permission(&requester_api_key.user_id, &resource_id) || check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::View, is_owner)) {
+                        true
+                    } else {
+                        false
+                    }
+                }
             }
         };
 

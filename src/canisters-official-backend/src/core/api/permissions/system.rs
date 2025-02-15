@@ -46,7 +46,6 @@ pub fn can_user_access_system_permission(
             return permission.granted_by == *user_id;
         }
     }
-
     false
 }
 
@@ -167,4 +166,21 @@ pub fn parse_system_resource_id(id_str: &str) -> Result<SystemResourceID, Direct
     } else {
         Err(DirectoryIDError::MalformedID)
     }
+}
+
+// This is a helper function specifically for checking permissions table access
+pub fn check_permissions_table_access(
+    user_id: &UserID,
+    required_permission: SystemPermissionType,
+    is_owner: bool
+) -> bool {
+    if is_owner {
+        return true;
+    }
+
+    let permissions = check_system_permissions(
+        SystemResourceID::Table(SystemTableEnum::Permissions),
+        PermissionGranteeID::User(user_id.clone())
+    );
+    permissions.contains(&required_permission) || permissions.contains(&SystemPermissionType::Manage)
 }
