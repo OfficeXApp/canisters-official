@@ -4,7 +4,6 @@ use serde::{Serialize, Deserialize};
 use crate::core::{state::teams::types::TeamID, types::{ICPPrincipalString, PublicKeyICP, UserID}};
 
 
-
 #[derive(Debug, Clone, Serialize)]
 pub struct Contact {
     pub id: UserID,

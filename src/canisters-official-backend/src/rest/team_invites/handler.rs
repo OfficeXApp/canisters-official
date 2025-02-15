@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{drives::state::state::OWNER_ID, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}}
+        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}}
         
     };
     use crate::core::state::team_invites::{
@@ -38,8 +38,13 @@ pub mod team_invites_handlers {
                         false
                     }
                 });
+
+                let table_permissions = check_system_permissions(
+                    SystemResourceID::Table(SystemTableEnum::Teams),
+                    PermissionGranteeID::User(requester_api_key.user_id.clone())
+                );
     
-                if !is_authorized {
+                if !is_authorized && !table_permissions.contains(&SystemPermissionType::View) {
                     return create_auth_error_response();
                 }
     
@@ -100,7 +105,12 @@ pub mod team_invites_handlers {
                 .unwrap_or(false)
         });
     
-        if !is_authorized {
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+
+        if !is_authorized && !table_permissions.contains(&SystemPermissionType::View) {
             return create_auth_error_response();
         }
     
@@ -160,6 +170,9 @@ pub mod team_invites_handlers {
         if let Ok(req) = serde_json::from_slice::<UpsertTeamInviteRequestBody>(body) {
             match req {
                 UpsertTeamInviteRequestBody::Create(create_req) => {
+
+
+
                     let team_id = TeamID(create_req.team_id);
 
                     // Verify team exists and user has permission
@@ -182,7 +195,12 @@ pub mod team_invites_handlers {
                                         })
                                     });
 
-                    if !is_authorized {
+                    let table_permissions = check_system_permissions(
+                        SystemResourceID::Table(SystemTableEnum::Teams),
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+        
+                    if !is_authorized && !table_permissions.contains(&SystemPermissionType::Create) {
                         return create_auth_error_response();
                     }
 
@@ -258,7 +276,12 @@ pub mod team_invites_handlers {
                             .unwrap_or(false)
                     });
 
-                    if !is_authorized {
+                    let table_permissions = check_system_permissions(
+                        SystemResourceID::Table(SystemTableEnum::Teams),
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+        
+                    if !is_authorized && !table_permissions.contains(&SystemPermissionType::Update) {
                         return create_auth_error_response();
                     }
 
@@ -370,8 +393,13 @@ pub mod team_invites_handlers {
                 false
             }
         });
-    
-        if !is_authorized {
+        
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+
+        if !is_authorized && !table_permissions.contains(&SystemPermissionType::Delete) {
             return create_auth_error_response();
         }
     

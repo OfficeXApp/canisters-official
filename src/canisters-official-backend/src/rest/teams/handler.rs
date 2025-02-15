@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, OWNER_ID}, types::DriveID}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
+        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, OWNER_ID}, types::DriveID}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -25,9 +25,14 @@ pub mod teams_handlers {
         let id = TeamID(params.get("team_id").unwrap().to_string());
 
         // Only owner can read teams for now
-        let is_authorized = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // Check table-level permissions for Teams table
+        let permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
 
-        if !is_authorized {
+        if !permissions.contains(&SystemPermissionType::View) && !is_owner {
             return create_auth_error_response();
         }
 
@@ -56,9 +61,14 @@ pub mod teams_handlers {
         };
 
         // Only owner can list teams for now
-        let is_authorized = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // Check table-level permissions for Teams table
+        let permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
 
-        if !is_authorized {
+        if !permissions.contains(&SystemPermissionType::View) || !is_owner {
             return create_auth_error_response();
         }
 
@@ -93,11 +103,7 @@ pub mod teams_handlers {
         };
 
         // Only owner can create/update teams for now
-        let is_authorized = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-
-        if !is_authorized {
-            return create_auth_error_response();
-        }
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
 
         // Parse request body
         let body: &[u8] = req.body();
@@ -105,6 +111,18 @@ pub mod teams_handlers {
         if let Ok(req) = serde_json::from_slice::<UpsertTeamRequestBody>(body) {
             match req {
                 UpsertTeamRequestBody::Create(create_req) => {
+
+                    // Check table-level permissions for Teams table
+                    let permissions = check_system_permissions(
+                        SystemResourceID::Table(SystemTableEnum::Teams),
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+
+                    if !permissions.contains(&SystemPermissionType::Create) || !is_owner {
+                        return create_auth_error_response();
+                    }
+
+                    
                     let drive_id_suffix = format!("__DriveID_{}", ic_cdk::api::id().to_text());
                     let team_id = TeamID(generate_unique_id(IDPrefix::Team, &drive_id_suffix));
                     let now = ic_cdk::api::time();
@@ -114,7 +132,7 @@ pub mod teams_handlers {
                         id: team_id.clone(),
                         name: create_req.name,
                         owner: requester_api_key.user_id.clone(),
-                        private_note: if is_authorized { create_req.private_note } else { None },
+                        private_note: create_req.private_note,
                         public_note: create_req.public_note,
                         admin_invites: Vec::new(),
                         member_invites: Vec::new(),
@@ -138,6 +156,18 @@ pub mod teams_handlers {
                     )
                 },
                 UpsertTeamRequestBody::Update(update_req) => {
+
+                    // Check table-level permissions for Teams table
+                    let permissions = check_system_permissions(
+                        SystemResourceID::Table(SystemTableEnum::Teams),
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+
+                    if !permissions.contains(&SystemPermissionType::Update) || !is_owner {
+                        return create_auth_error_response();
+                    }
+
+
                     let team_id = TeamID(update_req.id);
                     
                     // Get existing team
@@ -157,9 +187,7 @@ pub mod teams_handlers {
                         team.public_note = Some(public_note);
                     }
                     if let Some(private_note) = update_req.private_note {
-                        if (is_authorized) {
-                            team.private_note = Some(private_note);
-                        }
+                        team.private_note = Some(private_note);
                     }
                     team.last_modified_at = ic_cdk::api::time();
 
@@ -190,11 +218,17 @@ pub mod teams_handlers {
         };
     
         // Only owner can delete teams for now
-        let is_authorized = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-    
-        if !is_authorized {
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // Check table-level permissions for Teams table
+        let permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+
+        if !permissions.contains(&SystemPermissionType::Delete) || !is_owner {
             return create_auth_error_response();
         }
+
     
         // Parse request body
         let body: &[u8] = req.body();

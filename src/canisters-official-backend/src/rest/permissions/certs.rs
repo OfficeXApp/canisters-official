@@ -7,7 +7,7 @@ struct CertifiedHttpResponse<'a> {
     certification: HttpCertification,
 }
 
-use crate::rest::permissions::route::PERMISSIONS_GET_PATH;
+use crate::rest::permissions::route::DIRECTORY_PERMISSIONS_GET_PATH;
 
 
 use ic_http_certification::{
@@ -31,7 +31,7 @@ const NOT_FOUND_PATH: &str = "";
 
 
 lazy_static! {
-    pub static ref PERMISSIONS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(PERMISSIONS_GET_PATH);
+    pub static ref PERMISSIONS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(DIRECTORY_PERMISSIONS_GET_PATH);
     static ref NOT_FOUND_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::wildcard(NOT_FOUND_PATH);
 
     static ref PERMISSIONS_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()

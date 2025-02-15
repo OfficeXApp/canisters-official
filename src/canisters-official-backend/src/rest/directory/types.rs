@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}, types::IDPrefix}, rest::webhooks::types::SortDirection};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}}, types::IDPrefix}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -31,8 +31,8 @@ pub struct ListDirectoryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryListResponse {
-    pub folders: Vec<FolderMetadata>,
-    pub files: Vec<FileMetadata>,
+    pub folders: Vec<GetFolderResponse>,
+    pub files: Vec<GetFileResponse>,
     pub total_files: usize,
     pub total_folders: usize,
     pub cursor: Option<String>,
@@ -447,8 +447,8 @@ pub struct RestoreTrashPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DirectoryActionResult {
-    GetFile(FileMetadata),
-    GetFolder(FolderMetadata),
+    GetFile(GetFileResponse),
+    GetFolder(GetFolderResponse),
     CreateFile(CreateFileResponse),
     CreateFolder(FolderMetadata),
     UpdateFile(FileMetadata),
@@ -462,6 +462,22 @@ pub enum DirectoryActionResult {
     RestoreTrash(RestoreTrashResponse)
 }
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetFileResponse {
+    pub file: FileMetadata,
+    pub permissions: Vec<DirectoryResourcePermissionFE>,
+    pub requester_id: UserID,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetFolderResponse {
+    pub folder: FolderMetadata,
+    pub permissions: Vec<DirectoryResourcePermissionFE>,
+    pub requester_id: UserID,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFileResponse {
@@ -497,6 +513,12 @@ pub struct DeleteFolderResponse {
 pub struct RestoreTrashResponse {
     pub restored_files: Vec<FileUUID>,
     pub restored_folders: Vec<FolderUUID>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DirectoryResourcePermissionFE {
+    pub permission_id: DirectoryPermissionID,
+    pub grant_type: DirectoryPermissionType,
 }
 
 // Example JSON requests:

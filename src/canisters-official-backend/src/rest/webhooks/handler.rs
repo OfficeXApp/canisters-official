@@ -6,8 +6,8 @@ pub mod webhooks_handlers {
 
     use crate::{
         core::{
-            api::uuid::generate_unique_id,
-            state::{drives::state::state::OWNER_ID, webhooks::{
+            api::{permissions::system::check_system_permissions, uuid::generate_unique_id},
+            state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
             }}, types::IDPrefix
         },
@@ -36,19 +36,30 @@ pub mod webhooks_handlers {
             None => return create_auth_error_response(),
         };
 
-        // Only owner can access webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Get webhook ID from params
         let webhook_id = WebhookID(params.get("webhook_id").unwrap().to_string());
+
+
+        // Only owner can access webhooks
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(webhook_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
+        }
 
         // Get the webhook
         let webhook = WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&webhook_id).cloned()
         });
+
 
         match webhook {
             Some(hook) => create_response(
@@ -80,7 +91,15 @@ pub mod webhooks_handlers {
         // Only owner can access webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
         if !is_owner {
-            return create_auth_error_response();
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Teams); // Using Teams since webhooks are team-related
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
         }
     
         // Parse request body
@@ -254,9 +273,6 @@ pub mod webhooks_handlers {
 
         // Only owner can manage webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Parse request body
         let body: &[u8] = req.body();
@@ -264,7 +280,6 @@ pub mod webhooks_handlers {
         if let Ok(req) = serde_json::from_slice::<UpsertWebhookRequestBody>(body) {
             match req {
                 UpsertWebhookRequestBody::Create(create_req) => {
-
                     // Create new webhook
                     let webhook_id = WebhookID(generate_unique_id(IDPrefix::Webhook, ""));
                     let alt_index = WebhookAltIndexID(create_req.alt_index);
@@ -277,6 +292,18 @@ pub mod webhooks_handlers {
                         description: create_req.description.unwrap_or_default(),
                         active: true,
                     };
+
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Record(webhook_id.to_string());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Create) {
+                            return create_auth_error_response();
+                        }
+                    }
 
                     // Update state tables – now storing a Vec<WebhookID> without removing others
                     WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
@@ -315,6 +342,18 @@ pub mod webhooks_handlers {
                             ErrorResponse::not_found().encode()
                         ),
                     };
+
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Record(webhook_id.to_string());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Update) {
+                            return create_auth_error_response();
+                        }
+                    }
 
                     // Update fields - ignoring alt_index and event as they cannot be modified
                     if let Some(url) = update_req.url {
@@ -356,13 +395,6 @@ pub mod webhooks_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-
-        // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
-
         // Parse request body
         let body: &[u8] = req.body();
         let delete_request = match serde_json::from_slice::<DeleteWebhookRequest>(body) {
@@ -374,6 +406,21 @@ pub mod webhooks_handlers {
         };
 
         let webhook_id = WebhookID(delete_request.id.clone());
+
+        // Only owner can manage webhooks
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(webhook_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Update) {
+                return create_auth_error_response();
+            }
+        }
+
 
         // Get webhook to delete
         let webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {

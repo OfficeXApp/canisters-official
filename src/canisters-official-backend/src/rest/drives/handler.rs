@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID}, types::{Drive, DriveID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
@@ -27,9 +27,6 @@ pub mod drives_handlers {
         };
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Get drive ID from params
         let drive_id = DriveID(params.get("drive_id").unwrap().to_string());
@@ -38,6 +35,19 @@ pub mod drives_handlers {
         let drive = DRIVES_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&drive_id).cloned()
         });
+
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(drive_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
+        }
+    
 
         match drive {
             Some(mut drive) => {
@@ -66,8 +76,17 @@ pub mod drives_handlers {
 
         // Only owner can access drives
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+
         if !is_owner {
-            return create_auth_error_response();
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
         }
 
         // Parse request body
@@ -252,6 +271,18 @@ pub mod drives_handlers {
                         ),
                     };
 
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Record(drive_id.to_string());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Update) {
+                            return create_auth_error_response();
+                        }
+                    }
+
                     // Update fields
                     if let Some(name) = update_req.name {
                         drive.name = name;
@@ -260,9 +291,10 @@ pub mod drives_handlers {
                         drive.public_note = Some(public_note);
                     }
                     if let Some(private_note) = update_req.private_note {
-                        if is_owner {
-                            drive.private_note = Some(private_note);
-                        }
+                        drive.private_note = Some(private_note);
+                    }
+                    if let Some(icp_principal) = update_req.icp_principal {
+                        drive.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
                     }
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {
@@ -275,6 +307,17 @@ pub mod drives_handlers {
                     )
                 },
                 UpsertDriveRequestBody::Create(create_req) => {
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Create) {
+                            return create_auth_error_response();
+                        }
+                    }
                     // Create new drive
                     let drive_id = DriveID(generate_unique_id(IDPrefix::Drive, ""));
                     let drive = Drive {
@@ -315,9 +358,6 @@ pub mod drives_handlers {
         };
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Parse request body
         let body: &[u8] = req.body();
@@ -330,6 +370,18 @@ pub mod drives_handlers {
         };
 
         let drive_id = delete_request.id;
+
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(drive_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Delete) {
+                return create_auth_error_response();
+            }
+        }
 
         // Remove from hashtable
         DRIVES_BY_ID_HASHTABLE.with(|store| {

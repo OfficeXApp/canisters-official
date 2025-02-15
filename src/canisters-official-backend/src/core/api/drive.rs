@@ -3,7 +3,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, types::DirectoryError, uuid::generate_unique_id
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::generate_unique_id
             },
             state::{
                 directory::{
@@ -12,10 +12,10 @@ pub mod drive {
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
             }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
-        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, GetFileResponse, GetFolderResponse, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
-    pub fn fetch_files_at_folder_path(config: ListDirectoryRequest) -> Result<DirectoryListResponse, DirectoryError> {
+    pub fn fetch_files_at_folder_path(config: ListDirectoryRequest, user_id: UserID) -> Result<DirectoryListResponse, DirectoryError> {
         let ListDirectoryRequest { 
             folder_id, 
             path, 
@@ -86,10 +86,36 @@ pub mod drive {
         } else {
             None
         };
+
+        // After getting folder contents but before returning
+        let mut folder_responses = Vec::new();
+        let mut file_responses = Vec::new();
+
+        for folder in folders {
+            let resource_id = DirectoryResourceID::Folder(folder.id.clone());
+            let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+            let folder_response = GetFolderResponse {
+                folder,
+                permissions: your_permissions,
+                requester_id: user_id.clone(),
+            };
+            folder_responses.push(folder_response);
+        }
+
+        for file in files {
+            let resource_id = DirectoryResourceID::File(file.id.clone());
+            let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+            let file_response = GetFileResponse {
+                file,
+                permissions: your_permissions,
+                requester_id: user_id.clone(),
+            };
+            file_responses.push(file_response);
+        }
     
         Ok(DirectoryListResponse {
-            folders,
-            files,
+            folders: folder_responses,
+            files: file_responses,
             total_folders,
             total_files,
             cursor: next_cursor,

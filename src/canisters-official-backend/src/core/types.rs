@@ -43,8 +43,9 @@ pub enum IDPrefix {
     Invite,
     Webhook,
     User,
+    SystemPermission,
     DirectoryPermission,
-    DirectoryShareDeferred,
+    PermissionDeferredGrantee,
     DirectoryActionOutcome
 }
 
@@ -58,8 +59,9 @@ impl IDPrefix {
             IDPrefix::Disk => "DiskID_",
             IDPrefix::Team => "TeamID_",
             IDPrefix::Invite => "InviteID_",
+            IDPrefix::SystemPermission => "SystemPermissionID_",
             IDPrefix::DirectoryPermission => "DirectoryPermissionID_",
-            IDPrefix::DirectoryShareDeferred => "DirectoryShareDeferredID_",
+            IDPrefix::PermissionDeferredGrantee => "PermissionDeferredGranteeID_",
             IDPrefix::Webhook => "WebhookID_",
             IDPrefix::User => "UserID_",
             IDPrefix::DirectoryActionOutcome => "DirectoryActionOutcomeID_",

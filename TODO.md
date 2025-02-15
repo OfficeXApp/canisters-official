@@ -10,14 +10,13 @@
 
 ## Urgent Next
 
-- [🔵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
-- [ ] Implement permissions for system (disks, teams, drives, contacts)
+- [🔵] Add deferred join team links, with ICP signature as proof of user icp principal
+- [ ] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
-- [ ] Write the `permissions` REST routes (https://youtu.be/5GG-VUvruzE?si=lEC0epAhFlD9-2Bp&t=1165)
-- [ ] Auth check `permissions` on all REST routes
 
 ## Near Future
 
+- [ ] Refactor frontend (or consider how to enable AI rest calls)
 - [ ] Connect relevant REST routes with relevant `webhook` firing
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
@@ -41,6 +40,7 @@
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Figure out best way to elegantly handle in-canister vs off-canister raw file storage (potentially also `disks` logic holding auth creds)
 - [ ] Paywalls
+- [ ] Should we allow "network visualization" where we give frontend a JSON graph of what a user has access to? their teams, etc
 
 ## Backlog
 
@@ -72,4 +72,8 @@
 - [x] Add compatibility for storjweb3 alongside aws s3. test with private acl and upload.
 - [x] Write the `directory` REST routes and particularly the file action logic
 - [x] Refactor all ID generation to use prefix, and handle all multi-type IDs with conversion
-- [x] Implement permissions for directory
+- [x] Implement routes `permissions/directory/*`
+- [x] Implement routes `/permissions/system/*`
+- [x] Auth check `permissions` on all REST CRUD
+- [x] Implement meta-permission to allow teams/users to edit ALL permission records `SystemTableEnum.Permissions`
+- [x] Include permissions in the response body of GET system records and `directory/action`
