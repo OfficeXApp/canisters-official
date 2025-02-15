@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -27,10 +27,6 @@ pub mod contacts_handlers {
 
         // Only owner can access contact.private_note
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Get contact ID from params
         let contact_id = UserID(params.get("contact_id").unwrap().to_string());
@@ -39,6 +35,19 @@ pub mod contacts_handlers {
         let contact = CONTACTS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&contact_id).cloned()
         });
+
+        // Check permissions if not owner
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(contact_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
+        }
 
         match contact {
             Some(mut contact) => {
@@ -66,9 +75,18 @@ pub mod contacts_handlers {
     
         // Only owner can access webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        // For now, only owner can CRUD contacts - this will change in the future when we add permissions
+        
+        // Check table-level permissions if not owner
         if !is_owner {
-            return create_auth_error_response();
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Contacts);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
         }
     
         // Parse request body
@@ -244,7 +262,7 @@ pub mod contacts_handlers {
 
                     let contact_id = UserID(update_req.id);
                     
-                    // Get existing webhook
+                    // Get existing contact
                     let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
                         Some(contact) => contact,
                         None => return create_response(
@@ -252,6 +270,19 @@ pub mod contacts_handlers {
                             ErrorResponse::not_found().encode()
                         ),
                     };
+
+                    // Check update permission if not owner
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Record(contact_id.to_string());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Update) {
+                            return create_auth_error_response();
+                        }
+                    }
 
                     // Update fields - ignoring alt_index and event as they cannot be modified
                     if let Some(nickname) = update_req.nickname {
@@ -286,6 +317,19 @@ pub mod contacts_handlers {
                     )
                 },
                 UpsertContactRequestBody::Create(create_req) => {
+
+                    // Check create permission if not owner
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Table(SystemTableEnum::Contacts);
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Create) {
+                            return create_auth_error_response();
+                        }
+                    }
 
                     // Create new webhook
                     let contact_id = UserID(generate_unique_id(IDPrefix::User, ""));
@@ -349,6 +393,19 @@ pub mod contacts_handlers {
         };
 
         let contact_id = delete_request.id.clone();
+
+        // Check delete permission if not owner
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(contact_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Delete) {
+                return create_auth_error_response();
+            }
+        }
 
         CONTACTS_BY_ID_HASHTABLE.with(|store| {
             store.borrow_mut().remove(&contact_id);

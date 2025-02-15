@@ -91,7 +91,7 @@ pub struct UpsertSystemPermissionsRequestBody {
     pub id: Option<SystemPermissionID>,
     pub resource_id: String, // Can be "Table_drives" or "DiskID_123" etc
     pub granted_to: Option<String>,
-    pub permission_types: Vec<SystemTablePermissionType>,
+    pub permission_types: Vec<SystemPermissionType>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
     pub note: Option<String>,
@@ -124,7 +124,7 @@ pub struct SystemPermissionCheckRequest {
 pub struct CheckSystemPermissionResult {
     pub resource_id: SystemResourceID,
     pub grantee_id: PermissionGranteeID,
-    pub permissions: Vec<SystemTablePermissionType>,
+    pub permissions: Vec<SystemPermissionType>,
 }
 
 // Redeem System Permission

@@ -1,8 +1,16 @@
+use std::fmt;
+
 // src/core/state/webhooks/types.rs
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct WebhookID(pub String);
+impl fmt::Display for WebhookID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct WebhookAltIndexID(pub String);

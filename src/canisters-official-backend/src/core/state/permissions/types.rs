@@ -97,7 +97,7 @@ impl fmt::Display for SystemPermissionID {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum SystemTablePermissionType {
+pub enum SystemPermissionType {
     Create,
     Update,
     Delete,
@@ -151,7 +151,7 @@ pub struct SystemPermission {
     pub grantee_type: PermissionGranteeType,  // Reuse from directory permissions
     pub granted_to: PermissionGranteeID,      // Reuse from directory permissions
     pub granted_by: UserID,
-    pub permission_types: HashSet<SystemTablePermissionType>,
+    pub permission_types: HashSet<SystemPermissionType>,
     pub begin_date_ms: i64,     // -1: not yet active, 0: immediate, >0: unix ms
     pub expiry_date_ms: i64,    // -1: never expires, 0: expired, >0: unix ms
     pub note: String,

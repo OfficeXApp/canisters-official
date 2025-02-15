@@ -44,6 +44,7 @@
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Figure out best way to elegantly handle in-canister vs off-canister raw file storage (potentially also `disks` logic holding auth creds)
 - [ ] Paywalls
+- [ ] Should we allow "network visualization" where we give frontend a JSON graph of what a user has access to? their teams, etc
 
 ## Backlog
 

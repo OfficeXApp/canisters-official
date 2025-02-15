@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::{permissions::system::check_system_permissions, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -24,22 +24,29 @@ pub mod apikeys_handlers {
        // Get the requested API key ID from params
         let requested_id = ApiKeyID(params.get("api_key_id").unwrap().to_string());
 
-        // Check authorization:
-        // 1. The requester's API key must either belong to the owner
-        // 2. Or the requester must be requesting their own API key
-        let is_authorized = OWNER_ID.with(|owner_id| {
-            requester_api_key.user_id == *owner_id || 
-            requester_api_key.id == requested_id
-        });
-
-        if !is_authorized {
-            return create_auth_error_response();
-        }
-
         // Get the requested API key
         let api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&requested_id).cloned()
         });
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_own_key = match &api_key {
+            Some(key) => requester_api_key.user_id == key.user_id,
+            None => false
+        };
+
+        // Check system permissions if not owner or own key
+        if !is_owner && !is_own_key {
+            let resource_id = SystemResourceID::Record(requested_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
+        }
 
         match api_key {
             Some(key) => create_response(
@@ -67,15 +74,22 @@ pub mod apikeys_handlers {
         let requested_user_id = UserID(params.get("user_id").unwrap().to_string());
 
         // Check authorization:
-        // 1. The requester's API key must either belong to the owner
+        // 1. The requester's API key must belong to the owner
         // 2. Or the requester must be requesting their own API keys
-        let is_authorized = OWNER_ID.with(|owner_id| {
-            requester_api_key.user_id == *owner_id || 
-            requester_api_key.user_id == requested_user_id
-        });
+        // 3. Or the requester must have View permission on the API keys table
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_own_keys = requester_api_key.user_id == requested_user_id;
 
-        if !is_authorized {
-            return create_auth_error_response();
+        if !is_owner && !is_own_keys {
+            let resource_id = SystemResourceID::Table(SystemTableEnum::ApiKeys);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
         }
 
         // Get the list of API key IDs for the user
@@ -123,6 +137,19 @@ pub mod apikeys_handlers {
                     // Determine what user_id to use for the new key
                     let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
                     
+                    // Check system permission to create if not owner
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Table(SystemTableEnum::ApiKeys);
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Create) {
+                            return create_auth_error_response();
+                        }
+                    }
+
                     // If owner and user_id provided in request, use that. Otherwise use requester's user_id
                     let key_user_id = if is_owner && create_req.user_id.is_some() {
                         UserID(create_req.user_id.unwrap())
@@ -177,10 +204,21 @@ pub mod apikeys_handlers {
                             ErrorResponse::err(404, "API key not found".to_string()).encode()
                         ),
                     };
-            
-                    // Check authorization - can only update their own keys
-                    if requester_api_key.user_id != api_key.user_id {
-                        return create_auth_error_response();
+
+                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+                    let is_own_key = requester_api_key.user_id == api_key.user_id;
+
+                    // Check system permission to update if not owner or own key
+                    if !is_owner && !is_own_key {
+                        let resource_id = SystemResourceID::Record(api_key.id.to_string());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Update) {
+                            return create_auth_error_response();
+                        }
                     }
             
                     // Update only the fields that were provided
@@ -264,18 +302,23 @@ pub mod apikeys_handlers {
         };
 
         // Check authorization:
-        // 1. The requester's API key must either belong to the owner
+        // 1. The requester's API key must belong to the owner
         // 2. Or the requester must be deleting their own API key
-        let is_authorized = OWNER_ID.with(|owner_id| {
-            requester_api_key.user_id == *owner_id || 
-            requester_api_key.user_id == api_key.user_id
-        });
+        // 3. Or the requester must have Delete permission on this API key record
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_own_key = requester_api_key.user_id == api_key.user_id;
 
-        if !is_authorized {
-            return create_auth_error_response();
+        if !is_owner && !is_own_key {
+            let resource_id = SystemResourceID::Record(api_key.id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Delete) {
+                return create_auth_error_response();
+            }
         }
-
-        // Remove from all three hashtables
         
         // 1. Remove from APIKEYS_BY_VALUE_HASHTABLE
         APIKEYS_BY_VALUE_HASHTABLE.with(|store| {

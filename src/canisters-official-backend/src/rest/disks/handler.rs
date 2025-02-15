@@ -3,7 +3,7 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::validate_auth_json, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -24,9 +24,6 @@ pub mod disks_handlers {
 
         // Only owner can access disk.private_note
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Get disk ID from params
         let disk_id = DiskID(params.get("disk_id").unwrap().to_string());
@@ -35,6 +32,19 @@ pub mod disks_handlers {
         let disk = DISKS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&disk_id).cloned()
         });
+
+        // Check permissions if not owner
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(disk_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
+        }
 
         match disk {
             Some(mut disk) => {
@@ -62,8 +72,18 @@ pub mod disks_handlers {
         };
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+
+        // Check table permissions if not owner
         if !is_owner {
-            return create_auth_error_response();
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Disks);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
         }
 
         // Parse request body
@@ -243,19 +263,39 @@ pub mod disks_handlers {
                         ),
                     };
 
+                    // Check update permission if not owner
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Record(disk_id.to_string());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Update) {
+                            return create_auth_error_response();
+                        }
+                    }
+
 
                     // Update fields
+                    if let Some(private_note) = update_req.private_note {
+                        disk.private_note = Some(private_note);
+                    }
+                    if let Some(auth_json) = update_req.auth_json {
+                        // Validate auth_json if provided
+                        if let Err(err_msg) = validate_auth_json(&disk.disk_type, &Some(auth_json.clone())) {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(400, err_msg).encode()
+                            );
+                        }
+                        disk.auth_json = Some(auth_json);
+                    }
                     if let Some(name) = update_req.name {
                         disk.name = name;
                     }
                     if let Some(public_note) = update_req.public_note {
                         disk.public_note = Some(public_note);
-                    }
-                    if let Some(private_note) = update_req.private_note {
-                        disk.private_note = Some(private_note);
-                    }
-                    if let Some(auth_json) = update_req.auth_json {
-                        disk.auth_json = Some(auth_json);
                     }
                     if let Some(external_id) = update_req.external_id {
                         // Update external ID mapping
@@ -280,6 +320,20 @@ pub mod disks_handlers {
                     )
                 },
                 UpsertDiskRequestBody::Create(create_req) => {
+
+                    // Check create permission if not owner
+                    if !is_owner {
+                        let resource_id = SystemResourceID::Table(SystemTableEnum::Disks);
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        if !permissions.contains(&SystemPermissionType::Create) {
+                            return create_auth_error_response();
+                        }
+                    }
+                    
                     // Validate that auth_json is provided and valid for AwsBucket or StorjWeb3 types.
                     if let Err(err_msg) = validate_auth_json(&create_req.disk_type, &create_req.auth_json) {
                         return create_response(
@@ -346,9 +400,6 @@ pub mod disks_handlers {
         };
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Parse request body
         let body: &[u8] = req.body();
@@ -361,6 +412,19 @@ pub mod disks_handlers {
         };
 
         let disk_id = delete_request.id.clone();
+
+        // Check delete permission if not owner
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(disk_id.to_string());
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Delete) {
+                return create_auth_error_response();
+            }
+        }
 
         // Get disk for external ID cleanup
         let disk = DISKS_BY_ID_HASHTABLE.with(|store| {
