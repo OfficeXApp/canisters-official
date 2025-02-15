@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::contacts::types::Contact, types::UserID}, rest::webhooks::types::SortDirection};
+use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::UserID}, rest::webhooks::types::SortDirection};
 
 #[derive(Debug, Clone, Serialize)]
 pub enum ContactResponse<'a, T = ()> {
@@ -116,12 +116,12 @@ pub type UpdateContactResponse<'a> = ContactResponse<'a, Contact>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteContactRequest {
-    pub id: UserID,
+    pub id: TeamInviteeID,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DeletedContactData {
-    pub id: UserID,
+    pub id: TeamInviteeID,
     pub deleted: bool
 }
 

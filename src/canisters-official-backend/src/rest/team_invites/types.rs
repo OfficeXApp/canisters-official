@@ -70,10 +70,11 @@ pub struct ListTeamInvitesResponseData {
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamInviteRequestBody {
     pub team_id: String,
-    pub invitee_id: String,
+    pub invitee_id: Option<String>,
     pub role: TeamRole,
     pub active_from: Option<u64>,
     pub expires_at: Option<i64>,
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -82,6 +83,7 @@ pub struct UpdateTeamInviteRequestBody {
     pub role: Option<TeamRole>,
     pub active_from: Option<u64>,
     pub expires_at: Option<i64>,
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -124,3 +126,14 @@ pub type DeleteTeam_InviteResponse<'a> = Team_InviteResponse<'a, DeletedTeam_Inv
 
 
 pub type ErrorResponse<'a> = Team_InviteResponse<'a, ()>;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RedeemTeamInviteRequest {
+    pub invite_id: String,
+    pub user_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RedeemTeamInviteResponseData {
+    pub invite: Team_Invite,
+}

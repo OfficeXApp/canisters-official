@@ -197,7 +197,7 @@ pub mod permissions_handlers {
         } else {
             // Create a new deferred link ID for sharing
             PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
-                generate_unique_id(IDPrefix::PermissionDeferredGrantee, "")
+                generate_unique_id(IDPrefix::PlaceholderPermissionGrantee, "")
             ))
         };
     
@@ -296,12 +296,6 @@ pub mod permissions_handlers {
                 id: permission_id.clone(),
                 resource_id: resource_id.clone(),
                 resource_path: DriveFullFilePath(resource_id.to_string()),
-                grantee_type: match &grantee_id {
-                    PermissionGranteeID::Public => PermissionGranteeType::Public,
-                    PermissionGranteeID::User(_) => PermissionGranteeType::User,
-                    PermissionGranteeID::Team(_) => PermissionGranteeType::Team,
-                    PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_) => PermissionGranteeType::PlaceholderDirectoryPermissionGrantee,
-                },
                 granted_to: grantee_id.clone(),
                 granted_by: requester_api_key.user_id.clone(),
                 permission_types: allowed_permission_types.into_iter().collect(),
@@ -453,7 +447,7 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-    
+     
         // 2. Convert permission_id string to DirectoryPermissionID
         let permission_id = DirectoryPermissionID(redeem_request.permission_id);
     
@@ -505,7 +499,6 @@ pub mod permissions_handlers {
         // 6. Update permission and state
         let old_grantee = permission.granted_to.clone();
         permission.granted_to = new_grantee.clone();
-        permission.grantee_type = PermissionGranteeType::User;
         permission.last_modified_at = ic_cdk::api::time() / 1_000_000; // Convert ns to ms
     
         // Update all state tables
@@ -640,7 +633,7 @@ pub mod permissions_handlers {
         } else {
             // Create a new deferred link ID for sharing
             PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
-                generate_unique_id(IDPrefix::PermissionDeferredGrantee, "")
+                generate_unique_id(IDPrefix::PlaceholderPermissionGrantee, "")
             ))
         };
     
@@ -705,12 +698,6 @@ pub mod permissions_handlers {
             let new_permission = SystemPermission {
                 id: permission_id.clone(),
                 resource_id: resource_id.clone(),
-                grantee_type: match &grantee_id {
-                    PermissionGranteeID::Public => PermissionGranteeType::Public,
-                    PermissionGranteeID::User(_) => PermissionGranteeType::User,
-                    PermissionGranteeID::Team(_) => PermissionGranteeType::Team,
-                    PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_) => PermissionGranteeType::PlaceholderDirectoryPermissionGrantee,
-                },
                 granted_to: grantee_id.clone(),
                 granted_by: requester_api_key.user_id.clone(),
                 permission_types: upsert_request.permission_types.into_iter().collect(),
@@ -1023,7 +1010,6 @@ pub mod permissions_handlers {
         // 6. Update permission and state
         let old_grantee = permission.granted_to.clone();
         permission.granted_to = new_grantee.clone();
-        permission.grantee_type = PermissionGranteeType::User;
         permission.last_modified_at = ic_cdk::api::time() / 1_000_000;
     
         // Update all state tables
