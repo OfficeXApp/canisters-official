@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -408,11 +408,11 @@ pub mod contacts_handlers {
         }
 
         CONTACTS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow_mut().remove(&contact_id);
+            store.borrow_mut().remove(&UserID(contact_id.to_string()));
         });
 
         CONTACTS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &contact_id);
+            store.borrow_mut().retain(|id| id != &UserID(contact_id.to_string()));
         });
 
         // Get and remove user's invites
@@ -439,7 +439,7 @@ pub mod contacts_handlers {
         create_response(
             StatusCode::OK,
             DeleteContactResponse::ok(&DeletedContactData {
-                id: contact_id,
+                id: contact_id.clone(),
                 deleted: true
             }).encode()
         )

@@ -45,8 +45,9 @@ pub enum IDPrefix {
     User,
     SystemPermission,
     DirectoryPermission,
-    PermissionDeferredGrantee,
-    DirectoryActionOutcome
+    PlaceholderPermissionGrantee,
+    DirectoryActionOutcome,
+    PlaceholderTeamInviteeID
 }
 
 impl IDPrefix {
@@ -61,10 +62,11 @@ impl IDPrefix {
             IDPrefix::Invite => "InviteID_",
             IDPrefix::SystemPermission => "SystemPermissionID_",
             IDPrefix::DirectoryPermission => "DirectoryPermissionID_",
-            IDPrefix::PermissionDeferredGrantee => "PermissionDeferredGranteeID_",
+            IDPrefix::PlaceholderPermissionGrantee => "PlaceholderPermissionGranteeID_",
             IDPrefix::Webhook => "WebhookID_",
             IDPrefix::User => "UserID_",
             IDPrefix::DirectoryActionOutcome => "DirectoryActionOutcomeID_",
+            IDPrefix::PlaceholderTeamInviteeID => "PlaceholderTeamInviteeID_",
         }
     }
 }

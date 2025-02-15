@@ -74,7 +74,6 @@ pub struct DirectoryPermission {
     pub id: DirectoryPermissionID,
     pub resource_id: DirectoryResourceID,
     pub resource_path: DriveFullFilePath,
-    pub grantee_type: PermissionGranteeType,
     pub granted_to: PermissionGranteeID,
     pub granted_by: UserID,
     pub permission_types: HashSet<DirectoryPermissionType>,
@@ -148,7 +147,6 @@ impl fmt::Display for SystemResourceID {
 pub struct SystemPermission {
     pub id: SystemPermissionID,
     pub resource_id: SystemResourceID,
-    pub grantee_type: PermissionGranteeType,  // Reuse from directory permissions
     pub granted_to: PermissionGranteeID,      // Reuse from directory permissions
     pub granted_by: UserID,
     pub permission_types: HashSet<SystemPermissionType>,

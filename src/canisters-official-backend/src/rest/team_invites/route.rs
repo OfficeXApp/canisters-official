@@ -7,6 +7,7 @@ pub const TEAM_INVITES_GET_PATH: &str = "/teams/invites/get/{invite_id}";
 pub const TEAM_INVITES_LIST_PATH: &str = "/teams/invites/list";
 pub const TEAM_INVITES_UPSERT_PATH: &str = "/teams/invites/upsert";
 pub const TEAM_INVITES_DELETE_PATH: &str = "/teams/invites/delete";
+pub const TEAM_INVITES_REDEEM_PATH: &str = "/teams/invites/redeem";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -31,6 +32,11 @@ pub fn init_routes() {
             "POST",
             TEAM_INVITES_DELETE_PATH,
             crate::rest::team_invites::handler::team_invites_handlers::delete_team_invite_handler,
+        ),
+        (
+            "POST",
+            TEAM_INVITES_REDEEM_PATH,
+            crate::rest::team_invites::handler::team_invites_handlers::redeem_team_invite_handler,
         )
     ];
 
