@@ -7,6 +7,7 @@ pub const TEAMS_GET_PATH: &str = "/teams/get/{team_id}";
 pub const TEAMS_LIST_PATH: &str = "/teams/list";
 pub const TEAMS_UPSERT_PATH: &str = "/teams/upsert";
 pub const TEAMS_DELETE_PATH: &str = "/teams/delete";
+pub const TEAMS_VALIDATE_PATH: &str = "/teams/validate";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -31,6 +32,11 @@ pub fn init_routes() {
             "POST",
             TEAMS_DELETE_PATH,
             crate::rest::teams::handler::teams_handlers::delete_team_handler,
+        ),
+        (
+            "POST",
+            TEAMS_VALIDATE_PATH,
+            crate::rest::teams::handler::teams_handlers::validate_team_handler,
         )
     ];
 

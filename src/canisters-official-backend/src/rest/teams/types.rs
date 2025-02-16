@@ -68,6 +68,7 @@ pub struct CreateTeamRequestBody {
     pub name: String,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
+    pub url_endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -76,6 +77,7 @@ pub struct UpdateTeamRequestBody {
     pub name: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
+    pub url_endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -96,8 +98,23 @@ pub struct DeletedTeamData {
     pub deleted: bool
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ValidateTeamRequestBody {
+    pub user_id: UserID, // does this user
+    pub team_id: TeamID, // belong to this team
+    // pub signature: String, // relay the signature to the cosmic drive to prove user_id
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct ValidateTeamResponseData {
+    pub is_member: bool,
+    pub team_id: TeamID,
+    pub user_id: UserID
+}
+
+
 pub type GetTeamResponse<'a> = TeamResponse<'a, Team>;
 pub type CreateTeamResponse<'a> = TeamResponse<'a, Team>;
 pub type UpdateTeamResponse<'a> = TeamResponse<'a, Team>;
 pub type DeleteTeamResponse<'a> = TeamResponse<'a, DeletedTeamData>;
 pub type ErrorResponse<'a> = TeamResponse<'a, ()>;
+pub type ValidateTeamResponse<'a> = TeamResponse<'a, ValidateTeamResponseData>;

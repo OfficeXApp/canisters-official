@@ -10,8 +10,7 @@
 
 ## Urgent Next
 
-- [🔵] Add deferred join team links, with ICP signature as proof of user icp principal
-- [ ] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
+- [🔵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [ ] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
 - [ ] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
 
@@ -78,3 +77,4 @@
 - [x] Auth check `permissions` on all REST CRUD
 - [x] Implement meta-permission to allow teams/users to edit ALL permission records `SystemTableEnum.Permissions`
 - [x] Include permissions in the response body of GET system records and `directory/action`
+- [x] Add deferred join team links, with ICP signature as proof of user icp principal

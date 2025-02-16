@@ -2,7 +2,7 @@
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use crate::core::{
-    state::{drives::types::DriveID, team_invites::types::TeamInviteID},
+    state::{drives::types::{DriveID, DriveRESTUrlEndpoint}, team_invites::types::TeamInviteID},
     types::UserID
 };
 
@@ -21,6 +21,7 @@ pub struct Team {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub drive_id: DriveID,
+    pub url_endpoint: DriveRESTUrlEndpoint,
 }
 
 // Implement Display for TeamID

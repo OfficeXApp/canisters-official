@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::{state::state::is_user_on_team, types::TeamID}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
 
 
 // Check if a user can CRUD the permission record
@@ -168,16 +168,21 @@ fn check_directory_resource_permissions(
                             PermissionGranteeID::Public => true,
                             // For other types, just match the raw IDs since we don't validate type
                             PermissionGranteeID::User(permission_user_id) => {
-                                if let PermissionGranteeID::User(request_user_id) = grantee_id {
-                                    permission_user_id.0 == request_user_id.0
+                                if let PermissionGranteeID::User(request_grantee_id) = grantee_id {
+                                    permission_user_id.0 == request_grantee_id.0
                                 } else {
                                     false
                                 }
                             },
                             PermissionGranteeID::Team(permission_team_id) => {
-                                if let PermissionGranteeID::Team(request_team_id) = grantee_id {
+                                if let PermissionGranteeID::User(request_user_id) = grantee_id {
+                                    is_user_on_team(request_user_id, permission_team_id)
+                                } 
+                                // If input is a team ID, compare team IDs (might still be valid for some cases)
+                                else if let PermissionGranteeID::Team(request_team_id) = grantee_id {
                                     permission_team_id.0 == request_team_id.0
-                                } else {
+                                }
+                                else {
                                     false
                                 }
                             },
