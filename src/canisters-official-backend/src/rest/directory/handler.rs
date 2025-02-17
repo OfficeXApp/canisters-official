@@ -99,7 +99,7 @@ pub mod directorys_handlers {
         
         for action in action_batch.actions {
             let outcome_id = DirectoryActionOutcomeID(generate_unique_id(IDPrefix::DirectoryActionOutcome, ""));
-            let outcome = match crate::core::api::actions::pipe_action(action.clone(), requester_api_key.user_id.clone()) {
+            let outcome = match crate::core::api::actions::pipe_action(action.clone(), requester_api_key.user_id.clone()).await {
                 Ok(result) => DirectoryActionOutcome {
                     id: outcome_id,
                     success: true,

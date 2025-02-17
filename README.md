@@ -29,3 +29,12 @@ Then test:
 ```
 curl -s \ "http://$(dfx canister id canisters-official-backend).localhost:$(dfx info webserver-port)/todos" \ --resolve "$(dfx canister id canisters-official-backend).localhost:$(dfx info webserver-port):127.0.0.1"
 ```
+
+```sh
+# create
+$ dfx canister create canisters-official-backend --no-wallet
+$ dfx canister create canisters-official-backend-2 --no-wallet
+# deploy
+$ dfx deploy canisters-official-backend
+$ dfx deploy canisters-official-backend-2
+```

@@ -62,7 +62,7 @@ pub struct ListTeamsResponseData {
 }
 pub type ListTeamsResponse<'a> = TeamResponse<'a, ListTeamsResponseData>;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamRequestBody {
     pub name: String,
@@ -71,7 +71,7 @@ pub struct CreateTeamRequestBody {
     pub url_endpoint: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateTeamRequestBody {
     pub id: String,
     pub name: Option<String>,
@@ -80,31 +80,31 @@ pub struct UpdateTeamRequestBody {
     pub url_endpoint: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpsertTeamRequestBody {
     Create(CreateTeamRequestBody),
     Update(UpdateTeamRequestBody),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteTeamRequestBody {
     pub id: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeletedTeamData {
     pub id: String,
     pub deleted: bool
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidateTeamRequestBody {
     pub user_id: UserID, // does this user
     pub team_id: TeamID, // belong to this team
     // pub signature: String, // relay the signature to the cosmic drive to prove user_id
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidateTeamResponseData {
     pub is_member: bool,
     pub team_id: TeamID,

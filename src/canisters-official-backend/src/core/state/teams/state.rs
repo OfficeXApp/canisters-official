@@ -2,6 +2,11 @@
 pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
+    use ic_cdk::api::management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod};
+    use num_bigint::BigUint;
+    use num_traits::FromPrimitive;
+    use crate::{debug_log, rest::teams::types::{TeamResponse, ValidateTeamResponseData}};
+    use serde_json::json;
 
     use crate::core::{state::{drives::state::state::URL_ENDPOINT, team_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::{TeamInviteID, TeamInviteeID}}, teams::types::{Team, TeamID}}, types::UserID};
     
@@ -58,60 +63,60 @@ pub mod state {
         false
     }
 
-    pub fn is_user_on_team(user_id: &UserID, team_id: &TeamID) -> bool {
-        TEAMS_BY_ID_HASHTABLE.with(|teams| {
-            if let Some(team) = teams.borrow().get(team_id) {
-                // If it's our own drive's team, use local validation
-                if team.url_endpoint == URL_ENDPOINT.with(|url| url.clone()) {
-                    return is_user_on_local_team(user_id, team);
-                }
-
-                // It's an external team, make HTTP call to their validate endpoint
-                let validation_url = format!("{}/teams/validate", team.url_endpoint.0.trim_end_matches('/'));
-                
-                let validation_body = json!({
-                    "team_id": team_id.0,
-                    "user_id": user_id.0,
-                });
-
-                let request = HttpRequest {
-                    method: "POST".to_string(),
-                    url: validation_url,
-                    headers: vec![
-                        ("Content-Type".to_string(), "application/json".to_string()),
-                    ],
-                    body: serde_json::to_vec(&validation_body).unwrap_or_default(),
-                };
-
-                // Send request and handle response
-                match ic_cdk::api::call::http_request(request).await {
-                    Ok(response) => {
-                        if response.status_code != 200 {
-                            debug_log!("External team validation failed with status: {}", response.status_code);
-                            return false;
-                        }
-
-                        #[derive(Deserialize)]
-                        struct ValidationResponse {
-                            is_member: bool
-                        }
-
-                        match serde_json::from_slice::<ValidationResponse>(&response.body) {
-                            Ok(result) => result.is_member,
-                            Err(e) => {
-                                debug_log!("Failed to parse team validation response: {}", e);
-                                false
-                            }
-                        }
+    pub async fn is_user_on_team(user_id: &UserID, team_id: &TeamID) -> bool {
+        let team_opt = TEAMS_BY_ID_HASHTABLE.with(|teams| teams.borrow().get(team_id).cloned());
+        
+        if let Some(team) = team_opt {
+            // If it's our own drive's team, use local validation
+            if team.url_endpoint == URL_ENDPOINT.with(|url| url.clone()) {
+                return is_user_on_local_team(user_id, &team);
+            }
+    
+            // It's an external team, make HTTP call to their validate endpoint
+            let validation_url = format!("{}/teams/validate", team.url_endpoint.0.trim_end_matches('/'));
+            
+            let validation_body = json!({
+                "team_id": team_id.0,
+                "user_id": user_id.0,
+            });
+    
+            let request = CanisterHttpRequestArgument {
+                url: validation_url,
+                method: HttpMethod::POST,
+                headers: vec![
+                    HttpHeader {
+                        name: "Content-Type".to_string(),
+                        value: "application/json".to_string(),
                     },
-                    Err(e) => {
-                        debug_log!("External team validation request failed: {}", e);
-                        false
+                ],
+                body: Some(serde_json::to_vec(&validation_body).unwrap_or_default()),
+                max_response_bytes: Some(2048),
+                transform: None,
+            };
+    
+            match http_request(request, 100_000_000_000).await {
+                Ok((response,)) => {
+                    if response.status.0 != BigUint::from_u16(200).unwrap_or_default() {
+                        debug_log!("External team validation failed with status: {}", response.status.0);
+                        return false;
                     }
+    
+                    match serde_json::from_slice::<ValidateTeamResponseData>(&response.body) {
+                        Ok(result) => result.is_member,
+                        Err(e) => {
+                            debug_log!("Failed to parse team validation response: {}", e);
+                            false
+                        }
+                    }
+                },
+                Err((code, msg)) => {
+                    debug_log!("External team validation request failed: {:?} - {}", code, msg);
+                    false
                 }
             }
+        } else {
             false
-        })
+        }
     }
 }
 

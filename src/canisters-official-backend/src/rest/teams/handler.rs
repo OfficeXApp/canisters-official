@@ -335,7 +335,7 @@ pub mod teams_handlers {
         }
     
         // Use existing is_user_on_team function to check membership
-        let is_member = is_user_on_team(&validate_request.user_id, &validate_request.team_id);
+        let is_member = is_user_on_team(&validate_request.user_id, &validate_request.team_id).await;
     
         let response_data = ValidateTeamResponseData {
             is_member,
