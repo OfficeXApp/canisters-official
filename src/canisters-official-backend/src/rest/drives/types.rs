@@ -74,6 +74,7 @@ pub struct CreateDriveRequestBody {
     pub icp_principal: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
+    pub url_endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -87,6 +88,8 @@ pub struct UpdateDriveRequestBody {
     pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icp_principal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url_endpoint: Option<String>,
 }
 
 pub type GetDriveResponse<'a> = DriveResponse<'a, Drive>;

@@ -13,7 +13,7 @@ pub mod team_invites_handlers {
     use matchit::Params;
     use serde::Deserialize;
 
-    pub fn get_team_invite_handler(request: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -60,7 +60,7 @@ pub mod team_invites_handlers {
         }
     }
     
-    pub fn list_team_invites_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn list_team_invites_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
@@ -157,15 +157,15 @@ pub mod team_invites_handlers {
         )
     }
     
-    pub fn upsert_team_invite_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         
         if let Ok(req) = serde_json::from_slice::<UpsertTeamInviteRequestBody>(body) {
             match req {
@@ -372,15 +372,15 @@ pub mod team_invites_handlers {
         }
     }
     
-    pub fn delete_team_invite_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // Parse request body
-        let delete_req = match serde_json::from_slice::<DeleteTeam_InviteRequest>(req.body()) {
+        let delete_req = match serde_json::from_slice::<DeleteTeam_InviteRequest>(request.body()) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -459,9 +459,9 @@ pub mod team_invites_handlers {
         )
     }
 
-    pub fn redeem_team_invite_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn redeem_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemTeamInviteRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(

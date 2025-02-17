@@ -17,9 +17,9 @@ pub mod permissions_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_directory_permissions_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -65,7 +65,7 @@ pub mod permissions_handlers {
 
     }
 
-    pub fn check_directory_permissions_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn check_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -112,9 +112,9 @@ pub mod permissions_handlers {
                 PermissionGranteeID::User(user_id) if user_id.0 == requester_api_key.user_id.0 => true,
                 PermissionGranteeID::Team(team_id) => {
                     is_team_admin(&requester_api_key.user_id, team_id) && 
-                    is_user_on_team(&UserID(grantee_id.to_string()), team_id)
+                    is_user_on_team(&UserID(grantee_id.to_string()), team_id).await
                 },
-                _ => has_directory_manage_permission(&requester_api_key.user_id, &resource_id)
+                _ => has_directory_manage_permission(&requester_api_key.user_id, &resource_id).await
             }
         };
 
@@ -146,7 +146,7 @@ pub mod permissions_handlers {
         let permissions = check_directory_permissions(
             resource_id.clone(),
             grantee_id.clone()
-        );
+        ).await;
 
         // 6. Create and return the success response
         create_response(
@@ -159,15 +159,15 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn upsert_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let upsert_request = match serde_json::from_slice::<UpsertPermissionsRequestBody>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -223,14 +223,14 @@ pub mod permissions_handlers {
         } else {
             // Get requester's permissions on the resource and its parents
             let resources_to_check = get_inherited_resources_list(resource_id.clone());
-            let requester_permissions: Vec<DirectoryPermissionType> = resources_to_check.iter()
-                .flat_map(|resource_id| {
-                    check_directory_permissions(
-                        resource_id.clone(),
-                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                    )
-                })
-                .collect();
+            let mut requester_permissions = Vec::new();
+            for resource_id in resources_to_check.iter() {
+                let permissions = check_directory_permissions(
+                    resource_id.clone(),
+                    PermissionGranteeID::User(requester_api_key.user_id.clone())
+                ).await;
+                requester_permissions.extend(permissions);
+            }
     
             let has_manage = requester_permissions.contains(&DirectoryPermissionType::Manage);
             let has_invite = requester_permissions.contains(&DirectoryPermissionType::Invite);
@@ -340,15 +340,15 @@ pub mod permissions_handlers {
         }
     }
 
-    pub fn delete_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeletePermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -376,12 +376,18 @@ pub mod permissions_handlers {
         
         // Check manage permissions on the resource and all its parents
         let resources_to_check = get_inherited_resources_list(permission.resource_id.clone());
-        let has_manage = resources_to_check.iter().any(|resource_id| {
-            check_directory_permissions(
+        let mut has_manage = false;
+        for resource_id in resources_to_check.iter() {
+            let permissions = check_directory_permissions(
                 resource_id.clone(),
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
-            ).contains(&DirectoryPermissionType::Manage)
-        });
+            ).await;
+            
+            if permissions.contains(&DirectoryPermissionType::Manage) {
+                has_manage = true;
+                break;
+            }
+        }
     
         if !is_owner && !is_granter && !has_manage {
             return create_response(
@@ -437,9 +443,9 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn redeem_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn redeem_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemPermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -526,9 +532,9 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn get_system_permissions_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -581,15 +587,15 @@ pub mod permissions_handlers {
         }
     }
   
-    pub fn upsert_system_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let upsert_request = match serde_json::from_slice::<UpsertSystemPermissionsRequestBody>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -741,15 +747,15 @@ pub mod permissions_handlers {
         }
     }
 
-    pub fn delete_system_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteSystemPermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -830,7 +836,7 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn check_system_permissions_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn check_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -891,7 +897,7 @@ pub mod permissions_handlers {
                 PermissionGranteeID::User(user_id) if user_id.0 == requester_api_key.user_id.0 => true,
                 PermissionGranteeID::Team(team_id) => {
                     is_team_admin(&requester_api_key.user_id, team_id) && 
-                    is_user_on_team(&UserID(grantee_id.to_string()), team_id)
+                    is_user_on_team(&UserID(grantee_id.to_string()), team_id).await
                 },
                 _ => {
                     if (has_system_manage_permission(&requester_api_key.user_id, &resource_id) || check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::View, is_owner)) {
@@ -948,9 +954,9 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn redeem_system_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn redeem_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemSystemPermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(

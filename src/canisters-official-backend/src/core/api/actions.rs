@@ -1,8 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-
 use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}};
-
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::directory::{check_directory_permissions, preview_directory_permissions}};
 
 
@@ -12,7 +10,7 @@ pub struct DirectoryActionErrorInfo {
     pub message: String,
 }
 
-pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<DirectoryActionResult, DirectoryActionErrorInfo> {
+pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<DirectoryActionResult, DirectoryActionErrorInfo> {
     match action.action {
         DirectoryActionEnum::GetFile => {
             match action.payload {
@@ -56,7 +54,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         resource_id.clone(),
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     // User needs at least View permission to get file details
                     if !user_permissions.contains(&DirectoryPermissionType::View) {
@@ -124,7 +122,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         resource_id.clone(),
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) {
                         return Err(DirectoryActionErrorInfo {
@@ -182,7 +180,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !user_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !user_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -269,7 +267,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !user_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !user_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -365,7 +363,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
 
                     // Check permissions:
                     // 1. User is creator AND still has upload/edit/manage permissions on parent folder, OR
@@ -482,7 +480,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
 
                     // Check permissions:
                     // 1. User is creator AND still has upload/edit/manage permissions on parent folder, OR
@@ -588,7 +586,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     // Check permissions:
                     // 1. User is creator AND still has upload permissions on parent folder, OR
@@ -677,7 +675,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     // Check permissions:
                     // 1. User is creator AND still has upload permissions on parent folder, OR
@@ -764,7 +762,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) {
                         return Err(DirectoryActionErrorInfo {
@@ -793,7 +791,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -862,7 +860,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let user_permissions = check_directory_permissions(
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) {
                         return Err(DirectoryActionErrorInfo {
@@ -891,7 +889,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -960,7 +958,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let source_permissions = check_directory_permissions(
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     // Check if user has permission to move the file from source
                     let is_creator_with_upload = file.created_by == user_id && 
@@ -998,7 +996,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -1074,7 +1072,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let source_permissions = check_directory_permissions(
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     // Check if user has permission to move the folder from source
                     let is_creator_with_upload = folder.created_by == user_id && 
@@ -1112,7 +1110,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                     let dest_permissions = check_directory_permissions(
                         dest_resource_id,
                         PermissionGranteeID::User(user_id.clone())
-                    );
+                    ).await;
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -1174,7 +1172,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         let folder_permissions = check_directory_permissions(
                             folder_resource_id,
                             PermissionGranteeID::User(user_id.clone())
-                        );
+                        ).await;
         
                         // User needs Edit/Manage permission OR be creator with Upload permission to restore
                         let is_creator_with_upload = folder.created_by == user_id && 
@@ -1227,7 +1225,7 @@ pub fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Directory
                         let file_permissions = check_directory_permissions(
                             file_resource_id,
                             PermissionGranteeID::User(user_id.clone())
-                        );
+                        ).await;
         
                         // User needs Edit/Manage permission OR be creator with Upload permission to restore
                         let is_creator_with_upload = file.created_by == user_id && 

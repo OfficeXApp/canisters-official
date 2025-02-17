@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, OWNER_ID}, types::DriveID}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody}}
+        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -15,7 +15,7 @@ pub mod teams_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_team_handler(request: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -53,7 +53,10 @@ pub mod teams_handlers {
     }
 
 
-    pub fn list_teams_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn list_teams_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        
+        debug_log!("Listing teams...");
+
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -68,7 +71,9 @@ pub mod teams_handlers {
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !permissions.contains(&SystemPermissionType::View) || !is_owner {
+        debug_log!("Permissions: {:?}", permissions);
+
+        if !permissions.contains(&SystemPermissionType::View) && !is_owner {
             return create_auth_error_response();
         }
 
@@ -95,9 +100,9 @@ pub mod teams_handlers {
 
     }
 
-    pub fn upsert_team_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -106,7 +111,7 @@ pub mod teams_handlers {
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
 
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         
         if let Ok(req) = serde_json::from_slice::<UpsertTeamRequestBody>(body) {
             match req {
@@ -118,7 +123,7 @@ pub mod teams_handlers {
                         PermissionGranteeID::User(requester_api_key.user_id.clone())
                     );
 
-                    if !permissions.contains(&SystemPermissionType::Create) || !is_owner {
+                    if !permissions.contains(&SystemPermissionType::Create) && !is_owner {
                         return create_auth_error_response();
                     }
 
@@ -139,6 +144,12 @@ pub mod teams_handlers {
                         created_at: now,
                         last_modified_at: now,
                         drive_id: DRIVE_ID.with(|id| id.clone()),
+                        url_endpoint: DriveRESTUrlEndpoint(
+                            create_req.url_endpoint
+                                .unwrap_or(URL_ENDPOINT.with(|url| url.0.clone()))
+                                .trim_end_matches('/')
+                                .to_string()
+                        ),
                     };
 
                     // Update state
@@ -163,7 +174,7 @@ pub mod teams_handlers {
                         PermissionGranteeID::User(requester_api_key.user_id.clone())
                     );
 
-                    if !permissions.contains(&SystemPermissionType::Update) || !is_owner {
+                    if !permissions.contains(&SystemPermissionType::Update) && !is_owner {
                         return create_auth_error_response();
                     }
 
@@ -189,6 +200,10 @@ pub mod teams_handlers {
                     if let Some(private_note) = update_req.private_note {
                         team.private_note = Some(private_note);
                     }
+                    if let Some(url_endpoint) = update_req.url_endpoint {
+                        team.url_endpoint = DriveRESTUrlEndpoint(url_endpoint.trim_end_matches('/')
+                        .to_string());
+                    }
                     team.last_modified_at = ic_cdk::api::time();
 
                     // Update state
@@ -210,9 +225,9 @@ pub mod teams_handlers {
         }
     }
 
-    pub fn delete_team_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -225,13 +240,13 @@ pub mod teams_handlers {
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !permissions.contains(&SystemPermissionType::Delete) || !is_owner {
+        if !permissions.contains(&SystemPermissionType::Delete) && !is_owner {
             return create_auth_error_response();
         }
 
     
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteTeamRequestBody>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -299,6 +314,51 @@ pub mod teams_handlers {
                 deleted: true
             }).encode()
         )
+    }
+
+    pub async fn validate_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Parse request body
+        let body: &[u8] = request.body();
+        let validate_request = match serde_json::from_slice::<ValidateTeamRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // Get team to verify it exists
+        let team_exists = TEAMS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().contains_key(&validate_request.team_id)
+        });
+    
+        if !team_exists {
+            return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            );
+        }
+    
+        // Use existing is_user_on_team function to check membership
+        let is_member = is_user_on_team(&validate_request.user_id, &validate_request.team_id).await;
+    
+        let response_data = ValidateTeamResponseData {
+            is_member,
+            team_id: validate_request.team_id,
+            user_id: validate_request.user_id
+        };
+    
+        if is_member {
+            create_response(
+                StatusCode::OK,
+                ValidateTeamResponse::ok(&response_data).encode()
+            )
+        } else {
+            create_response(
+                StatusCode::FORBIDDEN,
+                TeamResponse::<ValidateTeamResponseData>::err(403, "User is not a member of this team".to_string()).encode()
+            )
+        }
     }
 
     fn json_decode<T>(value: &[u8]) -> T

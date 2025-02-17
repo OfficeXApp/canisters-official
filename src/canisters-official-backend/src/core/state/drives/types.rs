@@ -22,4 +22,14 @@ pub struct Drive {
     pub icp_principal: ICPPrincipalString,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
+    pub url_endpoint: DriveRESTUrlEndpoint,
 }   
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DriveRESTUrlEndpoint(pub String);
+impl fmt::Display for DriveRESTUrlEndpoint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}

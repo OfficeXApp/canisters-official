@@ -15,22 +15,22 @@ pub fn init_routes() {
         (
             "GET",
             CONTACTS_GET_PATH,
-            crate::rest::contacts::handler::contacts_handlers::get_contact_handler,
+            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::get_contact_handler(req, params)),
         ),
         (
             "POST",
             CONTACTS_LIST_PATH,
-            crate::rest::contacts::handler::contacts_handlers::list_contacts_handler,
+            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::list_contacts_handler(req, params)),
         ),
         (
             "POST",
             CONTACTS_UPSERT_PATH,
-            crate::rest::contacts::handler::contacts_handlers::upsert_contact_handler,
+            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::upsert_contact_handler(req, params)),
         ),
         (
             "POST",
             CONTACTS_DELETE_PATH,
-            crate::rest::contacts::handler::contacts_handlers::delete_contact_handler,
+            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::delete_contact_handler(req, params)),
         )
     ];
 

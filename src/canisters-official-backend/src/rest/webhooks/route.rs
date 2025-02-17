@@ -15,22 +15,22 @@ pub fn init_routes() {
         (
             "GET",
             WEBHOOKS_GET_PATH,
-            crate::rest::webhooks::handler::webhooks_handlers::get_webhook_handler,
+            |req, params| Box::pin(crate::rest::webhooks::handler::webhooks_handlers::get_webhook_handler(req, params)),
         ),
         (
             "POST",
             WEBHOOKS_LIST_PATH,
-            crate::rest::webhooks::handler::webhooks_handlers::list_webhooks_handler,
+            |req, params| Box::pin(crate::rest::webhooks::handler::webhooks_handlers::list_webhooks_handler(req, params)),
         ),
         (
             "POST",
             WEBHOOKS_UPSERT_PATH,
-            crate::rest::webhooks::handler::webhooks_handlers::upsert_webhook_handler,
+            |req, params| Box::pin(crate::rest::webhooks::handler::webhooks_handlers::upsert_webhook_handler(req, params)),
         ),
         (
             "POST",
             WEBHOOKS_DELETE_PATH,
-            crate::rest::webhooks::handler::webhooks_handlers::delete_webhook_handler,
+            |req, params| Box::pin(crate::rest::webhooks::handler::webhooks_handlers::delete_webhook_handler(req, params)),
         )
     ];
 

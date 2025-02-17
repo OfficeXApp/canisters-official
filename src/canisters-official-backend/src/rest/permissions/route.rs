@@ -22,53 +22,53 @@ pub fn init_routes() {
         (
             "GET",
             DIRECTORY_PERMISSIONS_GET_PATH,
-            crate::rest::permissions::handler::permissions_handlers::get_directory_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::get_directory_permissions_handler(req, params)),
         ),
         (
             "POST",
             DIRECTORY_PERMISSIONS_UPSERT_PATH, 
-            crate::rest::permissions::handler::permissions_handlers::upsert_directory_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::upsert_directory_permissions_handler(req, params)),
         ),
         (
             "POST",
             DIRECTORY_PERMISSIONS_DELETE_PATH,
-            crate::rest::permissions::handler::permissions_handlers::delete_directory_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::delete_directory_permissions_handler(req, params)),
         ),
         (
             "POST", 
             DIRECTORY_PERMISSIONS_CHECK_PATH,
-            crate::rest::permissions::handler::permissions_handlers::check_directory_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::check_directory_permissions_handler(req, params)),
         ),
         (
             "POST", 
             DIRECTORY_PERMISSIONS_REDEEM_PATH,
-            crate::rest::permissions::handler::permissions_handlers::redeem_directory_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::redeem_directory_permissions_handler(req, params)),
         ),
         // 
         (
             "GET",
             SYSTEM_PERMISSIONS_GET_PATH,
-            crate::rest::permissions::handler::permissions_handlers::get_system_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::get_system_permissions_handler(req, params)),
         ),
         (
             "POST",
             SYSTEM_PERMISSIONS_UPSERT_PATH, 
-            crate::rest::permissions::handler::permissions_handlers::upsert_system_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::upsert_system_permissions_handler(req, params)),
         ),
         (
             "POST",
             SYSTEM_PERMISSIONS_DELETE_PATH,
-            crate::rest::permissions::handler::permissions_handlers::delete_system_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::delete_system_permissions_handler(req, params)),
         ),
         (
             "POST", 
             SYSTEM_PERMISSIONS_CHECK_PATH,
-            crate::rest::permissions::handler::permissions_handlers::check_system_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::check_system_permissions_handler(req, params)),
         ),
         (
             "POST", 
             SYSTEM_PERMISSIONS_REDEEM_PATH,
-            crate::rest::permissions::handler::permissions_handlers::redeem_system_permissions_handler,
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::redeem_system_permissions_handler(req, params)),
         )
     ];
 

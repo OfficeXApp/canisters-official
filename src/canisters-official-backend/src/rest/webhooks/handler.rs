@@ -29,9 +29,11 @@ pub mod webhooks_handlers {
     //     // return 404 if not found
     //     // return 200 if found with webhook data
     // }
-    pub fn get_webhook_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+
+    
+    pub async fn get_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -81,7 +83,7 @@ pub mod webhooks_handlers {
     //     // return 200 with list of webhooks
     // }
 
-    pub fn list_webhooks_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn list_webhooks_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -264,9 +266,9 @@ pub mod webhooks_handlers {
     //     // return 200 with up to date webhook data
     // }
 
-    pub fn upsert_webhook_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -275,7 +277,7 @@ pub mod webhooks_handlers {
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
 
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertWebhookRequestBody>(body) {
             match req {
@@ -389,14 +391,14 @@ pub mod webhooks_handlers {
 
     }
 
-    pub fn delete_webhook_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteWebhookRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(

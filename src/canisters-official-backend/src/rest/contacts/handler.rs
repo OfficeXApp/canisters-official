@@ -18,9 +18,9 @@ pub mod contacts_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_contact_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_contact_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -66,7 +66,7 @@ pub mod contacts_handlers {
         }
     }
 
-    pub fn list_contacts_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn list_contacts_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -241,9 +241,9 @@ pub mod contacts_handlers {
         )
     }
 
-    pub fn upsert_contact_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_contact_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -254,7 +254,7 @@ pub mod contacts_handlers {
         }
 
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertContactRequestBody>(body) {
             match req {
@@ -370,9 +370,9 @@ pub mod contacts_handlers {
 
     }
 
-    pub fn delete_contact_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_contact_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -383,7 +383,7 @@ pub mod contacts_handlers {
         }
 
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteContactRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(

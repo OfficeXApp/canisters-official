@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::{state::state::is_user_on_team, types::TeamID}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
 
 
 // Check if a user can CRUD the permission record
@@ -51,7 +51,7 @@ pub fn can_user_access_directory_permission(
 }
 
 // check what kind of permission a specific user has on a specific resource
-pub fn check_directory_permissions(
+pub async fn check_directory_permissions(
     resource_id: DirectoryResourceID,
     grantee_id: PermissionGranteeID,
 ) -> Vec<DirectoryPermissionType> {
@@ -65,7 +65,7 @@ pub fn check_directory_permissions(
             &resource, 
             &grantee_id,
             resource != resource_id
-        );
+        ).await;
         all_permissions.extend(resource_permissions);
     }
     
@@ -128,86 +128,91 @@ pub fn get_inherited_resources_list(resource_id: DirectoryResourceID) -> Vec<Dir
     resources
 }
 
-fn check_directory_resource_permissions(
+async fn check_directory_resource_permissions(
     resource_id: &DirectoryResourceID,
     grantee_id: &PermissionGranteeID,
     is_parent_for_inheritance: bool,
 ) -> HashSet<DirectoryPermissionType> {
     let mut permissions_set = HashSet::new();
     
-    // Get all permission IDs for this resource
-    DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+    // Get all permission IDs for this resource and collect them first
+    let permission_entries = DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
         if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
-            // Check each permission
             DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
                 let permissions = permissions_by_id.borrow();
-                
-                for permission_id in permission_ids {
-                    if let Some(permission) = permissions.get(permission_id) {
-                        // Skip if permission is expired or not yet active
-                        let current_time = ic_cdk::api::time() as i64;
-                        if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
-                            continue;
-                        }
-                        if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
-                            continue;
-                        }
-                        // Skip if permission lacks inheritance and is_parent_for_inheritance
-                        if !permission.inheritable && is_parent_for_inheritance {
-                            continue;
-                        }
-
-                        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
-                            Ok(parsed_grantee) => parsed_grantee,
-                            Err(_) => continue, // Skip if parsing fails
-                        };
-
-                        // Check if permission applies to this grantee
-                        let applies = match &permission_granted_to {
-                            // If permission is public, anyone can access
-                            PermissionGranteeID::Public => true,
-                            // For other types, just match the raw IDs since we don't validate type
-                            PermissionGranteeID::User(permission_user_id) => {
-                                if let PermissionGranteeID::User(request_user_id) = grantee_id {
-                                    permission_user_id.0 == request_user_id.0
-                                } else {
-                                    false
-                                }
-                            },
-                            PermissionGranteeID::Team(permission_team_id) => {
-                                if let PermissionGranteeID::Team(request_team_id) = grantee_id {
-                                    permission_team_id.0 == request_team_id.0
-                                } else {
-                                    false
-                                }
-                            },
-                            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
-                                if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
-                                    permission_link_id.0 == request_link_id.0
-                                } else {
-                                    false
-                                }
-                            }
-                        };
-
-                        if applies {
-                            permissions_set.extend(permission.permission_types.iter().cloned());
-                        }
-                    }
-                }
-            });
+                permission_ids.iter()
+                    .filter_map(|id| permissions.get(id).cloned())
+                    .collect::<Vec<_>>()
+            })
+        } else {
+            Vec::new()
         }
     });
+
+    // Process permissions outside the with() closure where we can use await
+    for permission in permission_entries {
+        // Skip if permission is expired or not yet active
+        let current_time = ic_cdk::api::time() as i64;
+        if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
+            continue;
+        }
+        if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
+            continue;
+        }
+        // Skip if permission lacks inheritance and is_parent_for_inheritance
+        if !permission.inheritable && is_parent_for_inheritance {
+            continue;
+        }
+
+        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
+            Ok(parsed_grantee) => parsed_grantee,
+            Err(_) => continue, // Skip if parsing fails
+        };
+
+        // Check if permission applies to this grantee
+        let applies = match &permission_granted_to {
+            PermissionGranteeID::Public => true,
+            PermissionGranteeID::User(permission_user_id) => {
+                if let PermissionGranteeID::User(request_grantee_id) = grantee_id {
+                    permission_user_id.0 == request_grantee_id.0
+                } else {
+                    false
+                }
+            },
+            PermissionGranteeID::Team(permission_team_id) => {
+                if let PermissionGranteeID::User(request_user_id) = grantee_id {
+                    is_user_on_team(request_user_id, permission_team_id).await
+                }
+                else if let PermissionGranteeID::Team(request_team_id) = grantee_id {
+                    permission_team_id.0 == request_team_id.0
+                }
+                else {
+                    false
+                }
+            },
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
+                if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
+                    permission_link_id.0 == request_link_id.0
+                } else {
+                    false
+                }
+            }
+        };
+
+        if applies {
+            permissions_set.extend(permission.permission_types.iter().cloned());
+        }
+    }
     
     permissions_set
 }
 
-pub fn has_directory_manage_permission(user_id: &UserID, resource_id: &DirectoryResourceID) -> bool {
+pub async fn has_directory_manage_permission(user_id: &UserID, resource_id: &DirectoryResourceID) -> bool {
     // Use our existing check_directory_permissions which already handles inheritance
     let permissions = check_directory_permissions(
         resource_id.clone(),
         PermissionGranteeID::User(user_id.clone())
-    );
+    ).await;
     permissions.contains(&DirectoryPermissionType::Invite)
 }
 

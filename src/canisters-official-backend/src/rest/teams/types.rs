@@ -62,42 +62,59 @@ pub struct ListTeamsResponseData {
 }
 pub type ListTeamsResponse<'a> = TeamResponse<'a, ListTeamsResponseData>;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamRequestBody {
     pub name: String,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
+    pub url_endpoint: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateTeamRequestBody {
     pub id: String,
     pub name: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
+    pub url_endpoint: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpsertTeamRequestBody {
     Create(CreateTeamRequestBody),
     Update(UpdateTeamRequestBody),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteTeamRequestBody {
     pub id: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeletedTeamData {
     pub id: String,
     pub deleted: bool
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateTeamRequestBody {
+    pub user_id: UserID, // does this user
+    pub team_id: TeamID, // belong to this team
+    // pub signature: String, // relay the signature to the cosmic drive to prove user_id
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateTeamResponseData {
+    pub is_member: bool,
+    pub team_id: TeamID,
+    pub user_id: UserID
+}
+
 
 pub type GetTeamResponse<'a> = TeamResponse<'a, Team>;
 pub type CreateTeamResponse<'a> = TeamResponse<'a, Team>;
 pub type UpdateTeamResponse<'a> = TeamResponse<'a, Team>;
 pub type DeleteTeamResponse<'a> = TeamResponse<'a, DeletedTeamData>;
 pub type ErrorResponse<'a> = TeamResponse<'a, ()>;
+pub type ValidateTeamResponse<'a> = TeamResponse<'a, ValidateTeamResponseData>;
