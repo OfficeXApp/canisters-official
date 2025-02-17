@@ -16,27 +16,27 @@ pub fn init_routes() {
         (
             "GET",
             TEAMS_GET_PATH,
-            crate::rest::teams::handler::teams_handlers::get_team_handler,
+            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::get_team_handler(req, params)),
         ),
         (
             "POST",
             TEAMS_LIST_PATH,
-            crate::rest::teams::handler::teams_handlers::list_teams_handler,
+            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::list_teams_handler(req, params)),
         ),
         (
             "POST",
             TEAMS_UPSERT_PATH,
-            crate::rest::teams::handler::teams_handlers::upsert_team_handler,
+            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::upsert_team_handler(req, params)),
         ),
         (
             "POST",
             TEAMS_DELETE_PATH,
-            crate::rest::teams::handler::teams_handlers::delete_team_handler,
+            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::delete_team_handler(req, params)),
         ),
         (
             "POST",
             TEAMS_VALIDATE_PATH,
-            crate::rest::teams::handler::teams_handlers::validate_team_handler,
+            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::validate_team_handler(req, params)),
         )
     ];
 

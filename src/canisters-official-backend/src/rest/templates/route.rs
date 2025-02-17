@@ -15,22 +15,22 @@ pub fn init_routes() {
         (
             "GET",
             TEMPLATES_GET_PATH,
-            crate::rest::templates::handler::templates_handlers::get_template_handler,
+            |req, params| Box::pin(crate::rest::templates::handler::templates_handlers::get_template_handler(req, params)),
         ),
         (
             "POST",
             TEMPLATES_LIST_PATH,
-            crate::rest::templates::handler::templates_handlers::list_templates_handler,
+            |req, params| Box::pin(crate::rest::templates::handler::templates_handlers::list_templates_handler(req, params)),
         ),
         (
             "POST",
             TEMPLATES_UPSERT_PATH,
-            crate::rest::templates::handler::templates_handlers::upsert_template_handler,
+            |req, params| Box::pin(crate::rest::templates::handler::templates_handlers::upsert_template_handler(req, params)),
         ),
         (
             "POST",
             TEMPLATES_DELETE_PATH,
-            crate::rest::templates::handler::templates_handlers::delete_template_handler,
+            |req, params| Box::pin(crate::rest::templates::handler::templates_handlers::delete_template_handler(req, params)),
         )
     ];
 

@@ -16,27 +16,27 @@ pub fn init_routes() {
         (
             "GET",
             TEAM_INVITES_GET_PATH,
-            crate::rest::team_invites::handler::team_invites_handlers::get_team_invite_handler,
+            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::get_team_invite_handler(req, params)),
         ),
         (
             "POST",
             TEAM_INVITES_LIST_PATH,
-            crate::rest::team_invites::handler::team_invites_handlers::list_team_invites_handler,
+            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::list_team_invites_handler(req, params)),
         ),
         (
             "POST",
             TEAM_INVITES_UPSERT_PATH,
-            crate::rest::team_invites::handler::team_invites_handlers::upsert_team_invite_handler,
+            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::upsert_team_invite_handler(req, params)),
         ),
         (
             "POST",
             TEAM_INVITES_DELETE_PATH,
-            crate::rest::team_invites::handler::team_invites_handlers::delete_team_invite_handler,
+            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::delete_team_invite_handler(req, params)),
         ),
         (
             "POST",
             TEAM_INVITES_REDEEM_PATH,
-            crate::rest::team_invites::handler::team_invites_handlers::redeem_team_invite_handler,
+            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::redeem_team_invite_handler(req, params)),
         )
     ];
 

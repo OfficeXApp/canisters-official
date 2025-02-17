@@ -18,7 +18,7 @@ pub mod templates_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_template_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let id = TemplateID(params.get("id").unwrap().to_string());
 
         let item = TEMPLATE_ITEMS.with_borrow(|items| {
@@ -37,7 +37,7 @@ pub mod templates_handlers {
         }
     }
 
-    pub fn list_templates_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn list_templates_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("Handling list templates request");
         
         let query_params = request.get_query()
@@ -69,8 +69,8 @@ pub mod templates_handlers {
         create_response(StatusCode::OK, body)
     }
 
-    pub fn upsert_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let req_body: CreateTemplateRequest = json_decode(req.body());
+    pub async fn upsert_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let req_body: CreateTemplateRequest = json_decode(request.body());
 
         let id = TemplateID(generate_unique_id(IDPrefix::User, ""));
 
@@ -89,8 +89,8 @@ pub mod templates_handlers {
         create_response(StatusCode::CREATED, body)
     }
 
-    pub fn delete_template_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-        let req_body: DeleteTemplateRequest = json_decode(req.body());
+    pub async fn delete_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let req_body: DeleteTemplateRequest = json_decode(request.body());
 
         let id = req_body.id.clone();
 

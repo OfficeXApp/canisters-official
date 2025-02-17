@@ -17,9 +17,9 @@ pub mod permissions_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_directory_permissions_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -65,7 +65,7 @@ pub mod permissions_handlers {
 
     }
 
-    pub fn check_directory_permissions_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn check_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -159,15 +159,15 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn upsert_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let upsert_request = match serde_json::from_slice::<UpsertPermissionsRequestBody>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -340,15 +340,15 @@ pub mod permissions_handlers {
         }
     }
 
-    pub fn delete_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeletePermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -437,9 +437,9 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn redeem_directory_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn redeem_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemPermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -526,9 +526,9 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn get_system_permissions_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -581,15 +581,15 @@ pub mod permissions_handlers {
         }
     }
   
-    pub fn upsert_system_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let upsert_request = match serde_json::from_slice::<UpsertSystemPermissionsRequestBody>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -741,15 +741,15 @@ pub mod permissions_handlers {
         }
     }
 
-    pub fn delete_system_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // 2. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteSystemPermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
@@ -830,7 +830,7 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn check_system_permissions_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn check_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -948,9 +948,9 @@ pub mod permissions_handlers {
         )
     }
 
-    pub fn redeem_system_permissions_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn redeem_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemSystemPermissionRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(

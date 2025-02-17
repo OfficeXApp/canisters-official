@@ -20,42 +20,42 @@ pub fn init_routes() {
         (
             "POST",
             DIRECTORYS_SEARCH_PATH,
-            crate::rest::directory::handler::directorys_handlers::search_directory_handler,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::search_directory_handler(req, params)),
         ),
         (
             "POST",
             DIRECTORYS_LIST_PATH,
-            crate::rest::directory::handler::directorys_handlers::list_directorys_handler,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::list_directorys_handler(req, params)),
         ),
         (
             "POST",
             DIRECTORYS_ACTION_PATH,
-            crate::rest::directory::handler::directorys_handlers::action_directory_handler,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::action_directory_handler(req, params)),
         ),
         (
             "POST",
             UPLOAD_CHUNK_PATH,
-            crate::rest::directory::handler::directorys_handlers::handle_upload_chunk,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::handle_upload_chunk(req, params)),
         ),
         (
             "POST",
             COMPLETE_UPLOAD_PATH,
-            crate::rest::directory::handler::directorys_handlers::handle_complete_upload,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::handle_complete_upload(req, params)),
         ),
         (
             "GET",
             RAW_DOWNLOAD_META_PATH,
-            crate::rest::directory::handler::directorys_handlers::download_file_metadata_handler,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::download_file_metadata_handler(req, params)),
         ),
         (
             "GET",
             RAW_DOWNLOAD_CHUNK_PATH,
-            crate::rest::directory::handler::directorys_handlers::download_file_chunk_handler,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::download_file_chunk_handler(req, params)),
         ),
         (
             "GET",
             RAW_URL_PROXY_PATH,
-            crate::rest::directory::handler::directorys_handlers::get_raw_url_proxy_handler,
+            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::get_raw_url_proxy_handler(req, params)),
         )
     ];
 

@@ -17,7 +17,7 @@ pub mod directorys_handlers {
         completed: Option<bool>,
     }
 
-    pub fn search_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn search_directory_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
@@ -42,7 +42,7 @@ pub mod directorys_handlers {
         )
     }
 
-    pub fn list_directorys_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn list_directorys_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -76,7 +76,7 @@ pub mod directorys_handlers {
         }
     }
 
-    pub fn action_directory_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn action_directory_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
@@ -139,10 +139,10 @@ pub mod directorys_handlers {
         )
     }
 
-    pub fn handle_upload_chunk(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+    pub async fn handle_upload_chunk<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("Handling upload chunk request");
 
-        let upload_req: UploadChunkRequest = match serde_json::from_slice(req.body()) {
+        let upload_req: UploadChunkRequest = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
             Err(_) => {
                 debug_log!("handle_upload_chunk: Failed to deserialize request");
@@ -182,8 +182,8 @@ pub mod directorys_handlers {
         create_success_response(&response)
     }
     
-    pub fn handle_complete_upload(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
-        let complete_req: CompleteUploadRequest = match serde_json::from_slice(req.body()) {
+    pub async fn handle_complete_upload<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let complete_req: CompleteUploadRequest = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
             Err(_) => return create_raw_upload_error_response("Invalid request format")
         };
@@ -210,7 +210,7 @@ pub mod directorys_handlers {
     }
 
     /// Returns the metadata about a file: total size, total chunks, etc.
-    pub fn download_file_metadata_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+    pub async fn download_file_metadata_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("download_file_metadata_handler: Handling file metadata request");
 
         // // 1. Optionally authenticate, if required
@@ -226,7 +226,7 @@ pub mod directorys_handlers {
         // }
 
         // 3. Parse query string for file_id
-        let raw_query_string = req.get_query().unwrap_or(Some("".to_string()));
+        let raw_query_string = request.get_query().unwrap_or(Some("".to_string()));
         let query_string = raw_query_string.as_deref().unwrap_or("");
         let query_map = crate::rest::helpers::parse_query_string(&query_string);
 
@@ -281,7 +281,7 @@ pub mod directorys_handlers {
     }
 
     /// Returns the data for a single chunk by index.
-    pub fn download_file_chunk_handler(req: &HttpRequest, _: &Params) -> HttpResponse<'static> {
+    pub async fn download_file_chunk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("download_file_chunk_handler: Handling file chunk request");
 
         // // 1. Optionally authenticate
@@ -297,7 +297,7 @@ pub mod directorys_handlers {
         // }
 
         // 3. Parse query for file_id & chunk_index
-        let raw_query_string = req.get_query().unwrap_or(Some("".to_string()));
+        let raw_query_string = request.get_query().unwrap_or(Some("".to_string()));
         let query_string = raw_query_string.as_deref().unwrap_or("");
         let query_map = crate::rest::helpers::parse_query_string(query_string);
 
@@ -361,7 +361,7 @@ pub mod directorys_handlers {
     }
 
 
-    pub fn get_raw_url_proxy_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_raw_url_proxy_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("get_raw_url_proxy_handler: Handling raw URL proxy request");
     
         // 1. Extract file_id from URL parameters

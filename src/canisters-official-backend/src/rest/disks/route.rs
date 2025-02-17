@@ -15,22 +15,22 @@ pub fn init_routes() {
         (
             "GET",
             DISKS_GET_PATH,
-            crate::rest::disks::handler::disks_handlers::get_disk_handler,
+            |req, params| Box::pin(crate::rest::disks::handler::disks_handlers::get_disk_handler(req, params)),
         ),
         (
             "POST",
             DISKS_LIST_PATH,
-            crate::rest::disks::handler::disks_handlers::list_disks_handler,
+            |req, params| Box::pin(crate::rest::disks::handler::disks_handlers::list_disks_handler(req, params)),
         ),
         (
             "POST",
             DISKS_UPSERT_PATH,
-            crate::rest::disks::handler::disks_handlers::upsert_disk_handler,
+            |req, params| Box::pin(crate::rest::disks::handler::disks_handlers::upsert_disk_handler(req, params)),
         ),
         (
             "POST",
             DISKS_DELETE_PATH,
-            crate::rest::disks::handler::disks_handlers::delete_disk_handler,
+            |req, params| Box::pin(crate::rest::disks::handler::disks_handlers::delete_disk_handler(req, params)),
         )
     ];
 

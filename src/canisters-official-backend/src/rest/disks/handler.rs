@@ -15,9 +15,9 @@ pub mod disks_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_disk_handler(req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_disk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -64,7 +64,7 @@ pub mod disks_handlers {
         }
     }
 
-    pub fn list_disks_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn list_disks_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -234,9 +234,9 @@ pub mod disks_handlers {
     }
 
 
-    pub fn upsert_disk_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_disk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -247,7 +247,7 @@ pub mod disks_handlers {
         }
 
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertDiskRequestBody>(body) {
             match req {
@@ -392,9 +392,9 @@ pub mod disks_handlers {
         }
     }
 
-    pub fn delete_disk_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_disk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
@@ -402,7 +402,7 @@ pub mod disks_handlers {
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
 
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteDiskRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
