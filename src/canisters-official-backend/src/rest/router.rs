@@ -32,6 +32,8 @@ pub fn init_routes() {
     crate::rest::directory::route::init_routes();
     crate::rest::permissions::route::init_routes();
 
+    debug_log!("Initializing routes...");
+
     insert_route(
         "OPTIONS",
         "/*",
@@ -50,6 +52,9 @@ pub fn init_routes() {
 }
 
 pub async fn handle_request(req: HttpRequest<'_>) -> HttpResponse<'static> {
+
+    debug_log!("Handling request...");
+
     let req_path: String = match req.get_path() {
         Ok(path) => path,
         Err(_) => return helpers::not_found_response(),

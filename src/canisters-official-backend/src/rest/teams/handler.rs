@@ -54,6 +54,9 @@ pub mod teams_handlers {
 
 
     pub async fn list_teams_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        
+        debug_log!("Listing teams...");
+
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -68,7 +71,9 @@ pub mod teams_handlers {
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !permissions.contains(&SystemPermissionType::View) || !is_owner {
+        debug_log!("Permissions: {:?}", permissions);
+
+        if !permissions.contains(&SystemPermissionType::View) && !is_owner {
             return create_auth_error_response();
         }
 
@@ -118,7 +123,7 @@ pub mod teams_handlers {
                         PermissionGranteeID::User(requester_api_key.user_id.clone())
                     );
 
-                    if !permissions.contains(&SystemPermissionType::Create) || !is_owner {
+                    if !permissions.contains(&SystemPermissionType::Create) && !is_owner {
                         return create_auth_error_response();
                     }
 
@@ -169,7 +174,7 @@ pub mod teams_handlers {
                         PermissionGranteeID::User(requester_api_key.user_id.clone())
                     );
 
-                    if !permissions.contains(&SystemPermissionType::Update) || !is_owner {
+                    if !permissions.contains(&SystemPermissionType::Update) && !is_owner {
                         return create_auth_error_response();
                     }
 
@@ -235,7 +240,7 @@ pub mod teams_handlers {
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !permissions.contains(&SystemPermissionType::Delete) || !is_owner {
+        if !permissions.contains(&SystemPermissionType::Delete) && !is_owner {
             return create_auth_error_response();
         }
 
