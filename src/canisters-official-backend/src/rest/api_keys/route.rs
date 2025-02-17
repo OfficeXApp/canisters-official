@@ -15,22 +15,22 @@ pub fn init_routes() {
         (
             "GET",
             APIKEYS_GET_PATH,
-            crate::rest::api_keys::handler::apikeys_handlers::get_apikey_handler,
+            |req, params| Box::pin(crate::rest::api_keys::handler::apikeys_handlers::get_apikey_handler(req, params)),
         ),
         (
             "POST",
             APIKEYS_LIST_PATH,
-            crate::rest::api_keys::handler::apikeys_handlers::list_apikeys_handler,
+            |req, params| Box::pin(crate::rest::api_keys::handler::apikeys_handlers::list_apikeys_handler(req, params)),
         ),
         (
             "POST",
             APIKEYS_UPSERT_PATH,
-            crate::rest::api_keys::handler::apikeys_handlers::upsert_apikey_handler,
+            |req, params| Box::pin(crate::rest::api_keys::handler::apikeys_handlers::upsert_apikey_handler(req, params)),
         ),
         (
             "POST",
             APIKEYS_DELETE_PATH,
-            crate::rest::api_keys::handler::apikeys_handlers::delete_apikey_handler,
+            |req, params| Box::pin(crate::rest::api_keys::handler::apikeys_handlers::delete_apikey_handler(req, params)),
         )
     ];
 

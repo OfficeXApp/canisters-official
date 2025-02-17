@@ -33,6 +33,6 @@ fn http_request(_req: HttpRequest) -> HttpResponse<'static> {
 }
 
 #[update]
-fn http_request_update(req: HttpRequest) -> HttpResponse<'static> {
-    router::handle_request(req)
+async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'static> {
+    router::handle_request(req).await
 }

@@ -14,7 +14,7 @@ pub mod apikeys_handlers {
         completed: Option<bool>,
     }
 
-    pub fn get_apikey_handler(request: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn get_apikey_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
 
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -60,7 +60,7 @@ pub mod apikeys_handlers {
         }
     }
 
-    pub fn list_apikeys_handler(request: &HttpRequest, params: &Params) -> HttpResponse<'static> {
+    pub async fn list_apikeys_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
 
         debug_log!("Incoming request: {}", request.url());
 
@@ -120,15 +120,15 @@ pub mod apikeys_handlers {
         }
     }
 
-    pub fn upsert_apikey_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn upsert_apikey_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertApiKeyRequestBody>(body) {
             match req {
@@ -262,20 +262,20 @@ pub mod apikeys_handlers {
         }
     }
 
-    pub fn delete_apikey_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
+    pub async fn delete_apikey_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
 
-        debug_log!("Incoming request: {}", req.url());
+        debug_log!("Incoming request: {}", request.url());
 
         // Authenticate request
-        let requester_api_key = match authenticate_request(req) {
+        let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
         // Parse request body
-        let body: &[u8] = req.body();
+        let body: &[u8] = request.body();
         
-        debug_log!("Incoming request body: {}", String::from_utf8_lossy(req.body()));
+        debug_log!("Incoming request body: {}", String::from_utf8_lossy(request.body()));
         let delete_request = match serde_json::from_slice::<DeleteApiKeyRequestBody>(body) {
             Ok(req) => req,
             Err(_) => {
