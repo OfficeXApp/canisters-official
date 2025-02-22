@@ -10,7 +10,7 @@ use crate::core::types::{UserID};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TeamInviteID(pub String);
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Team_Invite {
     pub id: TeamInviteID,
     pub team_id: TeamID,

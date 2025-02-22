@@ -24,6 +24,7 @@ pub struct Webhook {
     pub signature: String,
     pub description: String,
     pub active: bool,
+    pub filters: String,
 }
 
 

@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}}
+        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
         
     };
     use crate::core::state::team_invites::{
@@ -172,6 +172,14 @@ pub mod team_invites_handlers {
                 UpsertTeamInviteRequestBody::Create(create_req) => {
 
                     let team_id = TeamID(create_req.team_id);
+                    let active_webhooks = get_active_team_invite_webhooks(&team_id, WebhookEventLabel::TeamInviteCreated);
+
+                    let before_snap = TeamInviteWebhookData {
+                        team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                            store.borrow().get(&team_id).cloned()
+                        ),
+                        team_invite: None,
+                    };
 
                     // Verify team exists and user has permission
                     let team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {
@@ -257,6 +265,25 @@ pub mod team_invites_handlers {
                             .push(invite_id.clone());
                     });
 
+                    // Fire webhook if we have active ones - create snapshot with team data
+                    if !active_webhooks.is_empty() {
+                        let after_snap = TeamInviteWebhookData {
+                            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                                store.borrow().get(&team_id).cloned()
+                            ),
+                            team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
+                                store.borrow().get(&invite_id).cloned()
+                            ),
+                        };
+
+                        fire_team_invite_webhook(
+                            WebhookEventLabel::TeamInviteCreated,
+                            active_webhooks,
+                            Some(before_snap),
+                            Some(after_snap)
+                        );
+                    }
+
                     create_response(
                         StatusCode::OK,
                         CreateTeam_InviteResponse::ok(&new_invite).encode()
@@ -264,6 +291,7 @@ pub mod team_invites_handlers {
                 },
                 UpsertTeamInviteRequestBody::Update(update_req) => {
                     let invite_id = update_req.id;
+
 
                     // Get existing invite
                     let mut invite = match INVITES_BY_ID_HASHTABLE.with(|store| 
@@ -274,6 +302,13 @@ pub mod team_invites_handlers {
                             StatusCode::NOT_FOUND,
                             ErrorResponse::not_found().encode()
                         ),
+                    };
+                    let active_webhooks = get_active_team_invite_webhooks(&invite.team_id, WebhookEventLabel::TeamInviteUpdated);
+                    let before_snap = TeamInviteWebhookData {
+                        team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                            store.borrow().get(&invite.team_id).cloned()
+                        ),
+                        team_invite: Some(invite.clone()),
                     };
                     
                     // Check if user is authorized (owner or admin)
@@ -357,6 +392,24 @@ pub mod team_invites_handlers {
                     INVITES_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(invite.id.clone(), invite.clone());
                     });
+
+                    // Fire webhook if we have active ones - create snapshot with team data
+                    if !active_webhooks.is_empty() {
+                        let after_snap = TeamInviteWebhookData {
+                            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                                store.borrow().get(&invite.team_id).cloned()
+                            ),
+                            team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
+                                store.borrow().get(&invite_id).cloned()
+                            ),
+                        };
+                        fire_team_invite_webhook(
+                            WebhookEventLabel::TeamInviteUpdated,
+                            active_webhooks,
+                            Some(before_snap),
+                            Some(after_snap)
+                        );
+                    }
 
                     create_response(
                         StatusCode::OK,

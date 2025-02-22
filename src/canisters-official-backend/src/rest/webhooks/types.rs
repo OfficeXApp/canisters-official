@@ -1,7 +1,9 @@
 // src/rest/webhooks/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::core::state::webhooks::types::WebhookEventLabel;
+use crate::core::state::team_invites::types::Team_Invite;
+use crate::core::state::teams::types::Team;
+use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 
 #[derive(Debug, Clone, Serialize)]
@@ -84,6 +86,7 @@ pub struct CreateWebhookRequestBody {
     pub event: String,
     pub signature: Option<String>,
     pub description: Option<String>,
+    pub filters: Option<String> // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
 }
 
 
@@ -97,7 +100,9 @@ pub struct UpdateWebhookRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub active: Option<bool>,
+    pub active: Option<bool>,   
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filters: Option<String>
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -126,3 +131,40 @@ pub type CreateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
 pub type UpdateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
 pub type DeleteWebhookResponse<'a> = WebhookResponse<'a, DeletedWebhookData>;
 pub type ErrorResponse<'a> = WebhookResponse<'a, ()>;
+
+
+/**
+ * 
+ * Webhook Event Payloads
+ * 
+ */
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookEventPayload {
+    pub event: String,
+    pub timestamp_ms: u64,
+    pub nonce: u64,
+    pub webhook_id: WebhookID,
+    pub webhook_alt_index: WebhookAltIndexID,
+    pub payload: WebhookEventData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookEventData {
+    pub before: Option<WebhookResourceData>,
+    pub after: Option<WebhookResourceData>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum WebhookResourceData {
+    #[serde(rename = "team_invite")]
+    TeamInvite(TeamInviteWebhookData),
+    // Add other resource types here as needed
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamInviteWebhookData {
+    pub team: Option<Team>,
+    pub team_invite: Option<Team_Invite>,
+}
