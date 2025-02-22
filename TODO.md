@@ -17,6 +17,7 @@
 
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
 - [ ] Connect relevant REST routes with relevant `webhook` firing
+- [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
 - [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
