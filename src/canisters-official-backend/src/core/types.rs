@@ -3,6 +3,8 @@
 use std::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::debug_log;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PublicKeyICP(pub String);
 
@@ -71,45 +73,3 @@ impl IDPrefix {
     }
 }
 
-
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum AuthPrefixEnum {
-    ApiKey,
-    Signature,
-}
-impl AuthPrefixEnum {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AuthPrefixEnum::ApiKey => "ApiKey_",
-            AuthPrefixEnum::Signature => "Signature_",
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct ParsedAuth {
-    pub auth_type: AuthPrefixEnum,
-    pub value: String,
-}
-
-pub fn parse_auth_header_value(auth_header_value: &str) -> Result<ParsedAuth, &'static str> {
-    // First, check if it starts with "Bearer "
-    let without_bearer = auth_header_value.strip_prefix("Bearer ")
-        .ok_or("Authentication header must start with 'Bearer '")?;
-    
-    // Try to match against both prefix types
-    if without_bearer.starts_with(AuthPrefixEnum::ApiKey.as_str()) {
-        Ok(ParsedAuth {
-            auth_type: AuthPrefixEnum::ApiKey,
-            value: without_bearer[AuthPrefixEnum::ApiKey.as_str().len()..].to_string(),
-        })
-    } else if without_bearer.starts_with(AuthPrefixEnum::Signature.as_str()) {
-        Ok(ParsedAuth {
-            auth_type: AuthPrefixEnum::Signature,
-            value: without_bearer[AuthPrefixEnum::Signature.as_str().len()..].to_string(),
-        })
-    } else {
-        Err("Invalid authentication type prefix")
-    }
-}
