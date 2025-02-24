@@ -2,6 +2,7 @@
 // src/core/state/types.rs
 use std::fmt;
 use serde::{Deserialize, Serialize};
+use serde_diff::{Diff, SerdeDiff};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PublicKeyICP(pub String);
@@ -23,7 +24,7 @@ impl fmt::Display for ICPPrincipalString {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct UserID(pub String);
 
 impl fmt::Display for UserID {
@@ -48,7 +49,8 @@ pub enum IDPrefix {
     PlaceholderPermissionGrantee,
     DirectoryActionOutcome,
     PlaceholderTeamInviteeID,
-    ShareTrackID
+    ShareTrackID,
+    DriveStateDiffID,
 }
 
 impl IDPrefix {
@@ -69,6 +71,7 @@ impl IDPrefix {
             IDPrefix::DirectoryActionOutcome => "DirectoryActionOutcomeID_",
             IDPrefix::PlaceholderTeamInviteeID => "PlaceholderTeamInviteeID_",
             IDPrefix::ShareTrackID => "ShareTrackID_",
+            IDPrefix::DriveStateDiffID => "DriveStateDiffID_",
         }
     }
 }

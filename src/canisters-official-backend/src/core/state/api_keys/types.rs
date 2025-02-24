@@ -1,14 +1,14 @@
 
 // src/core/state/api_keys/types.rs
-
+use serde_diff::{Diff, SerdeDiff};
 use serde::{Deserialize, Serialize};
 use crate::core::types::UserID;
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct ApiKeyID(pub String);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct ApiKeyValue(pub String);
 
 
@@ -20,7 +20,7 @@ impl fmt::Display for ApiKey {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct ApiKey {
     pub id: ApiKeyID,
     pub value: ApiKeyValue,

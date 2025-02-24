@@ -27,6 +27,31 @@ pub struct Drive {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DriveStateDiffID(pub String);
+impl fmt::Display for DriveStateDiffID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DriveStateDiffString(pub String);  // base64 encoded diff
+impl fmt::Display for DriveStateDiffString {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DriveStateDiffChecksum(pub String);
+impl fmt::Display for DriveStateDiffChecksum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DriveRESTUrlEndpoint(pub String);
 impl fmt::Display for DriveRESTUrlEndpoint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

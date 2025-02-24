@@ -1,12 +1,6 @@
-// src/core/api/webhooks/team_invites.rs
+// src/core/api/webhooks/diffs.rs
 
-use crate::core::{
-    state::webhooks::types::{Webhook, WebhookEventLabel, WebhookAltIndexID},
-    state::teams::state::state::TEAMS_BY_ID_HASHTABLE,
-    state::webhooks::state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE},
-    state::teams::types::{TeamID, Team},
-    state::team_invites::types::Team_Invite,
-};
+use crate::{core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_DIFF_CHECKSUM, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffString}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::StateDiffWebhookData};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -22,10 +16,10 @@ use ic_cdk::{api::management_canister::http_request::{
 use ic_cdk::spawn;
 use serde_json;
 
-pub fn get_active_team_invite_webhooks(team_id: &TeamID, event: WebhookEventLabel) -> Vec<Webhook> {
+pub fn get_active_state_diff_webhooks() -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
-            .get(&WebhookAltIndexID(team_id.0.clone()))
+            .get(&WebhookAltIndexID(WebhookAltIndexID::state_diffs_slug().to_string()))
             .cloned()
             .unwrap_or_default()
     });
@@ -34,30 +28,39 @@ pub fn get_active_team_invite_webhooks(team_id: &TeamID, event: WebhookEventLabe
         let store = store.borrow();
         webhook_ids.into_iter()
             .filter_map(|id| store.get(&id).cloned())
-            .filter(|webhook| webhook.active && webhook.event == event)
+            .filter(|webhook| webhook.active && webhook.event == WebhookEventLabel::DriveStateDiffs)
             .collect()
     })
 }
 
-pub fn fire_team_invite_webhook(
-    event: WebhookEventLabel,
-    webhooks: Vec<Webhook>,
-    before_snap: Option<TeamInviteWebhookData>,
-    after_snap: Option<TeamInviteWebhookData>,
+pub fn fire_state_diff_webhooks(
+    diff: DriveStateDiffString,
     notes: Option<String>
 ) {
+    let drive_state_diff_id = DriveStateDiffID(generate_unique_id(IDPrefix::DriveStateDiffID, ""));
     let timestamp_ms = ic_cdk::api::time() / 1_000_000;
+
+    let webhooks = get_active_state_diff_webhooks();
+
     for webhook in webhooks {
         let payload = WebhookEventPayload {
-            event: event.to_string(),
-            timestamp_ms,
+            event: WebhookEventLabel::DriveStateDiffs.to_string(),
+            timestamp_ms: timestamp_ms.clone(),
             nonce: timestamp_ms,
             notes: notes.clone(),
             webhook_id: webhook.id.clone(),
             webhook_alt_index: webhook.alt_index.clone(),
             payload: WebhookEventData {
-                before: before_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
-                after: after_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
+                before: None,
+                after: Some(WebhookResourceData::StateDiffs(StateDiffWebhookData {
+                    id: drive_state_diff_id.clone(),
+                    timestamp_ms: timestamp_ms.clone(),
+                    diff: diff.clone(),
+                    notes: notes.clone(),
+                    drive_id: DRIVE_ID.with(|id| id.clone()),
+                    url_endpoint: URL_ENDPOINT.with(|url| url.clone()),
+                    checksum: DRIVE_STATE_DIFF_CHECKSUM.with(|checksum| checksum.borrow().clone()),
+                }))
             },
         };
         // Serialize payload for this webhook
