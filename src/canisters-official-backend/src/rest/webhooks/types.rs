@@ -2,10 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 use crate::core::state::directory::types::{FileMetadata, FolderMetadata};
+use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint};
 use crate::core::state::team_invites::types::Team_Invite;
 use crate::core::state::teams::types::Team;
-use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
+use crate::core::state::webhooks::types::{ShareTrackID, ShareTrackResourceID, WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
+use crate::core::types::UserID;
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
 
 #[derive(Debug, Clone, Serialize)]
@@ -171,6 +173,8 @@ pub enum WebhookResourceData {
     Subfile(FileWebhookData),
     #[serde(rename = "subfolder")]
     Subfolder(FolderWebhookData),
+    #[serde(rename = "share_tracking")]
+    ShareTracking(ShareTrackingWebhookData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,6 +183,19 @@ pub struct TeamInviteWebhookData {
     pub team_invite: Option<Team_Invite>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShareTrackingWebhookData {
+    pub id: ShareTrackID,
+    pub origin: Option<ShareTrackID>,
+    pub from_user: Option<UserID>,
+    pub to_user: Option<UserID>,
+    pub resource_id: ShareTrackResourceID,
+    pub resource_name: String,
+    pub canister_id: DriveID,
+    pub timestamp_ms: u64,
+    pub url_endpoint: DriveRESTUrlEndpoint,
+    pub metadata: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DirectoryWebhookData {

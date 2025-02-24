@@ -68,9 +68,11 @@ type ShareTrackID = string;
 // we can construct the radix_node_id from the resource_id and origin
 interface ShareTrack {
   id: ShareTrackID;
-  origin?: ShareTrackID;
-  from?: UserID;
-  to?: UserID;
+  hash: ShareTrackHash;
+  origin_id?: ShareTrackID;
+  origin_hash?: ShareTrackHash;
+  from_user?: UserID;
+  to_user?: UserID;
   resource_id: FileUUID | FolderUUID;
   resource_name: String;
   canister_id: CanisterID;
@@ -79,3 +81,17 @@ interface ShareTrack {
   metadata?: String; // metadata can contain utm params and other data
 }
 ```
+
+Note this also means users can only get analytics if they have directory permission `DirectoryPermissionType::Webhooks`
+
+Since we wont track any share data in the hashtables, we must embed the necessary info in the sharetrack id itself. in which case our ID should be a btoa hash with the referring userID.
+
+```js
+const shareTrackID = generate_unique_id(IDPrefix::ShareTrackID, "");
+const shareTrackHash = btoa({
+  id: shareTrackID,
+  from_user: UserID,
+});
+```
+
+The shareTrackHash is what gets appended to url params.

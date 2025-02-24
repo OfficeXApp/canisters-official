@@ -2,6 +2,8 @@
 use std::fmt;
 use serde::{Serialize, Deserialize};
 
+use crate::core::{state::directory::types::{FileUUID, FolderUUID}, types::IDPrefix};
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct WebhookID(pub String);
 impl fmt::Display for WebhookID {
@@ -42,6 +44,33 @@ impl WebhookAltIndexID {
         WebhookAltIndexID(Self::RESTORE_TRASH.to_string())
     }
 }
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ShareTrackID(pub String);
+
+impl fmt::Display for ShareTrackID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ShareTrackResourceID {
+    File(FileUUID),
+    Folder(FolderUUID)
+}
+
+impl fmt::Display for ShareTrackResourceID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ShareTrackResourceID::File(id) => write!(f, "{}", id),
+            ShareTrackResourceID::Folder(id) => write!(f, "{}", id),
+        }
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Webhook {

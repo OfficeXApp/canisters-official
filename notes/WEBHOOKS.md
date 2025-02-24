@@ -60,3 +60,5 @@ const webhook_events = [
   { label: "drive.restore_trash", alt_index: "RESTORE_TRASH" },
 ];
 ```
+
+Users can only apply webhooks if they have permission on directory via `DirectoryPermissionType::Webhooks`
