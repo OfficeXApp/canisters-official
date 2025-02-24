@@ -53,6 +53,9 @@ pub fn get_active_file_webhooks(
     if !should_check_parents {
         return all_webhooks;
     }
+    if file_id.to_string() == WebhookAltIndexID::file_created_slug().to_string() {
+        return all_webhooks
+    }
 
     // Get parent folder recursion depth
     let parent_recursion_depth = 20;
@@ -144,6 +147,9 @@ pub fn get_active_folder_webhooks(
     if !should_check_parents {
         return all_webhooks;
     }
+    if folder_id.to_string() == WebhookAltIndexID::folder_created_slug().to_string() {
+        return all_webhooks
+    }
 
     // Get parent folder recursion depth
     let parent_recursion_depth = 20;
@@ -205,6 +211,7 @@ pub fn fire_directory_webhook(
     webhooks: Vec<Webhook>,
     before_snap: Option<DirectoryWebhookData>,
     after_snap: Option<DirectoryWebhookData>,
+    notes: Option<String>,
 ) {
     let timestamp_ms = ic_cdk::api::time() / 1_000_000;
     for webhook in webhooks {
@@ -212,20 +219,21 @@ pub fn fire_directory_webhook(
             event: event.to_string(),
             timestamp_ms,
             nonce: timestamp_ms,
+            notes: notes.clone(),
             webhook_id: webhook.id.clone(),
             webhook_alt_index: webhook.alt_index.clone(),
             payload: WebhookEventData {
                 before: before_snap.clone().map(|snap| match snap {
                     DirectoryWebhookData::File(data) => WebhookResourceData::File(data),
                     DirectoryWebhookData::Folder(data) => WebhookResourceData::Folder(data),
-                    DirectoryWebhookData::Subfile(data) => WebhookResourceData::ChildFile(data),
-                    DirectoryWebhookData::Subfolder(data) => WebhookResourceData::ChildSubfolder(data),
+                    DirectoryWebhookData::Subfile(data) => WebhookResourceData::Subfile(data),
+                    DirectoryWebhookData::Subfolder(data) => WebhookResourceData::Subfolder(data),
                 }),
                 after: after_snap.clone().map(|snap| match snap {
                     DirectoryWebhookData::File(data) => WebhookResourceData::File(data),
                     DirectoryWebhookData::Folder(data) => WebhookResourceData::Folder(data),
-                    DirectoryWebhookData::Subfile(data) => WebhookResourceData::ChildFile(data),
-                    DirectoryWebhookData::Subfolder(data) => WebhookResourceData::ChildSubfolder(data),
+                    DirectoryWebhookData::Subfile(data) => WebhookResourceData::Subfile(data),
+                    DirectoryWebhookData::Subfolder(data) => WebhookResourceData::Subfolder(data),
                 }),
             },
         };

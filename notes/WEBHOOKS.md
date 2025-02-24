@@ -9,40 +9,54 @@ Quick Notes:
 - `filters` are not supported yet (responsibility is delegated to receiving webhook)
 
 ```js
+/**
+ * Webhook events configuration for OfficeX Drive
+ * Maps to Rust WebhookEventLabel enum
+ *
+ * alt_index patterns:
+ * - Specific resource IDs: ${FileID}, ${FolderID}, ${TeamID}
+ * - Constants: FILE_CREATED, FOLDER_CREATED, RESTORE_TRASH
+ */
 const webhook_events = [
-  { label: "file.viewed", alt_index: `${FileID}` },
+  // File events
+  { label: "file.viewed", alt_index: "${FileID}" },
   { label: "file.created", alt_index: "FILE_CREATED" },
-  { label: "file.updated", alt_index: `${FileID}` },
-  { label: "file.deleted", alt_index: `${FileID}` },
-  { label: "file.shared", alt_index: `${FileID}` },
-  { label: "folder.viewed", alt_index: `${FolderID}` },
+  { label: "file.updated", alt_index: "${FileID}" },
+  { label: "file.deleted", alt_index: "${FileID}" },
+  { label: "file.shared", alt_index: "${FileID}" },
+  { label: "file.accepted", alt_index: "${FileID}" },
+
+  // Folder events
+  { label: "folder.viewed", alt_index: "${FolderID}" },
   { label: "folder.created", alt_index: "FOLDER_CREATED" },
-  { label: "folder.updated", alt_index: `${FolderID}` },
-  { label: "folder.deleted", alt_index: `${FolderID}` },
-  { label: "folder.shared", alt_index: `${FolderID}` },
-  {
-    label: "folder.file.created",
-    alt_index: `${FolderID}`,
-    filters: "{ recursion_depth: number }",
-  },
-  {
-    label: "folder.file.updated",
-    alt_index: `${FolderID}`,
-    filters: "{ recursion_depth: number }",
-  },
-  {
-    label: "folder.file.deleted",
-    alt_index: `${FolderID}`,
-    filters: "{ recursion_depth: number }",
-  },
-  {
-    label: "folder.file.shared",
-    alt_index: `${FolderID}`,
-    filters: "{ recursion_depth: number }",
-  },
-  { label: "team.invite.created", alt_index: `${TeamID}` },
-  { label: "team.invite.updated", alt_index: `${TeamID}` },
-  { label: "___.___", alt_index: "___ID" },
-  { label: "___.___", alt_index: "___ID" },
+  { label: "folder.updated", alt_index: "${FolderID}" },
+  { label: "folder.deleted", alt_index: "${FolderID}" },
+  { label: "folder.shared", alt_index: "${FolderID}" },
+  { label: "folder.accepted", alt_index: "${FolderID}" },
+
+  // Subfile events
+  { label: "subfile.viewed", alt_index: "${FolderID}" },
+  { label: "subfile.created", alt_index: "${FolderID}" },
+  { label: "subfile.updated", alt_index: "${FolderID}" },
+  { label: "subfile.deleted", alt_index: "${FolderID}" },
+  { label: "subfile.shared", alt_index: "${FolderID}" },
+  { label: "subfile.accepted", alt_index: "${FolderID}" },
+
+  // Subfolder events
+  { label: "subfolder.viewed", alt_index: "${FolderID}" },
+  { label: "subfolder.created", alt_index: "${FolderID}" },
+  { label: "subfolder.updated", alt_index: "${FolderID}" },
+  { label: "subfolder.deleted", alt_index: "${FolderID}" },
+  { label: "subfolder.shared", alt_index: "${FolderID}" },
+  { label: "subfolder.accepted", alt_index: "${FolderID}" },
+
+  // Team events
+  { label: "team.invite.created", alt_index: "${TeamID}" },
+  { label: "team.invite.updated", alt_index: "${TeamID}" },
+
+  // Drive events
+  { label: "drive.gas_low", alt_index: "${DriveID}" },
+  { label: "drive.sync_completed", alt_index: "${DriveID}" },
+  { label: "drive.restore_trash", alt_index: "RESTORE_TRASH" },
 ];
 ```

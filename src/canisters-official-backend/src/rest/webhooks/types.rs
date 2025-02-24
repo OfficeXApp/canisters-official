@@ -149,6 +149,7 @@ pub struct WebhookEventPayload {
     pub webhook_id: WebhookID,
     pub webhook_alt_index: WebhookAltIndexID,
     pub payload: WebhookEventData,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,10 +167,10 @@ pub enum WebhookResourceData {
     File(FileWebhookData),
     #[serde(rename = "folder")]
     Folder(FolderWebhookData),
-    #[serde(rename = "child_file")]
-    ChildFile(SubfileWebhookData),
-    #[serde(rename = "child_subfolder")]
-    ChildSubfolder(SubfolderWebhookData),
+    #[serde(rename = "subfile")]
+    Subfile(FileWebhookData),
+    #[serde(rename = "subfolder")]
+    Subfolder(FolderWebhookData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,11 +191,9 @@ pub enum DirectoryWebhookData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileWebhookData {
     pub file: Option<FileMetadata>,
-    pub permissions: Option<Vec<DirectoryResourcePermissionFE>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FolderWebhookData {
     pub folder: Option<FolderMetadata>,
-    pub permissions: Option<Vec<DirectoryResourcePermissionFE>>,
 }

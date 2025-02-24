@@ -3,16 +3,16 @@
 ## Sprints Roadmap
 
 1. Implement permissions (including deterministics principal ids)
-2. Implement webhooks
-3. Implement replayability
-4. Cleanup & testing backend
-5. Refactor frontend & implement torrents for browser-cache/local-ssd sharing
+2. Implement replayability
+3. Cleanup & testing backend
+4. Refactor frontend & implement torrents for browser-cache/local-ssd sharing
 
 ## Urgent Next
 
-- [ ] Connect relevant REST routes with relevant `webhook` firing
-- [🔵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
-- [🔵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
+- [🔵] Consider whether to implement share tracking & graphing
+- [ ] Implement replayability
+- [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
+- [🪵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
 
 ## Near Future
 
@@ -79,3 +79,4 @@
 - [x] Include permissions in the response body of GET system records and `directory/action`
 - [x] Add deferred join team links, with ICP signature as proof of user icp principal
 - [x] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
+- [x] Connect relevant REST routes with relevant `webhook` firing

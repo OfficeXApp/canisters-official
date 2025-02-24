@@ -46,6 +46,7 @@ pub fn fire_team_invite_webhook(
     webhooks: Vec<Webhook>,
     before_snap: Option<TeamInviteWebhookData>,
     after_snap: Option<TeamInviteWebhookData>,
+    notes: Option<String>
 ) {
     let timestamp_ms = ic_cdk::api::time() / 1_000_000;
     for webhook in webhooks {
@@ -53,6 +54,7 @@ pub fn fire_team_invite_webhook(
             event: event.to_string(),
             timestamp_ms,
             nonce: timestamp_ms,
+            notes: notes.clone(),
             webhook_id: webhook.id.clone(),
             webhook_alt_index: webhook.alt_index.clone(),
             payload: WebhookEventData {

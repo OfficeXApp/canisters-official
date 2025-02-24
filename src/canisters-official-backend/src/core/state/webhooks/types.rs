@@ -13,6 +13,35 @@ impl fmt::Display for WebhookID {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct WebhookAltIndexID(pub String);
+impl fmt::Display for WebhookAltIndexID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl WebhookAltIndexID {
+    pub const FILE_CREATED: &'static str = "FILE_CREATED";
+    pub const FOLDER_CREATED: &'static str = "FOLDER_CREATED";
+    pub const RESTORE_TRASH: &'static str = "RESTORE_TRASH";
+
+    // Helper method to create new instances
+    pub fn new(id: String) -> Self {
+        WebhookAltIndexID(id)
+    }
+
+    // Helper methods to get the constant instances
+    pub fn file_created_slug() -> Self {
+        WebhookAltIndexID(Self::FILE_CREATED.to_string())
+    }
+
+    pub fn folder_created_slug() -> Self {
+        WebhookAltIndexID(Self::FOLDER_CREATED.to_string())
+    }
+
+    pub fn restore_trash_slug() -> Self {
+        WebhookAltIndexID(Self::RESTORE_TRASH.to_string())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Webhook {
@@ -87,6 +116,8 @@ pub enum WebhookEventLabel {
     DriveGasLow,
     #[serde(rename = "drive.sync_completed")]
     DriveSyncCompleted,
+    #[serde(rename = "drive.restore_trash")]
+    DriveRestoreTrash,
 }
 
 impl std::str::FromStr for WebhookEventLabel {
@@ -122,6 +153,7 @@ impl std::str::FromStr for WebhookEventLabel {
             "team.invite.updated" => Ok(Self::TeamInviteUpdated),
             "drive.gas_low" => Ok(Self::DriveGasLow),
             "drive.sync_completed" => Ok(Self::DriveSyncCompleted),
+            "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
             _ => Err(format!("Invalid webhook event: {}", s)),
         }
     }
@@ -165,6 +197,7 @@ impl ToString for WebhookEventLabel {
             // drive
             Self::DriveGasLow => "drive.gas_low",
             Self::DriveSyncCompleted => "drive.sync_completed",
+            Self::DriveRestoreTrash => "drive.restore_trash",
         }.to_string()
     }
 }

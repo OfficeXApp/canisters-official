@@ -280,7 +280,8 @@ pub mod team_invites_handlers {
                             WebhookEventLabel::TeamInviteCreated,
                             active_webhooks,
                             Some(before_snap),
-                            Some(after_snap)
+                            Some(after_snap),
+                            Some("Invite created".to_string())
                         );
                     }
 
@@ -407,7 +408,8 @@ pub mod team_invites_handlers {
                             WebhookEventLabel::TeamInviteUpdated,
                             active_webhooks,
                             Some(before_snap),
-                            Some(after_snap)
+                            Some(after_snap),
+                            Some("Invite updated".to_string())
                         );
                     }
 
