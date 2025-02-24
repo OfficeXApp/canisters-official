@@ -265,7 +265,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
-                        Some(payload.has_sovereign_permissions.unwrap_or(false))
+                        Some(payload.has_sovereign_permissions.unwrap_or(false)),
+                        Some(payload.enable_share_tracking.unwrap_or(false))
                     ) {
                         Ok((file_metadata, upload_response)) => {
 
@@ -376,7 +377,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
-                        Some(payload.has_sovereign_permissions.unwrap_or(false))
+                        Some(payload.has_sovereign_permissions.unwrap_or(false)),
+                        Some(payload.enable_share_tracking.unwrap_or(false))
                     ) {
                         Ok(folder) => {
                             let after_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
@@ -518,6 +520,12 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             }
                             file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                             file.last_updated_by = user_id.clone();
+                            if let Some(has_sovereign_permissions) = payload.has_sovereign_permissions {
+                                file.has_sovereign_permissions = has_sovereign_permissions;
+                            }
+                            if let Some(enable_share_tracking) = payload.enable_share_tracking {
+                                file.enable_share_tracking = enable_share_tracking;
+                            }
                         }
                     });
         
@@ -657,6 +665,12 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             }
                             folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                             folder.last_updated_by = user_id.clone();
+                            if let Some(has_sovereign_permissions) = payload.has_sovereign_permissions {
+                                folder.has_sovereign_permissions = has_sovereign_permissions;
+                            }
+                            if let Some(enable_share_tracking) = payload.enable_share_tracking {
+                                folder.enable_share_tracking = enable_share_tracking;
+                            }
                         }
                     });
         

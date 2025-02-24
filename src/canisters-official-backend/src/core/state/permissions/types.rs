@@ -60,15 +60,6 @@ impl fmt::Display for PermissionGranteeID {
 pub const PUBLIC_GRANTEE_ID: &str = "PUBLIC";
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PermissionGranteeType {
-    Public,
-    User,
-    Team,
-    PlaceholderDirectoryPermissionGrantee,
-}
-
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryPermission {
     pub id: DirectoryPermissionID,

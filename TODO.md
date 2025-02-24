@@ -10,6 +10,7 @@
 ## Urgent Next
 
 - [🔵] Consider whether to implement share tracking & graphing
+- [ ] Implement recent files/folders queue
 - [ ] Implement replayability
 - [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [🪵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership

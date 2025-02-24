@@ -359,6 +359,7 @@ pub struct CreateFilePayload {
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
+    pub enable_share_tracking: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -370,6 +371,7 @@ pub struct CreateFolderPayload {
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
+    pub enable_share_tracking: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -379,6 +381,8 @@ pub struct UpdateFilePayload {
     pub tags: Option<Vec<Tag>>,
     pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
+    pub has_sovereign_permissions: Option<bool>,
+    pub enable_share_tracking: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -387,6 +391,8 @@ pub struct UpdateFolderPayload {
     pub name: Option<String>,
     pub tags: Option<Vec<Tag>>,
     pub expires_at: Option<i64>,
+    pub has_sovereign_permissions: Option<bool>,
+    pub enable_share_tracking: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

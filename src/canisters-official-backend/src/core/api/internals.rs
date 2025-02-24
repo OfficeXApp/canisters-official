@@ -55,6 +55,7 @@ pub mod drive_internals {
                 canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
                 expires_at: -1,
                 has_sovereign_permissions: false,
+                enable_share_tracking: false,
             };
     
             full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
@@ -84,6 +85,7 @@ pub mod drive_internals {
                 canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string)),
                 expires_at: -1,
                 has_sovereign_permissions: true,
+                enable_share_tracking: false,
             };
 
             full_folder_path_to_uuid.insert(trash_path, FolderUUID(trash_folder_uuid.clone()));
@@ -167,6 +169,7 @@ pub mod drive_internals {
         user_id: UserID,
         canister_id: String,
         has_sovereign_permissions: bool,
+        enable_share_tracking: bool,
     ) -> FolderUUID {
         let path_parts: Vec<&str> = folder_path.split("::").collect();
         let mut current_path = format!("{}::", path_parts[0]);
@@ -204,6 +207,11 @@ pub mod drive_internals {
                     // only set if its the final folder and has sovereign permissions
                     has_sovereign_permissions: if part == path_parts[1].split('/').filter(|&p| !p.is_empty()).last().unwrap() {
                         has_sovereign_permissions
+                    } else {
+                        false
+                    },
+                    enable_share_tracking: if part == path_parts[1].split('/').filter(|&p| !p.is_empty()).last().unwrap() {
+                        enable_share_tracking
                     } else {
                         false
                     },
@@ -429,6 +437,7 @@ pub mod drive_internals {
                     disk_id,
                     user_id,
                     canister_id,
+                    false,
                     false
                 );
                 // Retrieve the folder metadata using the new UUID.

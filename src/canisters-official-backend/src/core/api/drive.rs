@@ -131,6 +131,7 @@ pub mod drive {
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
         has_sovereign_permissions: Option<bool>,
+        enable_share_tracking: Option<bool>
     ) -> Result<(FileMetadata, DiskUploadResponse), String> {
         let sanitized_file_path: String = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
@@ -179,6 +180,7 @@ pub mod drive {
             disk_id.clone(), 
             user_id.clone(), 
             canister_icp_principal_string.clone(),
+            false,
             false
         );
     
@@ -276,6 +278,7 @@ pub mod drive {
             expires_at,
             restore_trash_prior_folder_path: None,
             has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),
+            enable_share_tracking: enable_share_tracking.unwrap_or(false),
         };
     
         // Update version chain if we're replacing
@@ -357,7 +360,8 @@ pub mod drive {
         expires_at: i64,
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-        has_sovereign_permissions: Option<bool>
+        has_sovereign_permissions: Option<bool>,
+        enable_share_tracking: Option<bool>
     ) -> Result<FolderMetadata, String> {
         // Ensure the path ends with a slash
         let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
@@ -449,7 +453,8 @@ pub mod drive {
             disk_id,
             user_id.clone(),
             canister_icp_principal_string,
-            has_sovereign_permissions.unwrap_or(false)
+            has_sovereign_permissions.unwrap_or(false),
+            enable_share_tracking.unwrap_or(false),
         );
     
         // Update the metadata with the correct expires_at value
@@ -1217,7 +1222,8 @@ pub mod drive {
                         folder.disk_id.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
-                        folder.has_sovereign_permissions.clone()
+                        folder.has_sovereign_permissions.clone(),
+                        false
                     );
                     
                     folder_uuid_to_metadata
@@ -1237,7 +1243,8 @@ pub mod drive {
                         folder.disk_id.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
-                        folder.has_sovereign_permissions.clone()
+                        folder.has_sovereign_permissions.clone(),
+                        false
                     );
                     
                     folder_uuid_to_metadata
@@ -1320,7 +1327,8 @@ pub mod drive {
                         file.disk_id.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
-                        file.has_sovereign_permissions.clone()
+                        file.has_sovereign_permissions.clone(),
+                        false
                     );
                     
                     folder_uuid_to_metadata
@@ -1340,7 +1348,8 @@ pub mod drive {
                         file.disk_id.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
-                        file.has_sovereign_permissions.clone()
+                        file.has_sovereign_permissions.clone(),
+                        false
                     );
                     
                     folder_uuid_to_metadata
