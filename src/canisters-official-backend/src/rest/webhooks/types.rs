@@ -1,10 +1,12 @@
 // src/rest/webhooks/types.rs
 
 use serde::{Deserialize, Serialize};
+use crate::core::state::directory::types::{FileMetadata, FolderMetadata};
 use crate::core::state::team_invites::types::Team_Invite;
 use crate::core::state::teams::types::Team;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
+use crate::rest::directory::types::DirectoryResourcePermissionFE;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum WebhookResponse<'a, T = ()> {
@@ -160,11 +162,39 @@ pub struct WebhookEventData {
 pub enum WebhookResourceData {
     #[serde(rename = "team_invite")]
     TeamInvite(TeamInviteWebhookData),
-    // Add other resource types here as needed
+    #[serde(rename = "file")]
+    File(FileWebhookData),
+    #[serde(rename = "folder")]
+    Folder(FolderWebhookData),
+    #[serde(rename = "child_file")]
+    ChildFile(SubfileWebhookData),
+    #[serde(rename = "child_subfolder")]
+    ChildSubfolder(SubfolderWebhookData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamInviteWebhookData {
     pub team: Option<Team>,
     pub team_invite: Option<Team_Invite>,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DirectoryWebhookData {
+    File(FileWebhookData),
+    Folder(FolderWebhookData),
+    Subfile(FileWebhookData),
+    Subfolder(FolderWebhookData),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileWebhookData {
+    pub file: Option<FileMetadata>,
+    pub permissions: Option<Vec<DirectoryResourcePermissionFE>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderWebhookData {
+    pub folder: Option<FolderMetadata>,
+    pub permissions: Option<Vec<DirectoryResourcePermissionFE>>,
 }

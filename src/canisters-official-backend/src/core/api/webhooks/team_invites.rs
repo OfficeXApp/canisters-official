@@ -47,52 +47,43 @@ pub fn fire_team_invite_webhook(
     before_snap: Option<TeamInviteWebhookData>,
     after_snap: Option<TeamInviteWebhookData>,
 ) {
-    // Get team_id from either after or before snapshot's team
-    let team_id = after_snap.as_ref()
-        .and_then(|snap| snap.team.as_ref().map(|team| &team.id))
-        .or(before_snap.as_ref().and_then(|snap| snap.team.as_ref().map(|team| &team.id)));
-
-    if let Some(_) = team_id {
-        let timestamp_ms = ic_cdk::api::time() / 1_000_000;
-
-        for webhook in webhooks {
-            let payload = WebhookEventPayload {
-                event: event.to_string(),
-                timestamp_ms,
-                nonce: timestamp_ms,
-                webhook_id: webhook.id.clone(),
-                webhook_alt_index: webhook.alt_index.clone(),
-                payload: WebhookEventData {
-                    before: before_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
-                    after: after_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
-                },
+    let timestamp_ms = ic_cdk::api::time() / 1_000_000;
+    for webhook in webhooks {
+        let payload = WebhookEventPayload {
+            event: event.to_string(),
+            timestamp_ms,
+            nonce: timestamp_ms,
+            webhook_id: webhook.id.clone(),
+            webhook_alt_index: webhook.alt_index.clone(),
+            payload: WebhookEventData {
+                before: before_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
+                after: after_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
+            },
+        };
+        // Serialize payload for this webhook
+        if let Ok(body) = serde_json::to_vec(&payload) {
+            let request = CanisterHttpRequestArgument {
+                url: webhook.url.clone(),
+                method: HttpMethod::POST,
+                headers: vec![
+                    HttpHeader {
+                        name: "Content-Type".to_string(),
+                        value: "application/json".to_string(),
+                    },
+                    HttpHeader {
+                        name: "signature".to_string(),
+                        value: webhook.signature.clone(),
+                    },
+                ],
+                body: Some(body),
+                max_response_bytes: Some(0),
+                transform: None,
             };
 
-            // Serialize payload for this webhook
-            if let Ok(body) = serde_json::to_vec(&payload) {
-                let request = CanisterHttpRequestArgument {
-                    url: webhook.url.clone(),
-                    method: HttpMethod::POST,
-                    headers: vec![
-                        HttpHeader {
-                            name: "Content-Type".to_string(),
-                            value: "application/json".to_string(),
-                        },
-                        HttpHeader {
-                            name: "signature".to_string(),
-                            value: webhook.signature.clone(),
-                        },
-                    ],
-                    body: Some(body),
-                    max_response_bytes: Some(0),
-                    transform: None,
-                };
-
-                spawn(async move {
-                    let cycles: u128 = 1_000_000_000;
-                    let _ = http_request(request, cycles).await;
-                });
-            }
+            spawn(async move {
+                let cycles: u128 = 1_000_000_000;
+                let _ = http_request(request, cycles).await;
+            });
         }
     }
 }

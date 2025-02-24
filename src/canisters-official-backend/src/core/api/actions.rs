@@ -1,7 +1,7 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}};
-use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::directory::{check_directory_permissions, preview_directory_permissions}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}}};
+use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
 #[derive(Debug, Clone)]
@@ -39,7 +39,11 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             message: "Neither resource_id nor resource_path provided".to_string(),
                         });
                     };
-        
+
+                    // Get webhooks for both event types and combine them
+                    let webhooks_file = get_active_file_webhooks(&file_id, WebhookEventLabel::FileViewed);
+                    let webhooks_subfile = get_active_file_webhooks(&file_id, WebhookEventLabel::SubfileViewed);
+
                     // Get file metadata to use for permission check
                     let file = match get_file_by_id(file_id.clone()) {
                         Ok(f) => f,
@@ -48,7 +52,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             message: format!("File not found: {}", e),
                         }),
                     };
-        
+
                     // Check if user has View permission on the file
                     let resource_id = DirectoryResourceID::File(file_id.clone());
                     let user_permissions = check_directory_permissions(
@@ -65,6 +69,29 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+
+                    let before_snap_file = DirectoryWebhookData::File(FileWebhookData {
+                        file: Some(file.clone()),
+                        permissions: Some(your_permissions.clone()),
+                    });
+                    let before_snap_subfile = DirectoryWebhookData::Subfile(FileWebhookData {
+                        file: Some(file.clone()),
+                        permissions: Some(your_permissions.clone()),
+                    });
+
+                    fire_directory_webhook(
+                        WebhookEventLabel::FileViewed,
+                        webhooks_file,
+                        Some(before_snap_file.clone()),
+                        Some(before_snap_file),
+                    );
+                    fire_directory_webhook(
+                        WebhookEventLabel::SubfileViewed,
+                        webhooks_subfile,
+                        Some(before_snap_subfile.clone()),
+                        Some(before_snap_subfile),
+                    );
+
                     let get_file_response = GetFileResponse {
                         file,
                         permissions: your_permissions,
@@ -116,7 +143,11 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             message: format!("Folder not found: {}", e),
                         }),
                     };
-        
+
+                    // Get webhooks for both event types and combine them
+                    let webhooks_folder = get_active_folder_webhooks(&folder_id, WebhookEventLabel::FolderViewed);
+                    let webhooks_subfolder = get_active_folder_webhooks(&folder_id, WebhookEventLabel::SubfolderViewed);
+
                     // Check if user has View permission on the folder
                     let resource_id = DirectoryResourceID::Folder(folder_id.clone());
                     let user_permissions = check_directory_permissions(
@@ -132,11 +163,34 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+                                        
+                    let before_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
+                        folder: Some(folder.clone()),
+                        permissions: Some(your_permissions.clone()),
+                    });              
+                    let before_snap_subfolder = DirectoryWebhookData::Subfolder(FolderWebhookData {
+                        folder: Some(folder.clone()),
+                        permissions: Some(your_permissions.clone()),
+                    });
+                    
                     let get_folder_response = GetFolderResponse {
                         folder,
                         permissions: your_permissions,
                         requester_id: user_id,
                     };
+
+                    fire_directory_webhook(
+                        WebhookEventLabel::FolderViewed,
+                        webhooks_folder,
+                        Some(before_snap_folder.clone()),
+                        Some(before_snap_folder),
+                    );
+                    fire_directory_webhook(
+                        WebhookEventLabel::SubfolderViewed,
+                        webhooks_subfolder,
+                        Some(before_snap_subfolder.clone()),
+                        Some(before_snap_subfolder),
+                    );
         
                     Ok(DirectoryActionResult::GetFolder(get_folder_response))
                 },
