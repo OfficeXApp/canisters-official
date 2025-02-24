@@ -9,7 +9,6 @@
 
 ## Urgent Next
 
-- [🔵] Implement directory webhook permissions `DirectoryPermissionType::Webhooks`
 - [ ] Implement recent files/folders queue
 - [ ] Implement replayability
 - [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
@@ -83,3 +82,4 @@
 - [x] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
 - [x] Connect relevant REST routes with relevant `webhook` firing
 - [x] Implement external share tracking via webhooks
+- [x] Implement directory webhook permissions `DirectoryPermissionType::Webhooks`
