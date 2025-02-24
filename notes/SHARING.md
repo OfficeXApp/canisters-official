@@ -87,6 +87,7 @@ Note this also means users can only get analytics if they have directory permiss
 Since we wont track any share data in the hashtables, we must embed the necessary info in the sharetrack id itself. in which case our ID should be a btoa hash with the referring userID.
 
 ```js
+// in practice, use the function generate_share_track_hash and decode_share_track_hash
 const shareTrackID = generate_unique_id(IDPrefix::ShareTrackID, "");
 const shareTrackHash = btoa({
   id: shareTrackID,

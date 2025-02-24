@@ -47,7 +47,6 @@ pub fn get_active_file_webhooks(
         | WebhookEventLabel::SubfileUpdated
         | WebhookEventLabel::SubfolderDeleted
         | WebhookEventLabel::SubfolderShared
-        | WebhookEventLabel::SubfolderAccepted
     );
 
     if !should_check_parents {
@@ -141,7 +140,6 @@ pub fn get_active_folder_webhooks(
         | WebhookEventLabel::SubfolderUpdated
         | WebhookEventLabel::SubfolderDeleted
         | WebhookEventLabel::SubfolderShared
-        | WebhookEventLabel::SubfolderAccepted
     );
 
     if !should_check_parents {
@@ -228,12 +226,14 @@ pub fn fire_directory_webhook(
                     DirectoryWebhookData::Folder(data) => WebhookResourceData::Folder(data),
                     DirectoryWebhookData::Subfile(data) => WebhookResourceData::Subfile(data),
                     DirectoryWebhookData::Subfolder(data) => WebhookResourceData::Subfolder(data),
+                    DirectoryWebhookData::ShareTracking(data) => WebhookResourceData::ShareTracking(data),
                 }),
                 after: after_snap.clone().map(|snap| match snap {
                     DirectoryWebhookData::File(data) => WebhookResourceData::File(data),
                     DirectoryWebhookData::Folder(data) => WebhookResourceData::Folder(data),
                     DirectoryWebhookData::Subfile(data) => WebhookResourceData::Subfile(data),
                     DirectoryWebhookData::Subfolder(data) => WebhookResourceData::Subfolder(data),
+                    DirectoryWebhookData::ShareTracking(data) => WebhookResourceData::ShareTracking(data),
                 }),
             },
         };

@@ -46,31 +46,6 @@ impl WebhookAltIndexID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ShareTrackID(pub String);
-
-impl fmt::Display for ShareTrackID {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ShareTrackResourceID {
-    File(FileUUID),
-    Folder(FolderUUID)
-}
-
-impl fmt::Display for ShareTrackResourceID {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ShareTrackResourceID::File(id) => write!(f, "{}", id),
-            ShareTrackResourceID::Folder(id) => write!(f, "{}", id),
-        }
-    }
-}
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Webhook {
@@ -99,8 +74,6 @@ pub enum WebhookEventLabel {
     FileDeleted,
     #[serde(rename = "file.shared")]
     FileShared,
-    #[serde(rename = "file.accepted")]
-    FileAccepted,
     #[serde(rename = "folder.viewed")]
     FolderViewed,
     #[serde(rename = "folder.created")]
@@ -111,8 +84,6 @@ pub enum WebhookEventLabel {
     FolderDeleted,
     #[serde(rename = "folder.shared")]
     FolderShared,
-    #[serde(rename = "folder.accepted")]
-    FolderAccepted,
     #[serde(rename = "subfile.viewed")]
     SubfileViewed,
     #[serde(rename = "subfile.created")]
@@ -123,8 +94,6 @@ pub enum WebhookEventLabel {
     SubfileDeleted,
     #[serde(rename = "subfile.shared")]
     SubfileShared,
-    #[serde(rename = "subfile.accepted")]
-    SubfileAccepted,
     #[serde(rename = "subfolder.viewed")]
     SubfolderViewed,
     #[serde(rename = "subfolder.created")]
@@ -135,8 +104,6 @@ pub enum WebhookEventLabel {
     SubfolderDeleted,
     #[serde(rename = "subfolder.shared")]
     SubfolderShared,
-    #[serde(rename = "subfolder.accepted")]
-    SubfolderAccepted,
     #[serde(rename = "team.invite.created")]
     TeamInviteCreated,
     #[serde(rename = "team.invite.updated")]
@@ -159,25 +126,21 @@ impl std::str::FromStr for WebhookEventLabel {
             "file.updated" => Ok(Self::FileUpdated),
             "file.deleted" => Ok(Self::FileDeleted),
             "file.shared" => Ok(Self::FileShared),
-            "file.accepted" => Ok(Self::FileAccepted),
             "folder.viewed" => Ok(Self::FolderViewed),
             "folder.created" => Ok(Self::FolderCreated),
             "folder.updated" => Ok(Self::FolderUpdated),
             "folder.deleted" => Ok(Self::FolderDeleted),
             "folder.shared" => Ok(Self::FolderShared),
-            "folder.accepted" => Ok(Self::FolderAccepted),
             "subfile.viewed" => Ok(Self::SubfileViewed),
             "subfile.created" => Ok(Self::SubfileCreated),
             "subfile.updated" => Ok(Self::SubfileUpdated),
             "subfile.deleted" => Ok(Self::SubfileDeleted),
             "subfile.shared" => Ok(Self::SubfileShared),
-            "subfile.accepted" => Ok(Self::SubfileAccepted),
             "subfolder.viewed" => Ok(Self::SubfolderViewed),
             "subfolder.created" => Ok(Self::SubfolderCreated),
             "subfolder.updated" => Ok(Self::SubfolderUpdated),
             "subfolder.deleted" => Ok(Self::SubfolderDeleted),
             "subfolder.shared" => Ok(Self::SubfolderShared),
-            "subfolder.accepted" => Ok(Self::SubfolderAccepted),
             "team.invite.created" => Ok(Self::TeamInviteCreated),
             "team.invite.updated" => Ok(Self::TeamInviteUpdated),
             "drive.gas_low" => Ok(Self::DriveGasLow),
@@ -198,28 +161,24 @@ impl ToString for WebhookEventLabel {
             Self::FileUpdated => "file.updated",
             Self::FileDeleted => "file.deleted",
             Self::FileShared => "file.shared",
-            Self::FileAccepted => "file.accepted",
             // folder
             Self::FolderViewed => "folder.viewed",
             Self::FolderCreated => "folder.created",
             Self::FolderUpdated => "folder.updated",
             Self::FolderDeleted => "folder.deleted",
             Self::FolderShared => "folder.shared",
-            Self::FolderAccepted => "folder.accepted",
             // subfile
             Self::SubfileViewed => "subfile.viewed",
             Self::SubfileCreated => "subfile.created",
             Self::SubfileUpdated => "subfile.updated",
             Self::SubfileDeleted => "subfile.deleted",
             Self::SubfileShared => "subfile.shared",
-            Self::SubfileAccepted => "subfile.accepted",
             // subfolder
             Self::SubfolderViewed => "subfolder.viewed",
             Self::SubfolderCreated => "subfolder.created",
             Self::SubfolderUpdated => "subfolder.updated",
             Self::SubfolderDeleted => "subfolder.deleted",
             Self::SubfolderShared => "subfolder.shared",
-            Self::SubfolderAccepted => "subfolder.accepted",
             // team
             Self::TeamInviteCreated => "team.invite.created",
             Self::TeamInviteUpdated => "team.invite.updated",
