@@ -4,24 +4,103 @@ use serde_diff::{Diff, SerdeDiff};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
-use crate::core::{api::webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::types::DriveStateDiffString}, types::UserID};
+use crate::{core::{api::webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}}, disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, Team_Invite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
 
 // Define a type to represent the entire state
 #[derive(SerdeDiff, Serialize, Deserialize, Clone)]
 pub struct EntireState {
+    // About
+    DRIVE_ID: DriveID,
+    CANISTER_ID: PublicKeyICP,
+    OWNER_ID: UserID,
+    URL_ENDPOINT: DriveRESTUrlEndpoint,
+    // Api Keys
     APIKEYS_BY_VALUE_HASHTABLE: HashMap<ApiKeyValue, ApiKeyID>,
     APIKEYS_BY_ID_HASHTABLE: HashMap<ApiKeyID, ApiKey>,
-    USERS_APIKEYS_HASHTABLE: HashMap<UserID, Vec<ApiKeyID>>
-    // Add more state hashtables as needed
+    USERS_APIKEYS_HASHTABLE: HashMap<UserID, Vec<ApiKeyID>>,
+    // Contacts
+    CONTACTS_BY_ID_HASHTABLE: HashMap<UserID, Contact>,
+    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: HashMap<String, UserID>,
+    CONTACTS_BY_TIME_LIST: Vec<UserID>,
+    // Directory
+    folder_uuid_to_metadata: HashMap<FolderUUID, FolderMetadata>,
+    file_uuid_to_metadata: HashMap<FileUUID, FileMetadata>,
+    full_folder_path_to_uuid: HashMap<DriveFullFilePath, FolderUUID>,
+    full_file_path_to_uuid: HashMap<DriveFullFilePath, FileUUID>,
+    // Disks
+    DISKS_BY_ID_HASHTABLE: HashMap<DiskID, Disk>,
+    DISKS_BY_EXTERNAL_ID_HASHTABLE: HashMap<String, DiskID>,
+    DISKS_BY_TIME_LIST: Vec<DiskID>,
+    // Drives
+    DRIVES_BY_ID_HASHTABLE: HashMap<DriveID, Drive>,
+    DRIVES_BY_TIME_LIST: Vec<DriveID>,
+    // Permissions
+    DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE: HashMap<DirectoryPermissionID, DirectoryPermission>,
+    DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE: HashMap<DirectoryResourceID, Vec<DirectoryPermissionID>>,
+    DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE: HashMap<PermissionGranteeID, Vec<DirectoryPermissionID>>,
+    DIRECTORY_PERMISSIONS_BY_TIME_LIST: Vec<DirectoryPermissionID>,
+    SYSTEM_PERMISSIONS_BY_ID_HASHTABLE: HashMap<SystemPermissionID, SystemPermission>,
+    SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: HashMap<SystemResourceID, Vec<SystemPermissionID>>,
+    SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: HashMap<PermissionGranteeID, Vec<SystemPermissionID>>,
+    SYSTEM_PERMISSIONS_BY_TIME_LIST: Vec<SystemPermissionID>,
+    // Team Invites
+    INVITES_BY_ID_HASHTABLE: HashMap<TeamInviteID, Team_Invite>,
+    USERS_INVITES_LIST_HASHTABLE: HashMap<TeamInviteeID, Vec<TeamInviteID>>,
+    // Teams 
+    TEAMS_BY_ID_HASHTABLE: HashMap<TeamID, Team>,
+    TEAMS_BY_TIME_LIST: Vec<TeamID>,
+    // Webhooks
+    WEBHOOKS_BY_ALT_INDEX_HASHTABLE: HashMap<WebhookAltIndexID, Vec<WebhookID>>,
+    WEBHOOKS_BY_ID_HASHTABLE: HashMap<WebhookID, Webhook>,
+    WEBHOOKS_BY_TIME_LIST: Vec<WebhookID>,
 }
 
 fn snapshot_entire_state() -> EntireState {
     EntireState {
-        // Clone each hashtable from your thread_local storage
+        // About
+        DRIVE_ID: DRIVE_ID.with(|drive_id| drive_id.clone()),
+        CANISTER_ID: CANISTER_ID.with(|canister_id| canister_id.clone()),
+        OWNER_ID: OWNER_ID.with(|owner_id| owner_id.clone()),
+        URL_ENDPOINT: URL_ENDPOINT.with(|url| url.clone()),
+        // Api Keys
         APIKEYS_BY_VALUE_HASHTABLE: APIKEYS_BY_VALUE_HASHTABLE.with(|store| store.borrow().clone()),
         APIKEYS_BY_ID_HASHTABLE: APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
         USERS_APIKEYS_HASHTABLE: USERS_APIKEYS_HASHTABLE.with(|store| store.borrow().clone()),
-        // Add more state sections as needed
+        // Contacts
+        CONTACTS_BY_ID_HASHTABLE: CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| store.borrow().clone()),
+        CONTACTS_BY_TIME_LIST: CONTACTS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        // Directory
+        folder_uuid_to_metadata: folder_uuid_to_metadata.with(|store| store.clone()),
+        file_uuid_to_metadata: file_uuid_to_metadata.with(|store| store.clone()),
+        full_folder_path_to_uuid: full_folder_path_to_uuid.with(|store| store.clone()),
+        full_file_path_to_uuid: full_file_path_to_uuid.with(|store| store.clone()),
+        // Disks
+        DISKS_BY_ID_HASHTABLE: DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        DISKS_BY_EXTERNAL_ID_HASHTABLE: DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        DISKS_BY_TIME_LIST: DISKS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        // Drives
+        DRIVES_BY_ID_HASHTABLE: DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        DRIVES_BY_TIME_LIST: DRIVES_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        // Permissions
+        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE: DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
+        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE: DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| store.borrow().clone()),
+        DIRECTORY_PERMISSIONS_BY_TIME_LIST: DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
+        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| store.borrow().clone()),
+        SYSTEM_PERMISSIONS_BY_TIME_LIST: SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        // Team Invites
+        INVITES_BY_ID_HASHTABLE: INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        USERS_INVITES_LIST_HASHTABLE: USERS_INVITES_LIST_HASHTABLE.with(|store| store.borrow().clone()),
+        // Teams
+        TEAMS_BY_ID_HASHTABLE: TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        TEAMS_BY_TIME_LIST: TEAMS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        // Webhooks
+        WEBHOOKS_BY_ALT_INDEX_HASHTABLE: WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| store.borrow().clone()),
+        WEBHOOKS_BY_ID_HASHTABLE: WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        WEBHOOKS_BY_TIME_LIST: WEBHOOKS_BY_TIME_LIST.with(|store| store.borrow().clone()),
     }
 }
 

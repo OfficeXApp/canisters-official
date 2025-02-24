@@ -2,11 +2,11 @@ use std::fmt;
 
 // src/core/state/drives/types.rs
 use serde::{Serialize, Deserialize};
-
+use serde_diff::{SerdeDiff};
 use crate::core::types::{ICPPrincipalString, PublicKeyICP};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DriveID(pub String);
 impl fmt::Display for DriveID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -15,7 +15,7 @@ impl fmt::Display for DriveID {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Drive {
     pub id: DriveID,
     pub name: String,
@@ -26,7 +26,7 @@ pub struct Drive {
 }   
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DriveStateDiffID(pub String);
 impl fmt::Display for DriveStateDiffID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -34,7 +34,7 @@ impl fmt::Display for DriveStateDiffID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DriveStateDiffString(pub String);  // base64 encoded diff
 impl fmt::Display for DriveStateDiffString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -43,7 +43,7 @@ impl fmt::Display for DriveStateDiffString {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DriveStateDiffChecksum(pub String);
 impl fmt::Display for DriveStateDiffChecksum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -51,7 +51,7 @@ impl fmt::Display for DriveStateDiffChecksum {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DriveRESTUrlEndpoint(pub String);
 impl fmt::Display for DriveRESTUrlEndpoint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

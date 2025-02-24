@@ -9,7 +9,7 @@ use crate::core::{
 };
 use serde::de;
 use serde_json::Value;
-
+use serde_diff::{SerdeDiff};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchDirectoryRequest {
@@ -289,7 +289,7 @@ impl fmt::Display for FileConflictResolutionEnum {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum DirectoryResourceID {
     File(FileUUID),
     Folder(FolderUUID),

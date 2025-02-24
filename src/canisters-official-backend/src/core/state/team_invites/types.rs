@@ -2,15 +2,15 @@ use std::fmt;
 
 // src/core/state/team_invites/types.rs
 use serde::{Serialize, Deserialize};
-
+use serde_diff::{SerdeDiff};
 use crate::core::state::teams::types::TeamID;
 use crate::core::types::{UserID};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct TeamInviteID(pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Team_Invite {
     pub id: TeamInviteID,
     pub team_id: TeamID,
@@ -25,14 +25,14 @@ pub struct Team_Invite {
     pub from_placeholder_invitee: Option<PlaceholderTeamInviteeID>
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, SerdeDiff)]
 pub enum TeamRole {
     Admin,
     Member
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct PlaceholderTeamInviteeID(pub String);
 impl fmt::Display for PlaceholderTeamInviteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -41,7 +41,7 @@ impl fmt::Display for PlaceholderTeamInviteeID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum TeamInviteeID {
     User(UserID),
     PlaceholderTeamInvitee(PlaceholderTeamInviteeID),

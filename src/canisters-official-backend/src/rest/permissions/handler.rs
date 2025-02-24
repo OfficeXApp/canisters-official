@@ -270,7 +270,11 @@ pub mod permissions_handlers {
             };
     
             // Update modifiable fields
-            existing_permission.permission_types = allowed_permission_types.into_iter().collect();
+            existing_permission.permission_types = allowed_permission_types
+                                                        .into_iter()
+                                                        .collect::<HashSet<_>>()
+                                                        .into_iter()
+                                                        .collect();
             existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
             existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
             existing_permission.inheritable = upsert_request.inheritable;
@@ -316,15 +320,15 @@ pub mod permissions_handlers {
             DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
                 permissions_by_resource.borrow_mut()
                     .entry(resource_id)
-                    .or_insert_with(HashSet::new)
-                    .insert(permission_id.clone());
+                    .or_insert_with(Vec::new)
+                    .push(permission_id.clone());
             });
     
             DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
                 grantee_permissions.borrow_mut()
                     .entry(grantee_id)
-                    .or_insert_with(HashSet::new)
-                    .insert(permission_id.clone());
+                    .or_insert_with(Vec::new)
+                    .push(permission_id.clone());
             });
     
             DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
@@ -404,11 +408,10 @@ pub mod permissions_handlers {
 
         // Remove from DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE
         DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            if let Some(permission_set) = permissions_by_resource.borrow_mut().get_mut(&permission.resource_id) {
-                permission_set.remove(&delete_request.permission_id);
-                
+            if let Some(permission_vec) = permissions_by_resource.borrow_mut().get_mut(&permission.resource_id) {
+                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
                 // If set is empty, remove the resource entry
-                if permission_set.is_empty() {
+                if permission_vec.is_empty() {
                     permissions_by_resource.borrow_mut().remove(&permission.resource_id);
                 }
             }
@@ -416,11 +419,10 @@ pub mod permissions_handlers {
 
         // Remove from DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE
         DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            if let Some(permission_set) = grantee_permissions.borrow_mut().get_mut(&permission.granted_to) {
-                permission_set.remove(&delete_request.permission_id);
-                
+            if let Some(permission_vec) = grantee_permissions.borrow_mut().get_mut(&permission.granted_to) {
+                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
                 // If set is empty, remove the grantee entry
-                if permission_set.is_empty() {
+                if permission_vec.is_empty() {
                     grantee_permissions.borrow_mut().remove(&permission.granted_to);
                 }
             }
@@ -517,10 +519,10 @@ pub mod permissions_handlers {
             let mut table = grantee_permissions.borrow_mut();
             // Remove from old grantee's set
             table.remove(&old_grantee);
-            // Add to new grantee's set
+            // Add to new grantee's set 
             table.entry(new_grantee)
-                .or_insert_with(HashSet::new)
-                .insert(permission_id);
+                .or_insert_with(Vec::new)
+                .push(permission_id.clone());
         });
     
         // 7. Return updated permission
@@ -672,7 +674,11 @@ pub mod permissions_handlers {
             };
     
             // Update modifiable fields
-            existing_permission.permission_types = upsert_request.permission_types.into_iter().collect();
+            existing_permission.permission_types = upsert_request.permission_types
+                                                        .into_iter()
+                                                        .collect::<HashSet<_>>()
+                                                        .into_iter()
+                                                        .collect();
             existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
             existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
             existing_permission.note = upsert_request.note.unwrap_or_default();
@@ -723,15 +729,15 @@ pub mod permissions_handlers {
             SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
                 permissions_by_resource.borrow_mut()
                     .entry(resource_id)
-                    .or_insert_with(HashSet::new)
-                    .insert(permission_id.clone());
+                    .or_insert_with(Vec::new)
+                    .push(permission_id.clone());
             });
     
             SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
                 grantee_permissions.borrow_mut()
                     .entry(grantee_id)
-                    .or_insert_with(HashSet::new)
-                    .insert(permission_id.clone());
+                    .or_insert_with(Vec::new)
+                    .push(permission_id.clone());
             });
     
             SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
@@ -797,11 +803,10 @@ pub mod permissions_handlers {
     
         // Remove from SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE
         SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            if let Some(permission_set) = permissions_by_resource.borrow_mut().get_mut(&permission.resource_id) {
-                permission_set.remove(&delete_request.permission_id);
-                
+            if let Some(permission_vec) = permissions_by_resource.borrow_mut().get_mut(&permission.resource_id) {
+                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
                 // If set is empty, remove the resource entry
-                if permission_set.is_empty() {
+                if permission_vec.is_empty() {
                     permissions_by_resource.borrow_mut().remove(&permission.resource_id);
                 }
             }
@@ -809,11 +814,10 @@ pub mod permissions_handlers {
     
         // Remove from SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE
         SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            if let Some(permission_set) = grantee_permissions.borrow_mut().get_mut(&permission.granted_to) {
-                permission_set.remove(&delete_request.permission_id);
-                
+            if let Some(permission_vec) = grantee_permissions.borrow_mut().get_mut(&permission.granted_to) {
+                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
                 // If set is empty, remove the grantee entry
-                if permission_set.is_empty() {
+                if permission_vec.is_empty() {
                     grantee_permissions.borrow_mut().remove(&permission.granted_to);
                 }
             }
@@ -1030,8 +1034,8 @@ pub mod permissions_handlers {
             table.remove(&old_grantee);
             // Add to new grantee's set
             table.entry(new_grantee)
-                .or_insert_with(HashSet::new)
-                .insert(permission_id);
+                .or_insert_with(Vec::new)
+                .push(permission_id.clone());
         });
     
         // 7. Return updated permission

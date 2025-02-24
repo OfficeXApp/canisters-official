@@ -1,9 +1,10 @@
 // src/core/state/disks/types.rs
 use serde::{Serialize, Deserialize};
+use serde_diff::{SerdeDiff};
 use std::fmt;
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DiskID(pub String);
 impl fmt::Display for DiskID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -11,7 +12,7 @@ impl fmt::Display for DiskID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Disk {
     pub id: DiskID,
     pub name: String,
@@ -23,7 +24,7 @@ pub struct Disk {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, SerdeDiff)]
 pub enum DiskTypeEnum {
     BrowserCache,
     LocalSSD,
@@ -44,7 +45,7 @@ impl fmt::Display for DiskTypeEnum {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct AwsBucketAuth {
     pub(crate) endpoint: String,
     pub(crate) access_key: String,

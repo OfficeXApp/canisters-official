@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use serde_diff::{Diff, SerdeDiff};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct PublicKeyICP(pub String);
 
 impl fmt::Display for PublicKeyICP {
@@ -14,7 +14,7 @@ impl fmt::Display for PublicKeyICP {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct ICPPrincipalString(pub PublicKeyICP);
 
 impl fmt::Display for ICPPrincipalString {
@@ -33,7 +33,7 @@ impl fmt::Display for UserID {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum IDPrefix {
     File,
     Folder,
@@ -78,7 +78,7 @@ impl IDPrefix {
 
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum AuthPrefixEnum {
     ApiKey,
     Signature,
