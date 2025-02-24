@@ -47,7 +47,8 @@ pub enum IDPrefix {
     DirectoryPermission,
     PlaceholderPermissionGrantee,
     DirectoryActionOutcome,
-    PlaceholderTeamInviteeID
+    PlaceholderTeamInviteeID,
+    ShareTrackID
 }
 
 impl IDPrefix {
@@ -67,6 +68,7 @@ impl IDPrefix {
             IDPrefix::User => "UserID_",
             IDPrefix::DirectoryActionOutcome => "DirectoryActionOutcomeID_",
             IDPrefix::PlaceholderTeamInviteeID => "PlaceholderTeamInviteeID_",
+            IDPrefix::ShareTrackID => "ShareTrackID_",
         }
     }
 }

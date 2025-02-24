@@ -35,7 +35,6 @@ pub enum DirectoryPermissionType {
     Upload,   // Can upload/edit/delete own files
     Edit,     // Can upload/edit peer files but not delete
     Delete,   // Can delete peer files
-    Webhooks, // Can set webhooks
     Invite,   // Can invite other users with same or lower permissions
     Manage,   // Can do anything on this directory resource
 }
@@ -58,15 +57,6 @@ impl fmt::Display for PermissionGranteeID {
     }
 }
 pub const PUBLIC_GRANTEE_ID: &str = "PUBLIC";
-
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PermissionGranteeType {
-    Public,
-    User,
-    Team,
-    PlaceholderDirectoryPermissionGrantee,
-}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,7 +92,6 @@ pub enum SystemPermissionType {
     Delete,
     View,
     Invite,
-    Manage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -113,6 +102,7 @@ pub enum SystemTableEnum {
     Teams,
     ApiKeys,
     Permissions,
+    Webhooks
 }
 
 impl fmt::Display for SystemTableEnum {
@@ -124,6 +114,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Teams => write!(f, "teams"),
             SystemTableEnum::ApiKeys => write!(f, "api_keys"),
             SystemTableEnum::Permissions => write!(f, "permissions"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
+            SystemTableEnum::Webhooks => write!(f, "webhooks"),
         }
     }
 }

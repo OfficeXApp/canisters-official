@@ -93,3 +93,31 @@ pub struct PathTranslationResponse {
     pub folder: Option<FolderMetadata>,
     pub file: Option<FileMetadata>,
 }
+
+
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ShareTrackID(pub String);
+
+impl fmt::Display for ShareTrackID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ShareTrackResourceID {
+    File(FileUUID),
+    Folder(FolderUUID)
+}
+
+impl fmt::Display for ShareTrackResourceID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ShareTrackResourceID::File(id) => write!(f, "{}", id),
+            ShareTrackResourceID::Folder(id) => write!(f, "{}", id),
+        }
+    }
+}

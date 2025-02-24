@@ -341,11 +341,15 @@ pub enum DirectoryActionPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GetFilePayload {}
+pub struct GetFilePayload {
+    pub share_track_hash: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GetFolderPayload {}
+pub struct GetFolderPayload {
+    pub share_track_hash: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

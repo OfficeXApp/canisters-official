@@ -47,12 +47,16 @@ pub mod webhooks_handlers {
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
         if !is_owner {
             let resource_id = SystemResourceID::Record(webhook_id.to_string());
-            let permissions = check_system_permissions(
+            let record_permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Webhooks),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             
-            if !permissions.contains(&SystemPermissionType::View) {
+            if !record_permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) {
                 return create_auth_error_response();
             }
         }
@@ -297,7 +301,7 @@ pub mod webhooks_handlers {
                     };
 
                     if !is_owner {
-                        let resource_id = SystemResourceID::Record(webhook_id.to_string());
+                        let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);
                         let permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -348,12 +352,16 @@ pub mod webhooks_handlers {
 
                     if !is_owner {
                         let resource_id = SystemResourceID::Record(webhook_id.to_string());
-                        let permissions = check_system_permissions(
+                        let record_permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
+                        let table_permissions = check_system_permissions(
+                            SystemResourceID::Table(SystemTableEnum::Webhooks),
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
                         
-                        if !permissions.contains(&SystemPermissionType::Update) {
+                        if !record_permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
                             return create_auth_error_response();
                         }
                     }
@@ -417,12 +425,16 @@ pub mod webhooks_handlers {
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
         if !is_owner {
             let resource_id = SystemResourceID::Record(webhook_id.to_string());
-            let permissions = check_system_permissions(
+            let record_permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Webhooks),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             
-            if !permissions.contains(&SystemPermissionType::Update) {
+            if !record_permissions.contains(&SystemPermissionType::Delete) && !table_permissions.contains(&SystemPermissionType::Delete) {
                 return create_auth_error_response();
             }
         }

@@ -1,7 +1,7 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}}};
-use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::state::state::{DRIVE_ID, URL_ENDPOINT}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
 #[derive(Debug, Clone)]
@@ -14,7 +14,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
     match action.action {
         DirectoryActionEnum::GetFile => {
             match action.payload {
-                DirectoryActionPayload::GetFile(_) => {
+                DirectoryActionPayload::GetFile(payload) => {
                     // First try to get file_id either from resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -43,7 +43,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     // Get webhooks for both event types and combine them
                     let webhooks_file = get_active_file_webhooks(&file_id, WebhookEventLabel::FileViewed);
                     let webhooks_subfile = get_active_file_webhooks(&file_id, WebhookEventLabel::SubfileViewed);
-
+                  
                     // Get file metadata to use for permission check
                     let file = match get_file_by_id(file_id.clone()) {
                         Ok(f) => f,
@@ -89,6 +89,51 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         Some("Subfile viewed".to_string()),
                     );
 
+
+                    let mut share_tracking_origin_id = ShareTrackID(String::new());
+                    let mut share_tracking_origin_user = UserID(String::new());
+                    if let Some(share_track_hash) = &payload.share_track_hash {
+                        if !share_track_hash.is_empty() {
+                            let share_track_hash = ShareTrackHash(share_track_hash.clone());
+                            let (share_track_id, from_user_id) = decode_share_track_hash(&share_track_hash);
+                            share_tracking_origin_id = share_track_id;
+                            share_tracking_origin_user = from_user_id;
+                        }
+                    }
+                    // generate_share_track_hash 
+                    let (my_share_track_id, my_share_track_hash) = generate_share_track_hash(&user_id);
+                    let webhooks_file_shared = get_active_file_webhooks(&file_id, WebhookEventLabel::FileShared);
+                    let webhooks_subfile_shared = get_active_file_webhooks(&file_id, WebhookEventLabel::SubfileShared);
+                    let share_tracking_payload = ShareTrackingWebhookData {
+                        id: my_share_track_id.clone(),
+                        hash: my_share_track_hash.clone(),
+                        origin_id: Some(share_tracking_origin_id),
+                        origin_hash: Some(ShareTrackHash(payload.share_track_hash.unwrap_or(String::new()))),
+                        from_user: Some(share_tracking_origin_user.clone()),
+                        to_user: Some(user_id.clone()),
+                        resource_id: ShareTrackResourceID::File(file_id.clone()),
+                        resource_name: file.name.clone(),
+                        drive_id: DRIVE_ID.with(|id| id.clone()),
+                        timestamp_ms: ic_cdk::api::time() / 1_000_000,
+                        url_endpoint: URL_ENDPOINT.with(|url| url.clone()),
+                        metadata: None
+                    };
+                    fire_directory_webhook(
+                        WebhookEventLabel::FileShared,
+                        webhooks_file_shared,
+                        None,
+                        Some(DirectoryWebhookData::ShareTracking(share_tracking_payload.clone())),
+                        Some("Tracked file share".to_string()),
+                    );
+                    fire_directory_webhook(
+                        WebhookEventLabel::SubfileShared,
+                        webhooks_subfile_shared,
+                        None,
+                        Some(DirectoryWebhookData::ShareTracking(share_tracking_payload)),
+                        Some("Tracked subfile share".to_string()),
+                    );
+                    
+
                     let get_file_response = GetFileResponse {
                         file,
                         permissions: your_permissions,
@@ -106,7 +151,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
         DirectoryActionEnum::GetFolder => {
             match action.payload {
-                DirectoryActionPayload::GetFolder(_) => {
+                DirectoryActionPayload::GetFolder(payload) => {
                     // Get folder_id from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -166,9 +211,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     });    
                     
                     let get_folder_response = GetFolderResponse {
-                        folder,
+                        folder: folder.clone(),
                         permissions: your_permissions,
-                        requester_id: user_id,
+                        requester_id: user_id.clone(),
                     };
 
                     fire_directory_webhook(
@@ -184,6 +229,50 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         Some(before_snap_folder.clone()),
                         Some(before_snap_folder),
                         Some("Subfolder viewed".to_string()),
+                    );
+
+
+                    let mut share_tracking_origin_id = ShareTrackID(String::new());
+                    let mut share_tracking_origin_user = UserID(String::new());
+                    if let Some(share_track_hash) = &payload.share_track_hash {
+                        if !share_track_hash.is_empty() {
+                            let share_track_hash = ShareTrackHash(share_track_hash.clone());
+                            let (share_track_id, from_user_id) = decode_share_track_hash(&share_track_hash);
+                            share_tracking_origin_id = share_track_id;
+                            share_tracking_origin_user = from_user_id;
+                        }
+                    }
+                    // generate_share_track_hash 
+                    let (my_share_track_id, my_share_track_hash) = generate_share_track_hash(&user_id);
+                    let webhooks_folder_shared = get_active_folder_webhooks(&folder_id, WebhookEventLabel::FolderShared);
+                    let webhooks_subfolder_shared = get_active_folder_webhooks(&folder_id, WebhookEventLabel::SubfolderShared);
+                    let share_tracking_payload = ShareTrackingWebhookData {
+                        id: my_share_track_id.clone(),
+                        hash: my_share_track_hash.clone(),
+                        origin_id: Some(share_tracking_origin_id),
+                        origin_hash: Some(ShareTrackHash(payload.share_track_hash.unwrap_or(String::new()))),
+                        from_user: Some(share_tracking_origin_user.clone()),
+                        to_user: Some(user_id.clone()),
+                        resource_id: ShareTrackResourceID::Folder(folder_id.clone()),
+                        resource_name: folder.name.clone(),
+                        drive_id: DRIVE_ID.with(|id| id.clone()),
+                        timestamp_ms: ic_cdk::api::time() / 1_000_000,
+                        url_endpoint: URL_ENDPOINT.with(|url| url.clone()),
+                        metadata: None
+                    };
+                    fire_directory_webhook(
+                        WebhookEventLabel::FolderShared,
+                        webhooks_folder_shared,
+                        None,
+                        Some(DirectoryWebhookData::ShareTracking(share_tracking_payload.clone())),
+                        Some("Tracked folder share".to_string()),
+                    );
+                    fire_directory_webhook(
+                        WebhookEventLabel::SubfolderShared,
+                        webhooks_subfolder_shared,
+                        None,
+                        Some(DirectoryWebhookData::ShareTracking(share_tracking_payload)),
+                        Some("Tracked subfolder share".to_string()),
                     );
         
                     Ok(DirectoryActionResult::GetFolder(get_folder_response))

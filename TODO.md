@@ -9,7 +9,7 @@
 
 ## Urgent Next
 
-- [🔵] Consider whether to implement share tracking & graphing
+- [ ] Implement recent files/folders queue
 - [ ] Implement replayability
 - [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [🪵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
@@ -17,6 +17,7 @@
 ## Near Future
 
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
+- [ ] Consider how to obfuscate ancestor folders in url route (eg. show folder_uuid in the url instead of full path)
 - [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
@@ -80,3 +81,5 @@
 - [x] Add deferred join team links, with ICP signature as proof of user icp principal
 - [x] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
 - [x] Connect relevant REST routes with relevant `webhook` firing
+- [x] Implement external share tracking via webhooks
+- [x] Implement directory webhook permissions `DirectoryPermissionType::Webhooks`

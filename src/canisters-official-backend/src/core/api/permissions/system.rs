@@ -184,5 +184,5 @@ pub fn check_permissions_table_access(
         SystemResourceID::Table(SystemTableEnum::Permissions),
         PermissionGranteeID::User(user_id.clone())
     );
-    permissions.contains(&required_permission) || permissions.contains(&SystemPermissionType::Manage)
+    permissions.contains(&required_permission)
 }
