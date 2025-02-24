@@ -2,11 +2,11 @@
 
 ## ToDo
 
-- [🔵] Add decorator `SerdeDiff` to all types in state
-- [🔵] Add `snap_prestate` and `snap_poststate` to all routes
-- [ ] Implement the checksum validation on diffs
-- [ ] Implement the apply-diff on state (enables rollback) and its state representations
-- [ ] Implement undo/redo/rollback in routes
+- [x] Add decorator `SerdeDiff` to all types in state
+- [x] Add `snap_prestate` and `snap_poststate` to all routes
+- [🔵] Implement the checksum validation on diffs
+- [ ] Implement the apply-diff on state (enables rollback) and its state representations. on-canister 100 diffs natively
+- [ ] Implement undo/redo/rollback in routes (should we also snap state and generate those diffs?)
 
 ## About
 

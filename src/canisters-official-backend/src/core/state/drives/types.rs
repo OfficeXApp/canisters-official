@@ -42,6 +42,12 @@ impl fmt::Display for DriveStateDiffString {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum DriveStateDiffImplementationType {
+    RustIcpCanister,
+    JavascriptRuntime,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DriveStateDiffChecksum(pub String);

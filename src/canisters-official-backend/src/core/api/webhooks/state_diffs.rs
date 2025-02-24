@@ -1,6 +1,6 @@
 // src/core/api/webhooks/diffs.rs
 
-use crate::{core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_DIFF_CHECKSUM, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffString}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::StateDiffWebhookData};
+use crate::{core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_DIFF_CHECKSUM, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffString}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::StateDiffWebhookData};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -55,6 +55,7 @@ pub fn fire_state_diff_webhooks(
                 after: Some(WebhookResourceData::StateDiffs(StateDiffWebhookData {
                     id: drive_state_diff_id.clone(),
                     timestamp_ms: timestamp_ms.clone(),
+                    implementation: DriveStateDiffImplementationType::RustIcpCanister,
                     diff: diff.clone(),
                     notes: notes.clone(),
                     drive_id: DRIVE_ID.with(|id| id.clone()),
