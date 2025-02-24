@@ -3,20 +3,21 @@
 ## Sprints Roadmap
 
 1. Implement permissions (including deterministics principal ids)
-2. Implement webhooks
-3. Implement replayability
-4. Cleanup & testing backend
-5. Refactor frontend & implement torrents for browser-cache/local-ssd sharing
+2. Implement replayability
+3. Cleanup & testing backend
+4. Refactor frontend & implement torrents for browser-cache/local-ssd sharing
 
 ## Urgent Next
 
-- [🔵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
-- [🔵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
+- [🔵] Consider whether to implement share tracking & graphing
+- [ ] Implement replayability
+- [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
+- [🪵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
 
 ## Near Future
 
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
-- [ ] Connect relevant REST routes with relevant `webhook` firing
+- [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
 - [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
@@ -78,3 +79,4 @@
 - [x] Include permissions in the response body of GET system records and `directory/action`
 - [x] Add deferred join team links, with ICP signature as proof of user icp principal
 - [x] Handle cosmic teams in permissions, remember TeamID is `TeamID_123--DriveID_abc`. Might need a route to allow 3rd party checks if member is in team
+- [x] Connect relevant REST routes with relevant `webhook` firing

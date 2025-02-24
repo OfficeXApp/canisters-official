@@ -1,8 +1,12 @@
 // src/rest/webhooks/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::core::state::webhooks::types::WebhookEventLabel;
+use crate::core::state::directory::types::{FileMetadata, FolderMetadata};
+use crate::core::state::team_invites::types::Team_Invite;
+use crate::core::state::teams::types::Team;
+use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
+use crate::rest::directory::types::DirectoryResourcePermissionFE;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum WebhookResponse<'a, T = ()> {
@@ -84,6 +88,7 @@ pub struct CreateWebhookRequestBody {
     pub event: String,
     pub signature: Option<String>,
     pub description: Option<String>,
+    pub filters: Option<String> // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
 }
 
 
@@ -97,7 +102,9 @@ pub struct UpdateWebhookRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub active: Option<bool>,
+    pub active: Option<bool>,   
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filters: Option<String>
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -126,3 +133,67 @@ pub type CreateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
 pub type UpdateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
 pub type DeleteWebhookResponse<'a> = WebhookResponse<'a, DeletedWebhookData>;
 pub type ErrorResponse<'a> = WebhookResponse<'a, ()>;
+
+
+/**
+ * 
+ * Webhook Event Payloads
+ * 
+ */
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookEventPayload {
+    pub event: String,
+    pub timestamp_ms: u64,
+    pub nonce: u64,
+    pub webhook_id: WebhookID,
+    pub webhook_alt_index: WebhookAltIndexID,
+    pub payload: WebhookEventData,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookEventData {
+    pub before: Option<WebhookResourceData>,
+    pub after: Option<WebhookResourceData>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum WebhookResourceData {
+    #[serde(rename = "team_invite")]
+    TeamInvite(TeamInviteWebhookData),
+    #[serde(rename = "file")]
+    File(FileWebhookData),
+    #[serde(rename = "folder")]
+    Folder(FolderWebhookData),
+    #[serde(rename = "subfile")]
+    Subfile(FileWebhookData),
+    #[serde(rename = "subfolder")]
+    Subfolder(FolderWebhookData),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamInviteWebhookData {
+    pub team: Option<Team>,
+    pub team_invite: Option<Team_Invite>,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DirectoryWebhookData {
+    File(FileWebhookData),
+    Folder(FolderWebhookData),
+    Subfile(FileWebhookData),
+    Subfolder(FolderWebhookData),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileWebhookData {
+    pub file: Option<FileMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderWebhookData {
+    pub folder: Option<FolderMetadata>,
+}

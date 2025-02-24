@@ -293,6 +293,7 @@ pub mod webhooks_handlers {
                         signature: create_req.signature.unwrap_or_default(),
                         description: create_req.description.unwrap_or_default(),
                         active: true,
+                        filters: create_req.filters.unwrap_or_default(),
                     };
 
                     if !is_owner {
@@ -369,6 +370,9 @@ pub mod webhooks_handlers {
                     }
                     if let Some(active) = update_req.active {
                         webhook.active = active;
+                    }
+                    if let Some(filters) = update_req.filters {
+                        webhook.filters = filters;
                     }
 
                     // Update webhook in ID table

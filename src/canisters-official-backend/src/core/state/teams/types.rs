@@ -9,7 +9,7 @@ use crate::core::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TeamID(pub String);
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Team {
     pub id: TeamID,
     pub name: String,
