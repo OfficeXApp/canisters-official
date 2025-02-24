@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -126,7 +126,7 @@ pub mod teams_handlers {
                     if !permissions.contains(&SystemPermissionType::Create) && !is_owner {
                         return create_auth_error_response();
                     }
-
+                    let prestate = snapshot_prestate();
                     
                     let drive_id_suffix = format!("__DriveID_{}", ic_cdk::api::id().to_text());
                     let team_id = TeamID(generate_unique_id(IDPrefix::Team, &drive_id_suffix));
@@ -161,6 +161,14 @@ pub mod teams_handlers {
                         list.borrow_mut().push(team_id.clone());
                     });
 
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Create Team {}", 
+                            requester_api_key.user_id,
+                            team_id.0
+                        ).to_string()
+                    ));
+
                     create_response(
                         StatusCode::OK,
                         CreateTeamResponse::ok(&new_team).encode()
@@ -178,6 +186,7 @@ pub mod teams_handlers {
                         return create_auth_error_response();
                     }
 
+                    let prestate = snapshot_prestate();
 
                     let team_id = TeamID(update_req.id);
                     
@@ -210,6 +219,14 @@ pub mod teams_handlers {
                     TEAMS_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(team.id.clone(), team.clone());
                     });
+
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Update Team {}", 
+                            requester_api_key.user_id,
+                            team_id.0
+                        ).to_string()
+                    ));
 
                     create_response(
                         StatusCode::OK,
@@ -244,7 +261,8 @@ pub mod teams_handlers {
             return create_auth_error_response();
         }
 
-    
+        let prestate = snapshot_prestate();
+        
         // Parse request body
         let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteTeamRequestBody>(body) {
@@ -306,6 +324,15 @@ pub mod teams_handlers {
                 list.remove(pos);
             }
         });
+
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete Team {}", 
+                requester_api_key.user_id,
+                team_id.0
+            ).to_string()
+        ));
     
         create_response(
             StatusCode::OK,

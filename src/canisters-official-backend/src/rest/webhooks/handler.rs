@@ -6,7 +6,7 @@ pub mod webhooks_handlers {
 
     use crate::{
         core::{
-            api::{permissions::system::check_system_permissions, uuid::generate_unique_id},
+            api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id},
             state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
             }}, types::IDPrefix
@@ -22,15 +22,6 @@ pub mod webhooks_handlers {
     use matchit::Params;
     use serde::Deserialize;
 
-    // pub fn get_webhook_handler(_req: &HttpRequest, params: &Params) -> HttpResponse<'static> {
-    //     // authenticate_request from auth.rs
-    //     // only owner can set webhooks
-    //     // fetch webhook from state WEBHOOKS_BY_ID_HASHTABLE
-    //     // return 404 if not found
-    //     // return 200 if found with webhook data
-    // }
-
-    
     pub async fn get_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -78,14 +69,6 @@ pub mod webhooks_handlers {
             ),
         }
     }
-
-    // pub fn list_webhooks_handler(request: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-    //     // authenticate_request from auth.rs
-    //     // only owner can set webhooks
-    //     // fetch batch of 25 webhooks from state WEBHOOKS_BY_TIME_LIST + WEBHOOKS_BY_ID_HASHTABLE
-    //     // set cursors for pagination (cursor_up u32 and cursor_down u32) representing index in vector
-    //     // return 200 with list of webhooks
-    // }
 
     pub async fn list_webhooks_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
@@ -260,16 +243,6 @@ pub mod webhooks_handlers {
         )
     }
 
-
-    // pub fn upsert_webhook_handler(req: &HttpRequest, _params: &Params) -> HttpResponse<'static> {
-    //     // authenticate_request from auth.rs
-    //     // only owner can set webhooks
-    //     // check __type if create or edit
-    //     // if create, generate unique id, create webhook, insert into state WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_TIME_LIST
-    //     // if edit, upsert changed fields into webhook, update state WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_ALT_INDEX_HASHTABLE (if alt_index changed, delete old entry and insert new entry)
-    //     // return 200 with up to date webhook data
-    // }
-
     pub async fn upsert_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -312,6 +285,8 @@ pub mod webhooks_handlers {
                         }
                     }
 
+                    let prestate = snapshot_prestate();
+
                     // Update state tables – now storing a Vec<WebhookID> without removing others
                     WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
                         let mut store = store.borrow_mut();
@@ -331,6 +306,14 @@ pub mod webhooks_handlers {
                     WEBHOOKS_BY_TIME_LIST.with(|store| {
                         store.borrow_mut().push(webhook_id.clone());
                     });
+
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Create Webhook {}", 
+                            requester_api_key.user_id,
+                            webhook_id.clone()
+                        ).to_string()
+                    ));
 
                     create_response(
                         StatusCode::OK,
@@ -366,6 +349,8 @@ pub mod webhooks_handlers {
                         }
                     }
 
+                    let prestate = snapshot_prestate();
+
                     // Update fields - ignoring alt_index and event as they cannot be modified
                     if let Some(url) = update_req.url {
                         webhook.url = url;
@@ -387,6 +372,14 @@ pub mod webhooks_handlers {
                     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
                     });
+
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Update Webhook {}", 
+                            requester_api_key.user_id,
+                            webhook_id.clone()
+                        ).to_string()
+                    ));
 
                     create_response(
                         StatusCode::OK,
@@ -439,6 +432,7 @@ pub mod webhooks_handlers {
             }
         }
 
+        let prestate = snapshot_prestate();
 
         // Get webhook to delete
         let webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {
@@ -467,6 +461,15 @@ pub mod webhooks_handlers {
         WEBHOOKS_BY_TIME_LIST.with(|store| {
             store.borrow_mut().retain(|id| id != &webhook_id);
         });
+
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete Webhook {}", 
+                requester_api_key.user_id,
+                webhook_id.clone()
+            ).to_string()
+        ));
 
         create_response(
             StatusCode::OK,

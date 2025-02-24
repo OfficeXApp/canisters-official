@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -255,6 +255,8 @@ pub mod permissions_handlers {
         };
     
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
+
+        let prestate = snapshot_prestate();
     
         // 7. Handle update vs create based on ID presence
         if let Some(id) = upsert_request.id {
@@ -285,6 +287,14 @@ pub mod permissions_handlers {
             DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
                 permissions.borrow_mut().insert(id.clone(), existing_permission.clone());
             });
+
+            snapshot_poststate(prestate, Some(
+                format!(
+                    "{}: Update Directory Permission {}", 
+                    requester_api_key.user_id,
+                    id.0
+                ).to_string()
+            ));
     
             create_response(
                 StatusCode::OK,
@@ -332,8 +342,16 @@ pub mod permissions_handlers {
             });
     
             DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-                permissions_by_time.borrow_mut().push(permission_id);
+                permissions_by_time.borrow_mut().push(permission_id.clone());
             });
+
+            snapshot_poststate(prestate, Some(
+                format!(
+                    "{}: Create Directory Permission {}", 
+                    requester_api_key.user_id,
+                    permission_id.clone()
+                ).to_string()
+            ));
     
             create_response(
                 StatusCode::OK,
@@ -399,6 +417,8 @@ pub mod permissions_handlers {
                 ErrorResponse::err(403, "Not authorized to delete this permission".to_string()).encode()
             );
         }
+
+        let prestate = snapshot_prestate();
     
         // 5. Delete the permission from all indices
         // Remove from DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE
@@ -436,6 +456,14 @@ pub mod permissions_handlers {
             }
         });
     
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete Directory Permission {}", 
+                requester_api_key.user_id,
+                delete_request.permission_id.0
+            ).to_string()
+        ));
+
         // 6. Return success response
         create_response(
             StatusCode::OK,
@@ -446,6 +474,11 @@ pub mod permissions_handlers {
     }
 
     pub async fn redeem_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+        
         // 1. Parse request body
         let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemPermissionRequest>(body) {
@@ -503,6 +536,8 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid user ID format".to_string()).encode()
             ),
         };
+
+        let prestate = snapshot_prestate();
     
         // 6. Update permission and state
         let old_grantee = permission.granted_to.clone();
@@ -524,6 +559,14 @@ pub mod permissions_handlers {
                 .or_insert_with(Vec::new)
                 .push(permission_id.clone());
         });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Redeem Directory Permission {}", 
+                requester_api_key.user_id,
+                permission_id.0
+            ).to_string()
+        ));
     
         // 7. Return updated permission
         create_response(
@@ -672,6 +715,8 @@ pub mod permissions_handlers {
                     ErrorResponse::err(404, "Permission not found".to_string()).encode()
                 ),
             };
+
+            let prestate = snapshot_prestate();
     
             // Update modifiable fields
             existing_permission.permission_types = upsert_request.permission_types
@@ -688,6 +733,14 @@ pub mod permissions_handlers {
             SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
                 permissions.borrow_mut().insert(id.clone(), existing_permission.clone());
             });
+
+            snapshot_poststate(prestate, Some(
+                format!(
+                    "{}: Update System Permission {}", 
+                    requester_api_key.user_id,
+                    id.0
+                ).to_string()
+            ));
     
             create_response(
                 StatusCode::OK,
@@ -704,6 +757,8 @@ pub mod permissions_handlers {
                     ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
                 );
             }
+
+            let prestate = snapshot_prestate();
 
             let permission_id = SystemPermissionID(generate_unique_id(IDPrefix::SystemPermission, ""));
             
@@ -741,8 +796,16 @@ pub mod permissions_handlers {
             });
     
             SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-                permissions_by_time.borrow_mut().push(permission_id);
+                permissions_by_time.borrow_mut().push(permission_id.clone());
             });
+
+            snapshot_poststate(prestate, Some(
+                format!(
+                    "{}: Create System Permission {}", 
+                    requester_api_key.user_id,
+                    permission_id.clone()
+                ).to_string()
+            ));
     
             create_response(
                 StatusCode::OK,
@@ -795,6 +858,8 @@ pub mod permissions_handlers {
             );
         }
     
+        let prestate = snapshot_prestate();
+
         // 5. Delete the permission from all indices
         // Remove from SYSTEM_PERMISSIONS_BY_ID_HASHTABLE
         SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
@@ -830,6 +895,14 @@ pub mod permissions_handlers {
                 list.remove(pos);
             }
         });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete System Permission {}", 
+                requester_api_key.user_id,
+                delete_request.permission_id.0
+            ).to_string()
+        ));
     
         // 6. Return success response
         create_response(
@@ -959,6 +1032,11 @@ pub mod permissions_handlers {
     }
 
     pub async fn redeem_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+        
         // 1. Parse request body
         let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemSystemPermissionRequest>(body) {
@@ -1016,6 +1094,8 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid user ID format".to_string()).encode()
             ),
         };
+
+        let prestate = snapshot_prestate();
     
         // 6. Update permission and state
         let old_grantee = permission.granted_to.clone();
@@ -1037,6 +1117,14 @@ pub mod permissions_handlers {
                 .or_insert_with(Vec::new)
                 .push(permission_id.clone());
         });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Redeem System Permission {}", 
+                requester_api_key.user_id,
+                permission_id.0
+            ).to_string()
+        ));
     
         // 7. Return updated permission
         create_response(

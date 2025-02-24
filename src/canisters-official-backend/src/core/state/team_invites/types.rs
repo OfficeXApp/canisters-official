@@ -9,6 +9,12 @@ use crate::core::types::{UserID};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct TeamInviteID(pub String);
+impl fmt::Display for TeamInviteID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Team_Invite {

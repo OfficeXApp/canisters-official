@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
@@ -283,6 +283,8 @@ pub mod drives_handlers {
                         }
                     }
 
+                    let prestate = snapshot_prestate();
+
                     // Update fields
                     if let Some(name) = update_req.name {
                         drive.name = name;
@@ -302,8 +304,16 @@ pub mod drives_handlers {
                     }
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(drive_id, drive.clone());
+                        store.borrow_mut().insert(drive_id.clone(), drive.clone());
                     });
+
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Update Drive {}", 
+                            requester_api_key.user_id,
+                            drive_id.clone()
+                        ).to_string()
+                    ));
 
                     create_response(
                         StatusCode::OK,
@@ -322,6 +332,7 @@ pub mod drives_handlers {
                             return create_auth_error_response();
                         }
                     }
+                    let prestate = snapshot_prestate();
                     // Create new drive
                     let drive_id = DriveID(generate_unique_id(IDPrefix::Drive, ""));
                     let drive = Drive {
@@ -343,8 +354,16 @@ pub mod drives_handlers {
                     });
 
                     DRIVES_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(drive_id);
+                        store.borrow_mut().push(drive_id.clone());
                     });
+
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Create Drive {}", 
+                            requester_api_key.user_id,
+                            drive_id.clone()
+                        ).to_string()
+                    ));
 
                     create_response(
                         StatusCode::OK,
@@ -392,6 +411,7 @@ pub mod drives_handlers {
                 return create_auth_error_response();
             }
         }
+        let prestate = snapshot_prestate();
 
         // Remove from hashtable
         DRIVES_BY_ID_HASHTABLE.with(|store| {
@@ -402,6 +422,15 @@ pub mod drives_handlers {
         DRIVES_BY_TIME_LIST.with(|store| {
             store.borrow_mut().retain(|id| id != &drive_id);
         });
+
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete Drive {}", 
+                requester_api_key.user_id,
+                drive_id.clone()
+            ).to_string()
+        ));
 
         create_response(
             StatusCode::OK,

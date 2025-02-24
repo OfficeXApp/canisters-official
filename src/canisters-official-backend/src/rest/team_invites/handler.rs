@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
         
     };
     use crate::core::state::team_invites::{
@@ -210,6 +210,8 @@ pub mod team_invites_handlers {
                         return create_auth_error_response();
                     }
 
+                    let prestate = snapshot_prestate();
+
                     // Create new invite
                     let invite_id = TeamInviteID(generate_unique_id(IDPrefix::Invite, ""));
                     let now = ic_cdk::api::time();
@@ -285,6 +287,14 @@ pub mod team_invites_handlers {
                         );
                     }
 
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Create Team Invite {}", 
+                            requester_api_key.user_id,
+                            invite_id.0
+                        ).to_string()
+                    ));
+
                     create_response(
                         StatusCode::OK,
                         CreateTeam_InviteResponse::ok(&new_invite).encode()
@@ -330,6 +340,8 @@ pub mod team_invites_handlers {
                     if !is_authorized && !table_permissions.contains(&SystemPermissionType::Update) {
                         return create_auth_error_response();
                     }
+
+                    let prestate = snapshot_prestate();
 
                     // If role is being updated, we need to update the team's invite lists
                     if let Some(new_role) = update_req.role {
@@ -413,6 +425,14 @@ pub mod team_invites_handlers {
                         );
                     }
 
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Update Team Invite {}", 
+                            requester_api_key.user_id,
+                            invite_id.0
+                        ).to_string()
+                    ));
+
                     create_response(
                         StatusCode::OK,
                         UpdateTeam_InviteResponse::ok(&invite).encode()
@@ -461,6 +481,8 @@ pub mod team_invites_handlers {
                 false
             }
         });
+
+        let prestate = snapshot_prestate();
         
         let table_permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Teams),
@@ -504,6 +526,14 @@ pub mod team_invites_handlers {
                 }
             }
         });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete Team Invite {}", 
+                requester_api_key.user_id,
+                delete_req.id.0
+            ).to_string()
+        ));
         
         create_response(
             StatusCode::OK,
@@ -515,6 +545,11 @@ pub mod team_invites_handlers {
     }
 
     pub async fn redeem_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+        
         // Parse request body
         let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemTeamInviteRequest>(body) {
@@ -553,6 +588,8 @@ pub mod team_invites_handlers {
                 ErrorResponse::err(400, "Invite has already been redeemed".to_string()).encode()
             );
         }
+
+        let prestate = snapshot_prestate();
     
         // Parse and validate the user_id
         let new_invitee = TeamInviteeID::User(UserID(redeem_request.user_id));
@@ -573,8 +610,16 @@ pub mod team_invites_handlers {
             let mut store = store.borrow_mut();
             store.entry(invite.invitee_id.clone())
                 .or_insert_with(Vec::new)
-                .push(invite_id);
+                .push(invite_id.clone());
         });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Redeem Team Invite {}", 
+                requester_api_key.user_id,
+                invite_id.clone()
+            ).to_string()
+        ));
     
         create_response(
             StatusCode::OK,

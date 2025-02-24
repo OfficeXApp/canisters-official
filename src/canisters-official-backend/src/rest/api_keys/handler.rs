@@ -48,18 +48,18 @@ pub mod apikeys_handlers {
             }
         }
 
-        let prestate = snapshot_prestate();
+        // let prestate = snapshot_prestate();
 
-
+ 
         match api_key {
             Some(key) => {
-                snapshot_poststate(prestate, Some(
-                    format!(
-                        "{}: Get API Key {}", 
-                        requester_api_key.user_id,
-                        requested_id
-                    ).to_string())
-                );
+                // snapshot_poststate(prestate, Some(
+                //     format!(
+                //         "{}: Get API Key {}", 
+                //         requester_api_key.user_id,
+                //         requested_id
+                //     ).to_string())
+                // );
                 create_response(
                     StatusCode::OK,
                     GetApiKeyResponse::ok(&key).encode()
@@ -104,7 +104,7 @@ pub mod apikeys_handlers {
             }
         }
 
-        let prestate = snapshot_prestate();
+        // let prestate = snapshot_prestate();
 
         // Get the list of API key IDs for the user
         let api_key_ids = USERS_APIKEYS_HASHTABLE.with(|store| {
@@ -122,9 +122,9 @@ pub mod apikeys_handlers {
                         .collect()
                 });
 
-                snapshot_poststate(prestate, Some(
-                    format!("{}: List API Keys", requester_api_key.user_id).to_string())
-                );
+                // snapshot_poststate(prestate, Some(
+                //     format!("{}: List API Keys", requester_api_key.user_id).to_string())
+                // );
 
                 create_response(
                     StatusCode::OK,
