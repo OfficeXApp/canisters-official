@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::core::{state::{directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_DIFF_CHECKSUM, GLOBAL_UUID_NONCE}, types::{DriveStateDiffChecksum, DriveStateDiffString}}}, types::{IDPrefix, UserID}};
+use crate::core::{state::{directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_TIMESTAMP_NS, DRIVE_STATE_DIFF_CHECKSUM, GLOBAL_UUID_NONCE}, types::{DriveStateDiffChecksum, DriveStateDiffString}}}, types::{IDPrefix, UserID}};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
@@ -126,5 +126,9 @@ pub fn update_checksum_for_state_diff(diff_string: DriveStateDiffString) {
     // Update checksum
     DRIVE_STATE_DIFF_CHECKSUM.with(|checksum| {
         *checksum.borrow_mut() = new_checksum;
+    });
+    // Update timestamp_ns
+    DRIVE_STATE_TIMESTAMP_NS.with(|timestamp| {
+        timestamp.set(timestamp_ns);
     });
 }

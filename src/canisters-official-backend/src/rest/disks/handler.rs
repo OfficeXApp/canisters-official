@@ -23,7 +23,7 @@ pub mod disks_handlers {
         };
 
         // Only owner can access disk.private_note
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Get disk ID from params
         let disk_id = DiskID(params.get("disk_id").unwrap().to_string());
@@ -71,7 +71,7 @@ pub mod disks_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Check table permissions if not owner
         if !is_owner {
@@ -241,7 +241,7 @@ pub mod disks_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -415,7 +415,7 @@ pub mod disks_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         let prestate = snapshot_prestate();
 

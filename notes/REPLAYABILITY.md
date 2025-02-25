@@ -4,9 +4,9 @@
 
 - [x] Add decorator `SerdeDiff` to all types in state
 - [x] Add `snap_prestate` and `snap_poststate` to all routes
+- [x] Implement the apply-diff on state (enables rollback) and its state representations. on-canister 100 diffs natively
 - [🔵] Implement the checksum validation on diffs
-- [ ] Implement the apply-diff on state (enables rollback) and its state representations. on-canister 100 diffs natively
-- [ ] Implement undo/redo/rollback in routes (should we also snap state and generate those diffs?)
+- [x] Implement undo/redo/rollback in routes (should we also snap state and generate those diffs?)
 
 ## About
 
@@ -34,16 +34,20 @@ However note that users can just disable audit logs altogether and the cost beco
 
 To enable replayability, simply add a webhook for event type `drive.state_diffs` and you'll receive the diff payload to your webhook.
 
-However we also want to store the last 100 diffs in-canister as well, just for coverage of the most common undo/redo actions.
+We choost not to even store the last 100 diffs in-canister for common undo/redo actions, as we can mimic such functionality using frontend buffer patterns (eg. restore trash & optimistic offline state queue). This would also save us a lot of gas from generating those diffs.
 
-The REST routes would look like:
+The REST route would look like:
 
 ```txt
 POST /drive/replay
 body = {
-  command: 'undo' | 'redo' | 'rollback',
-  payload: Option<StateDiffWebhookData>
+  diffs: Vec<DriveStateDiffRecord>,
+  notes: String,
 }
 
-returns 'timestamp_ms' // this would be timestamp_ms of the current drive state
+response = {
+  timestamp_ms,
+  diffs_applied: number,
+  checkpoint_diff_id,
+}
 ```

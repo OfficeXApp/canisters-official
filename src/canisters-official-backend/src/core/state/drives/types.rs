@@ -64,3 +64,16 @@ impl fmt::Display for DriveRESTUrlEndpoint {
         write!(f, "{}", self.0)
     }
 }
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DriveStateDiffRecord {
+    pub id: DriveStateDiffID,
+    pub timestamp_ns: u64,
+    pub implementation: DriveStateDiffImplementationType,
+    pub diff: DriveStateDiffString,
+    pub notes: Option<String>,
+    pub drive_id: DriveID,
+    pub url_endpoint: DriveRESTUrlEndpoint,
+    pub checksum: DriveStateDiffChecksum,
+}

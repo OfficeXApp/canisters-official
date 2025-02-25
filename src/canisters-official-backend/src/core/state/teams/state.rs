@@ -68,7 +68,7 @@ pub mod state {
         
         if let Some(team) = team_opt {
             // If it's our own drive's team, use local validation
-            if team.url_endpoint == URL_ENDPOINT.with(|url| url.clone()) {
+            if team.url_endpoint == URL_ENDPOINT.with(|url| url.borrow().clone()) {
                 return is_user_on_local_team(user_id, &team);
             }
     

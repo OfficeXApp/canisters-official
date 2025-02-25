@@ -25,7 +25,7 @@ pub mod teams_handlers {
         let id = TeamID(params.get("team_id").unwrap().to_string());
 
         // Only owner can read teams for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         // Check table-level permissions for Teams table
         let permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Teams),
@@ -64,7 +64,7 @@ pub mod teams_handlers {
         };
 
         // Only owner can list teams for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         // Check table-level permissions for Teams table
         let permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Teams),
@@ -108,7 +108,7 @@ pub mod teams_handlers {
         };
 
         // Only owner can create/update teams for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -146,7 +146,7 @@ pub mod teams_handlers {
                         drive_id: DRIVE_ID.with(|id| id.clone()),
                         url_endpoint: DriveRESTUrlEndpoint(
                             create_req.url_endpoint
-                                .unwrap_or(URL_ENDPOINT.with(|url| url.0.clone()))
+                                .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
                                 .trim_end_matches('/')
                                 .to_string()
                         ),
@@ -250,7 +250,7 @@ pub mod teams_handlers {
         };
     
         // Only owner can delete teams for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         // Check table-level permissions for Teams table
         let permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Teams),

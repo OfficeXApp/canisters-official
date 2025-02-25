@@ -50,7 +50,7 @@ pub mod state {
         let default_key = ApiKey {
             id: ApiKeyID("mock_api_key_id".to_string()),
             value: ApiKeyValue("mock_api_key_value".to_string()),
-            user_id: OWNER_ID.with(|owner_id| owner_id.clone()),
+            user_id: OWNER_ID.with(|id| id.borrow().clone()),
             name: "Default Admin Key".to_string(),
             created_at: ic_cdk::api::time(),
             expires_at: -1,

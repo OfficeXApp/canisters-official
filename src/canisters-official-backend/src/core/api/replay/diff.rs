@@ -1,19 +1,21 @@
 // src/core/api/replay/diff.rs
 
+use serde_diff::Apply;
 use serde_diff::{Diff, SerdeDiff};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-
-use crate::{core::{api::webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}}, disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, Team_Invite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use crate::{core::{api::{uuid::update_checksum_for_state_diff, webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}}, disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, Team_Invite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
 
 // Define a type to represent the entire state
-#[derive(SerdeDiff, Serialize, Deserialize, Clone)]
+#[derive(SerdeDiff, Serialize, Deserialize, Clone,)]
 pub struct EntireState {
     // About
     DRIVE_ID: DriveID,
     CANISTER_ID: PublicKeyICP,
     OWNER_ID: UserID,
     URL_ENDPOINT: DriveRESTUrlEndpoint,
+    DRIVE_STATE_TIMESTAMP_NS: u64,
     // Api Keys
     APIKEYS_BY_VALUE_HASHTABLE: HashMap<ApiKeyValue, ApiKeyID>,
     APIKEYS_BY_ID_HASHTABLE: HashMap<ApiKeyID, ApiKey>,
@@ -60,8 +62,9 @@ fn snapshot_entire_state() -> EntireState {
         // About
         DRIVE_ID: DRIVE_ID.with(|drive_id| drive_id.clone()),
         CANISTER_ID: CANISTER_ID.with(|canister_id| canister_id.clone()),
-        OWNER_ID: OWNER_ID.with(|owner_id| owner_id.clone()),
-        URL_ENDPOINT: URL_ENDPOINT.with(|url| url.clone()),
+        OWNER_ID: OWNER_ID.with(|owner_id| owner_id.borrow().clone()),
+        URL_ENDPOINT: URL_ENDPOINT.with(|url| url.borrow().clone()),
+        DRIVE_STATE_TIMESTAMP_NS: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()),
         // Api Keys
         APIKEYS_BY_VALUE_HASHTABLE: APIKEYS_BY_VALUE_HASHTABLE.with(|store| store.borrow().clone()),
         APIKEYS_BY_ID_HASHTABLE: APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
@@ -146,4 +149,149 @@ pub fn diff_entire_state(before_snapshot: EntireState, after_snapshot: EntireSta
     // Convert diff to base64 for transmission if needed
     let diff_base64 = base64::encode(&diff_data);
     Some(DriveStateDiffString(diff_base64))
+}
+
+pub fn apply_state_diff(diff_data: &DriveStateDiffString) -> Result<(), String> {
+    // Decode the base64 encoded diff
+    let diff_bytes = match BASE64.decode(&diff_data.0) {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(format!("Failed to decode base64 diff: {}", e)),
+    };
+
+    // Take a snapshot of the current state
+    let mut current_state = snapshot_entire_state();
+
+    // Create a deserializer for the MessagePack data
+    let mut deserializer = rmp_serde::Deserializer::new(&diff_bytes[..]);
+
+    // Apply the diff to the current state
+    if let Err(e) = Apply::apply(&mut deserializer, &mut current_state) {
+        return Err(format!("Failed to apply diff: {}", e));
+    }
+
+    // Update the global state with the new state
+    apply_entire_state(current_state);
+
+    // Update timestamp and checksum
+    update_checksum_for_state_diff(diff_data.clone());
+
+    Ok(())
+}
+
+pub fn apply_entire_state(state: EntireState) {
+    // About (ignores any state that doesnt actually change)
+    OWNER_ID.with(|store| {
+        *store.borrow_mut() = state.OWNER_ID;
+    });
+    URL_ENDPOINT.with(|store| {
+        *store.borrow_mut() = state.URL_ENDPOINT;
+    });
+    
+    // Api Keys
+    APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.APIKEYS_BY_VALUE_HASHTABLE;
+    });
+    APIKEYS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.APIKEYS_BY_ID_HASHTABLE;
+    });
+    USERS_APIKEYS_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.USERS_APIKEYS_HASHTABLE;
+    });
+    
+    // Contacts
+    CONTACTS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.CONTACTS_BY_ID_HASHTABLE;
+    });
+    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE;
+    });
+    CONTACTS_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.CONTACTS_BY_TIME_LIST;
+    });
+    
+    // Directory
+    folder_uuid_to_metadata.with_mut(|map| {
+        *map = state.folder_uuid_to_metadata;
+    });
+    file_uuid_to_metadata.with_mut(|map| {
+        *map = state.file_uuid_to_metadata;
+    });
+    full_folder_path_to_uuid.with_mut(|map| {
+        *map = state.full_folder_path_to_uuid;
+    });
+    full_file_path_to_uuid.with_mut(|map| {
+        *map = state.full_file_path_to_uuid;
+    });
+    
+    // Disks
+    DISKS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.DISKS_BY_ID_HASHTABLE;
+    });
+    DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.DISKS_BY_EXTERNAL_ID_HASHTABLE;
+    });
+    DISKS_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.DISKS_BY_TIME_LIST;
+    });
+    
+    // Drives
+    DRIVES_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.DRIVES_BY_ID_HASHTABLE;
+    });
+    DRIVES_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.DRIVES_BY_TIME_LIST;
+    });
+    
+    // Permissions
+    DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE;
+    });
+    DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE;
+    });
+    DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE;
+    });
+    DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_TIME_LIST;
+    });
+    SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_ID_HASHTABLE;
+    });
+    SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE;
+    });
+    SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE;
+    });
+    SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_TIME_LIST;
+    });
+    
+    // Team Invites
+    INVITES_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.INVITES_BY_ID_HASHTABLE;
+    });
+    USERS_INVITES_LIST_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.USERS_INVITES_LIST_HASHTABLE;
+    });
+    
+    // Teams
+    TEAMS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.TEAMS_BY_ID_HASHTABLE;
+    });
+    TEAMS_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.TEAMS_BY_TIME_LIST;
+    });
+    
+    // Webhooks
+    WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.WEBHOOKS_BY_ALT_INDEX_HASHTABLE;
+    });
+    WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.WEBHOOKS_BY_ID_HASHTABLE;
+    });
+    WEBHOOKS_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.WEBHOOKS_BY_TIME_LIST;
+    });
 }

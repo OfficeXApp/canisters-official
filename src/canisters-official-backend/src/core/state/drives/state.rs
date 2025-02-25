@@ -18,13 +18,15 @@ pub mod state {
     use crate::core::types::{UserID,PublicKeyICP};
 
     thread_local! {
-        // self info
+        // self info - immutable
         pub(crate) static DRIVE_ID: DriveID = DriveID(generate_unique_id(IDPrefix::Drive, ""));
         pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
-        pub(crate) static OWNER_ID: UserID = UserID("Anonymous_Owner".to_string());
-        pub(crate) static URL_ENDPOINT: DriveRESTUrlEndpoint = DriveRESTUrlEndpoint(format!("https://{}.icp0.io", CANISTER_ID.with(|id| id.0.clone())));
         pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
         pub(crate) static DRIVE_STATE_DIFF_CHECKSUM: RefCell<DriveStateDiffChecksum> = RefCell::new(DriveStateDiffChecksum("".to_string()));
+        pub(crate) static DRIVE_STATE_TIMESTAMP_NS: Cell<u64> = Cell::new(ic_cdk::api::time());
+        // self info - mutable
+        pub(crate) static OWNER_ID: RefCell<UserID> = RefCell::new(UserID("Anonymous_Owner".to_string()));
+        pub(crate) static URL_ENDPOINT: RefCell<DriveRESTUrlEndpoint> = RefCell::new(DriveRESTUrlEndpoint(format!("https://{}.icp0.io", CANISTER_ID.with(|id| id.0.clone()))));
         // hashtables
         pub(crate) static DRIVES_BY_ID_HASHTABLE: RefCell<HashMap<DriveID, Drive>> = RefCell::new(HashMap::new());
         pub(crate) static DRIVES_BY_TIME_LIST: RefCell<Vec<DriveID>> = RefCell::new(Vec::new());
@@ -37,7 +39,7 @@ pub mod state {
             public_note: Some("".to_string()),
             private_note: Some("".to_string()),
             icp_principal: ICPPrincipalString(PublicKeyICP(ic_cdk::api::id().to_text())),
-            url_endpoint: URL_ENDPOINT.with(|url| url.clone()),
+            url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
         };
 
         DRIVES_BY_ID_HASHTABLE.with(|map| {

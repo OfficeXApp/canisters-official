@@ -26,7 +26,7 @@ pub mod contacts_handlers {
         };
 
         // Only owner can access contact.private_note
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Get contact ID from params
         let contact_id = UserID(params.get("contact_id").unwrap().to_string());
@@ -84,7 +84,7 @@ pub mod contacts_handlers {
         };
     
         // Only owner can access webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         
         // Check table-level permissions if not owner
         if !is_owner {
@@ -267,7 +267,7 @@ pub mod contacts_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -416,7 +416,7 @@ pub mod contacts_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }

@@ -23,7 +23,7 @@ pub mod directorys_handlers {
             None => return create_auth_error_response(),
         };
     
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -50,7 +50,7 @@ pub mod directorys_handlers {
         };
     
         // Only owner can access directories
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -82,7 +82,7 @@ pub mod directorys_handlers {
             None => return create_auth_error_response(),
         };
     
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -220,7 +220,7 @@ pub mod directorys_handlers {
         // };
 
         // // 2. Check if user is owner, if that's your policy
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         // if !is_owner {
         //     return create_auth_error_response();
         // }
@@ -291,7 +291,7 @@ pub mod directorys_handlers {
         // };
 
         // // 2. Owner check, if you want
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         // if !is_owner {
         //     return create_auth_error_response();
         // }

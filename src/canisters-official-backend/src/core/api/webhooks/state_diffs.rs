@@ -1,6 +1,6 @@
 // src/core/api/webhooks/diffs.rs
 
-use crate::{core::{api::uuid::generate_unique_id, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_DIFF_CHECKSUM, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffString}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::StateDiffWebhookData};
+use crate::{core::{api::uuid::{generate_unique_id, update_checksum_for_state_diff}, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_DIFF_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffRecord, DriveStateDiffString}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::DriveStateDiffWebhookData};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -38,29 +38,32 @@ pub fn fire_state_diff_webhooks(
     notes: Option<String>
 ) {
     let drive_state_diff_id = DriveStateDiffID(generate_unique_id(IDPrefix::DriveStateDiffID, ""));
-    let timestamp_ms = ic_cdk::api::time() / 1_000_000;
-
+    let timestamp_ns = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
     let webhooks = get_active_state_diff_webhooks();
+
+    update_checksum_for_state_diff(diff.clone());
 
     for webhook in webhooks {
         let payload = WebhookEventPayload {
             event: WebhookEventLabel::DriveStateDiffs.to_string(),
-            timestamp_ms: timestamp_ms.clone(),
-            nonce: timestamp_ms,
+            timestamp_ms: timestamp_ns / 1_000_000, // Convert to milliseconds
+            nonce: timestamp_ns.clone(),
             notes: notes.clone(),
             webhook_id: webhook.id.clone(),
             webhook_alt_index: webhook.alt_index.clone(),
             payload: WebhookEventData {
                 before: None,
-                after: Some(WebhookResourceData::StateDiffs(StateDiffWebhookData {
-                    id: drive_state_diff_id.clone(),
-                    timestamp_ms: timestamp_ms.clone(),
-                    implementation: DriveStateDiffImplementationType::RustIcpCanister,
-                    diff: diff.clone(),
-                    notes: notes.clone(),
-                    drive_id: DRIVE_ID.with(|id| id.clone()),
-                    url_endpoint: URL_ENDPOINT.with(|url| url.clone()),
-                    checksum: DRIVE_STATE_DIFF_CHECKSUM.with(|checksum| checksum.borrow().clone()),
+                after: Some(WebhookResourceData::StateDiffs(DriveStateDiffWebhookData{ 
+                    data: DriveStateDiffRecord {
+                        id: drive_state_diff_id.clone(),
+                        timestamp_ns: timestamp_ns,
+                        implementation: DriveStateDiffImplementationType::RustIcpCanister,
+                        diff: diff.clone(),
+                        notes: notes.clone(),
+                        drive_id: DRIVE_ID.with(|id| id.clone()),
+                        url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
+                        checksum: DRIVE_STATE_DIFF_CHECKSUM.with(|checksum| checksum.borrow().clone()),
+                    }
                 }))
             },
         };

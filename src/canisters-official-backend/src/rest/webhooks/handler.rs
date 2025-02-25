@@ -35,7 +35,7 @@ pub mod webhooks_handlers {
 
 
         // Only owner can access webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             let resource_id = SystemResourceID::Record(webhook_id.to_string());
             let record_permissions = check_system_permissions(
@@ -78,7 +78,7 @@ pub mod webhooks_handlers {
         };
     
         // Only owner can access webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Teams); // Using Teams since webhooks are team-related
             let permissions = check_system_permissions(
@@ -251,7 +251,7 @@ pub mod webhooks_handlers {
         };
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -415,7 +415,7 @@ pub mod webhooks_handlers {
         let webhook_id = WebhookID(delete_request.id.clone());
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             let resource_id = SystemResourceID::Record(webhook_id.to_string());
             let record_permissions = check_system_permissions(

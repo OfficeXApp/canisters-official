@@ -2,14 +2,12 @@
 
 ## Sprints Roadmap
 
-1. Implement permissions (including deterministics principal ids)
-2. Implement replayability
 3. Cleanup & testing backend
 4. Refactor frontend & implement torrents for browser-cache/local-ssd sharing
 
 ## Urgent Next
 
-- [🔵] Implement replayability (with in-canister undo/redo for 100 operations)
+- [🔵] Ability to change drive owners
 - [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [🪵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
 
@@ -83,3 +81,4 @@
 - [x] Connect relevant REST routes with relevant `webhook` firing
 - [x] Implement external share tracking via webhooks
 - [x] Implement directory webhook permissions `DirectoryPermissionType::Webhooks`
+- [x] Implement replayability
