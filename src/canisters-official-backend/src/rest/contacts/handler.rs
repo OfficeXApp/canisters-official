@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -26,7 +26,7 @@ pub mod contacts_handlers {
         };
 
         // Only owner can access contact.private_note
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Get contact ID from params
         let contact_id = UserID(params.get("contact_id").unwrap().to_string());
@@ -49,11 +49,21 @@ pub mod contacts_handlers {
             }
         }
 
+        // let prestate = snapshot_prestate();
+
         match contact {
             Some(mut contact) => {
                 if !is_owner {
                     contact.private_note = None;
                 }
+                // snapshot_poststate(prestate, Some(
+                //     format!(
+                //         "{}: Get Contact {}", 
+                //         requester_api_key.user_id,
+                //         contact.id
+                //     ).to_string())
+                // );
+                
                 create_response(
                     StatusCode::OK,
                     GetContactResponse::ok(&contact).encode()
@@ -74,7 +84,7 @@ pub mod contacts_handlers {
         };
     
         // Only owner can access webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         
         // Check table-level permissions if not owner
         if !is_owner {
@@ -88,6 +98,8 @@ pub mod contacts_handlers {
                 return create_auth_error_response();
             }
         }
+
+        // let prestate = snapshot_prestate();
     
         // Parse request body
         let body = request.body();
@@ -234,6 +246,13 @@ pub mod contacts_handlers {
             cursor_up,
             cursor_down,
         };
+
+        // snapshot_poststate(prestate, Some(
+        //     format!(
+        //         "{}: List Contacts", 
+        //         requester_api_key.user_id
+        //     ).to_string())   
+        // );
     
         create_response(
             StatusCode::OK,
@@ -248,7 +267,7 @@ pub mod contacts_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -284,6 +303,8 @@ pub mod contacts_handlers {
                         }
                     }
 
+                    let prestate = snapshot_prestate();
+
                     // Update fields - ignoring alt_index and event as they cannot be modified
                     if let Some(nickname) = update_req.nickname {
                         contact.nickname = nickname;
@@ -311,6 +332,14 @@ pub mod contacts_handlers {
                         store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
                     });
 
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Update Contact {}", 
+                            requester_api_key.user_id,
+                            contact.id
+                        ).to_string())
+                    );
+
                     create_response(
                         StatusCode::OK,
                         UpdateContactResponse::ok(&contact).encode()
@@ -330,6 +359,8 @@ pub mod contacts_handlers {
                             return create_auth_error_response();
                         }
                     }
+
+                    let prestate = snapshot_prestate();
 
                     // Create new webhook
                     let contact_id = UserID(generate_unique_id(IDPrefix::User, ""));
@@ -355,6 +386,14 @@ pub mod contacts_handlers {
                         store.borrow_mut().push(contact_id.clone());
                     });
 
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Create Contact {}", 
+                            requester_api_key.user_id,
+                            contact.id
+                        ).to_string())
+                    );
+
                     create_response(
                         StatusCode::OK,
                         CreateContactResponse::ok(&contact).encode()
@@ -377,10 +416,12 @@ pub mod contacts_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
+
+        let prestate = snapshot_prestate();
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -435,6 +476,14 @@ pub mod contacts_handlers {
                 });
             }
         });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete Contact {}", 
+                requester_api_key.user_id,
+                contact_id
+            ).to_string())
+        );
 
         create_response(
             StatusCode::OK,

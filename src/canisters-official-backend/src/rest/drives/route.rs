@@ -7,7 +7,8 @@ pub const DRIVES_GET_PATH: &str = "/drives/get/{drive_id}";
 pub const DRIVES_LIST_PATH: &str = "/drives/list";
 pub const DRIVES_UPSERT_PATH: &str = "/drives/upsert";
 pub const DRIVES_DELETE_PATH: &str = "/drives/delete";
-pub const DRIVES_SNAPSHOT_PATH: &str = "/drives/snapshot";
+pub const DRIVES_SNAPSHOT_PATH: &str = "/drives/snapshot"; 
+pub const DRIVES_REPLAY_PATH: &str = "/drives/replay"; 
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -37,6 +38,11 @@ pub fn init_routes() {
             "GET",
             DRIVES_SNAPSHOT_PATH,
             |req, params| Box::pin(crate::rest::drives::handler::drives_handlers::snapshot_drive_handler(req, params)),
+        ),
+        (
+            "POST",
+            DRIVES_REPLAY_PATH,
+            |req, params| Box::pin(crate::rest::drives::handler::drives_handlers::replay_drive_handler(req, params)),
         )
     ];
 

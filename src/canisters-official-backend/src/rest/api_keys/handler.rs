@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -29,7 +29,7 @@ pub mod apikeys_handlers {
             store.borrow().get(&requested_id).cloned()
         });
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         let is_own_key = match &api_key {
             Some(key) => requester_api_key.user_id == key.user_id,
             None => false
@@ -48,11 +48,23 @@ pub mod apikeys_handlers {
             }
         }
 
+        // let prestate = snapshot_prestate();
+
+ 
         match api_key {
-            Some(key) => create_response(
-                StatusCode::OK,
-                GetApiKeyResponse::ok(&key).encode()
-            ),
+            Some(key) => {
+                // snapshot_poststate(prestate, Some(
+                //     format!(
+                //         "{}: Get API Key {}", 
+                //         requester_api_key.user_id,
+                //         requested_id
+                //     ).to_string())
+                // );
+                create_response(
+                    StatusCode::OK,
+                    GetApiKeyResponse::ok(&key).encode()
+                )
+            },
             None => create_response(
                 StatusCode::NOT_FOUND,
                 ErrorResponse::err(404, "API key not found".to_string()).encode()
@@ -77,7 +89,7 @@ pub mod apikeys_handlers {
         // 1. The requester's API key must belong to the owner
         // 2. Or the requester must be requesting their own API keys
         // 3. Or the requester must have View permission on the API keys table
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         let is_own_keys = requester_api_key.user_id == requested_user_id;
 
         if !is_owner && !is_own_keys {
@@ -91,6 +103,8 @@ pub mod apikeys_handlers {
                 return create_auth_error_response();
             }
         }
+
+        // let prestate = snapshot_prestate();
 
         // Get the list of API key IDs for the user
         let api_key_ids = USERS_APIKEYS_HASHTABLE.with(|store| {
@@ -107,6 +121,10 @@ pub mod apikeys_handlers {
                         .map(|key| ApiKeyHidden::from(key.clone()))
                         .collect()
                 });
+
+                // snapshot_poststate(prestate, Some(
+                //     format!("{}: List API Keys", requester_api_key.user_id).to_string())
+                // );
 
                 create_response(
                     StatusCode::OK,
@@ -135,7 +153,7 @@ pub mod apikeys_handlers {
                 UpsertApiKeyRequestBody::Create(create_req) => {
             
                     // Determine what user_id to use for the new key
-                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
                     
                     // Check system permission to create if not owner
                     if !is_owner {
@@ -149,6 +167,8 @@ pub mod apikeys_handlers {
                             return create_auth_error_response();
                         }
                     }
+
+                    let prestate = snapshot_prestate();
 
                     // If owner and user_id provided in request, use that. Otherwise use requester's user_id
                     let key_user_id = if is_owner && create_req.user_id.is_some() {
@@ -188,6 +208,14 @@ pub mod apikeys_handlers {
                             .push(new_api_key.id.clone());
                     });
             
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Create API Key {}", 
+                            requester_api_key.user_id,
+                            new_api_key.id
+                        ).to_string())
+                    );
+
                     create_response(
                         StatusCode::OK,
                         CreateApiKeyResponse::ok(&new_api_key).encode()
@@ -205,7 +233,7 @@ pub mod apikeys_handlers {
                         ),
                     };
 
-                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
                     let is_own_key = requester_api_key.user_id == api_key.user_id;
 
                     // Check system permission to update if not owner or own key
@@ -220,6 +248,8 @@ pub mod apikeys_handlers {
                             return create_auth_error_response();
                         }
                     }
+
+                    let prestate = snapshot_prestate();
             
                     // Update only the fields that were provided
                     if let Some(name) = update_req.name {
@@ -243,10 +273,19 @@ pub mod apikeys_handlers {
                     });
 
                     match updated_api_key {
-                        Some(key) => create_response(
-                            StatusCode::OK,
-                            UpdateApiKeyResponse::ok(&key).encode()
-                        ),
+                        Some(key) => {
+                            snapshot_poststate(prestate, Some(
+                                format!(
+                                    "{}: Update API Key {}", 
+                                    requester_api_key.user_id,
+                                    api_key.id
+                                ).to_string())
+                            );
+                            create_response(
+                                StatusCode::OK,
+                                UpdateApiKeyResponse::ok(&key).encode()
+                            )
+                        },
                         None => create_response(
                             StatusCode::NOT_FOUND,
                             ErrorResponse::err(404, "API key not found".to_string()).encode()
@@ -305,7 +344,7 @@ pub mod apikeys_handlers {
         // 1. The requester's API key must belong to the owner
         // 2. Or the requester must be deleting their own API key
         // 3. Or the requester must have Delete permission on this API key record
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         let is_own_key = requester_api_key.user_id == api_key.user_id;
 
         if !is_owner && !is_own_key {
@@ -319,6 +358,8 @@ pub mod apikeys_handlers {
                 return create_auth_error_response();
             }
         }
+
+        let prestate = snapshot_prestate();
         
         // 1. Remove from APIKEYS_BY_VALUE_HASHTABLE
         APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
@@ -341,6 +382,15 @@ pub mod apikeys_handlers {
                 }
             }
         });
+
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete API Key {}", 
+                requester_api_key.user_id,
+                api_key.id
+            ).to_string())
+        );
 
         // Return success response
         create_response(

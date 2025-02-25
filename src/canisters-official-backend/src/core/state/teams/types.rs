@@ -5,11 +5,12 @@ use crate::core::{
     state::{drives::types::{DriveID, DriveRESTUrlEndpoint}, team_invites::types::TeamInviteID},
     types::UserID
 };
+use serde_diff::{SerdeDiff};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct TeamID(pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Team {
     pub id: TeamID,
     pub name: String,

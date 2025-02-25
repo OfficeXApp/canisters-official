@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
@@ -26,7 +26,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Get drive ID from params
         let drive_id = DriveID(params.get("drive_id").unwrap().to_string());
@@ -66,7 +66,6 @@ pub mod drives_handlers {
         }
     }
 
-
     pub async fn list_drives_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -75,7 +74,7 @@ pub mod drives_handlers {
         };
 
         // Only owner can access drives
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
@@ -241,7 +240,6 @@ pub mod drives_handlers {
         )
     }
 
-
     pub async fn upsert_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -249,7 +247,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -283,6 +281,8 @@ pub mod drives_handlers {
                         }
                     }
 
+                    let prestate = snapshot_prestate();
+
                     // Update fields
                     if let Some(name) = update_req.name {
                         drive.name = name;
@@ -302,8 +302,16 @@ pub mod drives_handlers {
                     }
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(drive_id, drive.clone());
+                        store.borrow_mut().insert(drive_id.clone(), drive.clone());
                     });
+
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Update Drive {}", 
+                            requester_api_key.user_id,
+                            drive_id.clone()
+                        ).to_string()
+                    ));
 
                     create_response(
                         StatusCode::OK,
@@ -322,6 +330,7 @@ pub mod drives_handlers {
                             return create_auth_error_response();
                         }
                     }
+                    let prestate = snapshot_prestate();
                     // Create new drive
                     let drive_id = DriveID(generate_unique_id(IDPrefix::Drive, ""));
                     let drive = Drive {
@@ -332,7 +341,7 @@ pub mod drives_handlers {
                         icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal.unwrap_or_default())),
                         url_endpoint: DriveRESTUrlEndpoint(
                             create_req.url_endpoint
-                                .unwrap_or(URL_ENDPOINT.with(|url| url.0.clone()))
+                                .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
                                 .trim_end_matches('/')
                                 .to_string()
                         ),
@@ -343,8 +352,16 @@ pub mod drives_handlers {
                     });
 
                     DRIVES_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(drive_id);
+                        store.borrow_mut().push(drive_id.clone());
                     });
+
+                    snapshot_poststate(prestate, Some(
+                        format!(
+                            "{}: Create Drive {}", 
+                            requester_api_key.user_id,
+                            drive_id.clone()
+                        ).to_string()
+                    ));
 
                     create_response(
                         StatusCode::OK,
@@ -367,7 +384,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -392,6 +409,7 @@ pub mod drives_handlers {
                 return create_auth_error_response();
             }
         }
+        let prestate = snapshot_prestate();
 
         // Remove from hashtable
         DRIVES_BY_ID_HASHTABLE.with(|store| {
@@ -402,6 +420,15 @@ pub mod drives_handlers {
         DRIVES_BY_TIME_LIST.with(|store| {
             store.borrow_mut().retain(|id| id != &drive_id);
         });
+
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Delete Drive {}", 
+                requester_api_key.user_id,
+                drive_id.clone()
+            ).to_string()
+        ));
 
         create_response(
             StatusCode::OK,
@@ -419,57 +446,109 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
     
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id);
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
         }
     
         // Collect all state data using serde_json::json! macro
-        let state = json!({
-            "GLOBAL_STATE": {
-                "api_keys": {
-                    "APIKEYS_BY_VALUE_HASHTABLE": APIKEYS_BY_VALUE_HASHTABLE.with(|h| h.borrow().clone()),
-                    "APIKEYS_BY_ID_HASHTABLE": APIKEYS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
-                    "USERS_APIKEYS_HASHTABLE": USERS_APIKEYS_HASHTABLE.with(|h| h.borrow().clone())
-                },
-                "contacts": {
-                    "CONTACTS_BY_ID_HASHTABLE": CONTACTS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
-                    "CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE": CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|h| h.borrow().clone()),
-                    "CONTACTS_BY_TIME_LIST": CONTACTS_BY_TIME_LIST.with(|l| l.borrow().clone())
-                },
-                "directory": {
-                    "folder_uuid_to_metadata": folder_uuid_to_metadata.with_mut(|m| m.clone()),
-                    "file_uuid_to_metadata": file_uuid_to_metadata.with_mut(|m| m.clone()),
-                    "full_folder_path_to_uuid": full_folder_path_to_uuid.with_mut(|m| m.clone()),
-                    "full_file_path_to_uuid": full_file_path_to_uuid.with_mut(|m| m.clone())
-                },
-                "disks": {
-                    "DISKS_BY_ID_HASHTABLE": DISKS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
-                    "DISKS_BY_EXTERNAL_ID_HASHTABLE": DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|h| h.borrow().clone()),
-                    "DISKS_BY_TIME_LIST": DISKS_BY_TIME_LIST.with(|l| l.borrow().clone())
-                },
-                "drives": {
-                    "DRIVES_BY_ID_HASHTABLE": DRIVES_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
-                    "DRIVES_BY_TIME_LIST": DRIVES_BY_TIME_LIST.with(|l| l.borrow().clone())
-                },
-                "invites": {
-                    "INVITES_BY_ID_HASHTABLE": INVITES_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
-                    "USERS_INVITES_LIST_HASHTABLE": USERS_INVITES_LIST_HASHTABLE.with(|h| h.borrow().clone())
-                },
-                "teams": {
-                    "TEAMS_BY_ID_HASHTABLE": TEAMS_BY_ID_HASHTABLE.with(|h| h.borrow().clone()),
-                    "TEAMS_BY_TIME_LIST": TEAMS_BY_TIME_LIST.with(|l| l.borrow().clone())
-                }
-            }
-        });
+        let prestate = snapshot_prestate();
     
         // Return the JSON response
-        match serde_json::to_vec(&state) {
+        match serde_json::to_vec(&prestate) {
             Ok(json) => create_response(StatusCode::OK, json),
             Err(_) => create_response(
                 StatusCode::INTERNAL_SERVER_ERROR, 
                 ErrorResponse::err(500, "Failed to serialize state".to_string()).encode()
             )
+        }
+    }
+
+    pub async fn replay_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        if !is_owner {
+            return create_auth_error_response();
+        }
+    
+        // Parse request body
+        let body: &[u8] = request.body();
+        let replay_request = match serde_json::from_slice::<ReplayDriveRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // Check if diffs are provided
+        if replay_request.diffs.is_empty() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "No diffs provided for replay".to_string()).encode()
+            );
+        }
+        
+        // Take a snapshot for audit/logging
+        let prestate = snapshot_prestate();
+        
+        // Apply diffs with validation using our safety function
+        match safely_apply_diffs(&replay_request.diffs) {
+            Ok((applied_count, last_diff_id)) => {
+                // Only log if we actually applied diffs
+                if applied_count > 0 {
+                    // Get the timestamp from the last applied diff
+                    let last_timestamp = replay_request.diffs.iter()
+                        .find(|d| Some(d.id.clone()) == last_diff_id)
+                        .map(|d| d.timestamp_ns)
+                        .unwrap_or_default();
+                    
+                    // Determine direction for logging
+                    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
+                    let direction_str = if replay_request.diffs[0].timestamp_ns < current_timestamp {
+                        "backward"
+                    } else {
+                        "forward"
+                    };
+                    
+                    // Log notes if provided
+                    let notes_str = format!(
+                        "{}: Replay {} diffs {} to timestamp {} - {}", 
+                        requester_api_key.user_id,
+                        applied_count,
+                        direction_str,
+                        last_timestamp,
+                        replay_request.notes.clone().unwrap_or_default()
+                    );
+                    
+                    snapshot_poststate(prestate, Some(notes_str));
+                }
+                
+                // Prepare response data
+                let response_data = ReplayDriveResponseData {
+                    timestamp_ns: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()),
+                    diffs_applied: applied_count,
+                    checkpoint_diff_id: last_diff_id,
+                    final_checksum: DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone()),
+                };
+                
+                create_response(
+                    StatusCode::OK,
+                    ReplayDriveResponse::ok(&response_data).encode()
+                )
+            },
+            Err(error_msg) => {
+                // Return error (rollback already happened in safely_apply_diffs)
+                create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, error_msg).encode()
+                )
+            }
         }
     }
 

@@ -54,7 +54,7 @@ pub mod state {
             OWNER_ID.with(|owner_id| {
                 ensure_disk_root_folder(
                     &disk.id,
-                    &owner_id.clone(),
+                    &owner_id.borrow().clone(),
                     &ic_cdk::api::id().to_text()
                 );
             });

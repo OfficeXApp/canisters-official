@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::core::{state::{directory::types::ShareTrackID, drives::state::state::GLOBAL_UUID_NONCE}, types::{IDPrefix, UserID}};
+use crate::core::{state::{directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_TIMESTAMP_NS, DRIVE_STATE_CHECKSUM, GLOBAL_UUID_NONCE}, types::{StateChecksum, DriveStateDiffString}}}, types::{IDPrefix, UserID}};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};

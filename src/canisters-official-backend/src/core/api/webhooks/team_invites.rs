@@ -1,7 +1,5 @@
 // src/core/api/webhooks/team_invites.rs
 
-// src/core/state/webhooks/handler.rs
-
 use crate::core::{
     state::webhooks::types::{Webhook, WebhookEventLabel, WebhookAltIndexID},
     state::teams::state::state::TEAMS_BY_ID_HASHTABLE,

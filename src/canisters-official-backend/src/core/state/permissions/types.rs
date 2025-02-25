@@ -2,6 +2,7 @@
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use std::collections::HashSet;
+use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     state::{
@@ -11,7 +12,7 @@ use crate::{core::{
     types::UserID,
 }, rest::directory::types::DirectoryResourceID};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DirectoryPermissionID(pub String);
 
 impl fmt::Display for DirectoryPermissionID {
@@ -20,7 +21,7 @@ impl fmt::Display for DirectoryPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct PlaceholderPermissionGranteeID(pub String);
 
 impl fmt::Display for PlaceholderPermissionGranteeID {
@@ -29,7 +30,7 @@ impl fmt::Display for PlaceholderPermissionGranteeID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum DirectoryPermissionType {
     View,
     Upload,   // Can upload/edit/delete own files
@@ -39,7 +40,7 @@ pub enum DirectoryPermissionType {
     Manage,   // Can do anything on this directory resource
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum PermissionGranteeID {
     Public,
     User(UserID),
@@ -59,14 +60,14 @@ impl fmt::Display for PermissionGranteeID {
 pub const PUBLIC_GRANTEE_ID: &str = "PUBLIC";
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct DirectoryPermission {
     pub id: DirectoryPermissionID,
     pub resource_id: DirectoryResourceID,
     pub resource_path: DriveFullFilePath,
     pub granted_to: PermissionGranteeID,
     pub granted_by: UserID,
-    pub permission_types: HashSet<DirectoryPermissionType>,
+    pub permission_types: Vec<DirectoryPermissionType>,
     pub begin_date_ms: i64,     // -1: not yet active, 0: immediate, >0: unix ms
     pub expiry_date_ms: i64,    // -1: never expires, 0: expired, >0: unix ms
     pub inheritable: bool,      // Whether permission applies to sub-resources
@@ -76,7 +77,7 @@ pub struct DirectoryPermission {
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct SystemPermissionID(pub String);
 
 impl fmt::Display for SystemPermissionID {
@@ -85,7 +86,7 @@ impl fmt::Display for SystemPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum SystemPermissionType {
     Create,
     Update,
@@ -94,7 +95,7 @@ pub enum SystemPermissionType {
     Invite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum SystemTableEnum {
     Drives,
     Disks,
@@ -119,7 +120,7 @@ impl fmt::Display for SystemTableEnum {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum SystemResourceID {
     Table(SystemTableEnum),
     Record(String), // Stores the full ID like "DiskID_123"
@@ -134,13 +135,13 @@ impl fmt::Display for SystemResourceID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct SystemPermission {
     pub id: SystemPermissionID,
     pub resource_id: SystemResourceID,
     pub granted_to: PermissionGranteeID,      // Reuse from directory permissions
     pub granted_by: UserID,
-    pub permission_types: HashSet<SystemPermissionType>,
+    pub permission_types: Vec<SystemPermissionType>,
     pub begin_date_ms: i64,     // -1: not yet active, 0: immediate, >0: unix ms
     pub expiry_date_ms: i64,    // -1: never expires, 0: expired, >0: unix ms
     pub note: String,

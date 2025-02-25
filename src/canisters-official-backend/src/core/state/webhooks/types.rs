@@ -1,10 +1,10 @@
 // src/core/state/webhooks/types.rs
 use std::fmt;
 use serde::{Serialize, Deserialize};
-
+use serde_diff::{SerdeDiff};
 use crate::core::{state::directory::types::{FileUUID, FolderUUID}, types::IDPrefix};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct WebhookID(pub String);
 impl fmt::Display for WebhookID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -13,7 +13,7 @@ impl fmt::Display for WebhookID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct WebhookAltIndexID(pub String);
 impl fmt::Display for WebhookAltIndexID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -25,6 +25,7 @@ impl WebhookAltIndexID {
     pub const FILE_CREATED: &'static str = "FILE_CREATED";
     pub const FOLDER_CREATED: &'static str = "FOLDER_CREATED";
     pub const RESTORE_TRASH: &'static str = "RESTORE_TRASH";
+    pub const STATE_DIFFS: &'static str = "STATE_DIFFS";
 
     // Helper method to create new instances
     pub fn new(id: String) -> Self {
@@ -43,11 +44,15 @@ impl WebhookAltIndexID {
     pub fn restore_trash_slug() -> Self {
         WebhookAltIndexID(Self::RESTORE_TRASH.to_string())
     }
+
+    pub fn state_diffs_slug() -> Self {
+        WebhookAltIndexID(Self::STATE_DIFFS.to_string())
+    }
 }
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Webhook {
     pub id: WebhookID,
     pub url: String,
@@ -61,7 +66,7 @@ pub struct Webhook {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SerdeDiff)]
 #[serde(rename_all = "snake_case")]
 pub enum WebhookEventLabel {
     #[serde(rename = "file.viewed")]
@@ -108,12 +113,10 @@ pub enum WebhookEventLabel {
     TeamInviteCreated,
     #[serde(rename = "team.invite.updated")]
     TeamInviteUpdated,
-    #[serde(rename = "drive.gas_low")]
-    DriveGasLow,
-    #[serde(rename = "drive.sync_completed")]
-    DriveSyncCompleted,
     #[serde(rename = "drive.restore_trash")]
     DriveRestoreTrash,
+    #[serde(rename = "drive.state_diffs")]
+    DriveStateDiffs,
 }
 
 impl std::str::FromStr for WebhookEventLabel {
@@ -143,9 +146,8 @@ impl std::str::FromStr for WebhookEventLabel {
             "subfolder.shared" => Ok(Self::SubfolderShared),
             "team.invite.created" => Ok(Self::TeamInviteCreated),
             "team.invite.updated" => Ok(Self::TeamInviteUpdated),
-            "drive.gas_low" => Ok(Self::DriveGasLow),
-            "drive.sync_completed" => Ok(Self::DriveSyncCompleted),
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
+            "drive.state_diffs" => Ok(Self::DriveStateDiffs),
             _ => Err(format!("Invalid webhook event: {}", s)),
         }
     }
@@ -183,9 +185,8 @@ impl ToString for WebhookEventLabel {
             Self::TeamInviteCreated => "team.invite.created",
             Self::TeamInviteUpdated => "team.invite.updated",
             // drive
-            Self::DriveGasLow => "drive.gas_low",
-            Self::DriveSyncCompleted => "drive.sync_completed",
             Self::DriveRestoreTrash => "drive.restore_trash",
+            Self::DriveStateDiffs => "drive.state_diffs",
         }.to_string()
     }
 }

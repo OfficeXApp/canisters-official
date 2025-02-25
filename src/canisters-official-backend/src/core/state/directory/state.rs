@@ -36,6 +36,10 @@ pub mod state {
         pub fn remove(&self, key: &FolderUUID) -> Option<FolderMetadata> {
             folder_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
         }
+
+        pub fn with<R>(&self, f: impl FnOnce(&HashMap<FolderUUID, FolderMetadata>) -> R) -> R {
+            folder_uuid_to_metadata_inner.with(|map| f(&map.borrow()))
+        }
     }
 
     impl FileMap {
@@ -57,6 +61,10 @@ pub mod state {
     
         pub fn remove(&self, key: &FileUUID) -> Option<FileMetadata> {
             file_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
+        }
+        
+        pub fn with<R>(&self, f: impl FnOnce(&HashMap<FileUUID, FileMetadata>) -> R) -> R {
+            file_uuid_to_metadata_inner.with(|map| f(&map.borrow()))
         }
     }
 
@@ -80,6 +88,10 @@ pub mod state {
         pub fn remove(&self, key: &DriveFullFilePath) -> Option<FolderUUID> {
             full_folder_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
         }
+
+        pub fn with<R>(&self, f: impl FnOnce(&HashMap<DriveFullFilePath, FolderUUID>) -> R) -> R {
+            full_folder_path_to_uuid_inner.with(|map| f(&map.borrow()))
+        }
     }
 
     impl FilePathMap {
@@ -101,6 +113,10 @@ pub mod state {
     
         pub fn remove(&self, key: &DriveFullFilePath) -> Option<FileUUID> {
             full_file_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
+        }
+
+        pub fn with<R>(&self, f: impl FnOnce(&HashMap<DriveFullFilePath, FileUUID>) -> R) -> R {
+            full_file_path_to_uuid_inner.with(|map| f(&map.borrow()))
         }
     }
 

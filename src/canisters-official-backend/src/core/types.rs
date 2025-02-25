@@ -2,8 +2,9 @@
 // src/core/state/types.rs
 use std::fmt;
 use serde::{Deserialize, Serialize};
+use serde_diff::{Diff, SerdeDiff};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct PublicKeyICP(pub String);
 
 impl fmt::Display for PublicKeyICP {
@@ -13,7 +14,7 @@ impl fmt::Display for PublicKeyICP {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct ICPPrincipalString(pub PublicKeyICP);
 
 impl fmt::Display for ICPPrincipalString {
@@ -23,7 +24,7 @@ impl fmt::Display for ICPPrincipalString {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct UserID(pub String);
 
 impl fmt::Display for UserID {
@@ -32,7 +33,7 @@ impl fmt::Display for UserID {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum IDPrefix {
     File,
     Folder,
@@ -48,7 +49,8 @@ pub enum IDPrefix {
     PlaceholderPermissionGrantee,
     DirectoryActionOutcome,
     PlaceholderTeamInviteeID,
-    ShareTrackID
+    ShareTrackID,
+    DriveStateDiffID,
 }
 
 impl IDPrefix {
@@ -69,13 +71,14 @@ impl IDPrefix {
             IDPrefix::DirectoryActionOutcome => "DirectoryActionOutcomeID_",
             IDPrefix::PlaceholderTeamInviteeID => "PlaceholderTeamInviteeID_",
             IDPrefix::ShareTrackID => "ShareTrackID_",
+            IDPrefix::DriveStateDiffID => "DriveStateDiffID_",
         }
     }
 }
 
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum AuthPrefixEnum {
     ApiKey,
     Signature,
