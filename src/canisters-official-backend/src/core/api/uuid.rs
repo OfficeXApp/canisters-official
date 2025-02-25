@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::core::{state::{directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_TIMESTAMP_NS, DRIVE_STATE_DIFF_CHECKSUM, GLOBAL_UUID_NONCE}, types::{DriveStateDiffChecksum, DriveStateDiffString}}}, types::{IDPrefix, UserID}};
+use crate::core::{state::{directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_TIMESTAMP_NS, DRIVE_STATE_CHECKSUM, GLOBAL_UUID_NONCE}, types::{StateChecksum, DriveStateDiffString}}}, types::{IDPrefix, UserID}};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
@@ -94,41 +94,4 @@ pub fn decode_share_track_hash(hash: &ShareTrackHash) -> (ShareTrackID, UserID) 
         Ok(hash_data) => (ShareTrackID(hash_data.id), UserID(hash_data.from_user)),
         Err(_) => (ShareTrackID(String::new()), UserID(String::new())),
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct StateDiffChecksumShape {
-    timestamp_ns: u64,
-    diff_string: DriveStateDiffString,
-}
-
-/// Generates a pseudo-checksum for state diff data
-///
-/// This is not a cryptographic checksum but rather an encoded representation
-/// of the diff data along with a timestamp for uniqueness
-pub fn update_checksum_for_state_diff(diff_string: DriveStateDiffString) {
-    // Get current timestamp in nanoseconds
-    let timestamp_ns = ic_cdk::api::time();
-    
-    // Create the checksum data object
-    let checksum_data = StateDiffChecksumShape {
-        timestamp_ns,
-        diff_string,
-    };
-    
-    // Serialize to JSON and encode with base64
-    let json_data = serde_json::to_string(&checksum_data)
-        .expect("Failed to serialize state diff checksum data");
-    
-    // Use the same base64 encoding from your UUID module
-    let new_checksum = DriveStateDiffChecksum(BASE64.encode(json_data.as_bytes()));
-
-    // Update checksum
-    DRIVE_STATE_DIFF_CHECKSUM.with(|checksum| {
-        *checksum.borrow_mut() = new_checksum;
-    });
-    // Update timestamp_ns
-    DRIVE_STATE_TIMESTAMP_NS.with(|timestamp| {
-        timestamp.set(timestamp_ns);
-    });
 }

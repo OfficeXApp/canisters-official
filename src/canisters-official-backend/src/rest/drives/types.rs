@@ -1,7 +1,7 @@
 // src/rest/drives/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, DriveStateDiffRecord};
+use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, StateChecksum, StateDiffRecord};
 use crate::core::types::PublicKeyICP;
 use crate::rest::webhooks::types::{SortDirection, WebhookResponse};
 
@@ -115,7 +115,7 @@ pub type ErrorResponse<'a> = DriveResponse<'a, ()>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplayDriveRequestBody {
-    pub diffs: Vec<DriveStateDiffRecord>,
+    pub diffs: Vec<StateDiffRecord>,
     pub notes: Option<String>,
 }
 
@@ -124,6 +124,7 @@ pub struct ReplayDriveResponseData {
     pub timestamp_ns: u64,
     pub diffs_applied: usize,
     pub checkpoint_diff_id: Option<DriveStateDiffID>,
+    pub final_checksum: StateChecksum,
 }
 
 pub type ReplayDriveResponse<'a> = DriveResponse<'a, ReplayDriveResponseData>;

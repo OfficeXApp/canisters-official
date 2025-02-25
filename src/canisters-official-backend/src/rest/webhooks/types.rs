@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use crate::core::api::uuid::ShareTrackHash;
 use crate::core::state::directory::types::{FileMetadata, FolderMetadata, ShareTrackID, ShareTrackResourceID};
-use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, DriveStateDiffChecksum, DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffRecord, DriveStateDiffString};
+use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChecksum, DriveStateDiffID, DriveStateDiffImplementationType, StateDiffRecord, DriveStateDiffString};
 use crate::core::state::team_invites::types::Team_Invite;
 use crate::core::state::teams::types::Team;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
@@ -188,7 +188,7 @@ pub struct TeamInviteWebhookData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DriveStateDiffWebhookData {
-    pub data: DriveStateDiffRecord
+    pub data: StateDiffRecord
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

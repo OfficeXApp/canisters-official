@@ -5,7 +5,9 @@ use serde_diff::{Diff, SerdeDiff};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use crate::{core::{api::{uuid::update_checksum_for_state_diff, webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}}, disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, Team_Invite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
+use crate::core::state::drives::state::state::DRIVE_STATE_CHECKSUM;
+use crate::core::state::drives::types::{DriveStateDiffID, StateChecksum, StateDiffRecord};
+use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}}, disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, Team_Invite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
 
 // Define a type to represent the entire state
 #[derive(SerdeDiff, Serialize, Deserialize, Clone,)]
@@ -57,7 +59,7 @@ pub struct EntireState {
     WEBHOOKS_BY_TIME_LIST: Vec<WebhookID>,
 }
 
-fn snapshot_entire_state() -> EntireState {
+pub fn snapshot_entire_state() -> EntireState {
     EntireState {
         // About
         DRIVE_ID: DRIVE_ID.with(|drive_id| drive_id.clone()),
@@ -116,14 +118,41 @@ pub fn snapshot_prestate() -> Option<EntireState> {
     Some(before_state)
 }
 
+pub fn calculate_new_checksum(prev_checksum: &StateChecksum, diff_string: &DriveStateDiffString) -> StateChecksum {
+    let input = format!("{}:{}", prev_checksum.0, diff_string.0);
+    StateChecksum(mock_hash(&input))
+}
+
 pub fn snapshot_poststate(before_snapshot: Option<EntireState>, notes: Option<String>) {
     match before_snapshot {
         Some(before_snapshot) => {
             let after_snapshot = snapshot_entire_state();
-            let diff = diff_entire_state(before_snapshot, after_snapshot);
-            match diff {
-                Some(diff) => {
-                    fire_state_diff_webhooks(diff, notes);
+            match diff_entire_state(before_snapshot, after_snapshot) {
+                Some((forward_diff, backward_diff)) => {
+                    // Calculate forward checksum
+                    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone());
+                    let forward_checksum = calculate_new_checksum(&prev_checksum, &forward_diff);
+                    
+                    // Calculate backward checksum
+                    let backward_checksum = calculate_new_checksum(&forward_checksum, &backward_diff);
+                    
+                    // Update current state checksum to forward checksum
+                    DRIVE_STATE_CHECKSUM.with(|cs| {
+                        *cs.borrow_mut() = forward_checksum.clone();
+                    });
+                    
+                    // Update timestamp
+                    DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
+                        ts.set(ic_cdk::api::time());
+                    });
+                    
+                    fire_state_diff_webhooks(
+                        forward_diff, 
+                        backward_diff, 
+                        forward_checksum,
+                        backward_checksum,
+                        notes
+                    );
                 },
                 None => ()
             }
@@ -132,26 +161,40 @@ pub fn snapshot_poststate(before_snapshot: Option<EntireState>, notes: Option<St
     }
 }
 
-pub fn diff_entire_state(before_snapshot: EntireState, after_snapshot: EntireState) -> Option<DriveStateDiffString> {
-    // Create MessagePack diff (minimal size)
-    let diff_data = match rmp_serde::to_vec_named(&Diff::serializable(&before_snapshot, &after_snapshot)) {
+pub fn diff_entire_state(before_snapshot: EntireState, after_snapshot: EntireState) -> Option<(DriveStateDiffString, DriveStateDiffString)> {
+    // Create MessagePack diff for forward direction (before -> after)
+    let forward_diff_data = match rmp_serde::to_vec_named(&Diff::serializable(&before_snapshot, &after_snapshot)) {
         Ok(data) => data,
         Err(e) => {
-            ic_cdk::println!("Failed to serialize state diff: {}", e);
+            ic_cdk::println!("Failed to serialize forward state diff: {}", e);
             Vec::new()
         }
     };
 
-    if diff_data.len() <= 4 {  // Adjust this threshold based on testing
+    // Create MessagePack diff for backward direction (after -> before)
+    let backward_diff_data = match rmp_serde::to_vec_named(&Diff::serializable(&after_snapshot, &before_snapshot)) {
+        Ok(data) => data,
+        Err(e) => {
+            ic_cdk::println!("Failed to serialize backward state diff: {}", e);
+            Vec::new()
+        }
+    };
+
+    if forward_diff_data.len() <= 4 {  // Adjust this threshold based on testing
         return None;  // No meaningful difference, skip firing
     }
     
-    // Convert diff to base64 for transmission if needed
-    let diff_base64 = base64::encode(&diff_data);
-    Some(DriveStateDiffString(diff_base64))
+    // Convert diffs to base64 for transmission
+    let forward_diff_base64 = base64::encode(&forward_diff_data);
+    let backward_diff_base64 = base64::encode(&backward_diff_data);
+    
+    Some((
+        DriveStateDiffString(forward_diff_base64),
+        DriveStateDiffString(backward_diff_base64)
+    ))
 }
 
-pub fn apply_state_diff(diff_data: &DriveStateDiffString) -> Result<(), String> {
+pub fn apply_state_diff(diff_data: &DriveStateDiffString, expected_checksum: &StateChecksum) -> Result<StateChecksum, String> {
     // Decode the base64 encoded diff
     let diff_bytes = match BASE64.decode(&diff_data.0) {
         Ok(bytes) => bytes,
@@ -172,10 +215,20 @@ pub fn apply_state_diff(diff_data: &DriveStateDiffString) -> Result<(), String> 
     // Update the global state with the new state
     apply_entire_state(current_state);
 
-    // Update timestamp and checksum
-    update_checksum_for_state_diff(diff_data.clone());
+    // Calculate new checksum
+    let new_checksum = calculate_new_checksum(expected_checksum, diff_data);
+    
+    // Update stored checksum
+    DRIVE_STATE_CHECKSUM.with(|cs| {
+        *cs.borrow_mut() = new_checksum.clone();
+    });
+    
+    // Update timestamp
+    DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
+        ts.set(ic_cdk::api::time());
+    });
 
-    Ok(())
+    Ok(new_checksum)
 }
 
 pub fn apply_entire_state(state: EntireState) {
@@ -294,4 +347,148 @@ pub fn apply_entire_state(state: EntireState) {
     WEBHOOKS_BY_TIME_LIST.with(|store| {
         *store.borrow_mut() = state.WEBHOOKS_BY_TIME_LIST;
     });
+}
+
+// Update checksum based on a diff
+pub fn update_checksum_for_state_diff(diff_string: DriveStateDiffString) {
+    // Get previous checksum
+    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().0.clone());
+    
+    // Input for hash includes previous checksum and new diff
+    let input = format!("{}:{}", prev_checksum, diff_string);
+    
+    // Generate new checksum
+    let new_checksum = mock_hash(&input);
+    
+    // Update stored checksum
+    DRIVE_STATE_CHECKSUM.with(|cs| {
+        *cs.borrow_mut() = StateChecksum(new_checksum);
+    });
+    
+    // Update timestamp
+    DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
+        ts.set(ic_cdk::api::time());
+    });
+}
+
+pub fn mock_hash(input: &str) -> String {
+    // Get the DRIVE_ID as salt
+    let salt = DRIVE_ID.with(|id| id.0.clone());
+    
+    // Interweave characters from input and salt
+    let mut result = String::with_capacity(64);
+    let salt_chars: Vec<char> = salt.chars().collect();
+    let input_chars: Vec<char> = input.chars().collect();
+    let salt_len = salt_chars.len();
+    let input_len = input_chars.len();
+    
+    for i in 0..64 {
+        if i % 2 == 0 {
+            // Even positions get input chars (if available)
+            if i/2 < input_len {
+                result.push(input_chars[i/2]);
+            } else {
+                result.push('0');
+            }
+        } else {
+            // Odd positions get salt chars (if available)
+            if i/2 < salt_len {
+                result.push(salt_chars[i/2]);
+            } else {
+                result.push('1');
+            }
+        }
+    }
+    
+    // Truncate or pad to exactly 64 chars
+    if result.len() > 64 {
+        result.truncate(64);
+    } else {
+        while result.len() < 64 {
+            result.push('0');
+        }
+    }
+    
+    result
+}
+
+
+// Apply a sequence of diffs with validation and safety
+pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<DriveStateDiffID>), String> {
+    if diffs.is_empty() {
+        return Ok((0, None));
+    }
+    
+    // Determine direction by checking timestamps
+    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
+    let is_reverse = diffs[0].timestamp_ns < current_timestamp;
+    
+    // Backup current state and checksum
+    let backup_state = snapshot_entire_state();
+    let original_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone());
+    
+    // Sort diffs appropriately for the direction
+    let mut sorted_diffs = diffs.to_vec();
+    if is_reverse {
+        // For reverse, sort by descending timestamp (newest to oldest)
+        sorted_diffs.sort_by(|a, b| b.timestamp_ns.cmp(&a.timestamp_ns));
+    } else {
+        // For forward, sort by ascending timestamp (oldest to newest)
+        sorted_diffs.sort_by(|a, b| a.timestamp_ns.cmp(&b.timestamp_ns));
+    }
+    
+    // Apply diffs in sorted order
+    let mut applied_count = 0;
+    let mut last_diff_id = None;
+    let mut current_checksum = original_checksum.clone();
+    
+    for diff in &sorted_diffs {
+        // Select appropriate diff and expected checksum based on direction
+        let (diff_to_apply, expected_checksum) = if is_reverse {
+            (&diff.diff_backward, &diff.checksum_backward)
+        } else {
+            (&diff.diff_forward, &diff.checksum_forward)
+        };
+        
+        // Validate checksum chain
+        if applied_count > 0 && expected_checksum.0 != current_checksum.0 {
+            // Chain validation failed - rollback
+            apply_entire_state(backup_state);
+            DRIVE_STATE_CHECKSUM.with(|cs| {
+                *cs.borrow_mut() = original_checksum.clone();
+            });
+            
+            return Err(format!(
+                "Invalid checksum chain at diff {}. Expected: {}, Found: {}",
+                diff.id, expected_checksum.0, current_checksum.0
+            ));
+        }
+        
+        // Apply the diff
+        match apply_state_diff(diff_to_apply, &current_checksum) {
+            Ok(new_checksum) => {
+                applied_count += 1;
+                last_diff_id = Some(diff.id.clone());
+                current_checksum = new_checksum;
+            },
+            Err(e) => {
+                // Application error - rollback
+                apply_entire_state(backup_state);
+                DRIVE_STATE_CHECKSUM.with(|cs| {
+                    *cs.borrow_mut() = original_checksum.clone();
+                });
+                
+                return Err(format!("Failed to apply diff {}: {}", diff.id, e));
+            }
+        }
+    }
+    
+    Ok((applied_count, last_diff_id))
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StateDiffChecksumShape {
+    timestamp_ns: u64,
+    diff_string: DriveStateDiffString,
 }

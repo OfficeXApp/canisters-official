@@ -7,7 +7,6 @@
 
 ## Urgent Next
 
-- [🔵] Ability to change drive owners
 - [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
 - [🪵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
 
@@ -20,7 +19,6 @@
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
 - [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
-- [ ] Consider audit trailing events for replayability (on directory actions but also permissions and such)
 - [ ] Consider whether to add hashed cosmic id into the url. eg. `/drive/{urlencoded_cosmic_id}/directory/list`. generate the id with `base64.urlsafe_b64encode("MYADDRESS::MYIP".encode()).decode().rstrip('=')`
 - [ ] Investigate web2/web3 use of auth signatures as API Keys, will it work? how to prevent spoofing?
 
@@ -33,6 +31,7 @@
 - [ ] Refactor all CRUD creates/updates/deletes to accept array to support bulk operations (hard to change API spec after)
 - [ ] Implement file/folder tags
 - [ ] Consider the danger of UserID values that dont comply with ICP Principals and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
+- [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
 - [ ] Consider whether we need historical action logs and replayability (eg. who did what when, can we "rollback"?)
 - [ ] Test whether the s3/storj copy operation works (does raw_storage actually get duplicated?)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
@@ -82,3 +81,4 @@
 - [x] Implement external share tracking via webhooks
 - [x] Implement directory webhook permissions `DirectoryPermissionType::Webhooks`
 - [x] Implement replayability
+- [x] Consider audit trailing events for replayability (on directory actions but also permissions and such)

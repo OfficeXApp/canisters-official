@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
@@ -494,55 +494,62 @@ pub mod drives_handlers {
             );
         }
         
-        // Take a snapshot of the state before making changes, for potential audit or logging
+        // Take a snapshot for audit/logging
         let prestate = snapshot_prestate();
         
-        // Apply each diff in order
-        let mut applied_count = 0;
-        let mut last_diff_id: Option<DriveStateDiffID> = None;
-        let mut last_diff_timestamp_ns: Option<u64> = None;
-        
-        for diff_data in replay_request.diffs.iter() {
-            match apply_state_diff(&diff_data.diff) {
-                Ok(_) => {
-                    applied_count += 1;
-                    last_diff_id = Some(diff_data.id.clone());
-                    last_diff_timestamp_ns = Some(diff_data.timestamp_ns);
-                    debug_log!("Applied diff: {}", diff_data.id);
-                },
-                Err(e) => {
-                    debug_log!("Error applying diff {}: {}", diff_data.id, e);
-                    // Continue with next diff even if one fails
+        // Apply diffs with validation using our safety function
+        match safely_apply_diffs(&replay_request.diffs) {
+            Ok((applied_count, last_diff_id)) => {
+                // Only log if we actually applied diffs
+                if applied_count > 0 {
+                    // Get the timestamp from the last applied diff
+                    let last_timestamp = replay_request.diffs.iter()
+                        .find(|d| Some(d.id.clone()) == last_diff_id)
+                        .map(|d| d.timestamp_ns)
+                        .unwrap_or_default();
+                    
+                    // Determine direction for logging
+                    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
+                    let direction_str = if replay_request.diffs[0].timestamp_ns < current_timestamp {
+                        "backward"
+                    } else {
+                        "forward"
+                    };
+                    
+                    // Log notes if provided
+                    let notes_str = format!(
+                        "{}: Replay {} diffs {} to timestamp {} - {}", 
+                        requester_api_key.user_id,
+                        applied_count,
+                        direction_str,
+                        last_timestamp,
+                        replay_request.notes.clone().unwrap_or_default()
+                    );
+                    
+                    snapshot_poststate(prestate, Some(notes_str));
                 }
+                
+                // Prepare response data
+                let response_data = ReplayDriveResponseData {
+                    timestamp_ns: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()),
+                    diffs_applied: applied_count,
+                    checkpoint_diff_id: last_diff_id,
+                    final_checksum: DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone()),
+                };
+                
+                create_response(
+                    StatusCode::OK,
+                    ReplayDriveResponse::ok(&response_data).encode()
+                )
+            },
+            Err(error_msg) => {
+                // Return error (rollback already happened in safely_apply_diffs)
+                create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, error_msg).encode()
+                )
             }
         }
-
-        // Log notes if provided
-        let notes_str = format!(
-            "{}: Replay diffs to {} - {}", 
-            requester_api_key.user_id,
-            last_diff_timestamp_ns.clone().unwrap_or_default(),
-            replay_request.notes.clone().unwrap_or_default()
-        );
-        debug_log!("Replay operation notes: {}", notes_str);
-    
-        
-        // If any diffs were applied, finalize by recording the operation
-        if applied_count > 0 {
-            snapshot_poststate(prestate, Some(notes_str));
-        }
-        
-        // Prepare response data
-        let response_data = ReplayDriveResponseData {
-            timestamp_ns: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()) / 1_000_000,
-            diffs_applied: applied_count,
-            checkpoint_diff_id: last_diff_id,
-        };
-    
-        create_response(
-            StatusCode::OK,
-            ReplayDriveResponse::ok(&response_data).encode()
-        )
     }
 
     fn json_decode<T>(value: &[u8]) -> T

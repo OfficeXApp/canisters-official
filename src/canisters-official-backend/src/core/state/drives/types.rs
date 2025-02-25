@@ -50,8 +50,8 @@ pub enum DriveStateDiffImplementationType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct DriveStateDiffChecksum(pub String);
-impl fmt::Display for DriveStateDiffChecksum {
+pub struct StateChecksum(pub String);
+impl fmt::Display for StateChecksum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -67,13 +67,15 @@ impl fmt::Display for DriveRESTUrlEndpoint {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DriveStateDiffRecord {
+pub struct StateDiffRecord {
     pub id: DriveStateDiffID,
     pub timestamp_ns: u64,
-    pub implementation: DriveStateDiffImplementationType,
-    pub diff: DriveStateDiffString,
     pub notes: Option<String>,
     pub drive_id: DriveID,
     pub url_endpoint: DriveRESTUrlEndpoint,
-    pub checksum: DriveStateDiffChecksum,
+    pub implementation: DriveStateDiffImplementationType,
+    pub diff_forward: DriveStateDiffString,
+    pub diff_backward: DriveStateDiffString,
+    pub checksum_forward: StateChecksum,
+    pub checksum_backward: StateChecksum,
 }

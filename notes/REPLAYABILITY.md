@@ -41,7 +41,7 @@ The REST route would look like:
 ```txt
 POST /drive/replay
 body = {
-  diffs: Vec<DriveStateDiffRecord>,
+  diffs: Vec<StateDiffRecord>,
   notes: String,
 }
 

@@ -5,13 +5,12 @@ pub mod state {
     use std::cell::Cell;
     use std::cell::RefCell;
     use std::collections::HashMap;
-
-    use crate::core::api::uuid::update_checksum_for_state_diff;
+    use crate::core::api::replay::diff::update_checksum_for_state_diff;
     use crate::core::api::uuid::generate_unique_id;
     use crate::core::state::drives::types::Drive;
     use crate::core::state::drives::types::DriveID;
     use crate::core::state::drives::types::DriveRESTUrlEndpoint;
-    use crate::core::state::drives::types::DriveStateDiffChecksum;
+    use crate::core::state::drives::types::StateChecksum;
     use crate::core::state::drives::types::DriveStateDiffString;
     use crate::core::types::ICPPrincipalString;
     use crate::core::types::IDPrefix;
@@ -22,7 +21,7 @@ pub mod state {
         pub(crate) static DRIVE_ID: DriveID = DriveID(generate_unique_id(IDPrefix::Drive, ""));
         pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
         pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
-        pub(crate) static DRIVE_STATE_DIFF_CHECKSUM: RefCell<DriveStateDiffChecksum> = RefCell::new(DriveStateDiffChecksum("".to_string()));
+        pub(crate) static DRIVE_STATE_CHECKSUM: RefCell<StateChecksum> = RefCell::new(StateChecksum("genesis".to_string()));
         pub(crate) static DRIVE_STATE_TIMESTAMP_NS: Cell<u64> = Cell::new(ic_cdk::api::time());
         // self info - mutable
         pub(crate) static OWNER_ID: RefCell<UserID> = RefCell::new(UserID("Anonymous_Owner".to_string()));
@@ -52,6 +51,8 @@ pub mod state {
 
         update_checksum_for_state_diff(DriveStateDiffString("".to_string()));
     }
+
+    
 
 }
 
