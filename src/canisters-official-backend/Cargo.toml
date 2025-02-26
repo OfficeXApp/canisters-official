@@ -35,3 +35,6 @@ num-traits = "0.2.19"
 num-bigint = "0.4.6"
 serde-diff = "0.4.1"
 rmp-serde = "1.3.0"
+ic-crypto-standalone-sig-verifier = { git = "https://github.com/dfinity/ic", rev = "release-2023-05-25-11-44" }
+ic-types = { git = "https://github.com/dfinity/ic", rev = "release-2023-05-25-11-44" }
+ic-crypto-sha2 = { git = "https://github.com/dfinity/ic", rev = "release-2023-05-25-11-44" }
