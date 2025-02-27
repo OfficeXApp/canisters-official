@@ -371,7 +371,8 @@ pub mod contacts_handlers {
                         private_note: Some(create_req.private_note.unwrap_or_default()),
                         evm_public_address: create_req.evm_public_address.unwrap_or_default(),
                         icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
-                        teams: [].to_vec()
+                        teams: [].to_vec(),
+                        tags: vec![],
                     };
 
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {

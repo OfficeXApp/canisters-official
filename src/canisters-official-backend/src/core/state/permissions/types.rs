@@ -6,8 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     state::{
-        directory::types::DriveFullFilePath,
-        teams::types::TeamID,
+        directory::types::DriveFullFilePath, tags::types::TagStringValue, teams::types::TeamID
     },
     types::UserID,
 }, rest::directory::types::DirectoryResourceID};
@@ -75,6 +74,7 @@ pub struct DirectoryPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
+    pub tags: Vec<TagStringValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]

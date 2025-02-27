@@ -320,6 +320,7 @@ pub mod permissions_handlers {
                 created_at: current_time,
                 last_modified_at: current_time,
                 from_placeholder_grantee: None,
+                tags: vec![],
             };
     
             // Update all state indices

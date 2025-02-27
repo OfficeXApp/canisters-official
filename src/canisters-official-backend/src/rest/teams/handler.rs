@@ -150,6 +150,7 @@ pub mod teams_handlers {
                                 .trim_end_matches('/')
                                 .to_string()
                         ),
+                        tags: vec![],
                     };
 
                     // Update state

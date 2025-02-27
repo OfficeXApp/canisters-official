@@ -55,6 +55,7 @@ pub mod state {
             created_at: ic_cdk::api::time(),
             expires_at: -1,
             is_revoked: false,
+            tags: vec![],
         };
 
         debug_log!("Default admin api key: {}", default_key);

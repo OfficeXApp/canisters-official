@@ -362,6 +362,7 @@ pub mod disks_handlers {
                         auth_json: create_req.auth_json,
                         disk_type: create_req.disk_type,
                         external_id: create_req.external_id.clone(),
+                        tags: vec![],
                     };
 
                     // Store the disk

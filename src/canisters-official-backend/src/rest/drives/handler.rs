@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, search::types::SearchCategoryEnum, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag}, types::{TagOperationRequest, TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
@@ -344,6 +344,7 @@ pub mod drives_handlers {
                                 .to_string()
                         ),
                         last_indexed_ms: None,
+                        tags: vec![],
                     };
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {
@@ -818,6 +819,225 @@ pub mod drives_handlers {
                 create_response(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     ErrorResponse::err(500, format!("Failed to reindex drive: {}", error)).encode()
+                )
+            }
+        }
+    }
+
+    
+    pub async fn tag_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Check if user is owner
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // Parse request body
+        let body = request.body();
+        let tag_request: TagOperationRequest = match serde_json::from_slice(body) {
+            Ok(body) => body,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+        
+        // Validate tag
+        let tag_value = match validate_tag(&tag_request.tag) {
+            Ok(tag) => tag,
+            Err(error) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, error).encode()
+            ),
+        };
+        
+        // Parse resource ID
+        let resource_id = match parse_tag_resource_id(&tag_request.resource_id) {
+            Ok(id) => id,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Invalid resource ID: {}", tag_request.resource_id)).encode()
+            ),
+        };
+        
+        // Take a snapshot of the state before modification
+        let prestate = snapshot_prestate();
+    
+        // Check permission based on resource type - if not owner, verify specific permissions
+        if !is_owner {
+            let has_table_permission = |table: SystemTableEnum| -> bool {
+                let table_resource_id = SystemResourceID::Table(table);
+                let permissions = check_system_permissions(
+                    table_resource_id,
+                    PermissionGranteeID::User(requester_api_key.user_id.clone())
+                );
+                permissions.contains(&SystemPermissionType::Update)
+            };
+            let has_permission = match &resource_id {
+                TagResourceID::ApiKey(id) => {
+                    // Only the owner of the API key can modify its tags
+                    has_table_permission(SystemTableEnum::ApiKeys) || APIKEYS_BY_ID_HASHTABLE.with(|store| {
+                        let store = store.borrow();
+                        if let Some(api_key) = store.get(id) {
+                            api_key.user_id == requester_api_key.user_id
+                        } else {
+                            false
+                        }
+                    })
+                },
+                TagResourceID::Contact(_) => {
+                    // Check contact permissions
+                    let resource_id = SystemResourceID::Table(SystemTableEnum::Contacts);
+                    let permissions = check_system_permissions(
+                        resource_id,
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+                    has_table_permission(SystemTableEnum::Contacts) || permissions.contains(&SystemPermissionType::Update)
+                },
+                TagResourceID::File(id) => {
+                    // Check directory permissions for files
+                    let resource_id = DirectoryResourceID::File(id.clone());
+                    let permissions = check_directory_permissions(
+                        resource_id.clone(),
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    ).await;
+                    permissions.contains(&DirectoryPermissionType::Edit)
+                },
+                TagResourceID::Folder(id) => {
+                    // Check directory permissions for folders
+                    let resource_id = DirectoryResourceID::Folder(id.clone());
+                    let permissions = check_directory_permissions(
+                        resource_id.clone(),
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    ).await;
+                    permissions.contains(&DirectoryPermissionType::Edit)
+                },
+                TagResourceID::Disk(id) => {
+                    // Check system permissions for disks
+                    let resource_id = SystemResourceID::Record(id.to_string());
+                    let permissions = check_system_permissions(
+                        resource_id,
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+                    has_table_permission(SystemTableEnum::Disks) || permissions.contains(&SystemPermissionType::Update)
+                },
+                TagResourceID::Drive(id) => {
+                    // Check system permissions for drives
+                    let resource_id = SystemResourceID::Record(id.to_string());
+                    let permissions = check_system_permissions(
+                        resource_id,
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+                    has_table_permission(SystemTableEnum::Drives) || permissions.contains(&SystemPermissionType::Update)
+                },
+                TagResourceID::DirectoryPermission(id) => {
+                    // Check if user can modify this permission
+                    has_table_permission(SystemTableEnum::Permissions) || DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+                        let store = store.borrow();
+                        if let Some(permission) = store.get(id) {
+                            can_user_access_directory_permission(
+                                &requester_api_key.user_id,
+                                permission,
+                                false
+                            )
+                        } else {
+                            false
+                        }
+                    })
+                },
+                TagResourceID::SystemPermission(id) => {
+                    // Check if user can modify this permission
+                    has_table_permission(SystemTableEnum::Permissions) || SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+                        let store = store.borrow();
+                        if let Some(permission) = store.get(id) {
+                            can_user_access_system_permission(
+                                &requester_api_key.user_id,
+                                permission,
+                                false
+                            )
+                        } else {
+                            false
+                        }
+                    })
+                },
+                TagResourceID::TeamInvite(id) => {
+                    // Check if user is the inviter
+                    has_table_permission(SystemTableEnum::Teams) || INVITES_BY_ID_HASHTABLE.with(|store| {
+                        let store = store.borrow();
+                        if let Some(invite) = store.get(id) {
+                            invite.inviter_id == requester_api_key.user_id
+                        } else {
+                            false
+                        }
+                    })
+                },
+                TagResourceID::Team(id) => {
+                    // Check if user is admin of the team
+                    has_table_permission(SystemTableEnum::Teams) || is_team_admin(&requester_api_key.user_id, id)
+                },
+                TagResourceID::Webhook(id) => {
+                    // Check system permissions for webhooks
+                    let resource_id = SystemResourceID::Record(id.to_string());
+                    let permissions = check_system_permissions(
+                        resource_id,
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
+                    has_table_permission(SystemTableEnum::Webhooks) || permissions.contains(&SystemPermissionType::Update)
+                }
+            };
+    
+            if !has_permission {
+                return create_auth_error_response();
+            }
+        }
+        
+        // Execute the tag operation based on the upsert flag
+        let result = if tag_request.upsert {
+            // Add tag
+            add_tag_to_resource(&resource_id, &tag_value)
+        } else {
+            // Remove tag
+            remove_tag_from_resource(&resource_id, &tag_value)
+        };
+        
+        // Record the change in state
+        let operation_type = if tag_request.upsert { "Add" } else { "Remove" };
+        
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: {} tag {} from resource {}",
+                requester_api_key.user_id,
+                operation_type,
+                tag_value.0,
+                resource_id
+            ).to_string()
+        ));
+        
+        // Create response based on result
+        match result {
+            Ok(_) => {
+                let response_data = TagOperationResponse {
+                    success: true,
+                    message: None,
+                };
+                
+                create_response(
+                    StatusCode::OK,
+                    serde_json::to_vec(&response_data).unwrap_or_default()
+                )
+            },
+            Err(error) => {
+                let response_data = TagOperationResponse {
+                    success: false,
+                    message: Some(error),
+                };
+                
+                create_response(
+                    StatusCode::BAD_REQUEST,
+                    serde_json::to_vec(&response_data).unwrap_or_default()
                 )
             }
         }

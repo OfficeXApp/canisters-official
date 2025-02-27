@@ -133,6 +133,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                         created_at: now,
                         expires_at: -1,
                         is_revoked: false,
+                        tags: vec![],
                     })
                 },
                 Err(e) => {

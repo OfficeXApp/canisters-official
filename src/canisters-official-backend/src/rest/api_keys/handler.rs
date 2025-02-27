@@ -186,6 +186,7 @@ pub mod apikeys_handlers {
                         created_at: ic_cdk::api::time(),
                         expires_at: create_req.expires_at.unwrap_or(-1),
                         is_revoked: false,
+                        tags: vec![],
                     };
             
                     // Update all three hashtables

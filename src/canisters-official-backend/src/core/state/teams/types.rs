@@ -2,7 +2,7 @@
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use crate::core::{
-    state::{drives::types::{DriveID, DriveRESTUrlEndpoint}, team_invites::types::TeamInviteID},
+    state::{drives::types::{DriveID, DriveRESTUrlEndpoint}, tags::types::TagStringValue, team_invites::types::TeamInviteID},
     types::UserID
 };
 use serde_diff::{SerdeDiff};
@@ -23,6 +23,7 @@ pub struct Team {
     pub last_modified_at: u64,
     pub drive_id: DriveID,
     pub url_endpoint: DriveRESTUrlEndpoint,
+    pub tags: Vec<TagStringValue>,
 }
 
 // Implement Display for TeamID
