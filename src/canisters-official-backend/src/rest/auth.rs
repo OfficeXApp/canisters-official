@@ -1,3 +1,4 @@
+use candid::Principal;
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use crate::{core::{state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log};
@@ -69,75 +70,68 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     // Handle different authentication types
     match auth_json {
         AuthJsonDecoded::Signature(proof) => {
-            // Check that it's actually the signature type
             if proof.auth_type != AuthTypeEnum::Signature {
                 debug_log!("Auth type mismatch in signature proof");
                 return None;
             }
 
-            // Check timestamp is within 30 seconds using ic_cdk convert ns to ms
-            let now = ic_cdk::api::time() / 1_000_000;
-            let challenge_time = proof.challenge.timestamp_ms;
-            if now > challenge_time + 30_000 {
+            // Check challenge timestamp (must be within 30 seconds), convert ns to ms
+            let now = ic_cdk::api::time() as u64 / 1_000_000;
+            if now > proof.challenge.timestamp_ms + 30_000 {
                 debug_log!("Signature challenge expired");
                 return None;
             }
 
-            // Convert signature from array to bytes
-            let signature_bytes = proof.signature.as_slice();
-            
-            // Convert the challenge to bytes (this is what was signed)
-            let challenge_json = match serde_json::to_string(&proof.challenge) {
-                Ok(json) => json,
-                Err(e) => {
-                    debug_log!("Failed to serialize challenge to JSON: {}", e);
-                    return None;
-                },
-            };
+            // Serialize the challenge as was signed.
+            let challenge_json = serde_json::to_string(&proof.challenge).ok()?;
             let challenge_bytes = challenge_json.as_bytes();
 
-            // Get the public key from the challenge
-            let public_key = &proof.challenge.user_icp_public_key;
+            // The raw public key (32 bytes) as provided in the challenge.
+            let public_key_bytes = &proof.challenge.self_auth_principal;
+            if public_key_bytes.len() != 32 {
+                debug_log!("Expected 32-byte raw public key, got {} bytes", public_key_bytes.len());
+                return None;
+            }
 
-            // Use the standalone-sig-verifier to verify the signature
+            // Verify the signature using the provided raw key.
             match verify_basic_sig_by_public_key(
                 AlgorithmId::Ed25519,
                 challenge_bytes,
-                signature_bytes,
-                public_key,
+                proof.signature.as_slice(),
+                public_key_bytes,
             ) {
                 Ok(_) => {
                     debug_log!("Signature verification successful");
 
-                    // We now have a raw Ed25519 public key, not in DER format
-                    // Create principal directly from this raw key without trying to parse it as DER
-                    
-                    // For Ed25519 keys, the principal is derived directly from the raw public key
-                    // using the self_authenticating method
-                    let raw_key = public_key.clone();
-                    
-                    // Ensure it's the right length for an Ed25519 key
-                    if raw_key.len() != 32 {
-                        debug_log!("Raw public key has incorrect length: {}", raw_key.len());
+                    // To compute the canonical principal that matches getPrincipal(),
+                    // first convert the raw public key into DER format by prepending the header.
+                    let der_header: [u8; 12] = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
+                    let mut der_key = Vec::with_capacity(44);
+                    der_key.extend_from_slice(&der_header);
+                    der_key.extend_from_slice(public_key_bytes);
+
+                    // Compute the canonical principal using the DER-encoded key.
+                    let computed_principal = Principal::self_authenticating(&der_key).to_text();
+
+                    // Compare with the canonical_principal included in the challenge.
+                    if computed_principal != proof.challenge.canonical_principal {
+                        debug_log!(
+                            "Mismatch between computed and provided canonical principal: {} vs {}",
+                            computed_principal,
+                            proof.challenge.canonical_principal
+                        );
                         return None;
                     }
-                    
-                    // Calculate the principal directly from the raw key
-                    debug_log!("Creating principal from raw key: {:?}", public_key);
-                    let principal = Principal::self_authenticating(&raw_key);
-                    debug_log!("Principal bytes: {:?}", principal.as_slice());
-                    let principal_text = principal.to_text();
+                    debug_log!("Successfully authenticated user: {}", computed_principal);
 
-                    debug_log!("Successfully authenticated principal: {}", principal_text.clone());
-
-                    // Authentication successful, return an API key
+                    // Create and return an API key based on the computed principal.
                     Some(ApiKey {
                         id: ApiKeyID(format!("sig_auth_{}", now)),
-                        value: ApiKeyValue(format!("signature_auth_{}", principal_text.clone())),
-                        user_id: UserID(principal_text.clone()),
-                        name: format!("Signature Authenticated User {}", principal_text.clone()),
-                        created_at: now, 
-                        expires_at: -1, 
+                        value: ApiKeyValue(format!("signature_auth_{}", computed_principal)),
+                        user_id: UserID(computed_principal.clone()),
+                        name: format!("Signature Authenticated User {}", computed_principal),
+                        created_at: now,
+                        expires_at: -1,
                         is_revoked: false,
                     })
                 },

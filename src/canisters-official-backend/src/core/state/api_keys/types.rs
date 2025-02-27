@@ -80,5 +80,6 @@ pub struct SignatureAuthProof {
 pub struct SignatureAuthChallenge {
     pub timestamp_ms: u64,
     pub drive_canister_id: String,
-    pub user_icp_public_key: Vec<u8>,
+    pub self_auth_principal: Vec<u8>,
+    pub canonical_principal: String,
 }
