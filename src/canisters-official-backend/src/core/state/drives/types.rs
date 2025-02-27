@@ -23,6 +23,7 @@ pub struct Drive {
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: DriveRESTUrlEndpoint,
+    pub last_indexed_ms: Option<u64>,
 }   
 
 

@@ -345,6 +345,7 @@ pub mod drives_handlers {
                                 .trim_end_matches('/')
                                 .to_string()
                         ),
+                        last_indexed_ms: None,
                     };
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {

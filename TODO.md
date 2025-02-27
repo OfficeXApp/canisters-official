@@ -7,41 +7,44 @@
 
 ## Urgent Next
 
-- [🪵] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
-- [🪵] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership
+- [🔵] Implement fuzzy string search to files with re-indexing & update search directory route -> use crate rust-fuzzy-search and minimize search space by searching within a folder
+- [ ] Add system resource wide "external_id" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
+- [ ] Implement tagging of files/folders & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>
+- [ ] Implement recent files/folders queue (simply a tag)
+- [ ] Setup factory to spawn Drive canisters with owner set
 - [ ] Review backend routes and their ingress/egress shapes to be a unified clean. Regenerate proper REST API docs
-- [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
+- [ ] Consider whether to add hashed cosmic id into the url to support multi-tenant backends, primarily in nodejs. eg. `/drive/{canister_id}/directory/list`
+- [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
+- [ ] Refactor list to apply filter on all appropriate route items
+- [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
 
 ## Near Future
 
+- [ ] Test out webapp http server
+- [ ] Test out webapp torrenting
+- [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
-- [ ] Implement recent files/folders queue
 - [ ] Consider how to obfuscate ancestor folders in url route (eg. show folder_uuid in the url instead of full path)
-- [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
-- [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
-- [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
-- [ ] Consider whether to add hashed cosmic id into the url. eg. `/drive/{urlencoded_cosmic_id}/directory/list`. generate the id with `base64.urlsafe_b64encode("MYADDRESS::MYIP".encode()).decode().rstrip('=')`
-- [ ] Investigate web2/web3 use of auth signatures as API Keys, will it work? how to prevent spoofing?
+- [ ] Add validation to `contact.icp_principal` and `contact.evm_public_address`
 
 ## Priority Backlog
 
-- [ ] Add pub(crate) to rust repo in post-retro
-- [ ] Add validation to `contact.icp_principal` and `contact.evm_public_address`
-- [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
-- [ ] Refactor list to apply filter on all appropriate route items
-- [ ] Implement file/folder tags
-- [ ] Consider the danger of UserID values that dont comply with ICP Principals and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
-- [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
 - [ ] Test whether the s3/storj copy operation works (does raw_storage actually get duplicated?)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
-- [ ] Paywalls
-- [ ] Should we allow "network visualization" where we give frontend a JSON graph of what a user has access to? their teams, etc
 
 ## Backlog
 
+- [ ] Figure out how to cleanly update past Drive canisters from factory
+- [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
+- [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
+- [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
+- [ ] Paywalls
+- [ ] Should we allow "network visualization" where we give frontend a JSON graph of what a user has access to? their teams, etc
 - [ ] Unit Tests (https://www.startearly.ai/)
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi (this is moreso for NodeJS)
+- [ ] Implement signed signatures in canister-to-canister REST calls (that icp canister can create same signature as frontend for signing). should use same signing pattern as frontend js but doesnt have to, just add new AuthTypeEnum
+- [ ] Implement file/folder tags
 
 ## Completed
 
@@ -81,3 +84,7 @@
 - [x] Consider audit trailing events for replayability (on directory actions but also permissions and such)
 - [x] Consider whether we need historical action logs and replayability (eg. who did what when, can we "rollback"?)
 - [x] Figure out how to handle CRUD of canisters when someone shares a file with you and you accept. Also how to share a file with an anon person? --> current theory, we can generate an API key for them and set the API key user_id to a hardcoded non-principal value. then the receivers client ui can generate an icp principal and tell our canister which then updates the API key's user_id --> solution, the placeholder share links
+- [x] Allow ICP signature or EDSCA signature as "native api key" with time window (solves issue of cold start no api_keys). Also requires frontend implementation for convinence. Use the function `src/core/state/types.rs::parse_auth_header_value`
+- [x] Investigate web2/web3 use of auth signatures as API Keys, will it work? how to prevent spoofing?
+- [x] Consider the danger of UserID values that dont comply with ICP Principals and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
+- [x] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership --> unncessary as we might actually _want_ to allow delegated placeholder redemption

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use ic_crypto_standalone_sig_verifier::{
     verify_basic_sig_by_public_key,
 };
-use ic_crypto_standalone_sig_verifier::user_public_key_from_bytes;
 use super::helpers::create_response;
+
 
 pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     // Extract the Authorization header
