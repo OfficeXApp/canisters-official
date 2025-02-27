@@ -39,6 +39,7 @@ pub mod state {
             private_note: Some("".to_string()),
             icp_principal: ICPPrincipalString(PublicKeyICP(ic_cdk::api::id().to_text())),
             url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
+            last_indexed_ms: None,
         };
 
         DRIVES_BY_ID_HASHTABLE.with(|map| {

@@ -1,6 +1,6 @@
-use std::fmt;
 
 // src/core/state/drives/types.rs
+use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use crate::core::types::{ICPPrincipalString, PublicKeyICP};
@@ -23,6 +23,7 @@ pub struct Drive {
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: DriveRESTUrlEndpoint,
+    pub last_indexed_ms: Option<u64>,
 }   
 
 

@@ -11,3 +11,4 @@ pub mod disks;
 pub mod directory;
 pub mod raw_storage;
 pub mod permissions;
+pub mod search;

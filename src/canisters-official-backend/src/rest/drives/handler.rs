@@ -3,13 +3,11 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, search::types::SearchCategoryEnum, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
-    use crate::core::state::drives::{
-        
-    };
+    use crate::core::state::search::state::state::{raw_query,filter_search_results_by_permission};
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
@@ -345,6 +343,7 @@ pub mod drives_handlers {
                                 .trim_end_matches('/')
                                 .to_string()
                         ),
+                        last_indexed_ms: None,
                     };
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {
@@ -549,6 +548,276 @@ pub mod drives_handlers {
                 create_response(
                     StatusCode::BAD_REQUEST,
                     ErrorResponse::err(400, error_msg).encode()
+                )
+            }
+        }
+    }
+
+    pub async fn search_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Check if user is owner
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // Parse request body
+        let body = request.body();
+        let request_body: SearchDriveRequestBody = match serde_json::from_slice(body) {
+            Ok(body) => body,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // Check if search query is provided
+        if request_body.query.trim().is_empty() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Search query cannot be empty".to_string()).encode()
+            );
+        }
+    
+        // Use the categories from the request or default to All if empty
+        let categories = if request_body.categories.is_empty() {
+            Some(vec![SearchCategoryEnum::All])
+        } else {
+            Some(request_body.categories)
+        };
+    
+        // Perform the search using the search module
+        let max_edit_distance = 2; // Allow up to 2 character edits for fuzzy matching
+        let search_results = raw_query(&request_body.query, max_edit_distance, categories);
+        
+        // Create a PermissionGranteeID from the requester's user ID for permission checks
+        let grantee_id = PermissionGranteeID::User(requester_api_key.user_id.clone());
+        
+        // Filter results based on permissions
+        let filtered_results = filter_search_results_by_permission(&search_results, &grantee_id, is_owner).await;
+        
+        // Get total count of filtered results
+        let total_count = filtered_results.len();
+    
+        // If there are no results, return early
+        if total_count == 0 {
+            return create_response(
+                StatusCode::OK,
+                SearchDriveResponse::ok(&SearchDriveResponseData {
+                    items: vec![],
+                    page_size: 0,
+                    total: 0,
+                    cursor_up: None,
+                    cursor_down: None,
+                }).encode()
+            );
+        }
+    
+        // Parse cursors if provided
+        let cursor_up = if let Some(cursor) = request_body.cursor_up {
+            match cursor.parse::<usize>() {
+                Ok(idx) => Some(idx),
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid cursor_up format".to_string()).encode()
+                ),
+            }
+        } else {
+            None
+        };
+    
+        let cursor_down = if let Some(cursor) = request_body.cursor_down {
+            match cursor.parse::<usize>() {
+                Ok(idx) => Some(idx),
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid cursor_down format".to_string()).encode()
+                ),
+            }
+        } else {
+            None
+        };
+    
+        // Determine starting point based on cursors
+        let start_index = if let Some(up) = cursor_up {
+            up.min(total_count - 1)
+        } else if let Some(down) = cursor_down {
+            down.min(total_count - 1)
+        } else {
+            match request_body.direction {
+                SortDirection::Asc => 0,
+                SortDirection::Desc => total_count - 1,
+            }
+        };
+    
+        // Create paginated results from filtered results
+        let mut paginated_results = Vec::new();
+        let mut processed_count = 0;
+        
+        match request_body.direction {
+            SortDirection::Desc => {
+                // Newest first (highest index to lowest)
+                let mut current_idx = start_index;
+                while paginated_results.len() < request_body.page_size && current_idx < total_count {
+                    paginated_results.push(filtered_results[current_idx].clone());
+                    if current_idx == 0 {
+                        break;
+                    }
+                    current_idx -= 1;
+                    processed_count = start_index - current_idx;
+                }
+            },
+            SortDirection::Asc => {
+                // Oldest first (lowest index to highest)
+                let mut current_idx = start_index;
+                while paginated_results.len() < request_body.page_size && current_idx < total_count {
+                    paginated_results.push(filtered_results[current_idx].clone());
+                    current_idx += 1;
+                    if current_idx >= total_count {
+                        break;
+                    }
+                    processed_count = current_idx - start_index;
+                }
+            }
+        }
+    
+        // Calculate next cursors based on direction and current position
+        let (cursor_up, cursor_down) = match request_body.direction {
+            SortDirection::Desc => {
+                let next_up = if start_index < total_count - 1 {
+                    Some((start_index + 1).to_string())
+                } else {
+                    None
+                };
+                let next_down = if processed_count > 0 && start_index >= processed_count {
+                    Some((start_index - processed_count).to_string())
+                } else {
+                    None
+                };
+                (next_up, next_down)
+            },
+            SortDirection::Asc => {
+                let next_up = if processed_count > 0 && start_index + processed_count < total_count {
+                    Some((start_index + processed_count).to_string())
+                } else {
+                    None
+                };
+                let next_down = if start_index > 0 {
+                    Some((start_index - 1).to_string())
+                } else {
+                    None
+                };
+                (next_up, next_down)
+            }
+        };
+    
+        // Create response
+        let response_data = SearchDriveResponseData {
+            items: paginated_results.clone(),
+            page_size: paginated_results.len(),
+            total: total_count,
+            cursor_up,
+            cursor_down,
+        };
+    
+        create_response(
+            StatusCode::OK,
+            SearchDriveResponse::ok(&response_data).encode()
+        )
+    }
+    
+
+    pub async fn reindex_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Check if user is owner
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // Get drive ID
+        let drive_id = DRIVE_ID.with(|drive_id| drive_id.clone());
+        
+        // If not owner, check permissions
+        if !is_owner {
+            // Check if user has View permission on drive table or specific drive
+            let table_resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
+            let specific_resource_id = SystemResourceID::Record(drive_id.0.clone());
+            
+            let table_permissions = check_system_permissions(
+                table_resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            let specific_permissions = check_system_permissions(
+                specific_resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            // User needs View permission on either the table or the specific drive
+            let has_permission = table_permissions.contains(&SystemPermissionType::View) || 
+                                specific_permissions.contains(&SystemPermissionType::View);
+            
+            if !has_permission {
+                return create_auth_error_response();
+            }
+        }
+    
+        // Parse request body (optional)
+        let body = request.body();
+        let request_body: ReindexDriveRequestBody = if body.is_empty() {
+            ReindexDriveRequestBody { force: None }
+        } else {
+            match serde_json::from_slice(body) {
+                Ok(body) => body,
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+                ),
+            }
+        };
+    
+        // Check when the last reindex was performed
+        let last_index_time = crate::core::state::search::state::state::get_last_index_update_time();
+        let current_time = ic_cdk::api::time() / 1_000_000; // Convert nanoseconds to milliseconds
+        
+        // Only reindex if forced or if it's been at least 5 minutes since the last reindex
+        let force = request_body.force.unwrap_or(false);
+        if !force && last_index_time > 0 && (current_time - last_index_time) < 5 * 60 * 1000 {
+            return create_response(
+                StatusCode::TOO_MANY_REQUESTS,
+                ErrorResponse::err(429, "Reindex was performed recently. Use 'force: true' to override.".to_string()).encode()
+            );
+        }
+        
+        // Perform the reindex
+        let reindex_result = crate::core::state::search::state::state::reindex_drive();
+        
+        match reindex_result {
+            Ok(indexed_count) => {
+                // Get the updated timestamp
+                let new_timestamp = crate::core::state::search::state::state::get_last_index_update_time();
+                
+                // Prepare response
+                let response_data = ReindexDriveResponseData {
+                    success: true,
+                    timestamp_ms: new_timestamp,
+                    indexed_count,
+                };
+                
+                create_response(
+                    StatusCode::OK,
+                    ReindexDriveResponse::ok(&response_data).encode()
+                )
+            },
+            Err(error) => {
+                create_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorResponse::err(500, format!("Failed to reindex drive: {}", error)).encode()
                 )
             }
         }
