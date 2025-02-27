@@ -3,13 +3,11 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, search::types::SearchCategoryEnum, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, search::types::SearchCategoryEnum, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
-    use crate::core::state::drives::{
-        
-    };
+    use crate::core::state::search::state::state::{raw_query,filter_search_results_by_permission};
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
@@ -562,12 +560,9 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
     
-        // For now, we only let the owner search
+        // Check if user is owner
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
-    
+        
         // Parse request body
         let body = request.body();
         let request_body: SearchDriveRequestBody = match serde_json::from_slice(body) {
@@ -594,12 +589,17 @@ pub mod drives_handlers {
         };
     
         // Perform the search using the search module
-        use crate::core::state::search::state::state::raw_query;
         let max_edit_distance = 2; // Allow up to 2 character edits for fuzzy matching
         let search_results = raw_query(&request_body.query, max_edit_distance, categories);
         
-        // Get total count of results
-        let total_count = search_results.len();
+        // Create a PermissionGranteeID from the requester's user ID for permission checks
+        let grantee_id = PermissionGranteeID::User(requester_api_key.user_id.clone());
+        
+        // Filter results based on permissions
+        let filtered_results = filter_search_results_by_permission(&search_results, &grantee_id, is_owner).await;
+        
+        // Get total count of filtered results
+        let total_count = filtered_results.len();
     
         // If there are no results, return early
         if total_count == 0 {
@@ -652,7 +652,7 @@ pub mod drives_handlers {
             }
         };
     
-        // Create paginated results
+        // Create paginated results from filtered results
         let mut paginated_results = Vec::new();
         let mut processed_count = 0;
         
@@ -661,7 +661,7 @@ pub mod drives_handlers {
                 // Newest first (highest index to lowest)
                 let mut current_idx = start_index;
                 while paginated_results.len() < request_body.page_size && current_idx < total_count {
-                    paginated_results.push(search_results[current_idx].clone());
+                    paginated_results.push(filtered_results[current_idx].clone());
                     if current_idx == 0 {
                         break;
                     }
@@ -673,7 +673,7 @@ pub mod drives_handlers {
                 // Oldest first (lowest index to highest)
                 let mut current_idx = start_index;
                 while paginated_results.len() < request_body.page_size && current_idx < total_count {
-                    paginated_results.push(search_results[current_idx].clone());
+                    paginated_results.push(filtered_results[current_idx].clone());
                     current_idx += 1;
                     if current_idx >= total_count {
                         break;
@@ -727,6 +727,7 @@ pub mod drives_handlers {
             SearchDriveResponse::ok(&response_data).encode()
         )
     }
+    
 
     pub async fn reindex_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
@@ -735,10 +736,35 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
     
-        // Only owner can reindex the drive
+        // Check if user is owner
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // Get drive ID
+        let drive_id = DRIVE_ID.with(|drive_id| drive_id.clone());
+        
+        // If not owner, check permissions
         if !is_owner {
-            return create_auth_error_response();
+            // Check if user has View permission on drive table or specific drive
+            let table_resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
+            let specific_resource_id = SystemResourceID::Record(drive_id.0.clone());
+            
+            let table_permissions = check_system_permissions(
+                table_resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            let specific_permissions = check_system_permissions(
+                specific_resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            // User needs View permission on either the table or the specific drive
+            let has_permission = table_permissions.contains(&SystemPermissionType::View) || 
+                                specific_permissions.contains(&SystemPermissionType::View);
+            
+            if !has_permission {
+                return create_auth_error_response();
+            }
         }
     
         // Parse request body (optional)

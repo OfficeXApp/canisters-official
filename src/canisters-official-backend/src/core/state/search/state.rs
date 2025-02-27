@@ -8,13 +8,17 @@ pub mod state {
     use fst::{Map, MapBuilder, IntoStreamer, Streamer};
     use fst::automaton::Subsequence;
 
+    use crate::core::api::permissions::directory::check_directory_permissions;
+    use crate::core::api::permissions::system::check_system_permissions;
     use crate::core::state::directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata};
     use crate::core::state::directory::types::{DriveFullFilePath, FileUUID, FolderUUID};
     use crate::core::state::drives::state::state::{DRIVES_BY_ID_HASHTABLE, DRIVE_ID};
+    use crate::core::state::permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum};
     use crate::core::state::search::types::{SearchResult, SearchResultResourceID, SearchCategoryEnum};
     use crate::core::state::contacts::state::state::{CONTACTS_BY_ID_HASHTABLE};
     use crate::core::state::disks::state::state::{DISKS_BY_ID_HASHTABLE};
     use crate::core::state::teams::state::state::{TEAMS_BY_ID_HASHTABLE};
+    use crate::rest::directory::types::DirectoryResourceID;
     
 
     // Thread-local storage for the FST search index
@@ -304,6 +308,226 @@ pub mod state {
         matches.sort_by(|a, b| b.score.cmp(&a.score));
         
         matches
+    }
+
+    pub async fn filter_search_results_by_permission(
+        results: &[SearchResult], 
+        grantee_id: &PermissionGranteeID, 
+        is_owner: bool
+    ) -> Vec<SearchResult> {
+        let mut filtered_results = Vec::new();
+        
+        // Owners see everything, bypass permission checks
+        if is_owner {
+            return results.to_vec();
+        }
+        
+        for result in results {
+            let has_permission = match &result.category {
+                // Directory resources (files and folders)
+                SearchCategoryEnum::Files => {
+                    if let SearchResultResourceID::File(file_id) = &result.resource_id {
+                        let resource_id = DirectoryResourceID::File(file_id.clone());
+                        let permissions = check_directory_permissions(
+                            resource_id.clone(),
+                            grantee_id.clone()
+                        ).await;
+                        permissions.contains(&DirectoryPermissionType::View)
+                    } else {
+                        false // This should not happen based on category
+                    }
+                },
+                SearchCategoryEnum::Folders => {
+                    if let SearchResultResourceID::Folder(folder_id) = &result.resource_id {
+                        let resource_id = DirectoryResourceID::Folder(folder_id.clone());
+                        let permissions = check_directory_permissions(
+                            resource_id.clone(),
+                            grantee_id.clone()
+                        ).await;
+                        permissions.contains(&DirectoryPermissionType::View)
+                    } else {
+                        false // This should not happen based on category
+                    }
+                },
+                
+                // System resources
+                SearchCategoryEnum::Contacts => {
+                    if let SearchResultResourceID::Contact(user_id) = &result.resource_id {
+                        let resource_id = SystemResourceID::Record(user_id.0.clone());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        // Check table-wide permission if no specific permission found
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Contacts),
+                                grantee_id.clone()
+                            );
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else {
+                        false // This should not happen based on category
+                    }
+                },
+                SearchCategoryEnum::Disks => {
+                    if let SearchResultResourceID::Disk(disk_id) = &result.resource_id {
+                        let resource_id = SystemResourceID::Record(disk_id.0.clone());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        // Check table-wide permission if no specific permission found
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Disks),
+                                grantee_id.clone()
+                            );
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else {
+                        false // This should not happen based on category
+                    }
+                },
+                SearchCategoryEnum::Drives => {
+                    if let SearchResultResourceID::Drive(drive_id) = &result.resource_id {
+                        let resource_id = SystemResourceID::Record(drive_id.0.clone());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        // Check table-wide permission if no specific permission found
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Drives),
+                                grantee_id.clone()
+                            );
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else {
+                        false // This should not happen based on category
+                    }
+                },
+                SearchCategoryEnum::Teams => {
+                    if let SearchResultResourceID::Team(team_id) = &result.resource_id {
+                        let resource_id = SystemResourceID::Record(team_id.0.clone());
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        // Check table-wide permission if no specific permission found
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Teams),
+                                grantee_id.clone()
+                            );
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else {
+                        false // This should not happen based on category
+                    }
+                },
+                // Handle the All category by checking the specific resource type
+                SearchCategoryEnum::All => {
+                    match &result.resource_id {
+                        SearchResultResourceID::File(file_id) => {
+                            let resource_id = DirectoryResourceID::File(file_id.clone());
+                            let permissions = check_directory_permissions(
+                                resource_id,
+                                grantee_id.clone()
+                            ).await;
+                            permissions.contains(&DirectoryPermissionType::View)
+                        },
+                        SearchResultResourceID::Folder(folder_id) => {
+                            let resource_id = DirectoryResourceID::Folder(folder_id.clone());
+                            let permissions = check_directory_permissions(
+                                resource_id,
+                                grantee_id.clone()
+                            ).await;
+                            permissions.contains(&DirectoryPermissionType::View)
+                        },
+                        SearchResultResourceID::Contact(user_id) => {
+                            let resource_id = SystemResourceID::Record(user_id.0.clone());
+                            let permissions = check_system_permissions(
+                                resource_id,
+                                grantee_id.clone()
+                            );
+                            if !permissions.contains(&SystemPermissionType::View) {
+                                let table_permission = check_system_permissions(
+                                    SystemResourceID::Table(SystemTableEnum::Contacts),
+                                    grantee_id.clone()
+                                );
+                                table_permission.contains(&SystemPermissionType::View)
+                            } else {
+                                true
+                            }
+                        },
+                        SearchResultResourceID::Disk(disk_id) => {
+                            let resource_id = SystemResourceID::Record(disk_id.0.clone());
+                            let permissions = check_system_permissions(
+                                resource_id,
+                                grantee_id.clone()
+                            );
+                            if !permissions.contains(&SystemPermissionType::View) {
+                                let table_permission = check_system_permissions(
+                                    SystemResourceID::Table(SystemTableEnum::Disks),
+                                    grantee_id.clone()
+                                );
+                                table_permission.contains(&SystemPermissionType::View)
+                            } else {
+                                true
+                            }
+                        },
+                        SearchResultResourceID::Drive(drive_id) => {
+                            let resource_id = SystemResourceID::Record(drive_id.0.clone());
+                            let permissions = check_system_permissions(
+                                resource_id,
+                                grantee_id.clone()
+                            );
+                            if !permissions.contains(&SystemPermissionType::View) {
+                                let table_permission = check_system_permissions(
+                                    SystemResourceID::Table(SystemTableEnum::Drives),
+                                    grantee_id.clone()
+                                );
+                                table_permission.contains(&SystemPermissionType::View)
+                            } else {
+                                true
+                            }
+                        },
+                        SearchResultResourceID::Team(team_id) => {
+                            let resource_id = SystemResourceID::Record(team_id.0.clone());
+                            let permissions = check_system_permissions(
+                                resource_id,
+                                grantee_id.clone()
+                            );
+                            if !permissions.contains(&SystemPermissionType::View) {
+                                let table_permission = check_system_permissions(
+                                    SystemResourceID::Table(SystemTableEnum::Teams),
+                                    grantee_id.clone()
+                                );
+                                table_permission.contains(&SystemPermissionType::View)
+                            } else {
+                                true
+                            }
+                        },
+                    }
+                }
+            };
+            
+            if has_permission {
+                filtered_results.push(result.clone());
+            }
+        }
+        
+        filtered_results
     }
     
     /// Helper function to generate title and preview for each resource type
