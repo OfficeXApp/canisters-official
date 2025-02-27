@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, StateChecksum, StateDiffRecord};
+use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::PublicKeyICP;
 use crate::rest::webhooks::types::{SortDirection, WebhookResponse};
 
@@ -128,3 +129,61 @@ pub struct ReplayDriveResponseData {
 }
 
 pub type ReplayDriveResponse<'a> = DriveResponse<'a, ReplayDriveResponseData>;
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SearchSortByEnum {
+    #[serde(rename = "created_at")]
+    CreatedAt,
+    #[serde(rename = "updated_at")]
+    UpdatedAt,
+}
+
+impl Default for SearchSortByEnum {
+    fn default() -> Self {
+        SearchSortByEnum::UpdatedAt
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchDriveRequestBody {
+    pub query: String,
+    #[serde(default)]
+    pub categories: Vec<SearchCategoryEnum>,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+    #[serde(default)]
+    pub sort_by: SearchSortByEnum,
+    #[serde(default)]
+    pub direction: SortDirection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchDriveResponseData {
+    pub items: Vec<SearchResult>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor_up: Option<String>,
+    pub cursor_down: Option<String>,
+}
+
+pub type SearchDriveResponse<'a> = DriveResponse<'a, SearchDriveResponseData>;
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReindexDriveRequestBody {
+    // Optional field to override the 5 minute rate limit
+    pub force: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReindexDriveResponseData {
+    pub success: bool,
+    pub timestamp_ms: u64,
+    pub indexed_count: usize,
+}
+
+pub type ReindexDriveResponse<'a> = DriveResponse<'a, ReindexDriveResponseData>;

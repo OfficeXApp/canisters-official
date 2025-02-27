@@ -17,31 +17,6 @@ pub mod directorys_handlers {
         completed: Option<bool>,
     }
 
-    pub async fn search_directory_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
-        let requester_api_key = match authenticate_request(request) {
-            Some(key) => key,
-            None => return create_auth_error_response(),
-        };
-    
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
-    
-        let response = DirectoryListResponse {
-            folders: Vec::new(),
-            files: Vec::new(),
-            total_folders: 0,
-            total_files: 0,
-            cursor: None,
-        };
-    
-        create_response(
-            StatusCode::OK,
-            serde_json::to_vec(&response).expect("Failed to serialize response")
-        )
-    }
-
     pub async fn list_directorys_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {

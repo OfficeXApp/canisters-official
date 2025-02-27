@@ -9,6 +9,8 @@ pub const DRIVES_UPSERT_PATH: &str = "/drives/upsert";
 pub const DRIVES_DELETE_PATH: &str = "/drives/delete";
 pub const DRIVES_SNAPSHOT_PATH: &str = "/drives/snapshot"; 
 pub const DRIVES_REPLAY_PATH: &str = "/drives/replay"; 
+pub const DRIVES_SEARCH_PATH: &str = "/drives/search";
+pub const DRIVES_REINDEX_PATH: &str = "/drives/reindex";
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -43,6 +45,16 @@ pub fn init_routes() {
             "POST",
             DRIVES_REPLAY_PATH,
             |req, params| Box::pin(crate::rest::drives::handler::drives_handlers::replay_drive_handler(req, params)),
+        ),
+        (
+            "POST",
+            DRIVES_SEARCH_PATH,
+            |req, params| Box::pin(crate::rest::drives::handler::drives_handlers::search_drive_handler(req, params)),
+        ),
+        (
+            "POST",
+            DRIVES_REINDEX_PATH,
+            |req, params| Box::pin(crate::rest::drives::handler::drives_handlers::reindex_drive_handler(req, params)),
         )
     ];
 

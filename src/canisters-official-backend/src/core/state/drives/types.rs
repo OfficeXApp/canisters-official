@@ -1,6 +1,6 @@
-use std::fmt;
 
 // src/core/state/drives/types.rs
+use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use crate::core::types::{ICPPrincipalString, PublicKeyICP};

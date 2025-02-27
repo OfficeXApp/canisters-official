@@ -11,63 +11,30 @@ pub mod state {
     use crate::core::state::directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata};
     use crate::core::state::directory::types::{DriveFullFilePath, FileUUID, FolderUUID};
     use crate::core::state::drives::state::state::{DRIVES_BY_ID_HASHTABLE, DRIVE_ID};
-    // Removed unused IDPrefix import
-
-    // Define a SearchResultResourceID enum to store either a FileUUID or FolderUUID
-    #[derive(Debug, Clone)]
-    pub enum SearchResultResourceID {
-        File(FileUUID),
-        Folder(FolderUUID),
-    }
+    use crate::core::state::search::types::{SearchResult, SearchResultResourceID, SearchCategoryEnum};
+    use crate::core::state::contacts::state::state::{CONTACTS_BY_ID_HASHTABLE};
+    use crate::core::state::disks::state::state::{DISKS_BY_ID_HASHTABLE};
+    use crate::core::state::teams::state::state::{TEAMS_BY_ID_HASHTABLE};
+    
 
     // Thread-local storage for the FST search index
     thread_local! {
         static FST_INDEX: RefCell<Option<Arc<Map<Vec<u8>>>>> = RefCell::new(None);
-        static PATH_TO_ID_MAP: RefCell<HashMap<String, SearchResultResourceID>> = RefCell::new(HashMap::new());
+        static PATH_TO_ID_MAP: RefCell<HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>> = RefCell::new(HashMap::new());
         static LAST_INDEX_UPDATE_MS: RefCell<u64> = RefCell::new(0);
     }
-
-    #[derive(Debug, Clone)]
-    pub struct SearchResult {
-        pub path: String,
-        pub score: u64,
-        pub resource_id: SearchResultResourceID,
-    }
-
+    
     /// Builds or rebuilds the search index for the entire drive
     /// This is the primary function to call when you need to create or update the index
-    pub fn reindex_drive() -> Result<(), String> {
+    pub fn reindex_drive() -> Result<usize, String> {
         // Get current time in milliseconds
         let current_time_ms = ic_cdk::api::time() / 1_000_000; // Convert nanoseconds to milliseconds
         
-        // Collect all paths from files and folders
-        let mut paths = Vec::new();
-        
-        // Collect file paths
-        file_uuid_to_metadata.with(|map| {
-            for (file_id, metadata) in map.iter() {
-                // Skip deleted files
-                if !metadata.deleted {
-                    paths.push(metadata.full_file_path.clone());
-                }
-            }
-        });
-        
-        // Collect folder paths
-        folder_uuid_to_metadata.with(|map| {
-            for (folder_id, metadata) in map.iter() {
-                // Skip deleted folders
-                if !metadata.deleted {
-                    paths.push(metadata.full_folder_path.clone());
-                }
-            }
-        });
-        
-        // Build the index with the collected paths
-        let result = build_index_with_paths(paths);
+        // Index all resources
+        let result = build_index();
         
         // Update the last index time if successful
-        if result.is_ok() {
+        if let Ok(count) = result {
             // Update thread-local timestamp
             LAST_INDEX_UPDATE_MS.with(|cell| {
                 *cell.borrow_mut() = current_time_ms;
@@ -86,51 +53,41 @@ pub mod state {
         result
     }
     
-    /// Internal function that builds the index from a list of paths
+    /// Internal function that builds the index from all resources
     /// This handles the actual FST construction
-    fn build_index_with_paths(paths: Vec<DriveFullFilePath>) -> Result<(), String> {
+    fn build_index() -> Result<usize, String> {
         let mut builder = MapBuilder::memory();
         let mut entries = BTreeMap::new();
         let mut path_to_id = HashMap::new();
-
-        // Prepare the entries for FST
-        for path in paths {
-            // Normalize the path for search
-            let normalized = normalize_path(&path.0);
-            
-            // Check if path belongs to a file
-            let file_id = file_uuid_to_metadata.with(|map| {
-                map.iter().find(|(_, metadata)| metadata.full_file_path.0 == path.0)
-                   .map(|(file_id, _)| file_id.clone())
-            });
-            
-            if let Some(file_id) = file_id {
-                path_to_id.insert(normalized.clone(), SearchResultResourceID::File(file_id));
-                // Insert with a default score of 1
-                entries.insert(normalized, 1u64);
-                continue;
-            }
-            
-            // Check if path belongs to a folder
-            let folder_id = folder_uuid_to_metadata.with(|map| {
-                map.iter().find(|(_, metadata)| metadata.full_folder_path.0 == path.0)
-                   .map(|(folder_id, _)| folder_id.clone())
-            });
-            
-            if let Some(folder_id) = folder_id {
-                path_to_id.insert(normalized.clone(), SearchResultResourceID::Folder(folder_id));
-                // Insert with a default score of 1
-                entries.insert(normalized, 1u64);
-            }
-        }
-
+    
+        // Index files
+        index_files(&mut entries, &mut path_to_id);
+        
+        // Index folders
+        index_folders(&mut entries, &mut path_to_id);
+        
+        // Index contacts
+        index_contacts(&mut entries, &mut path_to_id);
+        
+        // Index disks
+        index_disks(&mut entries, &mut path_to_id);
+        
+        // Index drives
+        index_drives(&mut entries, &mut path_to_id);
+        
+        // Index teams
+        index_teams(&mut entries, &mut path_to_id);
+    
+        // Get the total count of indexed items
+        let indexed_count = entries.len();
+    
         // Build the FST Map
         for (key, value) in &entries {
             if let Err(e) = builder.insert(key, *value) {
                 return Err(format!("Failed to build search index: {}", e));
             }
         }
-
+    
         // Finish building and store in thread-local storage
         let fst_map = builder.into_map();
         let arc_map = Arc::new(fst_map);
@@ -143,11 +100,160 @@ pub mod state {
             *cell.borrow_mut() = path_to_id;
         });
         
-        Ok(())
+        Ok(indexed_count)
+    }
+
+    /// Index files
+    fn index_files(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+        file_uuid_to_metadata.with(|map| {
+            for (file_id, metadata) in map.iter() {
+                // Skip deleted files
+                if !metadata.deleted {
+                    // Normalize the path for search
+                    let normalized = normalize_path(&metadata.full_file_path.0);
+                    
+                    path_to_id.insert(normalized.clone(), (
+                        SearchResultResourceID::File(file_id.clone()),
+                        SearchCategoryEnum::Files
+                    ));
+                    
+                    // Insert with a default score of 1
+                    entries.insert(normalized, 1u64);
+                }
+            }
+        });
+    }
+
+    /// Index folders
+    fn index_folders(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+        folder_uuid_to_metadata.with(|map| {
+            for (folder_id, metadata) in map.iter() {
+                // Skip deleted folders
+                if !metadata.deleted {
+                    // Normalize the path for search
+                    let normalized = normalize_path(&metadata.full_folder_path.0);
+                    
+                    path_to_id.insert(normalized.clone(), (
+                        SearchResultResourceID::Folder(folder_id.clone()),
+                        SearchCategoryEnum::Folders
+                    ));
+                    
+                    // Insert with a default score of 1
+                    entries.insert(normalized, 1u64);
+                }
+            }
+        });
+    }
+
+    /// Index contacts
+    fn index_contacts(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+        CONTACTS_BY_ID_HASHTABLE.with(|contacts| {
+            for (contact_id, contact) in contacts.borrow().iter() {
+                // Create a searchable string with all contact fields
+                let search_string = format!(
+                    "{}|{}|{}|{}",
+                    contact_id.0,
+                    contact.nickname,
+                    contact.icp_principal.0.0,
+                    contact.evm_public_address
+                );
+                
+                // Normalize for search
+                let normalized = normalize_path(&search_string);
+                
+                path_to_id.insert(normalized.clone(), (
+                    SearchResultResourceID::Contact(contact_id.clone()),
+                    SearchCategoryEnum::Contacts
+                ));
+                
+                // Insert with a default score of 1
+                entries.insert(normalized, 1u64);
+            }
+        });
+    }
+
+    /// Index disks
+    fn index_disks(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+        DISKS_BY_ID_HASHTABLE.with(|disks| {
+            for (disk_id, disk) in disks.borrow().iter() {
+                // Create a searchable string with disk id, name, and external_id
+                let search_string = format!(
+                    "{}|{}|{}",
+                    disk_id.0,
+                    disk.name,
+                    disk.external_id.clone().unwrap_or_default()
+                );
+                
+                // Normalize for search
+                let normalized = normalize_path(&search_string);
+                
+                path_to_id.insert(normalized.clone(), (
+                    SearchResultResourceID::Disk(disk_id.clone()),
+                    SearchCategoryEnum::Disks
+                ));
+                
+                // Insert with a default score of 1
+                entries.insert(normalized, 1u64);
+            }
+        });
+    }
+
+    /// Index drives
+    fn index_drives(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+        DRIVES_BY_ID_HASHTABLE.with(|drives| {
+            for (drive_id, drive) in drives.borrow().iter() {
+                // Create a searchable string with drive fields
+                let search_string = format!(
+                    "{}|{}|{}|{}",
+                    drive_id.0,
+                    drive.name,
+                    drive.icp_principal.0.0,
+                    drive.url_endpoint.0
+                );
+                
+                // Normalize for search
+                let normalized = normalize_path(&search_string);
+                
+                path_to_id.insert(normalized.clone(), (
+                    SearchResultResourceID::Drive(drive_id.clone()),
+                    SearchCategoryEnum::Drives
+                ));
+                
+                // Insert with a default score of 1
+                entries.insert(normalized, 1u64);
+            }
+        });
+    }
+
+    /// Index teams
+    fn index_teams(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+        TEAMS_BY_ID_HASHTABLE.with(|teams| {
+            for (team_id, team) in teams.borrow().iter() {
+                // Create a searchable string with team id, name, and drive_id
+                let search_string = format!(
+                    "{}|{}|{}",
+                    team_id.0,
+                    team.name,
+                    team.drive_id.0
+                );
+                
+                // Normalize for search
+                let normalized = normalize_path(&search_string);
+                
+                path_to_id.insert(normalized.clone(), (
+                    SearchResultResourceID::Team(team_id.clone()),
+                    SearchCategoryEnum::Teams
+                ));
+                
+                // Insert with a default score of 1
+                entries.insert(normalized, 1u64);
+            }
+        });
     }
 
     /// Search the index with fuzzy matching and return results sorted by relevance
-    pub fn search(query: &str, _max_edit_distance: u32, limit: usize) -> Vec<SearchResult> {
+    /// Now supports filtering by categories
+    pub fn raw_query(query: &str, _max_edit_distance: u32, categories: Option<Vec<SearchCategoryEnum>>) -> Vec<SearchResult> {
         // Early return if index isn't built yet
         let index_option = FST_INDEX.with(|cell| cell.borrow().clone());
         let index = match index_option {
@@ -167,21 +273,29 @@ pub mod state {
         
         while let Some((path_bytes, score)) = stream.next() {
             if let Ok(path) = String::from_utf8(path_bytes.to_vec()) {
-                let resource_id = PATH_TO_ID_MAP.with(|cell| {
+                let resource_info = PATH_TO_ID_MAP.with(|cell| {
                     cell.borrow().get(&path).cloned()
                 });
                 
-                if let Some(resource_id) = resource_id {
+                if let Some((resource_id, category)) = resource_info {
+                    // Filter by category if specified
+                    if let Some(ref filter_categories) = categories {
+                        if !filter_categories.contains(&SearchCategoryEnum::All) && 
+                           !filter_categories.contains(&category) {
+                            continue;
+                        }
+                    }
+                    
+                    // Generate title and preview based on resource type
+                    let (title, preview) = generate_title_and_preview(&resource_id);
+                    
                     matches.push(SearchResult {
-                        path,
+                        title,
+                        preview,
                         score,
                         resource_id,
+                        category,
                     });
-                }
-                
-                // Limit the number of results
-                if matches.len() >= limit {
-                    break;
                 }
             }
         }
@@ -190,6 +304,94 @@ pub mod state {
         matches.sort_by(|a, b| b.score.cmp(&a.score));
         
         matches
+    }
+    
+    /// Helper function to generate title and preview for each resource type
+    fn generate_title_and_preview(resource_id: &SearchResultResourceID) -> (String, String) {
+        match resource_id {
+            SearchResultResourceID::File(file_id) => {
+                let mut title = String::new();
+                let mut preview = String::new();
+                
+                file_uuid_to_metadata.with(|map| {
+                    if let Some(metadata) = map.get(file_id) {
+                        // Extract filename from path
+                        let path_parts: Vec<&str> = metadata.full_file_path.0.split('/').collect();
+                        title = path_parts.last().unwrap_or(&"").to_string();
+                        preview = metadata.full_file_path.0.clone();
+                    }
+                });
+                
+                (title, preview)
+            },
+            SearchResultResourceID::Folder(folder_id) => {
+                let mut title = String::new();
+                let mut preview = String::new();
+                
+                folder_uuid_to_metadata.with(|map| {
+                    if let Some(metadata) = map.get(folder_id) {
+                        // Extract folder name from path
+                        let path_parts: Vec<&str> = metadata.full_folder_path.0.split('/').collect();
+                        title = path_parts.last().unwrap_or(&"").to_string();
+                        preview = metadata.full_folder_path.0.clone();
+                    }
+                });
+                
+                (title, preview)
+            },
+            SearchResultResourceID::Contact(user_id) => {
+                let mut title = String::new();
+                let mut preview = String::new();
+                
+                CONTACTS_BY_ID_HASHTABLE.with(|contacts| {
+                    if let Some(contact) = contacts.borrow().get(user_id) {
+                        title = contact.nickname.clone();
+                        preview = contact.icp_principal.0.0.clone();
+                    }
+                });
+                
+                (title, preview)
+            },
+            SearchResultResourceID::Disk(disk_id) => {
+                let mut title = String::new();
+                let mut preview = String::new();
+                
+                DISKS_BY_ID_HASHTABLE.with(|disks| {
+                    if let Some(disk) = disks.borrow().get(disk_id) {
+                        title = disk.name.clone();
+                        preview = disk.external_id.clone().unwrap_or_default();
+                    }
+                });
+                
+                (title, preview)
+            },
+            SearchResultResourceID::Drive(drive_id) => {
+                let mut title = String::new();
+                let mut preview = String::new();
+                
+                DRIVES_BY_ID_HASHTABLE.with(|drives| {
+                    if let Some(drive) = drives.borrow().get(drive_id) {
+                        title = drive.name.clone();
+                        preview = drive.icp_principal.0.0.clone();
+                    }
+                });
+                
+                (title, preview)
+            },
+            SearchResultResourceID::Team(team_id) => {
+                let mut title = String::new();
+                let mut preview = String::new();
+                
+                TEAMS_BY_ID_HASHTABLE.with(|teams| {
+                    if let Some(team) = teams.borrow().get(team_id) {
+                        title = team.name.clone();
+                        preview = team.drive_id.0.clone();
+                    }
+                });
+                
+                (title, preview)
+            },
+        }
     }
 
     /// Get the timestamp (in milliseconds) of when the index was last updated

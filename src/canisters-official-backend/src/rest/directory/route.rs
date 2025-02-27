@@ -3,7 +3,6 @@ use crate::debug_log;
 use crate::rest::router;
 use crate::types::RouteHandler;
 
-pub const DIRECTORYS_SEARCH_PATH: &str = "/directory/search";
 pub const DIRECTORYS_LIST_PATH: &str = "/directory/list";
 pub const DIRECTORYS_ACTION_PATH: &str = "/directory/action";
 pub const UPLOAD_CHUNK_PATH: &str = "/directory/raw_upload/chunk";
@@ -17,11 +16,6 @@ type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
 pub fn init_routes() {
     let routes: &[HandlerEntry] = &[
-        (
-            "POST",
-            DIRECTORYS_SEARCH_PATH,
-            |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::search_directory_handler(req, params)),
-        ),
         (
             "POST",
             DIRECTORYS_LIST_PATH,
