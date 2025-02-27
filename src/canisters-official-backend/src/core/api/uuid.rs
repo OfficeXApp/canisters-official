@@ -6,6 +6,12 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
+
+
+pub fn compile_user_id(principal_string: &str) -> UserID {
+    UserID(format!("{}{}", IDPrefix::User.as_str(), principal_string))
+}
+
 pub fn generate_unique_id(prefix: IDPrefix, suffix: &str) -> String {
     let drive_id = ic_cdk::api::id().to_string();          // Canister's unique ID
     let current_time = ic_cdk::api::time();                   // Nanoseconds timestamp
