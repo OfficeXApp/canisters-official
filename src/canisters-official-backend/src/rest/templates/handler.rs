@@ -72,7 +72,7 @@ pub mod templates_handlers {
     pub async fn upsert_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(request.body());
 
-        let id = TemplateID(generate_unique_id(IDPrefix::User, ""));
+        let id = TemplateID(generate_unique_id(IDPrefix::Disk, ""));
 
         let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let template_item = TemplateItem {

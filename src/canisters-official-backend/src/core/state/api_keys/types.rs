@@ -45,3 +45,41 @@ impl fmt::Display for ApiKeyValue {
         write!(f, "{}", self.0)
     }
 }
+
+
+    
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub enum AuthTypeEnum {
+    Signature,
+    ApiKey
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(untagged)]
+pub enum AuthJsonDecoded {
+    Signature(SignatureAuthProof),
+    ApiKey(ApiKeyProof),
+}
+
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ApiKeyProof {
+    pub auth_type: AuthTypeEnum,
+    pub value: ApiKeyValue,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SignatureAuthProof {
+    pub auth_type: AuthTypeEnum,
+    pub challenge: SignatureAuthChallenge,
+    pub signature: Vec<u8>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SignatureAuthChallenge {
+    pub timestamp_ms: u64,
+    pub drive_canister_id: String,
+    pub self_auth_principal: Vec<u8>,
+    pub canonical_principal: String,
+}

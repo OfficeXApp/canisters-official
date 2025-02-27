@@ -1,10 +1,16 @@
 // src/core/api/uuid.rs
 
-use crate::core::{state::{directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_TIMESTAMP_NS, DRIVE_STATE_CHECKSUM, GLOBAL_UUID_NONCE}, types::{StateChecksum, DriveStateDiffString}}}, types::{IDPrefix, UserID}};
+use crate::core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, GLOBAL_UUID_NONCE}, types::{DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
+
+
+
+pub fn compile_user_id(principal_string: &str) -> UserID {
+    UserID(format!("{}{}", IDPrefix::User.as_str(), principal_string))
+}
 
 pub fn generate_unique_id(prefix: IDPrefix, suffix: &str) -> String {
     let drive_id = ic_cdk::api::id().to_string();          // Canister's unique ID
@@ -35,7 +41,19 @@ pub fn generate_api_key() -> String {
     hasher.update(combined.as_bytes());
     let hash = hasher.finalize();
     
-    hex::encode(hash)
+    let api_key_inner_value = hex::encode(hash);
+
+    let api_key_proof = ApiKeyProof {
+        auth_type: AuthTypeEnum::ApiKey,
+        value: ApiKeyValue(api_key_inner_value.to_string()),
+    };
+    
+    // Serialize to JSON
+    let json_payload = serde_json::to_string(&api_key_proof)
+        .unwrap_or_else(|_| String::from("{}"));
+    
+    // Base64 encode the JSON
+    base64::encode(json_payload)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
