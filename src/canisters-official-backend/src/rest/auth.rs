@@ -31,8 +31,17 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         },
     };
 
+    debug_log!("btoa_token: {}", btoa_token);
+
+    let padded_token = match btoa_token.len() % 4 {
+        0 => btoa_token.to_string(),
+        n => format!("{}{}", btoa_token, "=".repeat(4 - n))
+    };
+
+    debug_log!("padded_token: {}", padded_token);
+
     // Decode the base64 proof string
-    let stringified_token = match base64::decode(btoa_token) {
+    let stringified_token = match base64::decode(padded_token) {
         Ok(decoded) => match String::from_utf8(decoded) {
             Ok(json_str) => json_str,
             Err(e) => {
@@ -46,6 +55,8 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         },
     };
 
+    debug_log!("stringified_token: {}", stringified_token);
+
     // Parse the JSON proof
     let auth_json: AuthJsonDecoded = match serde_json::from_str(&stringified_token) {
         Ok(proof) => proof,
@@ -54,6 +65,8 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
             return None;
         },
     };
+
+    debug_log!("auth_json: {:?}", auth_json);
 
     // Handle different authentication types
     match auth_json {
@@ -64,16 +77,12 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                 return None;
             }
 
-            // Check timestamp is within 30 seconds
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64;
-            
+            // Check timestamp is within 30 seconds using ic_cdk convert ns to ms
+            let now = ic_cdk::api::time() / 1_000_000;
             let challenge_time = proof.challenge.timestamp_ms;
-            if now > challenge_time + 30_000 || now < challenge_time {
-                debug_log!("Timestamp out of valid range");
-                return None; // Timestamp too old or from the future
+            if now > challenge_time + 30_000 {
+                debug_log!("Signature challenge expired");
+                return None;
             }
 
             // Convert signature from array to bytes
@@ -102,20 +111,21 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                 Ok(_) => {
                     debug_log!("Signature verification successful");
 
-                    // Convert DER public key to principal string
-                    let public_key_result = match user_public_key_from_bytes(public_key) {
-                        Ok(result) => result,
-                        Err(e) => {
-                            debug_log!("Failed to parse public key: {:?}", e);
-                            return None;
-                        },
-                    };
-
-                    // Get the user public key
-                    let user_public_key = public_key_result.0;
+                    // We now have a raw Ed25519 public key, not in DER format
+                    // Create principal directly from this raw key without trying to parse it as DER
                     
-                    // Calculate the principal
-                    let principal = Principal::self_authenticating(&user_public_key.key);
+                    // For Ed25519 keys, the principal is derived directly from the raw public key
+                    // using the self_authenticating method
+                    let raw_key = public_key.clone();
+                    
+                    // Ensure it's the right length for an Ed25519 key
+                    if raw_key.len() != 32 {
+                        debug_log!("Raw public key has incorrect length: {}", raw_key.len());
+                        return None;
+                    }
+                    
+                    // Calculate the principal directly from the raw key
+                    let principal = Principal::self_authenticating(&raw_key);
                     let principal_text = principal.to_text();
 
                     debug_log!("Successfully authenticated principal: {}", principal_text.clone());
@@ -256,3 +266,4 @@ pub fn create_raw_upload_error_response(error_msg: &str) -> HttpResponse<'static
 
     create_response(StatusCode::BAD_REQUEST, body)
 }
+

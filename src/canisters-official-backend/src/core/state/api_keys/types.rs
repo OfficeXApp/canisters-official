@@ -49,6 +49,7 @@ impl fmt::Display for ApiKeyValue {
 
     
 #[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq)]
+#[serde(rename_all = "PascalCase")]
 pub enum AuthTypeEnum {
     Signature,
     ApiKey
