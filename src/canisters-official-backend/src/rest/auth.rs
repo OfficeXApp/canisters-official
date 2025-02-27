@@ -1,4 +1,3 @@
-use candid::Principal;
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use crate::{core::{state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log};
@@ -10,7 +9,6 @@ use ic_crypto_standalone_sig_verifier::{
 };
 use ic_crypto_standalone_sig_verifier::user_public_key_from_bytes;
 use super::helpers::create_response;
-
 
 pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     // Extract the Authorization header
@@ -125,7 +123,9 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                     }
                     
                     // Calculate the principal directly from the raw key
+                    debug_log!("Creating principal from raw key: {:?}", public_key);
                     let principal = Principal::self_authenticating(&raw_key);
+                    debug_log!("Principal bytes: {:?}", principal.as_slice());
                     let principal_text = principal.to_text();
 
                     debug_log!("Successfully authenticated principal: {}", principal_text.clone());
