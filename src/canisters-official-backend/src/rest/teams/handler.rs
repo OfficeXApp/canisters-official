@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
+        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -31,8 +31,12 @@ pub mod teams_handlers {
             SystemResourceID::Table(SystemTableEnum::Teams),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
 
-        if !permissions.contains(&SystemPermissionType::View) && !is_owner {
+        if !permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) && !is_owner {
             return create_auth_error_response();
         }
 
@@ -150,6 +154,7 @@ pub mod teams_handlers {
                                 .trim_end_matches('/')
                                 .to_string()
                         ),
+                        tags: vec![],
                     };
 
                     // Update state
@@ -177,12 +182,16 @@ pub mod teams_handlers {
                 UpsertTeamRequestBody::Update(update_req) => {
 
                     // Check table-level permissions for Teams table
-                    let permissions = check_system_permissions(
+                    let table_permissions = check_system_permissions(
                         SystemResourceID::Table(SystemTableEnum::Teams),
                         PermissionGranteeID::User(requester_api_key.user_id.clone())
                     );
+                    let permissions = check_system_permissions(
+                        SystemResourceID::Record(update_req.id.clone()),
+                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                    );
 
-                    if !permissions.contains(&SystemPermissionType::Update) && !is_owner {
+                    if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) && !is_owner {
                         return create_auth_error_response();
                     }
 
@@ -248,21 +257,7 @@ pub mod teams_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-    
-        // Only owner can delete teams for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        // Check table-level permissions for Teams table
-        let permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Teams),
-            PermissionGranteeID::User(requester_api_key.user_id.clone())
-        );
 
-        if !permissions.contains(&SystemPermissionType::Delete) && !is_owner {
-            return create_auth_error_response();
-        }
-
-        let prestate = snapshot_prestate();
-        
         // Parse request body
         let body: &[u8] = request.body();
         let delete_request = match serde_json::from_slice::<DeleteTeamRequestBody>(body) {
@@ -274,6 +269,25 @@ pub mod teams_handlers {
         };
     
         let team_id = TeamID(delete_request.id.clone());
+    
+        // Only owner can delete teams for now
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        // Check table-level permissions for Teams table
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+        let permissions = check_system_permissions(
+            SystemResourceID::Record(team_id.clone().to_string()),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+
+        if  !permissions.contains(&SystemPermissionType::Delete) && !table_permissions.contains(&SystemPermissionType::Delete) && !is_owner {
+            return create_auth_error_response();
+        }
+
+        let prestate = snapshot_prestate();
+        
     
         // Get team to verify it exists
         let team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {

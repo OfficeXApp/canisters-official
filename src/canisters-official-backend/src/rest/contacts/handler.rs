@@ -38,13 +38,17 @@ pub mod contacts_handlers {
 
         // Check permissions if not owner
         if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Contacts),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(contact_id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::View) {
+            if !permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) {
                 return create_auth_error_response();
             }
         }
@@ -292,13 +296,17 @@ pub mod contacts_handlers {
 
                     // Check update permission if not owner
                     if !is_owner {
+                        let table_permissions = check_system_permissions(
+                            SystemResourceID::Table(SystemTableEnum::Contacts),
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
                         let resource_id = SystemResourceID::Record(contact_id.to_string());
                         let permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
                         
-                        if !permissions.contains(&SystemPermissionType::Update) {
+                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
                             return create_auth_error_response();
                         }
                     }
@@ -371,7 +379,8 @@ pub mod contacts_handlers {
                         private_note: Some(create_req.private_note.unwrap_or_default()),
                         evm_public_address: create_req.evm_public_address.unwrap_or_default(),
                         icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
-                        teams: [].to_vec()
+                        teams: [].to_vec(),
+                        tags: vec![],
                     };
 
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {
@@ -437,13 +446,17 @@ pub mod contacts_handlers {
 
         // Check delete permission if not owner
         if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Contacts),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(contact_id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::Delete) {
+            if !permissions.contains(&SystemPermissionType::Delete) && !table_permissions.contains(&SystemPermissionType::Delete) {
                 return create_auth_error_response();
             }
         }

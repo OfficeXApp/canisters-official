@@ -6,8 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     state::{
-        directory::types::DriveFullFilePath,
-        teams::types::TeamID,
+        directory::types::DriveFullFilePath, tags::types::TagStringValue, teams::types::TeamID
     },
     types::UserID,
 }, rest::directory::types::DirectoryResourceID};
@@ -75,6 +74,7 @@ pub struct DirectoryPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
+    pub tags: Vec<TagStringValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -103,7 +103,8 @@ pub enum SystemTableEnum {
     Teams,
     ApiKeys,
     Permissions,
-    Webhooks
+    Webhooks,
+    Tags
 }
 
 impl fmt::Display for SystemTableEnum {
@@ -116,6 +117,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::ApiKeys => write!(f, "api_keys"),
             SystemTableEnum::Permissions => write!(f, "permissions"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
             SystemTableEnum::Webhooks => write!(f, "webhooks"),
+            SystemTableEnum::Tags => write!(f, "tags"),
         }
     }
 }
@@ -148,4 +150,5 @@ pub struct SystemPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
+    pub tags: Vec<TagStringValue>,
 }

@@ -3,6 +3,8 @@ use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use std::fmt;
 
+use crate::core::state::tags::types::TagStringValue;
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DiskID(pub String);
@@ -21,6 +23,7 @@ pub struct Disk {
     pub public_note: Option<String>,
     pub auth_json: Option<String>,
     pub external_id: Option<String>,
+    pub tags: Vec<TagStringValue>,
 }
 
 

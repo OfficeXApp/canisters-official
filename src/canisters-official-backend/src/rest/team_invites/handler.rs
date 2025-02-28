@@ -238,6 +238,7 @@ pub mod team_invites_handlers {
                         active_from: create_req.active_from.unwrap_or(0),
                         expires_at: create_req.expires_at.unwrap_or(-1),
                         from_placeholder_invitee: None,
+                        tags: vec![],
                     };
 
                     // Update all relevant state stores

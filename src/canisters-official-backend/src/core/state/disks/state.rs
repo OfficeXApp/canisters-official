@@ -24,6 +24,7 @@ pub mod state {
             public_note: Some("Default Canister Storage".to_string()),
             auth_json: None,
             external_id: Some(ic_cdk::api::id().to_text()),
+            tags: vec![],
         };
         let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
         let default_browsercache_disk = Disk {
@@ -34,6 +35,7 @@ pub mod state {
             public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
             auth_json: None,
             external_id: Some(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text())),
+            tags: vec![],
         };
 
         let default_disks = vec![default_canister_disk, default_browsercache_disk];

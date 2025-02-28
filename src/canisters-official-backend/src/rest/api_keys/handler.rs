@@ -37,13 +37,17 @@ pub mod apikeys_handlers {
 
         // Check system permissions if not owner or own key
         if !is_owner && !is_own_key {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::ApiKeys),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(requested_id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::View) {
+            if !permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) {
                 return create_auth_error_response();
             }
         }
@@ -186,6 +190,7 @@ pub mod apikeys_handlers {
                         created_at: ic_cdk::api::time(),
                         expires_at: create_req.expires_at.unwrap_or(-1),
                         is_revoked: false,
+                        tags: vec![],
                     };
             
                     // Update all three hashtables
@@ -238,13 +243,17 @@ pub mod apikeys_handlers {
 
                     // Check system permission to update if not owner or own key
                     if !is_owner && !is_own_key {
+                        let table_permissions = check_system_permissions(
+                            SystemResourceID::Table(SystemTableEnum::ApiKeys),
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
                         let resource_id = SystemResourceID::Record(api_key.id.to_string());
                         let permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
                         
-                        if !permissions.contains(&SystemPermissionType::Update) {
+                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
                             return create_auth_error_response();
                         }
                     }
@@ -348,13 +357,17 @@ pub mod apikeys_handlers {
         let is_own_key = requester_api_key.user_id == api_key.user_id;
 
         if !is_owner && !is_own_key {
+            let table_permission = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::ApiKeys),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(api_key.id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::Delete) {
+            if !permissions.contains(&SystemPermissionType::Delete) && !table_permission.contains(&SystemPermissionType::Delete) {
                 return create_auth_error_response();
             }
         }

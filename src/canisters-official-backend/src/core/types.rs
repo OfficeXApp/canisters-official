@@ -51,6 +51,7 @@ pub enum IDPrefix {
     PlaceholderTeamInviteeID,
     ShareTrackID,
     DriveStateDiffID,
+    TagID
 }
 
 impl IDPrefix {
@@ -72,6 +73,7 @@ impl IDPrefix {
             IDPrefix::PlaceholderTeamInviteeID => "PlaceholderTeamInviteeID_",
             IDPrefix::ShareTrackID => "ShareTrackID_",
             IDPrefix::DriveStateDiffID => "DriveStateDiffID_",
+            IDPrefix::TagID => "TagID_",
         }
     }
 }

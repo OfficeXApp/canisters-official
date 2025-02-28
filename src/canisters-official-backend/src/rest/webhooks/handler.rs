@@ -271,6 +271,7 @@ pub mod webhooks_handlers {
                         description: create_req.description.unwrap_or_default(),
                         active: true,
                         filters: create_req.filters.unwrap_or_default(),
+                        tags: vec![],
                     };
 
                     if !is_owner {

@@ -3,7 +3,7 @@
 use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
-use crate::core::types::{ICPPrincipalString, PublicKeyICP};
+use crate::core::{state::tags::types::TagStringValue, types::{ICPPrincipalString, PublicKeyICP}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -24,6 +24,7 @@ pub struct Drive {
     pub private_note: Option<String>,
     pub url_endpoint: DriveRESTUrlEndpoint,
     pub last_indexed_ms: Option<u64>,
+    pub tags: Vec<TagStringValue>,
 }   
 
 

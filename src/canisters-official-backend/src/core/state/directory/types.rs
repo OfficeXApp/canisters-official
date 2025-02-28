@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::core::{state::disks::types::{DiskID, DiskTypeEnum}, types::{ICPPrincipalString, UserID}};
+use crate::core::{state::{disks::types::{DiskID, DiskTypeEnum}, tags::types::TagStringValue}, types::{ICPPrincipalString, UserID}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -31,10 +31,6 @@ impl fmt::Display for DriveFullFilePath {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct Tag(pub String);
-
-
 
 
 
@@ -46,7 +42,7 @@ pub struct FolderMetadata {
     pub(crate) subfolder_uuids: Vec<FolderUUID>,
     pub(crate) file_uuids: Vec<FileUUID>,
     pub(crate) full_folder_path: DriveFullFilePath,
-    pub(crate) tags: Vec<Tag>,
+    pub(crate) tags: Vec<TagStringValue>,
     pub(crate) created_by: UserID,
     pub(crate) created_date_ms: u64, // unix ms
     pub(crate) last_updated_date_ms: u64,  // unix ms
@@ -70,7 +66,7 @@ pub struct FileMetadata {
     pub(crate) next_version: Option<FileUUID>,
     pub(crate) extension: String,
     pub(crate) full_file_path: DriveFullFilePath,
-    pub(crate) tags: Vec<Tag>,
+    pub(crate) tags: Vec<TagStringValue>,
     pub(crate) created_by: UserID,
     pub(crate) created_date_ms: u64, // unix ms
     pub(crate) disk_id: DiskID,

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::api::uuid::ShareTrackHash;
 use crate::core::state::directory::types::{FileMetadata, FolderMetadata, ShareTrackID, ShareTrackResourceID};
 use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChecksum, DriveStateDiffID, DriveStateDiffImplementationType, StateDiffRecord, DriveStateDiffString};
+use crate::core::state::tags::types::{Tag, TagID, TagResourceID, TagStringValue};
 use crate::core::state::team_invites::types::Team_Invite;
 use crate::core::state::teams::types::Team;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
@@ -178,12 +179,22 @@ pub enum WebhookResourceData {
     ShareTracking(ShareTrackingWebhookData),
     #[serde(rename = "state_diffs")]
     StateDiffs(DriveStateDiffWebhookData),
+    #[serde(rename = "tag")]
+    Tag(TagWebhookData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamInviteWebhookData {
     pub team: Option<Team>,
     pub team_invite: Option<Team_Invite>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TagWebhookData {
+    pub resource_id: TagResourceID,
+    pub tag_id: TagID,
+    pub tag_value: TagStringValue,
+    pub add: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

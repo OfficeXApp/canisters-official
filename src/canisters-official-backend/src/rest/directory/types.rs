@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID, Tag}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}}, types::IDPrefix}, rest::webhooks::types::SortDirection};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -356,7 +356,7 @@ pub struct GetFolderPayload {
 pub struct CreateFilePayload {
     pub name: String,
     pub extension: String,
-    pub tags: Vec<Tag>,
+    pub tags: Vec<TagStringValue>,
     pub file_size: u64,
     pub raw_url: String,
     pub disk_id: DiskID,
@@ -369,7 +369,7 @@ pub struct CreateFilePayload {
 #[serde(deny_unknown_fields)]
 pub struct CreateFolderPayload {
     pub name: String,
-    pub tags: Vec<Tag>,
+    pub tags: Vec<TagStringValue>,
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
@@ -380,7 +380,7 @@ pub struct CreateFolderPayload {
 #[serde(deny_unknown_fields)]
 pub struct UpdateFilePayload {
     pub name: Option<String>,
-    pub tags: Option<Vec<Tag>>,
+    pub tags: Option<Vec<TagStringValue>>,
     pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
 }
@@ -389,7 +389,7 @@ pub struct UpdateFilePayload {
 #[serde(deny_unknown_fields)]
 pub struct UpdateFolderPayload {
     pub name: Option<String>,
-    pub tags: Option<Vec<Tag>>,
+    pub tags: Option<Vec<TagStringValue>>,
     pub expires_at: Option<i64>,
 }
 

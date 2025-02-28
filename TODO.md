@@ -7,15 +7,12 @@
 
 ## Urgent Next
 
-- [🔵] Implement fuzzy string search to files with re-indexing & update search directory route -> use crate rust-fuzzy-search and minimize search space by searching within a folder
 - [ ] Add system resource wide "external_id" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
-- [ ] Implement tagging of files/folders & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>
-- [ ] Implement recent files/folders queue (simply a tag)
 - [ ] Setup factory to spawn Drive canisters with owner set
 - [ ] Review backend routes and their ingress/egress shapes to be a unified clean. Regenerate proper REST API docs
 - [ ] Consider whether to add hashed cosmic id into the url to support multi-tenant backends, primarily in nodejs. eg. `/drive/{canister_id}/directory/list`
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
-- [ ] Refactor list to apply filter on all appropriate route items
+- [ ] Refactor list to apply filter on all appropriate route items, including tags
 - [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
 
 ## Near Future
@@ -32,6 +29,7 @@
 - [ ] Test whether the s3/storj copy operation works (does raw_storage actually get duplicated?)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
+- [ ] Implement recent files/folders queue (should this simply a tag per user, `Recent::{UserID}`, or a frontend only distinction?)
 
 ## Backlog
 
@@ -88,3 +86,9 @@
 - [x] Investigate web2/web3 use of auth signatures as API Keys, will it work? how to prevent spoofing?
 - [x] Consider the danger of UserID values that dont comply with ICP Principals and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
 - [x] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership --> unncessary as we might actually _want_ to allow delegated placeholder redemption
+- [x] Implement fuzzy string search to files with re-indexing & update search directory route -> use crate rust-fuzzy-search and minimize search space by searching within a folder
+- [x] Implement universal tagging of files/folders/contacts/drives/disks/teams/webhooks & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>, and should be able to set tags on create too, with auto ignore invalid tags or unauth tags --> also we dont allow creating resources with tags pre-set for simplicity purposes. if you want to add tags to a new resource, it must be done after create via the dedicated tag route
+- [x] Add support for protected tags so that users cant masquerade attack tag groups (do we need to setup permissions for this?) --> we likely need to refactor tags from its simple strings to a full crud with acl, because we want to let team leaders manage tags too
+- [x] Implement tag deletion
+- [x] Add webhooks on tags
+- [x] Fix missing table permissions on resources
