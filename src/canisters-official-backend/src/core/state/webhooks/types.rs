@@ -118,6 +118,10 @@ pub enum WebhookEventLabel {
     DriveRestoreTrash,
     #[serde(rename = "drive.state_diffs")]
     DriveStateDiffs,
+    #[serde(rename = "tag.added")]
+    TagAdded,
+    #[serde(rename = "tag.removed")]
+    TagRemoved,
 }
 
 impl std::str::FromStr for WebhookEventLabel {
@@ -147,6 +151,8 @@ impl std::str::FromStr for WebhookEventLabel {
             "subfolder.shared" => Ok(Self::SubfolderShared),
             "team.invite.created" => Ok(Self::TeamInviteCreated),
             "team.invite.updated" => Ok(Self::TeamInviteUpdated),
+            "tag.added" => Ok(Self::TagAdded),
+            "tag.removed" => Ok(Self::TagRemoved),
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
             "drive.state_diffs" => Ok(Self::DriveStateDiffs),
             _ => Err(format!("Invalid webhook event: {}", s)),
@@ -188,6 +194,9 @@ impl ToString for WebhookEventLabel {
             // drive
             Self::DriveRestoreTrash => "drive.restore_trash",
             Self::DriveStateDiffs => "drive.state_diffs",
+            // tags
+            Self::TagAdded => "tag.added",
+            Self::TagRemoved => "tag.removed",
         }.to_string()
     }
 }

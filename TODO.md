@@ -7,14 +7,17 @@
 
 ## Urgent Next
 
-- [🔵] Implement universal tagging of files/folders/contacts/drives/disks/teams/webhooks & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>, and should be able to set tags on create too
-- [🔵] Implement recent files/folders queue (simply a tag)
+- [x] Implement universal tagging of files/folders/contacts/drives/disks/teams/webhooks & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>, and should be able to set tags on create too, with auto ignore invalid tags or unauth tags
+- [x] Add support for protected tags so that users cant masquerade attack tag groups (do we need to setup permissions for this?) --> we likely need to refactor tags from its simple strings to a full crud with acl, because we want to let team leaders manage tags too
+- [x] Implement tag deletion
+- [🔵] Add webhooks on tags
+- [ ] Fix missing permissions on contacts (currently only owner)
 - [ ] Add system resource wide "external_id" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
 - [ ] Setup factory to spawn Drive canisters with owner set
 - [ ] Review backend routes and their ingress/egress shapes to be a unified clean. Regenerate proper REST API docs
 - [ ] Consider whether to add hashed cosmic id into the url to support multi-tenant backends, primarily in nodejs. eg. `/drive/{canister_id}/directory/list`
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
-- [ ] Refactor list to apply filter on all appropriate route items
+- [ ] Refactor list to apply filter on all appropriate route items, including tags
 - [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
 
 ## Near Future
@@ -31,6 +34,7 @@
 - [ ] Test whether the s3/storj copy operation works (does raw_storage actually get duplicated?)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
+- [ ] Implement recent files/folders queue (should this simply a tag per user, `Recent::{UserID}`, or a frontend only distinction?)
 
 ## Backlog
 
