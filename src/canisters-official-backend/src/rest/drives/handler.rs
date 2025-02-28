@@ -35,13 +35,17 @@ pub mod drives_handlers {
         });
 
         if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Drives),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(drive_id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::View) {
+            if !permissions.contains(&SystemPermissionType::View) || !table_permissions.contains(&SystemPermissionType::View) {
                 return create_auth_error_response();
             }
         }
@@ -268,13 +272,17 @@ pub mod drives_handlers {
                     };
 
                     if !is_owner {
+                        let table_permissions = check_system_permissions(
+                            SystemResourceID::Table(SystemTableEnum::Drives),
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
                         let resource_id = SystemResourceID::Record(drive_id.to_string());
                         let permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
                         
-                        if !permissions.contains(&SystemPermissionType::Update) {
+                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
                             return create_auth_error_response();
                         }
                     }
@@ -399,13 +407,17 @@ pub mod drives_handlers {
         let drive_id = delete_request.id;
 
         if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Drives),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(drive_id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::Delete) {
+            if !permissions.contains(&SystemPermissionType::Delete) && !table_permissions.contains(&SystemPermissionType::Delete) {
                 return create_auth_error_response();
             }
         }

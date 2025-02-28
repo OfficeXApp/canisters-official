@@ -35,13 +35,17 @@ pub mod disks_handlers {
 
         // Check permissions if not owner
         if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Disks),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(disk_id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::View) {
+            if !permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) {
                 return create_auth_error_response();
             }
         }
@@ -265,13 +269,17 @@ pub mod disks_handlers {
 
                     // Check update permission if not owner
                     if !is_owner {
+                        let table_permissions = check_system_permissions(
+                            SystemResourceID::Table(SystemTableEnum::Disks),
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
                         let resource_id = SystemResourceID::Record(disk_id.to_string());
                         let permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
                         
-                        if !permissions.contains(&SystemPermissionType::Update) {
+                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
                             return create_auth_error_response();
                         }
                     }
@@ -434,13 +442,17 @@ pub mod disks_handlers {
 
         // Check delete permission if not owner
         if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Disks),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
             let resource_id = SystemResourceID::Record(disk_id.to_string());
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::Delete) {
+            if !permissions.contains(&SystemPermissionType::Delete) || !table_permissions.contains(&SystemPermissionType::Delete) {
                 return create_auth_error_response();
             }
         }

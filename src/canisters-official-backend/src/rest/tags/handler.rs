@@ -6,7 +6,7 @@ pub mod tags_handlers {
             api::{
                 permissions::system::check_system_permissions, 
                 replay::diff::{snapshot_poststate, snapshot_prestate}, 
-                uuid::generate_unique_id
+                uuid::generate_unique_id, webhooks::tags::{fire_tag_webhook, get_active_tag_webhooks}
             },
             state::{
                 drives::state::state::OWNER_ID, 
@@ -23,8 +23,8 @@ pub mod tags_handlers {
                         TAGS_BY_TIME_LIST, 
                         TAGS_BY_VALUE_HASHTABLE
                     }, 
-                    types::{HexColorString, Tag, TagID, TagStringValue, TagResourceID}
-                }
+                    types::{HexColorString, Tag, TagID, TagResourceID, TagStringValue}
+                }, webhooks::types::WebhookEventLabel
             }, 
             types::IDPrefix
         }, 
@@ -32,24 +32,9 @@ pub mod tags_handlers {
         rest::{
             auth::{authenticate_request, create_auth_error_response}, 
             tags::types::{
-                CreateTagResponse, 
-                DeleteTagResponse, 
-                DeletedTagData, 
-                ErrorResponse, 
-                GetTagResponse, 
-                ListTagsResponse, 
-                ListTagsResponseData,
-                UpdateTagResponse,
-                ListTagsRequestBody,
-                UpsertTagRequestBody,
-                CreateTagRequestBody,
-                UpdateTagRequestBody,
-                DeleteTagRequest,
-                TagResourceRequest,
-                TagOperationResponse,
-                TagResourceResponse
+                CreateTagRequestBody, CreateTagResponse, DeleteTagRequest, DeleteTagResponse, DeletedTagData, ErrorResponse, GetTagResponse, ListTagsRequestBody, ListTagsResponse, ListTagsResponseData, TagOperationResponse, TagResourceRequest, TagResourceResponse, UpdateTagRequestBody, UpdateTagResponse, UpsertTagRequestBody
             }, 
-            webhooks::types::SortDirection
+            webhooks::types::{SortDirection, TagWebhookData}
         }
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -676,8 +661,44 @@ pub mod tags_handlers {
         
         match result {
             Ok(_) => {
-                let action = if tag_request.add { "Add" } else { "Remove" };
+
+                let after_snap = TagWebhookData {
+                    tag_id: tag_id.clone(),
+                    resource_id: resource_id.clone(),
+                    tag_value: tag_value.clone(),
+                    add: tag_request.add,
+                };
                 
+                // Determine webhook event type based on action
+                let webhook_event = if tag_request.add {
+                    WebhookEventLabel::TagAdded
+                } else {
+                    WebhookEventLabel::TagRemoved
+                };
+                
+                // Get active webhooks for this tag
+                let webhooks = get_active_tag_webhooks(&tag_id, webhook_event.clone());
+                
+                // Fire webhook if there are active webhooks
+                if !webhooks.is_empty() {
+                    let notes = Some(format!(
+                        "Tag {} {} resource {}", 
+                        if tag_request.add { "added to" } else { "removed from" },
+                        tag_id.0.clone(),
+                        resource_id.get_id_string()
+                    ));
+                    
+                    fire_tag_webhook(
+                        webhook_event,
+                        webhooks,
+                        None,
+                        Some(after_snap),
+                        notes
+                    );
+                }
+                
+                
+                let action = if tag_request.add { "Add" } else { "Remove" };
                 snapshot_poststate(prestate, Some(
                     format!(
                         "{}: {} Tag {} to Resource {}", 

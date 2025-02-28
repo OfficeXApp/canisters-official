@@ -7,11 +7,6 @@
 
 ## Urgent Next
 
-- [x] Implement universal tagging of files/folders/contacts/drives/disks/teams/webhooks & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>, and should be able to set tags on create too, with auto ignore invalid tags or unauth tags
-- [x] Add support for protected tags so that users cant masquerade attack tag groups (do we need to setup permissions for this?) --> we likely need to refactor tags from its simple strings to a full crud with acl, because we want to let team leaders manage tags too
-- [x] Implement tag deletion
-- [🔵] Add webhooks on tags
-- [ ] Fix missing permissions on contacts (currently only owner)
 - [ ] Add system resource wide "external_id" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
 - [ ] Setup factory to spawn Drive canisters with owner set
 - [ ] Review backend routes and their ingress/egress shapes to be a unified clean. Regenerate proper REST API docs
@@ -92,3 +87,8 @@
 - [x] Consider the danger of UserID values that dont comply with ICP Principals and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
 - [x] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership --> unncessary as we might actually _want_ to allow delegated placeholder redemption
 - [x] Implement fuzzy string search to files with re-indexing & update search directory route -> use crate rust-fuzzy-search and minimize search space by searching within a folder
+- [x] Implement universal tagging of files/folders/contacts/drives/disks/teams/webhooks & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>, and should be able to set tags on create too, with auto ignore invalid tags or unauth tags --> also we dont allow creating resources with tags pre-set for simplicity purposes. if you want to add tags to a new resource, it must be done after create via the dedicated tag route
+- [x] Add support for protected tags so that users cant masquerade attack tag groups (do we need to setup permissions for this?) --> we likely need to refactor tags from its simple strings to a full crud with acl, because we want to let team leaders manage tags too
+- [x] Implement tag deletion
+- [x] Add webhooks on tags
+- [x] Fix missing table permissions on resources
