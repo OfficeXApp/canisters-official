@@ -22,8 +22,9 @@ pub struct Disk {
     pub private_note: Option<String>,
     pub public_note: Option<String>,
     pub auth_json: Option<String>,
-    pub external_id: Option<String>,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 

@@ -7,7 +7,6 @@ pub mod state {
     
     thread_local! {
         pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
-        pub(crate) static DISKS_BY_EXTERNAL_ID_HASHTABLE: RefCell<HashMap<String, DiskID>> = RefCell::new(HashMap::new());
         pub(crate) static DISKS_BY_TIME_LIST: RefCell<Vec<DiskID>> = RefCell::new(Vec::new());
     }
 
@@ -23,8 +22,9 @@ pub mod state {
             private_note: Some("Default Canister Storage".to_string()),
             public_note: Some("Default Canister Storage".to_string()),
             auth_json: None,
-            external_id: Some(ic_cdk::api::id().to_text()),
             tags: vec![],
+            external_id: Some(ic_cdk::api::id().to_text()),
+            external_payload: None,
         };
         let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
         let default_browsercache_disk = Disk {
@@ -34,8 +34,9 @@ pub mod state {
             private_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
             public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
             auth_json: None,
-            external_id: Some(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text())),
             tags: vec![],
+            external_id: Some(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text())),
+            external_payload: None,
         };
 
         let default_disks = vec![default_canister_disk, default_browsercache_disk];
@@ -43,10 +44,6 @@ pub mod state {
         for disk in default_disks {
             DISKS_BY_ID_HASHTABLE.with(|map| {
                 map.borrow_mut().insert(disk.id.clone(), disk.clone());
-            });
-
-            DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|map| {
-                map.borrow_mut().insert(disk.external_id.clone().unwrap(), disk.id.clone());
             });
 
             DISKS_BY_TIME_LIST.with(|list| {

@@ -7,12 +7,12 @@
 
 ## Urgent Next
 
-- [🔵] Upgrade tag permissions with metadata of tag prefix (allow users to write on specific prefix tag strings)
-- [ ] Upgrade directory/system permissions to allow CRUD on tag prefixes also
-- [ ] Add system resource wide "external_id" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
+- [🔵] Add system resource wide "external_id" & "external_metadata" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
+- [ ] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
+- [ ] Consider whether to add api_version & canister_id into the url to support multi-tenant backends, primarily in nodejs. eg. `api/v1/drive/{canister_id}/directory/list`
+- [ ] Regenerate proper REST API docs
+
 - [ ] Setup factory to spawn Drive canisters with owner set
-- [ ] Review backend routes and their ingress/egress shapes to be a unified clean. Regenerate proper REST API docs
-- [ ] Consider whether to add hashed cosmic id into the url to support multi-tenant backends, primarily in nodejs. eg. `/drive/{canister_id}/directory/list`
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
 - [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
@@ -46,6 +46,7 @@
 - [ ] Implement signed signatures in canister-to-canister REST calls (that icp canister can create same signature as frontend for signing). should use same signing pattern as frontend js but doesnt have to, just add new AuthTypeEnum
 - [ ] Implement file/folder tags
 - [ ] Video preview slides? (this would probably have to be a limited feature or post upload job)
+- [ ] Standardized Error codes? Useful for internationalization and 3rd party developers --> i18n might not need error codes if we allow frontend clients to handle translation of errors, but having standardized error codes is definately helpful for 3rd party developers
 
 ## Completed
 
@@ -95,3 +96,5 @@
 - [x] Implement tag deletion
 - [x] Add webhooks on tags
 - [x] Fix missing table permissions on resources
+- [x] Upgrade tag permissions with metadata of tag prefix (allow users to write on specific prefix tag strings)
+- [x] Upgrade directory/system permissions to allow CRUD on tag prefixes also
