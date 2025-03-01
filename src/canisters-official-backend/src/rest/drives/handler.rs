@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
@@ -307,6 +307,34 @@ pub mod drives_handlers {
                         .to_string());
                     }
 
+                    if let Some(external_id) = update_req.external_id.clone() {
+                        let old_external_id = drive.external_id.clone();
+                        let new_external_id = Some(ExternalID(external_id.clone()));
+                        drive.external_id = new_external_id.clone();
+                        update_external_id_mapping(
+                            old_external_id,
+                            new_external_id,
+                            Some(drive.id.to_string())
+                        );
+                    }
+                    if let Some(external_payload) = update_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                        drive.external_payload = Some(ExternalPayload(external_payload));
+                    }
+
                     DRIVES_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(drive_id.clone(), drive.clone());
                     });
@@ -337,6 +365,24 @@ pub mod drives_handlers {
                         }
                     }
                     let prestate = snapshot_prestate();
+
+                    if let Some(external_payload) = create_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                    }
+
                     // Create new drive
                     let drive_id = DriveID(generate_unique_id(IDPrefix::Drive, ""));
                     let drive = Drive {
@@ -353,6 +399,8 @@ pub mod drives_handlers {
                         ),
                         last_indexed_ms: None,
                         tags: vec![],
+                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };
 
                     DRIVES_BY_ID_HASHTABLE.with(|store| {
@@ -362,6 +410,12 @@ pub mod drives_handlers {
                     DRIVES_BY_TIME_LIST.with(|store| {
                         store.borrow_mut().push(drive_id.clone());
                     });
+
+                    update_external_id_mapping(
+                        None,
+                        Some(drive.external_id.clone().unwrap()),
+                        Some(drive_id.to_string())
+                    );
 
                     snapshot_poststate(prestate, Some(
                         format!(
@@ -405,6 +459,15 @@ pub mod drives_handlers {
         };
 
         let drive_id = delete_request.id;
+        let drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
+            Some(drive) => drive,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+        let old_external_id = drive.external_id.clone();
+        let old_internal_id = Some(drive_id.to_string());
 
         if !is_owner {
             let table_permissions = check_system_permissions(
@@ -433,6 +496,7 @@ pub mod drives_handlers {
             store.borrow_mut().retain(|id| id != &drive_id);
         });
 
+        update_external_id_mapping(old_external_id, None, old_internal_id);
 
         snapshot_poststate(prestate, Some(
             format!(
@@ -836,6 +900,94 @@ pub mod drives_handlers {
         }
     }
 
+
+    pub async fn external_id_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Check if user is owner
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // If not owner, check for View permissions:
+        // 1. On the entire Drives table, OR
+        // 2. On the specific Drive_ID drive
+        if !is_owner {
+            let table_resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
+            let table_permissions = check_system_permissions(
+                table_resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            // Get the drive ID to check specific permissions
+            let drive_id = DRIVE_ID.with(|drive_id| drive_id.clone());
+            let drive_resource_id = SystemResourceID::Record(drive_id.0.clone());
+            let drive_permissions = check_system_permissions(
+                drive_resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            // User needs View permission on either the table or the specific drive
+            let has_permission = table_permissions.contains(&SystemPermissionType::View) || 
+                               drive_permissions.contains(&SystemPermissionType::View);
+            
+            if !has_permission {
+                return create_auth_error_response();
+            }
+        }
+    
+        // Parse request body
+        let body = request.body();
+        let request_body: ExternalIDsDriveRequestBody = match serde_json::from_slice(body) {
+            Ok(body) => body,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // If external_ids list is empty, just return an empty result list
+        // This is a valid case that should return success with empty results
+    
+        // Process each external ID
+        let mut results = Vec::new();
+        
+        EXTERNAL_ID_MAPPINGS.with(|mappings| {
+            let mappings = mappings.borrow();
+            
+            for external_id in &request_body.external_ids {
+                let result = if let Some(internal_ids) = mappings.get(external_id) {
+                    ExternalIDvsInternalIDMaps {
+                        success: true,
+                        message: "External ID found".to_string(),
+                        external_id: external_id.clone(),
+                        internal_ids: internal_ids.clone(),
+                    }
+                } else {
+                    ExternalIDvsInternalIDMaps {
+                        success: false,
+                        message: "External ID not found".to_string(),
+                        external_id: external_id.clone(),
+                        internal_ids: Vec::new(),
+                    }
+                };
+                
+                results.push(result);
+            }
+        });
+    
+        // Create response data
+        let response_data = ExternalIDsDriveResponseData {
+            results,
+        };
+    
+        create_response(
+            StatusCode::OK,
+            ExternalIDsDriveResponse::ok(&response_data).encode()
+        )
+    }
 
     fn json_decode<T>(value: &[u8]) -> T
     where

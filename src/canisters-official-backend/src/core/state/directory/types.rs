@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::core::{state::{disks::types::{DiskID, DiskTypeEnum}, tags::types::TagStringValue}, types::{ICPPrincipalString, UserID}};
+use crate::core::{state::{disks::types::{DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, tags::types::TagStringValue}, types::{ICPPrincipalString, UserID}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -53,6 +53,8 @@ pub struct FolderMetadata {
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
     pub(crate) has_sovereign_permissions: bool,
+    pub(crate) external_id: Option<ExternalID>,
+    pub(crate) external_payload: Option<ExternalPayload>,
 }
 
 
@@ -80,6 +82,8 @@ pub struct FileMetadata {
     pub(crate) expires_at: i64,
     pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
     pub(crate) has_sovereign_permissions: bool,
+    pub(crate) external_id: Option<ExternalID>,
+    pub(crate) external_payload: Option<ExternalPayload>,
 }
 
 

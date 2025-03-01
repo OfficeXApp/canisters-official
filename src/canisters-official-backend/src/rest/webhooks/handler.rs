@@ -7,9 +7,9 @@ pub mod webhooks_handlers {
     use crate::{
         core::{
             api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id},
-            state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::{
+            state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
-            }}, types::IDPrefix
+            }}, types::{IDPrefix, EXTERNAL_PAYLOAD_MAX_LEN}
         },
         debug_log,
         rest::{
@@ -262,17 +262,25 @@ pub mod webhooks_handlers {
                     // Create new webhook
                     let webhook_id = WebhookID(generate_unique_id(IDPrefix::Webhook, ""));
                     let alt_index = WebhookAltIndexID(create_req.alt_index);
-                    let webhook = Webhook {
-                        id: webhook_id.clone(),
-                        alt_index: alt_index.clone(),
-                        url: create_req.url,
-                        event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
-                        signature: create_req.signature.unwrap_or_default(),
-                        description: create_req.description.unwrap_or_default(),
-                        active: true,
-                        filters: create_req.filters.unwrap_or_default(),
-                        tags: vec![],
-                    };
+
+                    if let Some(external_payload) = create_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                    }
+
+
 
                     if !is_owner {
                         let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);
@@ -286,7 +294,24 @@ pub mod webhooks_handlers {
                         }
                     }
 
+
                     let prestate = snapshot_prestate();
+
+
+                    let webhook = Webhook {
+                        id: webhook_id.clone(),
+                        alt_index: alt_index.clone(),
+                        url: create_req.url,
+                        event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
+                        signature: create_req.signature.unwrap_or_default(),
+                        description: create_req.description.unwrap_or_default(),
+                        active: true,
+                        filters: create_req.filters.unwrap_or_default(),
+                        tags: vec![],
+                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+                    };
+                    update_external_id_mapping(None, webhook.external_id.clone(), Some(webhook.id.clone().to_string()));
 
                     // Update state tables – now storing a Vec<WebhookID> without removing others
                     WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
@@ -369,6 +394,34 @@ pub mod webhooks_handlers {
                         webhook.filters = filters;
                     }
 
+                    if let Some(external_id) = update_req.external_id.clone() {
+                        let old_external_id = webhook.external_id.clone();
+                        let new_external_id = Some(ExternalID(external_id.clone()));
+                        webhook.external_id = new_external_id.clone();
+                        update_external_id_mapping(
+                            old_external_id,
+                            new_external_id,
+                            Some(webhook.id.to_string())
+                        );
+                    }
+                    if let Some(external_payload) = update_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                        webhook.external_payload = Some(ExternalPayload(external_payload));
+                    }
+
                     // Update webhook in ID table
                     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
@@ -443,6 +496,8 @@ pub mod webhooks_handlers {
                 ErrorResponse::not_found().encode()
             ),
         };
+        let old_external_id = webhook.external_id.clone();
+        let old_internal_id = Some(webhook.id.clone().to_string());
 
         // Remove from all hashtables
         WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
@@ -463,6 +518,7 @@ pub mod webhooks_handlers {
             store.borrow_mut().retain(|id| id != &webhook_id);
         });
 
+        update_external_id_mapping(old_external_id, None, old_internal_id);
 
         snapshot_poststate(prestate, Some(
             format!(

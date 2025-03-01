@@ -3,6 +3,7 @@ use std::fmt;
 // src/core/state/team_invites/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
+use crate::core::state::drives::types::{ExternalID, ExternalPayload};
 use crate::core::state::tags::types::TagStringValue;
 use crate::core::state::teams::types::TeamID;
 use crate::core::types::{UserID};
@@ -31,6 +32,8 @@ pub struct Team_Invite {
     pub last_modified_at: u64,
     pub from_placeholder_invitee: Option<PlaceholderTeamInviteeID>,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, SerdeDiff)]

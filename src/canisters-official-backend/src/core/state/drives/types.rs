@@ -25,6 +25,8 @@ pub struct Drive {
     pub url_endpoint: DriveRESTUrlEndpoint,
     pub last_indexed_ms: Option<u64>,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }   
 
 
@@ -80,4 +82,23 @@ pub struct StateDiffRecord {
     pub diff_backward: DriveStateDiffString,
     pub checksum_forward: StateChecksum,
     pub checksum_backward: StateChecksum,
+}
+
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub struct ExternalID(pub String);
+impl fmt::Display for ExternalID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub struct ExternalPayload(pub String);
+impl fmt::Display for ExternalPayload {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }

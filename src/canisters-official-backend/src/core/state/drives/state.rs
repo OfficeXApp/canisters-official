@@ -10,6 +10,7 @@ pub mod state {
     use crate::core::state::drives::types::Drive;
     use crate::core::state::drives::types::DriveID;
     use crate::core::state::drives::types::DriveRESTUrlEndpoint;
+    use crate::core::state::drives::types::ExternalID;
     use crate::core::state::drives::types::StateChecksum;
     use crate::core::state::drives::types::DriveStateDiffString;
     use crate::core::types::ICPPrincipalString;
@@ -29,6 +30,8 @@ pub mod state {
         // hashtables
         pub(crate) static DRIVES_BY_ID_HASHTABLE: RefCell<HashMap<DriveID, Drive>> = RefCell::new(HashMap::new());
         pub(crate) static DRIVES_BY_TIME_LIST: RefCell<Vec<DriveID>> = RefCell::new(Vec::new());
+        // external id tracking
+        pub(crate) static EXTERNAL_ID_MAPPINGS: RefCell<HashMap<ExternalID, Vec<String>>> = RefCell::new(HashMap::new());
     }
 
     pub fn init_self_drive() {
@@ -41,6 +44,8 @@ pub mod state {
             url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
             last_indexed_ms: None,
             tags: vec![],
+            external_id: None,
+            external_payload: None,
         };
 
         DRIVES_BY_ID_HASHTABLE.with(|map| {
@@ -54,7 +59,43 @@ pub mod state {
         update_checksum_for_state_diff(DriveStateDiffString("".to_string()));
     }
 
-    
+    pub fn update_external_id_mapping(
+        old_external_id: Option<ExternalID>,
+        new_external_id: Option<ExternalID>,
+        internal_id: Option<String>,
+    ) {
+        EXTERNAL_ID_MAPPINGS.with(|mappings| {
+            let mut mappings_mut = mappings.borrow_mut();
+            
+            // Handle removal of old external ID mapping if it exists
+            if let Some(old_id) = old_external_id {
+                if let Some(ids) = mappings_mut.get_mut(&old_id) {
+                    // Remove the internal_id from the old mapping
+                    ids.retain(|id| id != internal_id.as_ref().unwrap());
+                    
+                    // If the vector is now empty, remove the mapping entirely
+                    if ids.is_empty() {
+                        mappings_mut.remove(&old_id);
+                    }
+                }
+            }
+            
+            // Handle adding new external ID mapping if it exists
+            let internal_id = internal_id.unwrap();
+            if let Some(new_id) = new_external_id {
+                mappings_mut
+                    .entry(new_id)
+                    .and_modify(|ids| {
+                        // Only add if it's not already in the list
+                        if !ids.contains(&internal_id) {
+                            ids.push(internal_id.clone());
+                        }
+                    })
+                    .or_insert_with(|| vec![internal_id.clone()]);
+            }
+        });
+        
+    }
 
 }
 

@@ -5,9 +5,9 @@ use serde_diff::{Diff, SerdeDiff};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use crate::core::state::drives::state::state::DRIVE_STATE_CHECKSUM;
-use crate::core::state::drives::types::{DriveStateDiffID, StateChecksum, StateDiffRecord};
-use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}}, disks::{state::state::{DISKS_BY_EXTERNAL_ID_HASHTABLE, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, Team_Invite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
+use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS};
+use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
+use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}}, disks::{state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, Team_Invite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
 
 // Define a type to represent the entire state
 #[derive(SerdeDiff, Serialize, Deserialize, Clone, Debug)]
@@ -18,6 +18,7 @@ pub struct EntireState {
     OWNER_ID: UserID,
     URL_ENDPOINT: DriveRESTUrlEndpoint,
     DRIVE_STATE_TIMESTAMP_NS: u64,
+    EXTERNAL_ID_MAPPINGS: HashMap<ExternalID, Vec<String>>,
     // Api Keys
     APIKEYS_BY_VALUE_HASHTABLE: HashMap<ApiKeyValue, ApiKeyID>,
     APIKEYS_BY_ID_HASHTABLE: HashMap<ApiKeyID, ApiKey>,
@@ -33,7 +34,6 @@ pub struct EntireState {
     full_file_path_to_uuid: HashMap<DriveFullFilePath, FileUUID>,
     // Disks
     DISKS_BY_ID_HASHTABLE: HashMap<DiskID, Disk>,
-    DISKS_BY_EXTERNAL_ID_HASHTABLE: HashMap<String, DiskID>,
     DISKS_BY_TIME_LIST: Vec<DiskID>,
     // Drives
     DRIVES_BY_ID_HASHTABLE: HashMap<DriveID, Drive>,
@@ -67,6 +67,7 @@ pub fn snapshot_entire_state() -> EntireState {
         OWNER_ID: OWNER_ID.with(|owner_id| owner_id.borrow().clone()),
         URL_ENDPOINT: URL_ENDPOINT.with(|url| url.borrow().clone()),
         DRIVE_STATE_TIMESTAMP_NS: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()),
+        EXTERNAL_ID_MAPPINGS: EXTERNAL_ID_MAPPINGS.with(|store| store.borrow().clone()),
         // Api Keys
         APIKEYS_BY_VALUE_HASHTABLE: APIKEYS_BY_VALUE_HASHTABLE.with(|store| store.borrow().clone()),
         APIKEYS_BY_ID_HASHTABLE: APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
@@ -82,7 +83,6 @@ pub fn snapshot_entire_state() -> EntireState {
         full_file_path_to_uuid: full_file_path_to_uuid.with(|store| store.clone()),
         // Disks
         DISKS_BY_ID_HASHTABLE: DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        DISKS_BY_EXTERNAL_ID_HASHTABLE: DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| store.borrow().clone()),
         DISKS_BY_TIME_LIST: DISKS_BY_TIME_LIST.with(|store| store.borrow().clone()),
         // Drives
         DRIVES_BY_ID_HASHTABLE: DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
@@ -239,6 +239,9 @@ pub fn apply_entire_state(state: EntireState) {
     URL_ENDPOINT.with(|store| {
         *store.borrow_mut() = state.URL_ENDPOINT;
     });
+    EXTERNAL_ID_MAPPINGS.with(|store| {
+        *store.borrow_mut() = state.EXTERNAL_ID_MAPPINGS;
+    });
     
     // Api Keys
     APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
@@ -279,9 +282,6 @@ pub fn apply_entire_state(state: EntireState) {
     // Disks
     DISKS_BY_ID_HASHTABLE.with(|store| {
         *store.borrow_mut() = state.DISKS_BY_ID_HASHTABLE;
-    });
-    DISKS_BY_EXTERNAL_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DISKS_BY_EXTERNAL_ID_HASHTABLE;
     });
     DISKS_BY_TIME_LIST.with(|store| {
         *store.borrow_mut() = state.DISKS_BY_TIME_LIST;

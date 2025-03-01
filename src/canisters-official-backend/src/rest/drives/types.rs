@@ -1,7 +1,7 @@
 // src/rest/drives/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, StateChecksum, StateDiffRecord};
+use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::PublicKeyICP;
 use crate::rest::webhooks::types::{SortDirection, WebhookResponse};
@@ -76,6 +76,8 @@ pub struct CreateDriveRequestBody {
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -91,6 +93,10 @@ pub struct UpdateDriveRequestBody {
     pub icp_principal: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url_endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 
 pub type GetDriveResponse<'a> = DriveResponse<'a, Drive>;
@@ -187,3 +193,25 @@ pub struct ReindexDriveResponseData {
 }
 
 pub type ReindexDriveResponse<'a> = DriveResponse<'a, ReindexDriveResponseData>;
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalIDsDriveRequestBody {
+    pub external_ids: Vec<ExternalID>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalIDsDriveResponseData {
+    pub results: Vec<ExternalIDvsInternalIDMaps>
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalIDvsInternalIDMaps {
+    pub success: bool,
+    pub message: String,
+    pub external_id: ExternalID,
+    pub internal_ids: Vec<String>,
+}
+
+pub type ExternalIDsDriveResponse<'a> = DriveResponse<'a, ExternalIDsDriveResponseData>;

@@ -4,12 +4,12 @@ pub mod tags_handlers {
     use crate::{
         core::{
             api::{
-                permissions::system::{check_system_resource_permissions_tags,check_system_permissions}, 
+                permissions::system::{check_system_permissions, check_system_resource_permissions_tags}, 
                 replay::diff::{snapshot_poststate, snapshot_prestate}, 
                 uuid::generate_unique_id, webhooks::tags::{fire_tag_webhook, get_active_tag_webhooks}
             },
             state::{
-                drives::state::state::OWNER_ID, 
+                drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, 
                 permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, 
                 tags::{
                     state::{
@@ -26,7 +26,7 @@ pub mod tags_handlers {
                     types::{HexColorString, Tag, TagID, TagResourceID, TagStringValue}
                 }, webhooks::types::WebhookEventLabel
             }, 
-            types::IDPrefix
+            types::{IDPrefix, EXTERNAL_PAYLOAD_MAX_LEN}
         }, 
         debug_log, 
         rest::{
@@ -377,6 +377,34 @@ pub mod tags_handlers {
                         }
                     }
 
+                    if let Some(external_id) = update_req.external_id.clone() {
+                        let old_external_id = tag.external_id.clone();
+                        let new_external_id = Some(ExternalID(external_id.clone()));
+                        tag.external_id = new_external_id.clone();
+                        update_external_id_mapping(
+                            old_external_id,
+                            new_external_id,
+                            Some(tag.id.to_string())
+                        );
+                    }
+                    if let Some(external_payload) = update_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                        tag.external_payload = Some(ExternalPayload(external_payload));
+                    }
+
                     TAGS_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(tag_id.clone(), tag.clone());
                     });
@@ -442,6 +470,24 @@ pub mod tags_handlers {
                     };
                     
                     let prestate = snapshot_prestate();
+
+                    if let Some(external_payload) = create_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                    }
+
                     
                     // Create new tag
                     let tag_id = TagID(generate_unique_id(IDPrefix::TagID, ""));
@@ -456,6 +502,8 @@ pub mod tags_handlers {
                         last_updated_at: current_time,
                         resources: vec![],
                         tags: vec![],
+                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };
 
                     // Store the tag
@@ -471,6 +519,8 @@ pub mod tags_handlers {
                     TAGS_BY_TIME_LIST.with(|store| {
                         store.borrow_mut().push(tag_id.clone());
                     });
+
+                    update_external_id_mapping(None, tag.external_id.clone(), Some(tag_id.clone().to_string()));
 
                     snapshot_poststate(prestate, Some(
                         format!(
@@ -527,6 +577,8 @@ pub mod tags_handlers {
                 ErrorResponse::not_found().encode()
             ),
         };
+        let old_external_id = tag.external_id.clone();
+        let old_internal_id = Some(tag_id.clone().to_string());
 
         // Check delete permission if not owner
         if !is_owner {
@@ -564,6 +616,8 @@ pub mod tags_handlers {
         TAGS_BY_TIME_LIST.with(|store| {
             store.borrow_mut().retain(|id| id != &tag_id);
         });
+
+        update_external_id_mapping(old_external_id, None, old_internal_id);
 
         snapshot_poststate(prestate, Some(
             format!(

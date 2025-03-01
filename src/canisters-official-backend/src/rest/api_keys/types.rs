@@ -68,6 +68,10 @@ pub struct CreateApiKeyRequestBody {
     pub user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 pub type CreateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
 
@@ -93,6 +97,10 @@ pub struct UpdateApiKeyRequestBody {
     pub expires_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_revoked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 
 

@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{compile_user_id, generate_unique_id}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{compile_user_id, generate_unique_id}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -283,7 +283,7 @@ pub mod contacts_handlers {
             match req {
                 UpsertContactRequestBody::Update(update_req) => {
 
-                    let contact_id = UserID(update_req.id);
+                    let contact_id = update_req.id;
                     
                     // Get existing contact
                     let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
@@ -293,6 +293,9 @@ pub mod contacts_handlers {
                             ErrorResponse::not_found().encode()
                         ),
                     };
+
+                    let old_external_id = contact.external_id.clone();
+                    let old_internal_id = Some(contact.id.clone().to_string());
 
                     // Check update permission if not owner
                     if !is_owner {
@@ -332,6 +335,27 @@ pub mod contacts_handlers {
                         contact.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
                     }
 
+                    if let Some(external_id) = update_req.external_id.clone() {
+                        contact.external_id = Some(ExternalID(external_id));
+                    }
+                    if let Some(external_payload) = update_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                        contact.external_payload = Some(ExternalPayload(external_payload));
+                    }
+
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(contact_id.clone(), contact.clone());
                     });
@@ -339,6 +363,12 @@ pub mod contacts_handlers {
                     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
                         store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
                     });
+
+                    update_external_id_mapping(
+                        old_external_id,
+                        Some(ExternalID(update_req.external_payload.unwrap_or("".to_string()))),
+                        old_internal_id
+                    );
 
                     snapshot_poststate(prestate, Some(
                         format!(
@@ -370,6 +400,23 @@ pub mod contacts_handlers {
 
                     let prestate = snapshot_prestate();
 
+                    if let Some(external_payload) = create_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                    }
+
                     // Create new webhook
                     let contact_id = compile_user_id(&create_req.icp_principal.clone());
                     let contact = Contact {
@@ -381,6 +428,8 @@ pub mod contacts_handlers {
                         icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
                         teams: [].to_vec(),
                         tags: vec![],
+                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };
 
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {
@@ -394,6 +443,8 @@ pub mod contacts_handlers {
                     CONTACTS_BY_TIME_LIST.with(|store| {
                         store.borrow_mut().push(contact_id.clone());
                     });
+
+                    update_external_id_mapping(None, contact.external_id.clone(), Some(contact_id.to_string()));
 
                     snapshot_poststate(prestate, Some(
                         format!(
@@ -444,6 +495,15 @@ pub mod contacts_handlers {
 
         let contact_id = delete_request.id.clone();
 
+        let contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
+            Some(contact) => contact,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+        let old_external_id = contact.external_id.clone();
+        
         // Check delete permission if not owner
         if !is_owner {
             let table_permissions = check_system_permissions(
@@ -471,7 +531,7 @@ pub mod contacts_handlers {
 
         // Get and remove user's invites
         USERS_INVITES_LIST_HASHTABLE.with(|store| {
-            if let Some(invite_ids) = store.borrow_mut().remove(&contact_id) {
+            if let Some(invite_ids) = store.borrow_mut().remove(&&TeamInviteeID::User(contact_id.clone())) {
                 // Remove each invite from invites hashtable
                 INVITES_BY_ID_HASHTABLE.with(|invites_store| {
                     let mut store = invites_store.borrow_mut();
@@ -489,6 +549,8 @@ pub mod contacts_handlers {
                 });
             }
         });
+
+        update_external_id_mapping(old_external_id, None, Some(contact_id.to_string()));
 
         snapshot_poststate(prestate, Some(
             format!(

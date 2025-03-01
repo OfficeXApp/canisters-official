@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
         
     };
     use crate::core::state::team_invites::{
@@ -226,6 +226,23 @@ pub mod team_invites_handlers {
                         ))
                     };
 
+                    if let Some(external_payload) = create_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                    }
+
                     let new_invite = Team_Invite {
                         id: invite_id.clone(),
                         team_id: team_id.clone(),
@@ -239,7 +256,10 @@ pub mod team_invites_handlers {
                         expires_at: create_req.expires_at.unwrap_or(-1),
                         from_placeholder_invitee: None,
                         tags: vec![],
+                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };
+                    update_external_id_mapping(None, new_invite.external_id.clone(), Some(invite_id.0.to_string()));
 
                     // Update all relevant state stores
                     INVITES_BY_ID_HASHTABLE.with(|store| {
@@ -343,6 +363,7 @@ pub mod team_invites_handlers {
                     }
 
                     let prestate = snapshot_prestate();
+                    
 
                     // If role is being updated, we need to update the team's invite lists
                     if let Some(new_role) = update_req.role {
@@ -401,6 +422,34 @@ pub mod team_invites_handlers {
                     }
 
                     invite.last_modified_at = ic_cdk::api::time();
+
+                    if let Some(external_id) = update_req.external_id.clone() {
+                        let old_external_id = invite.external_id.clone();
+                        let new_external_id = Some(ExternalID(external_id.clone()));
+                        invite.external_id = new_external_id.clone();
+                        update_external_id_mapping(
+                            old_external_id,
+                            new_external_id,
+                            Some(invite.id.to_string())
+                        );
+                    }
+                    if let Some(external_payload) = update_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                        invite.external_payload = Some(ExternalPayload(external_payload));
+                    }
 
                     // Update state
                     INVITES_BY_ID_HASHTABLE.with(|store| {
@@ -472,6 +521,8 @@ pub mod team_invites_handlers {
                 ErrorResponse::not_found().encode()
             ),
         };
+        let old_external_id = invite.external_id.clone();
+        let old_internal_id = Some(invite.id.clone().to_string());
     
         // Check if user is authorized (team owner, admin, or invite recipient)
         let is_authorized = TEAMS_BY_ID_HASHTABLE.with(|store| {
@@ -527,6 +578,8 @@ pub mod team_invites_handlers {
                 }
             }
         });
+
+        update_external_id_mapping(old_external_id, None, old_internal_id);
 
         snapshot_poststate(prestate, Some(
             format!(

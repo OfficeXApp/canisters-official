@@ -48,6 +48,7 @@ pub struct CreateDiskRequestBody {
     pub private_note: Option<String>,
     pub auth_json: Option<String>,
     pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -63,6 +64,8 @@ pub struct UpdateDiskRequestBody {
     pub auth_json: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

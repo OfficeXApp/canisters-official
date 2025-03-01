@@ -83,12 +83,14 @@ pub struct CreateContactRequestBody {
     pub evm_public_address: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateContactRequestBody {
-    pub id: String,
+    pub id: UserID,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,6 +101,10 @@ pub struct UpdateContactRequestBody {
     pub evm_public_address: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icp_principal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 
 
@@ -116,12 +122,12 @@ pub type UpdateContactResponse<'a> = ContactResponse<'a, Contact>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteContactRequest {
-    pub id: TeamInviteeID,
+    pub id: UserID,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DeletedContactData {
-    pub id: TeamInviteeID,
+    pub id: UserID,
     pub deleted: bool
 }
 

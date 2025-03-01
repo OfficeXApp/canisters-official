@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -55,6 +55,8 @@ pub mod drive_internals {
                 canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
                 expires_at: -1,
                 has_sovereign_permissions: false,
+                external_id: None,
+                external_payload: None,
             };
     
             full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
@@ -84,6 +86,8 @@ pub mod drive_internals {
                 canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string)),
                 expires_at: -1,
                 has_sovereign_permissions: true,
+                external_id: None,
+                external_payload: None,
             };
 
             full_folder_path_to_uuid.insert(trash_path, FolderUUID(trash_folder_uuid.clone()));
@@ -167,6 +171,8 @@ pub mod drive_internals {
         user_id: UserID,
         canister_id: String,
         has_sovereign_permissions: bool,
+        external_id: Option<ExternalID>,
+        external_payload: Option<ExternalPayload>,
     ) -> FolderUUID {
         let path_parts: Vec<&str> = folder_path.split("::").collect();
         let mut current_path = format!("{}::", path_parts[0]);
@@ -183,6 +189,7 @@ pub mod drive_internals {
             current_path = format!("{}{}/", current_path.clone(), part);
             
             if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
+                let is_final_folder= part == path_parts[1].split('/').filter(|&p| !p.is_empty()).last().unwrap();
                 let new_folder_uuid = FolderUUID(generate_unique_id(IDPrefix::Folder,""));
                 let new_folder = FolderMetadata {
                     id: new_folder_uuid.clone(),
@@ -202,10 +209,29 @@ pub mod drive_internals {
                     expires_at: -1,
                     restore_trash_prior_folder_path: None,
                     // only set if its the final folder and has sovereign permissions
-                    has_sovereign_permissions: if part == path_parts[1].split('/').filter(|&p| !p.is_empty()).last().unwrap() {
+                    has_sovereign_permissions: if is_final_folder {
                         has_sovereign_permissions
                     } else {
                         false
+                    },
+                    // only set if its the final folder
+                    external_id: if is_final_folder {
+                        external_id.clone()
+                    } else {
+                        None
+                    },
+                    // only set if its the final folder
+                    external_payload: if is_final_folder {
+                        let external_payload_safe = external_payload.clone().map(|ext_payload| {
+                            if serde_json::to_string(&ext_payload).unwrap().len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                                None
+                            } else {
+                                Some(ext_payload)
+                            }
+                        }).flatten();
+                        external_payload_safe
+                    } else {
+                        None
                     },
                 };
 
@@ -429,7 +455,9 @@ pub mod drive_internals {
                     disk_id,
                     user_id,
                     canister_id,
-                    false
+                    false,
+                    None,
+                    None,
                 );
                 // Retrieve the folder metadata using the new UUID.
                 get_folder_by_id(new_folder_uuid)

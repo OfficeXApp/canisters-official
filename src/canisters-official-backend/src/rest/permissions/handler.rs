@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::state::state::OWNER_ID, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -733,6 +733,34 @@ pub mod permissions_handlers {
             if upsert_request.metadata.is_some() {
                 existing_permission.metadata = upsert_request.metadata;
             }
+
+            if let Some(external_id) = upsert_request.external_id.clone() {
+                let old_external_id = existing_permission.external_id.clone();
+                let new_external_id = Some(ExternalID(external_id.clone()));
+                existing_permission.external_id = new_external_id.clone();
+                update_external_id_mapping(
+                    old_external_id,
+                    new_external_id,
+                    Some(existing_permission.id.to_string())
+                );
+            }
+            if let Some(external_payload) = upsert_request.external_payload.clone() {
+                // Check length of external_payload (limit: 8192 characters)
+                if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                    return create_response(
+                        StatusCode::BAD_REQUEST,
+                        ErrorResponse::err(
+                            400, 
+                            format!(
+                                "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                external_payload.len(),
+                                EXTERNAL_PAYLOAD_MAX_LEN
+                            )
+                        ).encode()
+                    );
+                }
+                existing_permission.external_payload = Some(ExternalPayload(external_payload));
+            }
     
             // Update state
             SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
@@ -765,6 +793,24 @@ pub mod permissions_handlers {
 
             let prestate = snapshot_prestate();
 
+            if let Some(external_payload) = upsert_request.external_payload.clone() {
+                // Check length of external_payload (limit: 8192 characters)
+                if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                    return create_response(
+                        StatusCode::BAD_REQUEST,
+                        ErrorResponse::err(
+                            400, 
+                            format!(
+                                "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                external_payload.len(),
+                                EXTERNAL_PAYLOAD_MAX_LEN
+                            )
+                        ).encode()
+                    );
+                }
+            }
+
+
             let permission_id = SystemPermissionID(generate_unique_id(IDPrefix::SystemPermission, ""));
             
             let new_permission = SystemPermission {
@@ -780,7 +826,9 @@ pub mod permissions_handlers {
                 last_modified_at: current_time,
                 from_placeholder_grantee: None,
                 tags: vec![],
-                metadata: upsert_request.metadata
+                metadata: upsert_request.metadata,
+                external_id: Some(ExternalID(upsert_request.external_id.unwrap_or("".to_string()))),
+                external_payload: Some(ExternalPayload(upsert_request.external_payload.unwrap_or("".to_string()))),
             };
     
             // Update all state indices
@@ -805,6 +853,12 @@ pub mod permissions_handlers {
             SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
                 permissions_by_time.borrow_mut().push(permission_id.clone());
             });
+
+            update_external_id_mapping(
+                None,
+                Some(new_permission.external_id.clone().unwrap()),
+                Some(new_permission.id.clone().to_string()),
+            );
 
             snapshot_poststate(prestate, Some(
                 format!(
@@ -852,6 +906,9 @@ pub mod permissions_handlers {
                 ErrorResponse::err(404, "Permission not found".to_string()).encode()
             ),
         };
+
+        let old_external_id = permission.external_id.clone();
+        let old_internal_id = permission.id.clone().to_string();
     
         // 4. Check authorization
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
@@ -902,6 +959,12 @@ pub mod permissions_handlers {
                 list.remove(pos);
             }
         });
+
+        update_external_id_mapping(
+            old_external_id,
+            None,
+            Some(old_internal_id),
+        );
 
         snapshot_poststate(prestate, Some(
             format!(

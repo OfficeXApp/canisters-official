@@ -50,6 +50,8 @@ pub struct CreateTagRequestBody {
     pub value: String,
     pub description: Option<String>,
     pub color: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -61,6 +63,10 @@ pub struct UpdateTagRequestBody {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

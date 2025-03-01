@@ -75,6 +75,8 @@ pub struct CreateTeamInviteRequestBody {
     pub active_from: Option<u64>,
     pub expires_at: Option<i64>,
     pub note: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -84,6 +86,8 @@ pub struct UpdateTeamInviteRequestBody {
     pub active_from: Option<u64>,
     pub expires_at: Option<i64>,
     pub note: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
