@@ -14,12 +14,19 @@ pub mod apikeys_handlers {
         completed: Option<bool>,
     }
 
+    
+
+
     pub async fn get_apikey_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+
+
+
 
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+
 
        // Get the requested API key ID from params
         let requested_id = ApiKeyID(params.get("api_key_id").unwrap().to_string());
@@ -153,6 +160,18 @@ pub mod apikeys_handlers {
         let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertApiKeyRequestBody>(body) {
+
+            // Validate request body
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(
+                        400,
+                        format!("Validation error for field '{}': {}", validation_error.field, validation_error.message)
+                    ).encode()
+                );
+            }
+
             match req {
                 UpsertApiKeyRequestBody::Create(create_req) => {
             
@@ -387,6 +406,16 @@ pub mod apikeys_handlers {
                 )
             }
         };
+
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400,
+                    format!("Validation error for field '{}': {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
 
        // Get the API key to be deleted
         let api_key_to_delete = APIKEYS_BY_ID_HASHTABLE.with(|store| {

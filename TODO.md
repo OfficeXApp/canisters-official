@@ -8,6 +8,7 @@
 ## Urgent Next
 
 - [🔵] Add validation to `contact.icp_principal` and `contact.evm_public_address`
+- [🔵] Add route body validation to all routes (eg. similar to external_payload max 8kb, nicknames max 64 chars, etc)
 - [ ] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
 - [ ] Regenerate proper REST API docs
 
