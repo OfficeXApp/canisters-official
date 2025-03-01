@@ -84,6 +84,12 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+        if let Err(e) = check_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
 
         // Validate resource ID format
         let resource_id = match parse_directory_resource_id(&check_request.resource_id.to_string()) {
@@ -175,6 +181,13 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(e) = upsert_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
     
         // 3. Parse and validate resource ID
         let resource_id = match parse_directory_resource_id(&upsert_request.resource_id.to_string()) {
@@ -379,6 +392,13 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(e) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
     
         // 3. Check if permission exists and get it
         let permission = DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
@@ -489,6 +509,12 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+        if let Err(e) = redeem_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
      
         // 2. Convert permission_id string to DirectoryPermissionID
         let permission_id = DirectoryPermissionID(redeem_request.permission_id);
@@ -649,6 +675,13 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(e) = upsert_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
     
         // 3. Parse resource ID string into SystemResourceID
         let resource_id = match upsert_request.resource_id.split_once('_') {
@@ -893,6 +926,13 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(e) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
     
         // 3. Check if permission exists and get it
         let permission = SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
@@ -1002,6 +1042,13 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(e) = check_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
     
         // 3. Parse resource_id into SystemResourceID
         let resource_id = match check_request.resource_id.split_once('_') {
@@ -1116,6 +1163,13 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(e) = redeem_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
     
         // 2. Convert permission_id string to SystemPermissionID
         let permission_id = SystemPermissionID(redeem_request.permission_id);

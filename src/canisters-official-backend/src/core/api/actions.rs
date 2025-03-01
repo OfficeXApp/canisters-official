@@ -11,10 +11,27 @@ pub struct DirectoryActionErrorInfo {
 }
 
 pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<DirectoryActionResult, DirectoryActionErrorInfo> {
+    
+    if let Err(validation_error) = action.validate_body() {
+        return Err(DirectoryActionErrorInfo {
+            code: 400,
+            message: format!("Validation error: {} - {}", validation_error.field, validation_error.message),
+        });
+    }
+    
     match action.action {
         DirectoryActionEnum::GetFile => {
             match action.payload {
                 DirectoryActionPayload::GetFile(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // First try to get file_id either from resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -152,6 +169,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::GetFolder => {
             match action.payload {
                 DirectoryActionPayload::GetFolder(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get folder_id from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -287,6 +313,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::CreateFile => {
             match action.payload {
                 DirectoryActionPayload::CreateFile(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get parent folder ID where the file will be created
                     let parent_folder_id = if let Some(id) = action.target.resource_id {
                         match &id {
@@ -401,6 +436,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::CreateFolder => {
             match action.payload {
                 DirectoryActionPayload::CreateFolder(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get parent folder ID where the new folder will be created
                     let parent_folder_id = if let Some(id) = action.target.resource_id {
                         match &id {
@@ -515,6 +559,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::UpdateFile => {
             match action.payload {
                 DirectoryActionPayload::UpdateFile(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get file ID from either resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
                         match &id {
@@ -670,6 +723,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::UpdateFolder => {
             match action.payload {
                 DirectoryActionPayload::UpdateFolder(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get folder ID from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
                         match &id {
@@ -825,6 +887,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::DeleteFile => {
             match action.payload {
                 DirectoryActionPayload::DeleteFile(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get file ID from either resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
                         match &id {
@@ -932,6 +1003,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::DeleteFolder => {
             match action.payload {
                 DirectoryActionPayload::DeleteFolder(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get folder ID from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
                         match &id {
@@ -1053,6 +1133,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::CopyFile => {
             match action.payload {
                 DirectoryActionPayload::CopyFile(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get source file ID
                     let file_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -1177,6 +1266,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::CopyFolder => {
             match action.payload {
                 DirectoryActionPayload::CopyFolder(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     // Get source folder ID
                     let folder_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -1302,6 +1400,16 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::MoveFile => {
             match action.payload {
                 DirectoryActionPayload::MoveFile(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
+
                     // Get the file ID from either resource_id or resource_path
                     let file_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -1437,6 +1545,16 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::MoveFolder => {
             match action.payload {
                 DirectoryActionPayload::MoveFolder(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
+
                     // Get the folder ID from either resource_id or resource_path
                     let folder_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -1577,6 +1695,15 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         DirectoryActionEnum::RestoreTrash => {
             match action.payload {
                 DirectoryActionPayload::RestoreTrash(payload) => {
+
+                    // validate payload
+                    if let Err(validation_error) = payload.validate_body() {
+                        return Err(DirectoryActionErrorInfo {
+                            code: 400,
+                            message: format!("Validation error: {}", validation_error.message),
+                        });
+                    }
+
                     let resource_id = action.target.resource_id.ok_or_else(|| DirectoryActionErrorInfo {
                         code: 400,
                         message: "Resource ID is required for restore operation".to_string()

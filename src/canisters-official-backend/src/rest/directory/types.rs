@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection, types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -15,6 +15,27 @@ use serde_diff::{SerdeDiff};
 pub struct SearchDirectoryRequest {
     pub query_string: String,
 }
+impl SearchDirectoryRequest {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate query_string
+        if self.query_string.is_empty() {
+            return Err(ValidationError {
+                field: "query_string".to_string(),
+                message: "Query string cannot be empty".to_string(),
+            });
+        }
+        
+        if self.query_string.len() > 256 {
+            return Err(ValidationError {
+                field: "query_string".to_string(),
+                message: "Query string must be 256 characters or less".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
+}
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListDirectoryRequest {
@@ -27,6 +48,54 @@ pub struct ListDirectoryRequest {
     #[serde(default)]
     pub direction: SortDirection,
     pub cursor: Option<String>,
+}
+
+// Add validation for ListDirectoryRequest
+impl ListDirectoryRequest {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate folder_id if provided
+        if let Some(folder_id) = &self.folder_id {
+            validate_id_string(folder_id, "folder_id")?;
+        }
+        
+        // Validate path if provided
+        if let Some(path) = &self.path {
+            if path.len() > 4096 {
+                return Err(ValidationError {
+                    field: "path".to_string(),
+                    message: "Path must be 4,096 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // Validate filters
+        if self.filters.len() > 256 {
+            return Err(ValidationError {
+                field: "filters".to_string(),
+                message: "Filters must be 256 characters or less".to_string(),
+            });
+        }
+        
+        // Validate page_size
+        if self.page_size == 0 || self.page_size > 1000 {
+            return Err(ValidationError {
+                field: "page_size".to_string(),
+                message: "Page size must be between 1 and 1000".to_string(),
+            });
+        }
+        
+        // Validate cursor if provided
+        if let Some(cursor) = &self.cursor {
+            if cursor.len() > 256 {
+                return Err(ValidationError {
+                    field: "cursor".to_string(),
+                    message: "Cursor must be 256 characters or less".to_string(),
+                });
+            }
+        }
+        
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +137,17 @@ pub struct CompleteUploadRequest {
     pub file_id: String,
     pub filename: String
 }
+impl CompleteUploadRequest {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate file_id
+        validate_id_string(&self.file_id, "file_id")?;
+        
+        // Validate filename
+        validate_id_string(&self.filename, "filename")?;
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompleteUploadResponse {
@@ -98,6 +178,22 @@ pub struct ClientSideUploadRequest {
     pub disk_id: String,
     pub folder_path: String,
 }
+impl ClientSideUploadRequest {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate disk_id
+        validate_id_string(&self.disk_id, "disk_id")?;
+        
+        // Validate folder_path
+        if self.folder_path.len() > 4096 {
+            return Err(ValidationError {
+                field: "folder_path".to_string(),
+                message: "Folder path must be 4,096 characters or less".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientSideUploadResponse {
@@ -113,6 +209,135 @@ pub struct DirectoryAction {
     pub action: DirectoryActionEnum,
     pub target: ResourceIdentifier,
     pub payload: DirectoryActionPayload,
+}
+impl DirectoryAction {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate target
+        self.target.validate()?;
+        
+        // Validate payload based on action type
+        match self.action {
+            DirectoryActionEnum::GetFile => {
+                match &self.payload {
+                    DirectoryActionPayload::GetFile(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for GET_FILE action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::GetFolder => {
+                match &self.payload {
+                    DirectoryActionPayload::GetFolder(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for GET_FOLDER action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::CreateFile => {
+                match &self.payload {
+                    DirectoryActionPayload::CreateFile(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for CREATE_FILE action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::CreateFolder => {
+                match &self.payload {
+                    DirectoryActionPayload::CreateFolder(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for CREATE_FOLDER action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::UpdateFile => {
+                match &self.payload {
+                    DirectoryActionPayload::UpdateFile(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for UPDATE_FILE action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::UpdateFolder => {
+                match &self.payload {
+                    DirectoryActionPayload::UpdateFolder(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for UPDATE_FOLDER action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::DeleteFile => {
+                match &self.payload {
+                    DirectoryActionPayload::DeleteFile(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for DELETE_FILE action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::DeleteFolder => {
+                match &self.payload {
+                    DirectoryActionPayload::DeleteFolder(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for DELETE_FOLDER action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::CopyFile => {
+                match &self.payload {
+                    DirectoryActionPayload::CopyFile(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for COPY_FILE action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::CopyFolder => {
+                match &self.payload {
+                    DirectoryActionPayload::CopyFolder(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for COPY_FOLDER action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::MoveFile => {
+                match &self.payload {
+                    DirectoryActionPayload::MoveFile(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for MOVE_FILE action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::MoveFolder => {
+                match &self.payload {
+                    DirectoryActionPayload::MoveFolder(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for MOVE_FOLDER action".to_string(),
+                    }),
+                }
+            },
+            DirectoryActionEnum::RestoreTrash => {
+                match &self.payload {
+                    DirectoryActionPayload::RestoreTrash(payload) => payload.validate_body()?,
+                    _ => return Err(ValidationError {
+                        field: "payload".to_string(),
+                        message: "Invalid payload type for RESTORE_TRASH action".to_string(),
+                    }),
+                }
+            },
+        }
+        
+        Ok(())
+    }
 }
 
 #[derive(Deserialize)]
@@ -141,6 +366,30 @@ pub struct DirectoryActionResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryActionRequestBody {
     pub actions: Vec<DirectoryAction>,
+}
+impl DirectoryActionRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate each action in the list
+        for (i, action) in self.actions.iter().enumerate() {
+            match action.validate_body() {
+                Ok(_) => continue,
+                Err(e) => return Err(ValidationError {
+                    field: format!("actions[{}].{}", i, e.field),
+                    message: e.message,
+                }),
+            }
+        }
+        
+        // Validate that there's at least one action
+        if self.actions.is_empty() {
+            return Err(ValidationError {
+                field: "actions".to_string(),
+                message: "At least one action must be provided".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
 }
 
 // Custom deserialization for DirectoryAction.
@@ -321,6 +570,41 @@ pub struct ResourceIdentifier {
     #[serde(default)]
     pub resource_id: Option<DirectoryResourceID>,  // points to file/folder itself, except in create file/folder operations would be a parent folder
 }
+impl ResourceIdentifier {
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        // Validate resource_path if provided
+        if let Some(path) = &self.resource_path {
+            if path.0.len() > 4096 {
+                return Err(ValidationError {
+                    field: "resource_path".to_string(),
+                    message: "Resource path must be 4,096 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // Validate resource_id if provided
+        if let Some(id) = &self.resource_id {
+            match id {
+                DirectoryResourceID::File(file_id) => {
+                    validate_id_string(&file_id.0, "resource_id")?;
+                },
+                DirectoryResourceID::Folder(folder_id) => {
+                    validate_id_string(&folder_id.0, "resource_id")?;
+                }
+            }
+        }
+        
+        // At least one of resource_path or resource_id must be provided
+        if self.resource_path.is_none() && self.resource_id.is_none() {
+            return Err(ValidationError {
+                field: "target".to_string(),
+                message: "Either resource_path or resource_id must be provided".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DirectoryActionPayload {
@@ -344,11 +628,41 @@ pub enum DirectoryActionPayload {
 pub struct GetFilePayload {
     pub share_track_hash: Option<String>,
 }
+impl GetFilePayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate share_track_hash if provided
+        if let Some(share_track_hash) = &self.share_track_hash {
+            if share_track_hash.len() > 256 {
+                return Err(ValidationError {
+                    field: "share_track_hash".to_string(),
+                    message: "Share track hash must be 256 characters or less".to_string(),
+                });
+            }
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GetFolderPayload {
     pub share_track_hash: Option<String>,
+}
+impl GetFolderPayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate share_track_hash if provided
+        if let Some(share_track_hash) = &self.share_track_hash {
+            if share_track_hash.len() > 256 {
+                return Err(ValidationError {
+                    field: "share_track_hash".to_string(),
+                    message: "Share track hash must be 256 characters or less".to_string(),
+                });
+            }
+        }
+        
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -366,6 +680,48 @@ pub struct CreateFilePayload {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
+impl CreateFilePayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate name
+        validate_id_string(&self.name, "name")?;
+        
+        // Validate extension
+        if self.extension.len() > 20 {
+            return Err(ValidationError {
+                field: "extension".to_string(),
+                message: "File extension must be 20 characters or less".to_string(),
+            });
+        }
+        
+        // Validate tags
+        for tag in &self.tags {
+            if tag.0.len() > 256 {
+                return Err(ValidationError {
+                    field: "tags".to_string(),
+                    message: "Each tag must be 256 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // Validate raw_url
+        validate_url_endpoint(&self.raw_url, "raw_url")?;
+        
+        // Validate disk_id
+        validate_id_string(&self.disk_id.0, "disk_id")?;
+        
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+        
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -379,6 +735,37 @@ pub struct CreateFolderPayload {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
+impl CreateFolderPayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate name
+        validate_id_string(&self.name, "name")?;
+        
+        // Validate tags
+        for tag in &self.tags {
+            if tag.0.len() > 256 {
+                return Err(ValidationError {
+                    field: "tags".to_string(),
+                    message: "Each tag must be 256 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // Validate disk_id
+        validate_id_string(&self.disk_id.0, "disk_id")?;
+        
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+        
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -390,6 +777,44 @@ pub struct UpdateFilePayload {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
+impl UpdateFilePayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate name if provided
+        if let Some(name) = &self.name {
+            validate_id_string(name, "name")?;
+        }
+        
+        // Validate tags if provided
+        if let Some(tags) = &self.tags {
+            for tag in tags {
+                if tag.0.len() > 256 {
+                    return Err(ValidationError {
+                        field: "tags".to_string(),
+                        message: "Each tag must be 256 characters or less".to_string(),
+                    });
+                }
+            }
+        }
+        
+        // Validate raw_url if provided
+        if let Some(raw_url) = &self.raw_url {
+            validate_url_endpoint(raw_url, "raw_url")?;
+        }
+        
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+        
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+        
+        Ok(())
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -400,11 +825,49 @@ pub struct UpdateFolderPayload {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
+impl UpdateFolderPayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate name if provided
+        if let Some(name) = &self.name {
+            validate_id_string(name, "name")?;
+        }
+        
+        // Validate tags if provided
+        if let Some(tags) = &self.tags {
+            for tag in tags {
+                if tag.0.len() > 256 {
+                    return Err(ValidationError {
+                        field: "tags".to_string(),
+                        message: "Each tag must be 256 characters or less".to_string(),
+                    });
+                }
+            }
+        }
+        
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+        
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteFilePayload {
     pub permanent: bool,
+}
+impl DeleteFilePayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Nothing to validate for this simple payload
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -412,6 +875,13 @@ pub struct DeleteFilePayload {
 pub struct DeleteFolderPayload {
     pub permanent: bool,
 }
+impl DeleteFolderPayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Nothing to validate for this simple payload
+        Ok(())
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -419,6 +889,34 @@ pub struct CopyFilePayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+impl CopyFilePayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate destination_folder_id if provided
+        if let Some(folder_id) = &self.destination_folder_id {
+            validate_id_string(&folder_id.0, "destination_folder_id")?;
+        }
+        
+        // Validate destination_folder_path if provided
+        if let Some(folder_path) = &self.destination_folder_path {
+            if folder_path.0.len() > 4096 {
+                return Err(ValidationError {
+                    field: "destination_folder_path".to_string(),
+                    message: "Destination folder path must be 4,096 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // At least one of destination_folder_id or destination_folder_path must be provided
+        if self.destination_folder_id.is_none() && self.destination_folder_path.is_none() {
+            return Err(ValidationError {
+                field: "destination".to_string(),
+                message: "Either destination_folder_id or destination_folder_path must be provided".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -428,6 +926,34 @@ pub struct CopyFolderPayload {
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
+impl CopyFolderPayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate destination_folder_id if provided
+        if let Some(folder_id) = &self.destination_folder_id {
+            validate_id_string(&folder_id.0, "destination_folder_id")?;
+        }
+        
+        // Validate destination_folder_path if provided
+        if let Some(folder_path) = &self.destination_folder_path {
+            if folder_path.0.len() > 4096 {
+                return Err(ValidationError {
+                    field: "destination_folder_path".to_string(),
+                    message: "Destination folder path must be 4,096 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // At least one of destination_folder_id or destination_folder_path must be provided
+        if self.destination_folder_id.is_none() && self.destination_folder_path.is_none() {
+            return Err(ValidationError {
+                field: "destination".to_string(),
+                message: "Either destination_folder_id or destination_folder_path must be provided".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone,Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -435,6 +961,34 @@ pub struct MoveFilePayload {
     pub destination_folder_id: Option<FolderUUID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+}
+impl MoveFilePayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate destination_folder_id if provided
+        if let Some(folder_id) = &self.destination_folder_id {
+            validate_id_string(&folder_id.0, "destination_folder_id")?;
+        }
+        
+        // Validate destination_folder_path if provided
+        if let Some(folder_path) = &self.destination_folder_path {
+            if folder_path.0.len() > 4096 {
+                return Err(ValidationError {
+                    field: "destination_folder_path".to_string(),
+                    message: "Destination folder path must be 4,096 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // At least one of destination_folder_id or destination_folder_path must be provided
+        if self.destination_folder_id.is_none() && self.destination_folder_path.is_none() {
+            return Err(ValidationError {
+                field: "destination".to_string(),
+                message: "Either destination_folder_id or destination_folder_path must be provided".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -444,7 +998,34 @@ pub struct MoveFolderPayload {
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
-
+impl MoveFolderPayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate destination_folder_id if provided
+        if let Some(folder_id) = &self.destination_folder_id {
+            validate_id_string(&folder_id.0, "destination_folder_id")?;
+        }
+        
+        // Validate destination_folder_path if provided
+        if let Some(folder_path) = &self.destination_folder_path {
+            if folder_path.0.len() > 4096 {
+                return Err(ValidationError {
+                    field: "destination_folder_path".to_string(),
+                    message: "Destination folder path must be 4,096 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // At least one of destination_folder_id or destination_folder_path must be provided
+        if self.destination_folder_id.is_none() && self.destination_folder_path.is_none() {
+            return Err(ValidationError {
+                field: "destination".to_string(),
+                message: "Either destination_folder_id or destination_folder_path must be provided".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
+}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -452,6 +1033,21 @@ pub struct MoveFolderPayload {
 pub struct RestoreTrashPayload {
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub restore_to_folder_path: Option<DriveFullFilePath>,
+}
+impl RestoreTrashPayload {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate restore_to_folder_path if provided
+        if let Some(folder_path) = &self.restore_to_folder_path {
+            if folder_path.0.len() > 4096 {
+                return Err(ValidationError {
+                    field: "restore_to_folder_path".to_string(),
+                    message: "Restore to folder path must be 4,096 characters or less".to_string(),
+                });
+            }
+        }
+        
+        Ok(())
+    }
 }
 
 

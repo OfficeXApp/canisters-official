@@ -114,6 +114,16 @@ pub mod contacts_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
     
         // Parse cursors if provided
         let cursor_up = if let Some(cursor) = request_body.cursor_up {
@@ -280,6 +290,17 @@ pub mod contacts_handlers {
         let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertContactRequestBody>(body) {
+
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(
+                        400, 
+                        format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                    ).encode()
+                );
+            }
+
             match req {
                 UpsertContactRequestBody::Update(update_req) => {
 
@@ -492,6 +513,17 @@ pub mod contacts_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        // Validate request body
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
 
         let contact_id = delete_request.id.clone();
 

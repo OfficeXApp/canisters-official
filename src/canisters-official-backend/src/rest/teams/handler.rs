@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
+        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsRequestBody, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -60,6 +60,24 @@ pub mod teams_handlers {
     pub async fn list_teams_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         
         debug_log!("Listing teams...");
+
+        let query: ListTeamsRequestBody = match serde_json::from_slice(request.body()) {
+            Ok(q) => q,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+
+        if let Err(validation_err) = query.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_err.field, validation_err.message)
+                ).encode()
+            );
+        }
 
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -118,6 +136,17 @@ pub mod teams_handlers {
         let body: &[u8] = request.body();
         
         if let Ok(req) = serde_json::from_slice::<UpsertTeamRequestBody>(body) {
+
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(
+                        400, 
+                        format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                    ).encode()
+                );
+            }
+
             match req {
                 UpsertTeamRequestBody::Create(create_req) => {
 
@@ -315,6 +344,16 @@ pub mod teams_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
     
         let team_id = TeamID(delete_request.id.clone());
     
@@ -419,7 +458,17 @@ pub mod teams_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-    
+
+        if let Err(validation_error) = validate_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400,
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
+        
         // Get team to verify it exists
         let team_exists = TEAMS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().contains_key(&validate_request.team_id)

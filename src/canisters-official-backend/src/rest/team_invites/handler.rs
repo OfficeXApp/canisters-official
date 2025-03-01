@@ -73,6 +73,16 @@ pub mod team_invites_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_err) = query.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_err.field, validation_err.message)
+                ).encode()
+            );
+        }
     
         let team_id = TeamID(query.team_id.clone());
 
@@ -168,6 +178,19 @@ pub mod team_invites_handlers {
         let body: &[u8] = request.body();
         
         if let Ok(req) = serde_json::from_slice::<UpsertTeamInviteRequestBody>(body) {
+
+            // validate request
+            if let Err(validation_err) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(
+                        400, 
+                        format!("Validation error: {} - {}", validation_err.field, validation_err.message)
+                    ).encode()
+                );
+            }
+            
+
             match req {
                 UpsertTeamInviteRequestBody::Create(create_req) => {
 
@@ -512,6 +535,16 @@ pub mod team_invites_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_err) = delete_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_err.field, validation_err.message)
+                ).encode()
+            );
+        }
     
         // Get invite to verify it exists
         let invite = match INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&delete_req.id).cloned()) {
@@ -613,6 +646,14 @@ pub mod team_invites_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        // Validate request
+        if redeem_request.validate_body().is_err() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            );
+        }
     
         // Convert invite_id string to TeamInviteID
         let invite_id = TeamInviteID(redeem_request.invite_id);

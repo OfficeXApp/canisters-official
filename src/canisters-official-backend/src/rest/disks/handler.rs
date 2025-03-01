@@ -100,6 +100,14 @@ pub mod disks_handlers {
             ),
         };
 
+         // Validate request body
+         if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
+        }
+
         // Parse cursors if provided
         let cursor_up = if let Some(cursor) = request_body.cursor_up {
             match cursor.parse::<usize>() {
@@ -254,6 +262,14 @@ pub mod disks_handlers {
         let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertDiskRequestBody>(body) {
+
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, validation_error.message).encode()
+                );
+            }
+
             match req {
                 UpsertDiskRequestBody::Update(update_req) => {
                     let disk_id = DiskID(update_req.id);
@@ -469,6 +485,13 @@ pub mod disks_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
+        }
 
         let disk_id = delete_request.id.clone();
 

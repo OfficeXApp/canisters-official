@@ -100,6 +100,12 @@ pub mod webhooks_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
+        }
     
         // Parse cursors if provided
         let cursor_up = if let Some(cursor) = request_body.cursor_up {
@@ -257,6 +263,14 @@ pub mod webhooks_handlers {
         let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertWebhookRequestBody>(body) {
+
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, validation_error.message).encode()
+                );
+            }
+
             match req {
                 UpsertWebhookRequestBody::Create(create_req) => {
                     // Create new webhook
@@ -465,6 +479,13 @@ pub mod webhooks_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
+        }
 
         let webhook_id = WebhookID(delete_request.id.clone());
 

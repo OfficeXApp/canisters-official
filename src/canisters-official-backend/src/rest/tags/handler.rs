@@ -118,6 +118,13 @@ pub mod tags_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
     
         let prefix_filter = request_body.filters.prefix.as_deref().unwrap_or("");
         
@@ -297,6 +304,14 @@ pub mod tags_handlers {
         let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertTagRequestBody>(body) {
+
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+                );
+            }
+
             match req {
                 UpsertTagRequestBody::Update(update_req) => {
                     let tag_id = TagID(update_req.id.clone());
@@ -563,6 +578,13 @@ pub mod tags_handlers {
             ),
         };
 
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
+
         let tag_id = TagID(delete_request.id.clone());
 
         // Check if tag exists
@@ -654,6 +676,13 @@ pub mod tags_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = tag_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
 
         // Parse the tag ID
         let tag_id = match TAGS_BY_ID_HASHTABLE.with(|store| {

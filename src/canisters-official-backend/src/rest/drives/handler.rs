@@ -100,6 +100,14 @@ pub mod drives_handlers {
             ),
         };
 
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
+
         // Parse cursors if provided
         let cursor_up = if let Some(cursor) = request_body.cursor_up {
             match cursor.parse::<usize>() {
@@ -258,6 +266,15 @@ pub mod drives_handlers {
         let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertDriveRequestBody>(body) {
+
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                        validation_error.field, validation_error.message)).encode()
+                );
+            }
+
             match req {
                 UpsertDriveRequestBody::Update(update_req) => {
                     let drive_id = DriveID(update_req.id);
@@ -458,6 +475,14 @@ pub mod drives_handlers {
             ),
         };
 
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
+
         let drive_id = delete_request.id;
         let drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
             Some(drive) => drive,
@@ -563,6 +588,13 @@ pub mod drives_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+        if let Err(validation_error) = replay_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
     
         // Check if diffs are provided
         if replay_request.diffs.is_empty() {
@@ -649,6 +681,13 @@ pub mod drives_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
     
         // Check if search query is provided
         if request_body.query.trim().is_empty() {
@@ -857,6 +896,14 @@ pub mod drives_handlers {
                 ),
             }
         };
+
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
     
         // Check when the last reindex was performed
         let last_index_time = crate::core::state::search::state::state::get_last_index_update_time();
@@ -947,6 +994,14 @@ pub mod drives_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
     
         // If external_ids list is empty, just return an empty result list
         // This is a valid case that should return success with empty results
@@ -1017,6 +1072,14 @@ pub mod drives_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = transfer_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
     
         // Validate that next_owner_id starts with the correct prefix
         let next_owner_id = transfer_request.next_owner_id;

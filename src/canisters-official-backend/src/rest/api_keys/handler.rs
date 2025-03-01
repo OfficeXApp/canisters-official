@@ -20,8 +20,6 @@ pub mod apikeys_handlers {
     pub async fn get_apikey_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
 
 
-
-
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),

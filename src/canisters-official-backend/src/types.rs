@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use ic_http_certification::{HttpRequest, HttpResponse};
 use matchit::Params;
 use candid::Principal;
-use ethers::types::Address as EVMAddress;
 use std::str::FromStr;
 
 use crate::core::types::IDPrefix;
@@ -100,12 +99,48 @@ pub fn validate_evm_address(address: &str) -> Result<(), ValidationError> {
         });
     }
     
-    // Validate as EVM address
-    match EVMAddress::from_str(address) {
+    // Check prefix
+    if !address.starts_with("0x") {
+        return Err(ValidationError {
+            field: "evm_address".to_string(),
+            message: "EVM address must start with '0x'".to_string(),
+        });
+    }
+    
+    // Check length (0x + 40 hex chars)
+    if address.len() != 42 {
+        return Err(ValidationError {
+            field: "evm_address".to_string(),
+            message: "EVM address must be 42 characters long (including '0x')".to_string(),
+        });
+    }
+    
+    // Check that all characters after 0x are valid hex digits
+    if !address[2..].chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(ValidationError {
+            field: "evm_address".to_string(),
+            message: "EVM address must contain only hexadecimal characters after '0x'".to_string(),
+        });
+    }
+    
+    Ok(())
+}
+
+pub fn validate_icp_principal(principal: &str) -> Result<(), ValidationError> {
+    // Check if empty
+    if principal.is_empty() {
+        return Err(ValidationError {
+            field: "icp_principal".to_string(),
+            message: "ICP principal cannot be empty".to_string(),
+        });
+    }
+    
+    // Validate as ICP principal
+    match Principal::from_text(principal) {
         Ok(_) => Ok(()),
         Err(_) => Err(ValidationError {
-            field: "evm_address".to_string(),
-            message: "Invalid EVM address format".to_string(),
+            field: "icp_principal".to_string(),
+            message: "Invalid ICP principal format".to_string(),
         }),
     }
 }
@@ -128,6 +163,32 @@ pub fn validate_external_payload(payload: &str) -> Result<(), ValidationError> {
         return Err(ValidationError {
             field: "external_payload".to_string(),
             message: "External payload must be 8,192 characters or less".to_string(),
+        });
+    }
+    
+    Ok(())
+}
+
+// Validate URL length 
+pub fn validate_url_endpoint(url: &str, field_name: &str) -> Result<(), ValidationError> {
+    // Check length 
+    if url.len() > 4096 {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} must be 4,096 characters or less", field_name),
+        });
+    }
+    
+    Ok(())
+}
+
+// Validate description
+pub fn validate_description(description: &str, field_name: &str) -> Result<(), ValidationError> {
+    // Check length
+    if description.len() > 8192 {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} must be 8,192 characters or less", field_name),
         });
     }
     

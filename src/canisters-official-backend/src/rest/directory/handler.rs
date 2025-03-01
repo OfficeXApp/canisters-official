@@ -38,6 +38,17 @@ pub mod directorys_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        // validate request
+        if let Err(validation_error) = list_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
     
         match fetch_files_at_folder_path(list_request, requester_api_key.user_id.clone()) {
             Ok(response) => create_response(

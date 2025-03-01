@@ -11,6 +11,7 @@ use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::UserID;
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
+use crate::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError};
 
 #[derive(Debug, Clone, Serialize)]
 pub enum WebhookResponse<'a, T = ()> {
@@ -74,6 +75,37 @@ fn default_page_size() -> usize {
     50
 }
 
+impl ListWebhooksRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate filters string length (up to 256 chars)
+        if self.filters.len() > 256 {
+            return Err(ValidationError {
+                field: "filters".to_string(),
+                message: "Filters must be 256 characters or less".to_string(),
+            });
+        }
+
+        // Validate page_size is reasonable
+        if self.page_size == 0 || self.page_size > 1000 {
+            return Err(ValidationError {
+                field: "page_size".to_string(),
+                message: "Page size must be between 1 and 1000".to_string(),
+            });
+        }
+
+        // Validate cursor strings if present
+        if let Some(cursor) = &self.cursor_up {
+            validate_id_string(cursor, "cursor_up")?;
+        }
+
+        if let Some(cursor) = &self.cursor_down {
+            validate_id_string(cursor, "cursor_down")?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ListWebhooksResponseData {
     pub items: Vec<Webhook>,
@@ -96,6 +128,50 @@ pub struct CreateWebhookRequestBody {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
+impl CreateWebhookRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate alt_index
+        validate_id_string(&self.alt_index, "alt_index")?;
+
+        // Validate URL
+        validate_url_endpoint(&self.url, "url")?;
+
+        // Validate event
+        validate_id_string(&self.event, "event")?;
+
+        // Validate signature if provided
+        if let Some(signature) = &self.signature {
+            validate_id_string(signature, "signature")?;
+        }
+
+        // Validate description if provided
+        if let Some(description) = &self.description {
+            validate_description(description, "description")?;
+        }
+
+        // Validate filters if provided
+        if let Some(filters) = &self.filters {
+            if filters.len() > 256 {
+                return Err(ValidationError {
+                    field: "filters".to_string(),
+                    message: "Filters must be 256 characters or less".to_string(),
+                });
+            }
+        }
+
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+
+        Ok(())
+    }
+}
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -116,6 +192,49 @@ pub struct UpdateWebhookRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_payload: Option<String>,
 }
+impl UpdateWebhookRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate webhook ID
+        validate_id_string(&self.id, "id")?;
+        
+        // Validate URL if provided
+        if let Some(url) = &self.url {
+            validate_url_endpoint(url, "url")?;
+        }
+        
+        // Validate signature if provided
+        if let Some(signature) = &self.signature {
+            validate_id_string(signature, "signature")?;
+        }
+        
+        // Validate description if provided
+        if let Some(description) = &self.description {
+            validate_description(description, "description")?;
+        }
+        
+        // Validate filters if provided
+        if let Some(filters) = &self.filters {
+            if filters.len() > 256 {
+                return Err(ValidationError {
+                    field: "filters".to_string(),
+                    message: "Filters must be 256 characters or less".to_string(),
+                });
+            }
+        }
+        
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+        
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+        
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
@@ -124,10 +243,28 @@ pub enum UpsertWebhookRequestBody {
     Update(UpdateWebhookRequestBody),
 }
 
+impl UpsertWebhookRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        match self {
+            UpsertWebhookRequestBody::Create(create_req) => create_req.validate_body(),
+            UpsertWebhookRequestBody::Update(update_req) => update_req.validate_body(),
+        }
+    }
+}
+
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteWebhookRequest {
     pub id: String,
+}
+impl DeleteWebhookRequest {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate webhook ID
+        validate_id_string(&self.id, "id")?;
+        
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
