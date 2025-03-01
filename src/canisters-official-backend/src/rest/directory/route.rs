@@ -1,15 +1,15 @@
 // src/rest/directory/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const DIRECTORYS_LIST_PATH: &str = "/directory/list";
-pub const DIRECTORYS_ACTION_PATH: &str = "/directory/action";
-pub const UPLOAD_CHUNK_PATH: &str = "/directory/raw_upload/chunk";
-pub const COMPLETE_UPLOAD_PATH: &str = "/directory/raw_upload/complete";
-pub const RAW_DOWNLOAD_META_PATH: &str = "/directory/raw_download/meta";
-pub const RAW_DOWNLOAD_CHUNK_PATH: &str = "/directory/raw_download/chunk";
-pub const RAW_URL_PROXY_PATH: &str = "/directory/asset/{file_id_with_extension}"; // for proxying raw urls 302 redirect to temp presigned s3 urls
+pub const DIRECTORYS_LIST_PATH: &str =      genroute!("/directory/list");
+pub const DIRECTORYS_ACTION_PATH: &str =    genroute!("/directory/action");
+pub const UPLOAD_CHUNK_PATH: &str =         genroute!("/directory/raw_upload/chunk");
+pub const COMPLETE_UPLOAD_PATH: &str =      genroute!("/directory/raw_upload/complete");
+pub const RAW_DOWNLOAD_META_PATH: &str =    genroute!("/directory/raw_download/meta");
+pub const RAW_DOWNLOAD_CHUNK_PATH: &str =   genroute!("/directory/raw_download/chunk");
+pub const RAW_URL_PROXY_PATH: &str =        genroute!("/directory/asset/{file_id_with_extension}"); // for proxying raw urls 302 redirect to temp presigned s3 urls
 
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);

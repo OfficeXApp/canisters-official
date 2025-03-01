@@ -11,6 +11,13 @@ thread_local! {
 
 const WILDCARD_PATH: &str = "/*";
 
+macro_rules! genroute {
+    ($path:expr) => {
+        concat!("/v1/canister/{drive_id}", $path)
+    }
+}
+pub(crate) use genroute;
+
 
 pub async fn not_found_handler<'a, 'k, 'v>(
     req: &'a HttpRequest<'a>, 

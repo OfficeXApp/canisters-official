@@ -1,12 +1,14 @@
 // src/rest/api_keys/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const APIKEYS_GET_PATH: &str = "/api_keys/get/{api_key_id}";
-pub const APIKEYS_LIST_PATH: &str = "/api_keys/list/{user_id}";
-pub const APIKEYS_UPSERT_PATH: &str = "/api_keys/upsert";
-pub const APIKEYS_DELETE_PATH: &str = "/api_keys/delete";
+
+// ROUTE_PREFIX
+pub const APIKEYS_GET_PATH: &str =      genroute!("/api_keys/get/{api_key_id}");
+pub const APIKEYS_LIST_PATH: &str =     genroute!("/api_keys/list/{user_id}");
+pub const APIKEYS_UPSERT_PATH: &str =   genroute!("/api_keys/upsert");
+pub const APIKEYS_DELETE_PATH: &str =   genroute!("/api_keys/delete");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

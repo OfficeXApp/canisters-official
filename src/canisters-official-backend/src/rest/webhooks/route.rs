@@ -1,12 +1,13 @@
 // src/rest/webhooks/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const WEBHOOKS_GET_PATH: &str = "/webhooks/get/{webhook_id}";
-pub const WEBHOOKS_LIST_PATH: &str = "/webhooks/list";
-pub const WEBHOOKS_UPSERT_PATH: &str = "/webhooks/upsert";
-pub const WEBHOOKS_DELETE_PATH: &str = "/webhooks/delete";
+
+pub const WEBHOOKS_GET_PATH: &str =     genroute!("/webhooks/get/{webhook_id}");
+pub const WEBHOOKS_LIST_PATH: &str =    genroute!("/webhooks/list");
+pub const WEBHOOKS_UPSERT_PATH: &str =  genroute!("/webhooks/upsert");
+pub const WEBHOOKS_DELETE_PATH: &str =  genroute!("/webhooks/delete");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

@@ -7,19 +7,19 @@
 
 ## Urgent Next
 
-- [🔵] Add system resource wide "external_id" & "external_metadata" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it). note we need to remember to call
-- [ ] Audit broken atomic transactions on route, if throw an error we should undo mutations
+- [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
+
 - [ ] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
-- [ ] Consider whether to add api_version & canister_id into the url to support multi-tenant backends, primarily in nodejs. eg. `api/v1/drive/{canister_id}/directory/list`
 - [ ] Regenerate proper REST API docs
 
-- [ ] Setup factory to spawn Drive canisters with owner set
+## Awkward Urgent
+
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
-- [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
 
 ## Near Future
 
+- [ ] Setup factory to spawn Drive canisters with owner set
 - [ ] Test out webapp http server
 - [ ] Test out webapp torrenting
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
@@ -42,6 +42,7 @@
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
 - [ ] Paywalls
 - [ ] Should we allow "network visualization" where we give frontend a JSON graph of what a user has access to? their teams, etc
+- [ ] Audit broken atomic transactions on route, if throw an error we should undo mutations
 - [ ] Unit Tests (https://www.startearly.ai/)
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi (this is moreso for NodeJS)
 - [ ] Implement signed signatures in canister-to-canister REST calls (that icp canister can create same signature as frontend for signing). should use same signing pattern as frontend js but doesnt have to, just add new AuthTypeEnum
@@ -99,3 +100,5 @@
 - [x] Fix missing table permissions on resources
 - [x] Upgrade tag permissions with metadata of tag prefix (allow users to write on specific prefix tag strings)
 - [x] Upgrade directory/system permissions to allow CRUD on tag prefixes also
+- [x] Add system resource wide "external_id" & "external_metadata" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it). note we need to remember to call
+- [x] Consider whether to add api_version & canister_id into the url to support multi-tenant backends, primarily in nodejs. eg. `/v1/{drive_id}/rest_of_route`
