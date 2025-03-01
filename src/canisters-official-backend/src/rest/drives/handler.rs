@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
         
     };
     use serde_json::json;
@@ -986,6 +986,112 @@ pub mod drives_handlers {
         create_response(
             StatusCode::OK,
             ExternalIDsDriveResponse::ok(&response_data).encode()
+        )
+    }
+
+    pub async fn transfer_ownership_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Take a snapshot early for audit/logging
+        let prestate = snapshot_prestate();
+    
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Verify that the requester is the current owner
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        if !is_owner {
+            return create_response(
+                StatusCode::UNAUTHORIZED,
+                ErrorResponse::unauthorized().encode()
+            );
+        }
+    
+        // Parse request body
+        let body: &[u8] = request.body();
+        let transfer_request = match serde_json::from_slice::<TransferOwnershipDriveRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // Validate that next_owner_id starts with the correct prefix
+        let next_owner_id = transfer_request.next_owner_id;
+        if !next_owner_id.starts_with(&IDPrefix::User.as_str()) {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid next_owner_id format. Must start with correct user prefix.".to_string()).encode()
+            );
+        }
+    
+        // Get current timestamp in milliseconds
+        let current_timestamp_ms = ic_cdk::api::time() / 1_000_000;
+        let one_day_ms: u64 = 24 * 60 * 60 * 1_000; // 24 hours in milliseconds
+    
+        let (status, ready_ms) = TRANSFER_OWNER_ID.with(|transfer_owner_id| {
+            let current_transfer = transfer_owner_id.borrow().0.clone();
+            
+            // Check if there's an existing transfer request
+            if !current_transfer.is_empty() {
+                // Parse the existing transfer request
+                let parts: Vec<&str> = current_transfer.split("::").collect();
+                if parts.len() == 2 {
+                    let existing_owner_id = parts[0];
+                    if let Ok(transfer_timestamp_ms) = parts[1].parse::<u64>() {
+                        // Check if the existing transfer is for the same owner and is older than 24 hours
+                        if existing_owner_id == next_owner_id && current_timestamp_ms - transfer_timestamp_ms > one_day_ms {
+                            // Complete the transfer
+                            OWNER_ID.with(|owner_id| {
+                                *owner_id.borrow_mut() = UserID(next_owner_id.clone());
+                            });
+                            // Clear the transfer request
+                            *transfer_owner_id.borrow_mut() = UserID("".to_string());
+                            return (TransferOwnershipStatusEnum::Completed, current_timestamp_ms);
+                        }
+                    }
+                }
+            }
+    
+            // Set or update the transfer request
+            let new_transfer_value = format!("{}::{}", next_owner_id, current_timestamp_ms);
+            *transfer_owner_id.borrow_mut() = UserID(new_transfer_value);
+            
+            // Calculate ready time in milliseconds
+            let ready_time_ms = current_timestamp_ms + one_day_ms;
+            (TransferOwnershipStatusEnum::Requested, ready_time_ms)
+        });
+    
+        let response_data = TransferOwnershipResponseData {
+            status,
+            ready_ms,
+        };
+    
+        // Log the transfer action
+        let log_message = match response_data.status {
+            TransferOwnershipStatusEnum::Completed => {
+                format!(
+                    "{}: Completed ownership transfer to {}", 
+                    requester_api_key.user_id,
+                    next_owner_id
+                )
+            },
+            TransferOwnershipStatusEnum::Requested => {
+                format!(
+                    "{}: Initiated ownership transfer to {}", 
+                    requester_api_key.user_id,
+                    next_owner_id
+                )
+            }
+        };
+        
+        snapshot_poststate(prestate, Some(log_message));
+    
+        create_response(
+            StatusCode::OK,
+            TransferOwnershipDriveResponse::ok(&response_data).encode()
         )
     }
 

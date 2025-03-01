@@ -7,8 +7,7 @@
 
 ## Urgent Next
 
-- [ ] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
-
+- [🔵] Add validation to `contact.icp_principal` and `contact.evm_public_address`
 - [ ] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
 - [ ] Regenerate proper REST API docs
 
@@ -25,28 +24,26 @@
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
 - [ ] Consider how to obfuscate ancestor folders in url route (eg. show folder_uuid in the url instead of full path)
-- [ ] Add validation to `contact.icp_principal` and `contact.evm_public_address`
 
 ## Priority Backlog
 
 - [ ] Test whether the s3/storj copy operation works (does raw_storage actually get duplicated?)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
-- [ ] Implement recent files/folders queue (should this simply a tag per user, `Recent::{UserID}`, or a frontend only distinction?)
 
 ## Backlog
 
-- [ ] Figure out how to cleanly update past Drive canisters from factory
+- [ ] Figure out how to cleanly update past Drive canisters spawned from factory
 - [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
 - [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
+- [ ] Implement recent files/folders queue (should this be a frontend only distinction instead of a tag per user, `Recent::{UserID}`?) --> this should be frontend only because removing a recent tag is pain in ass
 - [ ] Paywalls
 - [ ] Should we allow "network visualization" where we give frontend a JSON graph of what a user has access to? their teams, etc
 - [ ] Audit broken atomic transactions on route, if throw an error we should undo mutations
 - [ ] Unit Tests (https://www.startearly.ai/)
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi (this is moreso for NodeJS)
 - [ ] Implement signed signatures in canister-to-canister REST calls (that icp canister can create same signature as frontend for signing). should use same signing pattern as frontend js but doesnt have to, just add new AuthTypeEnum
-- [ ] Implement file/folder tags
 - [ ] Video preview slides? (this would probably have to be a limited feature or post upload job)
 - [ ] Standardized Error codes? Useful for internationalization and 3rd party developers --> i18n might not need error codes if we allow frontend clients to handle translation of errors, but having standardized error codes is definately helpful for 3rd party developers
 
@@ -97,8 +94,10 @@
 - [x] Add support for protected tags so that users cant masquerade attack tag groups (do we need to setup permissions for this?) --> we likely need to refactor tags from its simple strings to a full crud with acl, because we want to let team leaders manage tags too
 - [x] Implement tag deletion
 - [x] Add webhooks on tags
+- [x] Implement file/folder tags
 - [x] Fix missing table permissions on resources
 - [x] Upgrade tag permissions with metadata of tag prefix (allow users to write on specific prefix tag strings)
 - [x] Upgrade directory/system permissions to allow CRUD on tag prefixes also
 - [x] Add system resource wide "external_id" & "external_metadata" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it). note we need to remember to call
 - [x] Consider whether to add api_version & canister_id into the url to support multi-tenant backends, primarily in nodejs. eg. `/v1/{drive_id}/rest_of_route`
+- [x] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)

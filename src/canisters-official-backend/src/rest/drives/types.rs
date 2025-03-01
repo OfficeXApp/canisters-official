@@ -215,3 +215,23 @@ pub struct ExternalIDvsInternalIDMaps {
 }
 
 pub type ExternalIDsDriveResponse<'a> = DriveResponse<'a, ExternalIDsDriveResponseData>;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TransferOwnershipDriveRequestBody {
+    pub next_owner_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TransferOwnershipStatusEnum {
+    Requested,
+    Completed,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TransferOwnershipResponseData {
+    pub status: TransferOwnershipStatusEnum,
+    pub ready_ms: u64,
+}
+
+pub type TransferOwnershipDriveResponse<'a> = DriveResponse<'a, TransferOwnershipResponseData>;
