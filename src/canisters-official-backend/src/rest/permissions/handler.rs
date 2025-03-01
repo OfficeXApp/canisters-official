@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -778,20 +778,6 @@ pub mod permissions_handlers {
                 );
             }
             if let Some(external_payload) = upsert_request.external_payload.clone() {
-                // Check length of external_payload (limit: 8192 characters)
-                if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                    return create_response(
-                        StatusCode::BAD_REQUEST,
-                        ErrorResponse::err(
-                            400, 
-                            format!(
-                                "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                external_payload.len(),
-                                EXTERNAL_PAYLOAD_MAX_LEN
-                            )
-                        ).encode()
-                    );
-                }
                 existing_permission.external_payload = Some(ExternalPayload(external_payload));
             }
     
@@ -825,23 +811,6 @@ pub mod permissions_handlers {
             }
 
             let prestate = snapshot_prestate();
-
-            if let Some(external_payload) = upsert_request.external_payload.clone() {
-                // Check length of external_payload (limit: 8192 characters)
-                if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                    return create_response(
-                        StatusCode::BAD_REQUEST,
-                        ErrorResponse::err(
-                            400, 
-                            format!(
-                                "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                external_payload.len(),
-                                EXTERNAL_PAYLOAD_MAX_LEN
-                            )
-                        ).encode()
-                    );
-                }
-            }
 
 
             let permission_id = SystemPermissionID(generate_unique_id(IDPrefix::SystemPermission, ""));

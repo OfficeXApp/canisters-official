@@ -26,7 +26,7 @@ pub mod tags_handlers {
                     types::{HexColorString, Tag, TagID, TagResourceID, TagStringValue}
                 }, webhooks::types::WebhookEventLabel
             }, 
-            types::{IDPrefix, EXTERNAL_PAYLOAD_MAX_LEN}
+            types::{IDPrefix}
         }, 
         debug_log, 
         rest::{
@@ -403,20 +403,6 @@ pub mod tags_handlers {
                         );
                     }
                     if let Some(external_payload) = update_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
                         tag.external_payload = Some(ExternalPayload(external_payload));
                     }
 
@@ -485,23 +471,6 @@ pub mod tags_handlers {
                     };
                     
                     let prestate = snapshot_prestate();
-
-                    if let Some(external_payload) = create_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
-                    }
 
                     
                     // Create new tag

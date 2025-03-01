@@ -120,5 +120,3 @@ pub fn parse_auth_header_value(auth_header_value: &str) -> Result<ParsedAuth, &'
         Err("Invalid authentication type prefix")
     }
 }
-
-pub const EXTERNAL_PAYLOAD_MAX_LEN: usize = 8192;

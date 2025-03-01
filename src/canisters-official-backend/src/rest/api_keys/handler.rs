@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -197,23 +197,6 @@ pub mod apikeys_handlers {
                     } else {
                         requester_api_key.user_id.clone()
                     };
-
-                    if let Some(external_payload) = create_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
-                    }
             
                     // Generate new API key with proper user_id
                     let new_api_key = ApiKey {
@@ -319,20 +302,6 @@ pub mod apikeys_handlers {
                         api_key.external_id = Some(ExternalID(external_id.clone()));
                     }
                     if let Some(external_payload) = update_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
                         api_key.external_payload = Some(ExternalPayload(external_payload));
                     }
             

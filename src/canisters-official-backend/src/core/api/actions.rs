@@ -1,6 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
@@ -667,9 +667,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             
                             // Check external_payload size before creating
                             if let Some(ref external_payload) = payload.external_payload {
-                                if external_payload.len() <= EXTERNAL_PAYLOAD_MAX_LEN {
-                                    file.external_payload = Some(ExternalPayload(external_payload.clone()));
-                                }
+                                
+                                file.external_payload = Some(ExternalPayload(external_payload.clone()));
+                                
                             }
 
                             if (payload.external_id.is_some()) {
@@ -833,9 +833,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
 
                             // Check external_payload size before creating
                             if let Some(ref external_payload) = payload.external_payload {
-                                if external_payload.len() <= EXTERNAL_PAYLOAD_MAX_LEN {
+                                
                                     folder.external_payload = Some(ExternalPayload(external_payload.clone()));
-                                }
+                                
                             }
                             if (payload.external_id.is_some()) {
                                 let new_external_id = Some(ExternalID(payload.external_id.unwrap_or("".to_string())));

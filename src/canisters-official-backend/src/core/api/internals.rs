@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -222,14 +222,7 @@ pub mod drive_internals {
                     },
                     // only set if its the final folder
                     external_payload: if is_final_folder {
-                        let external_payload_safe = external_payload.clone().map(|ext_payload| {
-                            if serde_json::to_string(&ext_payload).unwrap().len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                                None
-                            } else {
-                                Some(ext_payload)
-                            }
-                        }).flatten();
-                        external_payload_safe
+                        external_payload.clone()
                     } else {
                         None
                     },

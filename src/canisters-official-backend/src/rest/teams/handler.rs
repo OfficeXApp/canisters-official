@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsRequestBody, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
+        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsRequestBody, ListTeamsResponseData, TeamResponse, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -165,23 +165,6 @@ pub mod teams_handlers {
                     let team_id = TeamID(generate_unique_id(IDPrefix::Team, &drive_id_suffix));
                     let now = ic_cdk::api::time();
 
-                    if let Some(external_payload) = create_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
-                    }
-
                     // Create new team
                     let new_team = Team {
                         id: team_id.clone(),
@@ -284,20 +267,6 @@ pub mod teams_handlers {
                         );
                     }
                     if let Some(external_payload) = update_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
                         team.external_payload = Some(ExternalPayload(external_payload));
                     }
 

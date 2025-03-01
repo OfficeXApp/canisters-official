@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
         
     };
     use crate::core::state::team_invites::{
@@ -249,22 +249,6 @@ pub mod team_invites_handlers {
                         ))
                     };
 
-                    if let Some(external_payload) = create_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
-                    }
 
                     let new_invite = Team_Invite {
                         id: invite_id.clone(),
@@ -457,20 +441,6 @@ pub mod team_invites_handlers {
                         );
                     }
                     if let Some(external_payload) = update_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
                         invite.external_payload = Some(ExternalPayload(external_payload));
                     }
 
