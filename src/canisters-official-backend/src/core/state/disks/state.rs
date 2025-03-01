@@ -3,7 +3,7 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::{CANISTER_ID, OWNER_ID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
+    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::{state::state::{CANISTER_ID, OWNER_ID}, types::ExternalID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
     
     thread_local! {
         pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
@@ -23,7 +23,7 @@ pub mod state {
             public_note: Some("Default Canister Storage".to_string()),
             auth_json: None,
             tags: vec![],
-            external_id: Some(ic_cdk::api::id().to_text()),
+            external_id: Some(ExternalID(ic_cdk::api::id().to_text())),
             external_payload: None,
         };
         let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
@@ -35,7 +35,7 @@ pub mod state {
             public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
             auth_json: None,
             tags: vec![],
-            external_id: Some(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text())),
+            external_id: Some(ExternalID(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text()))),
             external_payload: None,
         };
 

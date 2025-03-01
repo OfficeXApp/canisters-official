@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use std::fmt;
 
-use crate::core::state::tags::types::TagStringValue;
+use crate::core::state::{drives::types::{ExternalID, ExternalPayload}, tags::types::TagStringValue};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -23,8 +23,8 @@ pub struct Disk {
     pub public_note: Option<String>,
     pub auth_json: Option<String>,
     pub tags: Vec<TagStringValue>,
-    pub external_id: Option<String>,
-    pub external_payload: Option<String>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }
 
 

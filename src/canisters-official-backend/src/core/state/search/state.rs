@@ -13,6 +13,7 @@ pub mod state {
     use crate::core::state::directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata};
     use crate::core::state::directory::types::{DriveFullFilePath, FileUUID, FolderUUID};
     use crate::core::state::drives::state::state::{DRIVES_BY_ID_HASHTABLE, DRIVE_ID};
+    use crate::core::state::drives::types::ExternalID;
     use crate::core::state::permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum};
     use crate::core::state::search::types::{SearchResult, SearchResultResourceID, SearchCategoryEnum};
     use crate::core::state::contacts::state::state::{CONTACTS_BY_ID_HASHTABLE};
@@ -185,7 +186,7 @@ pub mod state {
                     "{}|{}|{}",
                     disk_id.0,
                     disk.name,
-                    disk.external_id.clone().unwrap_or_default()
+                    disk.external_id.clone().unwrap_or(ExternalID("".to_string()))
                 );
                 
                 // Normalize for search
@@ -583,7 +584,7 @@ pub mod state {
                 DISKS_BY_ID_HASHTABLE.with(|disks| {
                     if let Some(disk) = disks.borrow().get(disk_id) {
                         title = disk.name.clone();
-                        preview = disk.external_id.clone().unwrap_or_default();
+                        preview = disk.external_id.clone().unwrap_or(ExternalID("".to_string())).0;
                     }
                 });
                 
