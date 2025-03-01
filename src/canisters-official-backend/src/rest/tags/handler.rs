@@ -26,7 +26,7 @@ pub mod tags_handlers {
                     types::{HexColorString, Tag, TagID, TagResourceID, TagStringValue}
                 }, webhooks::types::WebhookEventLabel
             }, 
-            types::{IDPrefix, EXTERNAL_PAYLOAD_MAX_LEN}
+            types::{IDPrefix}
         }, 
         debug_log, 
         rest::{
@@ -118,6 +118,13 @@ pub mod tags_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
     
         let prefix_filter = request_body.filters.prefix.as_deref().unwrap_or("");
         
@@ -297,6 +304,14 @@ pub mod tags_handlers {
         let body: &[u8] = request.body();
 
         if let Ok(req) = serde_json::from_slice::<UpsertTagRequestBody>(body) {
+
+            if let Err(validation_error) = req.validate_body() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+                );
+            }
+
             match req {
                 UpsertTagRequestBody::Update(update_req) => {
                     let tag_id = TagID(update_req.id.clone());
@@ -388,20 +403,6 @@ pub mod tags_handlers {
                         );
                     }
                     if let Some(external_payload) = update_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
                         tag.external_payload = Some(ExternalPayload(external_payload));
                     }
 
@@ -470,23 +471,6 @@ pub mod tags_handlers {
                     };
                     
                     let prestate = snapshot_prestate();
-
-                    if let Some(external_payload) = create_req.external_payload.clone() {
-                        // Check length of external_payload (limit: 8192 characters)
-                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(
-                                    400, 
-                                    format!(
-                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
-                                        external_payload.len(),
-                                        EXTERNAL_PAYLOAD_MAX_LEN
-                                    )
-                                ).encode()
-                            );
-                        }
-                    }
 
                     
                     // Create new tag
@@ -562,6 +546,13 @@ pub mod tags_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = delete_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
 
         let tag_id = TagID(delete_request.id.clone());
 
@@ -654,6 +645,13 @@ pub mod tags_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
+
+        if let Err(validation_error) = tag_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
 
         // Parse the tag ID
         let tag_id = match TAGS_BY_ID_HASHTABLE.with(|store| {

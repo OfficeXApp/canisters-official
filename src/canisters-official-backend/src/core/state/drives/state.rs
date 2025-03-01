@@ -6,6 +6,7 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
     use crate::core::api::replay::diff::update_checksum_for_state_diff;
+    use crate::core::api::uuid::format_drive_id;
     use crate::core::api::uuid::generate_unique_id;
     use crate::core::state::drives::types::Drive;
     use crate::core::state::drives::types::DriveID;
@@ -17,9 +18,9 @@ pub mod state {
     use crate::core::types::IDPrefix;
     use crate::core::types::{UserID,PublicKeyICP};
 
-    thread_local! {
+    thread_local! { 
         // self info - immutable
-        pub(crate) static DRIVE_ID: DriveID = DriveID(generate_unique_id(IDPrefix::Drive, ""));
+        pub(crate) static DRIVE_ID: DriveID = format_drive_id(&ic_cdk::api::id().to_text());
         pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
         pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
         pub(crate) static DRIVE_STATE_CHECKSUM: RefCell<StateChecksum> = RefCell::new(StateChecksum("genesis".to_string()));

@@ -11,7 +11,7 @@ pub mod drive {
                     types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::update_external_id_mapping, types::{ExternalID, ExternalPayload}},
-            }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN},
+            }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
         }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, GetFileResponse, GetFolderResponse, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
@@ -257,14 +257,6 @@ pub mod drive {
     
         let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
 
-        // check that external payload is less than 8kb
-        let external_payload_safe = external_payload.clone().map(|ext_payload| {
-            if serde_json::to_string(&ext_payload).unwrap().len() > EXTERNAL_PAYLOAD_MAX_LEN {
-                None
-            } else {
-                Some(ext_payload)
-            }
-        }).flatten();
     
         let file_metadata = FileMetadata {
             id: new_file_uuid.clone(),
@@ -290,7 +282,7 @@ pub mod drive {
             restore_trash_prior_folder_path: None,
             has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),
             external_id: external_id.clone(),
-            external_payload: external_payload_safe.clone(),
+            external_payload: external_payload.clone(),
         };
     
         // Update version chain if we're replacing
