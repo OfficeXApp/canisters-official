@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::UserID}, types::ValidationError};
+use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::{IDPrefix, UserID}}, types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ValidationError}};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyHidden {
@@ -76,53 +76,21 @@ pub struct CreateApiKeyRequestBody {
 impl CreateApiKeyRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate name (up to 256 chars)
-        if self.name.is_empty() {
-            return Err(ValidationError {
-                field: "name".to_string(),
-                message: "Name cannot be empty".to_string(),
-            });
-        }
-        if self.name.len() > 256 {
-            return Err(ValidationError {
-                field: "name".to_string(),
-                message: "Name must be 256 characters or less".to_string(),
-            });
-        }
+        validate_id_string(&self.name, "name")?;
 
-        // Validate user_id if provided (up to 256 chars)
+        // Validate user_id if provided (must be a valid ICP principal with prefix)
         if let Some(user_id) = &self.user_id {
-            if user_id.is_empty() {
-                return Err(ValidationError {
-                    field: "user_id".to_string(),
-                    message: "User ID cannot be empty".to_string(),
-                });
-            }
-            if user_id.len() > 256 {
-                return Err(ValidationError {
-                    field: "user_id".to_string(),
-                    message: "User ID must be 256 characters or less".to_string(),
-                });
-            }
+            validate_user_id(user_id)?;
         }
 
-        // Validate external_id if provided (up to 256 chars)
+        // Validate external_id if provided
         if let Some(external_id) = &self.external_id {
-            if external_id.len() > 256 {
-                return Err(ValidationError {
-                    field: "external_id".to_string(),
-                    message: "External ID must be 256 characters or less".to_string(),
-                });
-            }
+            validate_external_id(external_id)?;
         }
 
-        // Validate external_payload if provided (up to 8,192 chars)
+        // Validate external_payload if provided
         if let Some(external_payload) = &self.external_payload {
-            if external_payload.len() > 8192 {
-                return Err(ValidationError {
-                    field: "external_payload".to_string(),
-                    message: "External payload must be 8,192 characters or less".to_string(),
-                });
-            }
+            validate_external_payload(external_payload)?;
         }
 
         // Validate expires_at if provided (must be a future timestamp)
@@ -148,24 +116,21 @@ pub struct DeleteApiKeyRequestBody {
 }
 impl DeleteApiKeyRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate id (must not be empty and up to 256 chars)
-        if self.id.is_empty() {
+        // Validate id (must not be empty, up to 256 chars)
+        validate_id_string(&self.id, "id")?;
+        
+        // Check if ID has the correct prefix
+        let api_key_prefix = IDPrefix::ApiKey.as_str();
+        if !self.id.starts_with(api_key_prefix) {
             return Err(ValidationError {
                 field: "id".to_string(),
-                message: "ID cannot be empty".to_string(),
-            });
-        }
-        if self.id.len() > 256 {
-            return Err(ValidationError {
-                field: "id".to_string(),
-                message: "ID must be 256 characters or less".to_string(),
+                message: format!("API Key ID must start with '{}'", api_key_prefix),
             });
         }
 
         Ok(())
     }
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DeletedApiKeyData {
@@ -188,57 +153,33 @@ pub struct UpdateApiKeyRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_payload: Option<String>,
 }
-
 impl UpdateApiKeyRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate id (must not be empty and up to 256 chars)
-        if self.id.is_empty() {
+        // Validate id (must not be empty, up to 256 chars, and start with ApiKeyID_ prefix)
+        validate_id_string(&self.id, "id")?;
+        
+        // Check if ID has the correct prefix
+        let api_key_prefix = IDPrefix::ApiKey.as_str();
+        if !self.id.starts_with(api_key_prefix) {
             return Err(ValidationError {
                 field: "id".to_string(),
-                message: "ID cannot be empty".to_string(),
-            });
-        }
-        if self.id.len() > 256 {
-            return Err(ValidationError {
-                field: "id".to_string(),
-                message: "ID must be 256 characters or less".to_string(),
+                message: format!("API Key ID must start with '{}'", api_key_prefix),
             });
         }
 
-        // Validate name if provided (up to 256 chars)
+        // Validate name if provided
         if let Some(name) = &self.name {
-            if name.is_empty() {
-                return Err(ValidationError {
-                    field: "name".to_string(),
-                    message: "Name cannot be empty".to_string(),
-                });
-            }
-            if name.len() > 256 {
-                return Err(ValidationError {
-                    field: "name".to_string(),
-                    message: "Name must be 256 characters or less".to_string(),
-                });
-            }
+            validate_id_string(name, "name")?;
         }
 
-        // Validate external_id if provided (up to 256 chars)
+        // Validate external_id if provided
         if let Some(external_id) = &self.external_id {
-            if external_id.len() > 256 {
-                return Err(ValidationError {
-                    field: "external_id".to_string(),
-                    message: "External ID must be 256 characters or less".to_string(),
-                });
-            }
+            validate_external_id(external_id)?;
         }
 
-        // Validate external_payload if provided (up to 8,192 chars)
+        // Validate external_payload if provided
         if let Some(external_payload) = &self.external_payload {
-            if external_payload.len() > 8192 {
-                return Err(ValidationError {
-                    field: "external_payload".to_string(),
-                    message: "External payload must be 8,192 characters or less".to_string(),
-                });
-            }
+            validate_external_payload(external_payload)?;
         }
 
         // Validate expires_at if provided (must be a future timestamp)

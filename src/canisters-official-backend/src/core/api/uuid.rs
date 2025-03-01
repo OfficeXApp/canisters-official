@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, GLOBAL_UUID_NONCE}, types::{DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}};
+use crate::core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, GLOBAL_UUID_NONCE}, types::{DriveID, DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
@@ -8,8 +8,11 @@ use serde::{Deserialize, Serialize};
 
 
 
-pub fn compile_user_id(principal_string: &str) -> UserID {
+pub fn format_user_id(principal_string: &str) -> UserID {
     UserID(format!("{}{}", IDPrefix::User.as_str(), principal_string))
+}
+pub fn format_drive_id(principal_string: &str) -> DriveID {
+    DriveID(format!("{}{}", IDPrefix::Drive.as_str(), principal_string))
 }
 
 pub fn generate_unique_id(prefix: IDPrefix, suffix: &str) -> String {

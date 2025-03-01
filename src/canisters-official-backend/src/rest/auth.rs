@@ -1,7 +1,7 @@
 use candid::Principal;
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::{core::{api::uuid::compile_user_id, state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log};
+use crate::{core::{api::uuid::format_user_id, state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log};
 use crate::rest::api_keys::types::ErrorResponse;
 use ic_types::crypto::AlgorithmId;
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                     Some(ApiKey {
                         id: ApiKeyID(format!("sig_auth_{}", now)),
                         value: ApiKeyValue(format!("signature_auth_{}", computed_principal)),
-                        user_id: compile_user_id(&computed_principal.clone()),
+                        user_id: format_user_id(&computed_principal.clone()),
                         name: format!("Signature Authenticated User {}", computed_principal),
                         created_at: now,
                         expires_at: -1,
