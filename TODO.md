@@ -7,6 +7,8 @@
 
 ## Urgent Next
 
+- [🔵] Upgrade tag permissions with metadata of tag prefix (allow users to write on specific prefix tag strings)
+- [ ] Upgrade directory/system permissions to allow CRUD on tag prefixes also
 - [ ] Add system resource wide "external_id" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
 - [ ] Setup factory to spawn Drive canisters with owner set
 - [ ] Review backend routes and their ingress/egress shapes to be a unified clean. Regenerate proper REST API docs
@@ -43,6 +45,7 @@
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi (this is moreso for NodeJS)
 - [ ] Implement signed signatures in canister-to-canister REST calls (that icp canister can create same signature as frontend for signing). should use same signing pattern as frontend js but doesnt have to, just add new AuthTypeEnum
 - [ ] Implement file/folder tags
+- [ ] Video preview slides? (this would probably have to be a limited feature or post upload job)
 
 ## Completed
 

@@ -4,10 +4,11 @@ use serde::{Deserialize, Serialize};
 use crate::core::state::tags::types::{Tag, TagID, TagResourceID};
 use crate::rest::webhooks::types::SortDirection;
 
-#[derive(Debug, Clone, Deserialize)]
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ListTagsRequestBody {
     #[serde(default)]
-    pub filters: String,
+    pub filters: ListTagsRequestBodyFilters,
     #[serde(default = "default_page_size")]
     pub page_size: usize,
     #[serde(default)]
@@ -18,6 +19,13 @@ pub struct ListTagsRequestBody {
 
 fn default_page_size() -> usize {
     50
+}
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ListTagsRequestBodyFilters {
+    pub prefix: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

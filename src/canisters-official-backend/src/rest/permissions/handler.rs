@@ -729,6 +729,10 @@ pub mod permissions_handlers {
             existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
             existing_permission.note = upsert_request.note.unwrap_or_default();
             existing_permission.last_modified_at = current_time;
+
+            if upsert_request.metadata.is_some() {
+                existing_permission.metadata = upsert_request.metadata;
+            }
     
             // Update state
             SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
@@ -776,6 +780,7 @@ pub mod permissions_handlers {
                 last_modified_at: current_time,
                 from_placeholder_grantee: None,
                 tags: vec![],
+                metadata: upsert_request.metadata
             };
     
             // Update all state indices

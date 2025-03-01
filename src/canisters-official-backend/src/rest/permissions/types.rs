@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::state::permissions::types::*;
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::rest::drives::types::DriveResponse;
+use crate::core::state::permissions::types::PermissionMetadata;
 
 // Response type included in FileMetadata/FolderMetadata
 #[derive(Debug, Clone, Serialize)]
@@ -23,6 +24,7 @@ pub struct UpsertPermissionsRequestBody {
     pub expiry_date_ms: Option<i64>,
     pub inheritable: bool,
     pub note: Option<String>,
+    pub metadata: Option<PermissionMetadata>
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -95,6 +97,7 @@ pub struct UpsertSystemPermissionsRequestBody {
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
     pub note: Option<String>,
+    pub metadata: Option<PermissionMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize)]
