@@ -1,19 +1,20 @@
 // src/rest/permissions/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const DIRECTORY_PERMISSIONS_GET_PATH: &str = "/permissions/directory/get/{directory_permission_id}";
-pub const DIRECTORY_PERMISSIONS_UPSERT_PATH: &str = "/permissions/directory/upsert";
-pub const DIRECTORY_PERMISSIONS_DELETE_PATH: &str = "/permissions/directory/delete";
-pub const DIRECTORY_PERMISSIONS_CHECK_PATH: &str = "/permissions/directory/check";
-pub const DIRECTORY_PERMISSIONS_REDEEM_PATH: &str = "/permissions/directory/redeem";
 
-pub const SYSTEM_PERMISSIONS_GET_PATH: &str = "/permissions/system/get/{system_permission_id}";
-pub const SYSTEM_PERMISSIONS_UPSERT_PATH: &str = "/permissions/system/upsert";
-pub const SYSTEM_PERMISSIONS_DELETE_PATH: &str = "/permissions/system/delete";
-pub const SYSTEM_PERMISSIONS_CHECK_PATH: &str = "/permissions/system/check";
-pub const SYSTEM_PERMISSIONS_REDEEM_PATH: &str = "/permissions/system/redeem";
+pub const DIRECTORY_PERMISSIONS_GET_PATH: &str =    genroute!("/permissions/directory/get/{directory_permission_id}");
+pub const DIRECTORY_PERMISSIONS_UPSERT_PATH: &str = genroute!("/permissions/directory/upsert");
+pub const DIRECTORY_PERMISSIONS_DELETE_PATH: &str = genroute!("/permissions/directory/delete");
+pub const DIRECTORY_PERMISSIONS_CHECK_PATH: &str =  genroute!("/permissions/directory/check");
+pub const DIRECTORY_PERMISSIONS_REDEEM_PATH: &str = genroute!("/permissions/directory/redeem");
+
+pub const SYSTEM_PERMISSIONS_GET_PATH: &str =       genroute!("/permissions/system/get/{system_permission_id}");
+pub const SYSTEM_PERMISSIONS_UPSERT_PATH: &str =    genroute!("/permissions/system/upsert");
+pub const SYSTEM_PERMISSIONS_DELETE_PATH: &str =    genroute!("/permissions/system/delete");
+pub const SYSTEM_PERMISSIONS_CHECK_PATH: &str =     genroute!("/permissions/system/check");
+pub const SYSTEM_PERMISSIONS_REDEEM_PATH: &str =    genroute!("/permissions/system/redeem");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

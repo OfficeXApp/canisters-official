@@ -1,13 +1,13 @@
 // src/rest/teams/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const TEAMS_GET_PATH: &str = "/teams/get/{team_id}";
-pub const TEAMS_LIST_PATH: &str = "/teams/list";
-pub const TEAMS_UPSERT_PATH: &str = "/teams/upsert";
-pub const TEAMS_DELETE_PATH: &str = "/teams/delete";
-pub const TEAMS_VALIDATE_PATH: &str = "/teams/validate";
+pub const TEAMS_GET_PATH: &str =        genroute!("/teams/get/{team_id}");
+pub const TEAMS_LIST_PATH: &str =       genroute!("/teams/list");
+pub const TEAMS_UPSERT_PATH: &str =     genroute!("/teams/upsert");
+pub const TEAMS_DELETE_PATH: &str =     genroute!("/teams/delete");
+pub const TEAMS_VALIDATE_PATH: &str =   genroute!("/teams/validate");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

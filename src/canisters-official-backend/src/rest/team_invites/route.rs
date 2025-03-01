@@ -1,13 +1,14 @@
 // src/rest/team_invites/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const TEAM_INVITES_GET_PATH: &str = "/teams/invites/get/{invite_id}";
-pub const TEAM_INVITES_LIST_PATH: &str = "/teams/invites/list";
-pub const TEAM_INVITES_UPSERT_PATH: &str = "/teams/invites/upsert";
-pub const TEAM_INVITES_DELETE_PATH: &str = "/teams/invites/delete";
-pub const TEAM_INVITES_REDEEM_PATH: &str = "/teams/invites/redeem";
+
+pub const TEAM_INVITES_GET_PATH: &str =     genroute!("/teams/invites/get/{invite_id}");
+pub const TEAM_INVITES_LIST_PATH: &str =    genroute!("/teams/invites/list");
+pub const TEAM_INVITES_UPSERT_PATH: &str =  genroute!("/teams/invites/upsert");
+pub const TEAM_INVITES_DELETE_PATH: &str =  genroute!("/teams/invites/delete");
+pub const TEAM_INVITES_REDEEM_PATH: &str =  genroute!("/teams/invites/redeem");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

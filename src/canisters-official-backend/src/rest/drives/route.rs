@@ -1,17 +1,17 @@
 // src/rest/drives/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const DRIVES_GET_PATH: &str = "/drives/get/{drive_id}";
-pub const DRIVES_LIST_PATH: &str = "/drives/list";
-pub const DRIVES_UPSERT_PATH: &str = "/drives/upsert";
-pub const DRIVES_DELETE_PATH: &str = "/drives/delete";
-pub const DRIVES_SNAPSHOT_PATH: &str = "/drives/snapshot"; 
-pub const DRIVES_REPLAY_PATH: &str = "/drives/replay"; 
-pub const DRIVES_SEARCH_PATH: &str = "/drives/search";
-pub const DRIVES_REINDEX_PATH: &str = "/drives/reindex";
-pub const DRIVES_EXTERNAL_ID_PATH: &str = "/drives/external_id";
+pub const DRIVES_GET_PATH: &str =           genroute!("/drives/get/{drive_id}");
+pub const DRIVES_LIST_PATH: &str =          genroute!("/drives/list");
+pub const DRIVES_UPSERT_PATH: &str =        genroute!("/drives/upsert");
+pub const DRIVES_DELETE_PATH: &str =        genroute!("/drives/delete");
+pub const DRIVES_SNAPSHOT_PATH: &str =      genroute!("/drives/snapshot");
+pub const DRIVES_REPLAY_PATH: &str =        genroute!("/drives/replay");
+pub const DRIVES_SEARCH_PATH: &str =        genroute!("/drives/search");
+pub const DRIVES_REINDEX_PATH: &str =       genroute!("/drives/reindex");
+pub const DRIVES_EXTERNAL_ID_PATH: &str =   genroute!("/drives/external_id");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 

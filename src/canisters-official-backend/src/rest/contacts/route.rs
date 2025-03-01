@@ -1,12 +1,12 @@
 // src/rest/contacts/route.rs
 use crate::debug_log;
-use crate::rest::router;
+use crate::rest::router::{self, genroute};
 use crate::types::RouteHandler;
 
-pub const CONTACTS_GET_PATH: &str = "/contacts/get/{contact_id}";
-pub const CONTACTS_LIST_PATH: &str = "/contacts/list";
-pub const CONTACTS_UPSERT_PATH: &str = "/contacts/upsert";
-pub const CONTACTS_DELETE_PATH: &str = "/contacts/delete";
+pub const CONTACTS_GET_PATH: &str =     genroute!("/contacts/get/{contact_id}");
+pub const CONTACTS_LIST_PATH: &str =    genroute!("/contacts/list");
+pub const CONTACTS_UPSERT_PATH: &str =  genroute!("/contacts/upsert");
+pub const CONTACTS_DELETE_PATH: &str =  genroute!("/contacts/delete");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
