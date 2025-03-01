@@ -25,6 +25,8 @@ pub struct Drive {
     pub url_endpoint: DriveRESTUrlEndpoint,
     pub last_indexed_ms: Option<u64>,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }   
 
 

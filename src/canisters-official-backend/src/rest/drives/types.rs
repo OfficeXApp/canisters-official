@@ -76,6 +76,8 @@ pub struct CreateDriveRequestBody {
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -91,6 +93,10 @@ pub struct UpdateDriveRequestBody {
     pub icp_principal: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url_endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 
 pub type GetDriveResponse<'a> = DriveResponse<'a, Drive>;
@@ -197,15 +203,15 @@ pub struct ExternalIDsDriveRequestBody {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExternalIDsDriveResponseData {
-    pub results: Vec<ExternalIDvsInternalIDPair>
+    pub results: Vec<ExternalIDvsInternalIDMaps>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExternalIDvsInternalIDPair {
+pub struct ExternalIDvsInternalIDMaps {
     pub success: bool,
     pub message: String,
     pub external_id: ExternalID,
-    pub internal_id: String,
+    pub internal_ids: Vec<String>,
 }
 
 pub type ExternalIDsDriveResponse<'a> = DriveResponse<'a, ExternalIDsDriveResponseData>;

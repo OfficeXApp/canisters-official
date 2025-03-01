@@ -10,8 +10,8 @@ pub mod drive {
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
                     types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
                 },
-                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}},
-            }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
+                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::update_external_id_mapping, types::{ExternalID, ExternalPayload}},
+            }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN},
         }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, GetFileResponse, GetFolderResponse, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
@@ -131,6 +131,8 @@ pub mod drive {
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
         has_sovereign_permissions: Option<bool>,
+        external_id: Option<ExternalID>,
+        external_payload: Option<ExternalPayload>,
     ) -> Result<(FileMetadata, DiskUploadResponse), String> {
         let sanitized_file_path: String = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
@@ -179,7 +181,9 @@ pub mod drive {
             disk_id.clone(), 
             user_id.clone(), 
             canister_icp_principal_string.clone(),
-            false
+            false,
+            None,
+            None
         );
     
         let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
@@ -252,6 +256,15 @@ pub mod drive {
         };
     
         let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
+
+        // check that external payload is less than 8kb
+        let external_payload_safe = external_payload.clone().map(|ext_payload| {
+            if serde_json::to_string(&ext_payload).unwrap().len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                None
+            } else {
+                Some(ext_payload)
+            }
+        }).flatten();
     
         let file_metadata = FileMetadata {
             id: new_file_uuid.clone(),
@@ -276,6 +289,8 @@ pub mod drive {
             expires_at,
             restore_trash_prior_folder_path: None,
             has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),
+            external_id: external_id.clone(),
+            external_payload: external_payload_safe.clone(),
         };
     
         // Update version chain if we're replacing
@@ -346,6 +361,11 @@ pub mod drive {
         
         println!("Upload response: {:?}", upload_response);
             
+        update_external_id_mapping(
+            None,
+            external_id,
+            Some(new_file_uuid.0.clone())
+        );
     
         Ok((file_metadata, upload_response))
     }
@@ -357,7 +377,9 @@ pub mod drive {
         expires_at: i64,
         canister_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-        has_sovereign_permissions: Option<bool>
+        has_sovereign_permissions: Option<bool>,
+        external_id: Option<ExternalID>,
+        external_payload: Option<ExternalPayload>,
     ) -> Result<FolderMetadata, String> {
         // Ensure the path ends with a slash
         let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
@@ -449,7 +471,14 @@ pub mod drive {
             disk_id,
             user_id.clone(),
             canister_icp_principal_string,
-            has_sovereign_permissions.unwrap_or(false)
+            has_sovereign_permissions.unwrap_or(false),
+            external_id.clone(),
+            external_payload,
+        );
+        update_external_id_mapping(
+            None,
+            external_id,
+            Some(new_folder_uuid.0.clone())
         );
     
         // Update the metadata with the correct expires_at value
@@ -464,6 +493,7 @@ pub mod drive {
             .get(&new_folder_uuid)
             .map(|metadata| metadata.clone())
             .ok_or_else(|| "Failed to get created folder metadata".to_string())
+
     }
 
     pub fn get_file_by_id(file_id: FileUUID) -> Result<FileMetadata, String> {
@@ -685,8 +715,15 @@ pub mod drive {
             }
     
             // Remove folder metadata and path mapping
-            folder_uuid_to_metadata.remove(folder_id);
+            folder_uuid_to_metadata.remove(&folder_id.clone());
             full_folder_path_to_uuid.remove(&folder_path);
+
+            // remove external_ids 
+            update_external_id_mapping(
+                folder.external_id,
+                None,
+                Some(folder_id.0.clone())
+            );
     
             // Remove from parent's subfolder list
             if let Some(parent_id) = folder.parent_folder_uuid {
@@ -696,6 +733,7 @@ pub mod drive {
                     }
                 });
             }
+
             
             Ok(DriveFullFilePath("".to_string()))
         } else {
@@ -835,6 +873,13 @@ pub mod drive {
                     folder.file_uuids.retain(|id| id != file_id);
                 }
             });
+
+            // remove external ids
+            update_external_id_mapping(
+                file.external_id,
+                None,
+                Some(file_id.0.clone())
+            );
     
             Ok(DriveFullFilePath("".to_string()))
         } else {
@@ -1217,7 +1262,9 @@ pub mod drive {
                         folder.disk_id.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
-                        folder.has_sovereign_permissions.clone()
+                        folder.has_sovereign_permissions.clone(),
+                        None,
+                        None
                     );
                     
                     folder_uuid_to_metadata
@@ -1237,7 +1284,9 @@ pub mod drive {
                         folder.disk_id.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
-                        folder.has_sovereign_permissions.clone()
+                        folder.has_sovereign_permissions.clone(),
+                        None,
+                        None
                     );
                     
                     folder_uuid_to_metadata
@@ -1320,7 +1369,9 @@ pub mod drive {
                         file.disk_id.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
-                        file.has_sovereign_permissions.clone()
+                        file.has_sovereign_permissions.clone(),
+                        None,
+                        None
                     );
                     
                     folder_uuid_to_metadata
@@ -1340,7 +1391,9 @@ pub mod drive {
                         file.disk_id.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
-                        file.has_sovereign_permissions.clone()
+                        file.has_sovereign_permissions.clone(),
+                        None,
+                        None
                     );
                     
                     folder_uuid_to_metadata

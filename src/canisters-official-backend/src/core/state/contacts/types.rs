@@ -2,7 +2,7 @@
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::core::{state::{tags::types::TagStringValue, teams::types::TeamID}, types::{ICPPrincipalString, PublicKeyICP, UserID}};
+use crate::core::{state::{drives::types::{ExternalID, ExternalPayload}, tags::types::TagStringValue, teams::types::TeamID}, types::{ICPPrincipalString, PublicKeyICP, UserID}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
@@ -15,4 +15,6 @@ pub struct Contact {
     pub icp_principal: ICPPrincipalString,
     pub teams: Vec<TeamID>,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }   

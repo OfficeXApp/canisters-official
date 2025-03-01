@@ -7,7 +7,8 @@
 
 ## Urgent Next
 
-- [🔵] Add system resource wide "external_id" & "external_metadata" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it)
+- [🔵] Add system resource wide "external_id" & "external_metadata" to all tables, and a new hashtable to track external_id to internal id (maybe even a route for it). note we need to remember to call
+- [ ] Audit broken atomic transactions on route, if throw an error we should undo mutations
 - [ ] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
 - [ ] Consider whether to add api_version & canister_id into the url to support multi-tenant backends, primarily in nodejs. eg. `api/v1/drive/{canister_id}/directory/list`
 - [ ] Regenerate proper REST API docs

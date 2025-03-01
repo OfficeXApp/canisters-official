@@ -508,7 +508,7 @@ pub mod disks_handlers {
             update_external_id_mapping(
                 disk.external_id,
                 None,
-                None,
+                Some(disk.id.to_string()),
             );
         }
 

@@ -2,7 +2,7 @@
 // src/core/state/api_keys/types.rs
 use serde_diff::{Diff, SerdeDiff};
 use serde::{Deserialize, Serialize};
-use crate::core::{state::tags::types::TagStringValue, types::UserID};
+use crate::core::{state::{drives::types::{ExternalID, ExternalPayload}, tags::types::TagStringValue}, types::UserID};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -30,6 +30,8 @@ pub struct ApiKey {
     pub expires_at: i64, 
     pub is_revoked: bool,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }
 
 

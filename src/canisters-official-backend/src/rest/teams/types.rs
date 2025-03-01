@@ -69,6 +69,8 @@ pub struct CreateTeamRequestBody {
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +80,8 @@ pub struct UpdateTeamRequestBody {
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: Option<String>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

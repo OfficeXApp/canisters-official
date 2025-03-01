@@ -2,7 +2,7 @@
 use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
-use crate::core::{state::{directory::types::{FileUUID, FolderUUID}, tags::types::TagStringValue}, types::IDPrefix};
+use crate::core::{state::{directory::types::{FileUUID, FolderUUID}, drives::types::{ExternalID, ExternalPayload}, tags::types::TagStringValue}, types::IDPrefix};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct WebhookID(pub String);
@@ -63,6 +63,8 @@ pub struct Webhook {
     pub active: bool,
     pub filters: String,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }
 
 

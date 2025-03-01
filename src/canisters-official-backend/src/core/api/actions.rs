@@ -1,6 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::state::state::{DRIVE_ID, URL_ENDPOINT}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
@@ -354,7 +354,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
-                        Some(payload.has_sovereign_permissions.unwrap_or(false))
+                        Some(payload.has_sovereign_permissions.unwrap_or(false)),
+                        Some(ExternalID(payload.external_id.unwrap_or("".to_string()))),
+                        Some(ExternalPayload(payload.external_payload.unwrap_or("".to_string()))),
                     ) {
                         Ok((file_metadata, upload_response)) => {
 
@@ -465,7 +467,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
-                        Some(payload.has_sovereign_permissions.unwrap_or(false))
+                        Some(payload.has_sovereign_permissions.unwrap_or(false)),
+                        Some(ExternalID(payload.external_id.unwrap_or("".to_string()))),
+                        Some(ExternalPayload(payload.external_payload.unwrap_or("".to_string()))),
                     ) {
                         Ok(folder) => {
                             let after_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
@@ -607,8 +611,26 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             }
                             file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                             file.last_updated_by = user_id.clone();
+                            
+                            // Check external_payload size before creating
+                            if let Some(ref external_payload) = payload.external_payload {
+                                if external_payload.len() <= EXTERNAL_PAYLOAD_MAX_LEN {
+                                    file.external_payload = Some(ExternalPayload(external_payload.clone()));
+                                }
+                            }
+
+                            if (payload.external_id.is_some()) {
+                                let new_external_id = Some(ExternalID(payload.external_id.unwrap_or("".to_string())));
+                                update_external_id_mapping(
+                                    file.external_id.clone(),
+                                    new_external_id.clone(),
+                                    Some(file.id.clone().to_string())
+                                );
+                                file.external_id = new_external_id;
+                            }
                         }
                     });
+
         
                     // Get updated metadata to return
                     match get_file_by_id(file_id) {
@@ -746,6 +768,22 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             }
                             folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                             folder.last_updated_by = user_id.clone();
+
+                            // Check external_payload size before creating
+                            if let Some(ref external_payload) = payload.external_payload {
+                                if external_payload.len() <= EXTERNAL_PAYLOAD_MAX_LEN {
+                                    folder.external_payload = Some(ExternalPayload(external_payload.clone()));
+                                }
+                            }
+                            if (payload.external_id.is_some()) {
+                                let new_external_id = Some(ExternalID(payload.external_id.unwrap_or("".to_string())));
+                                update_external_id_mapping(
+                                    folder.external_id.clone(),
+                                    new_external_id.clone(),
+                                    Some(folder.id.clone().to_string())
+                                );
+                                folder.external_id = new_external_id;
+                            }
                         }
                     });
         

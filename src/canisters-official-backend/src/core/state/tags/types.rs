@@ -10,13 +10,13 @@ use crate::core::{
         contacts::types::Contact,
         directory::types::{FileUUID, FolderUUID},
         disks::types::DiskID,
-        drives::types::DriveID,
+        drives::types::{DriveID, ExternalID, ExternalPayload},
         permissions::types::{DirectoryPermissionID, SystemPermissionID},
         team_invites::types::TeamInviteID,
         teams::types::TeamID,
         webhooks::types::WebhookID
     },
-    types::{UserID, IDPrefix}
+    types::{IDPrefix, UserID}
 };
 
 // TagID is the unique identifier for a tag
@@ -61,6 +61,8 @@ pub struct Tag {
     pub last_updated_at: u64,
     pub resources: Vec<TagResourceID>,
     pub tags: Vec<TagStringValue>,  // Tags can be tagged too
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }
 
 // TagResourceID represents any resource that can be tagged

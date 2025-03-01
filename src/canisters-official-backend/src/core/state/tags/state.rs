@@ -130,6 +130,8 @@ pub fn add_tag_to_resource(resource_id: &TagResourceID, tag_value: &TagStringVal
             resources: vec![resource_id.clone()],
             tags: vec![],
             created_by: UserID("".to_string()),
+            external_id: None,
+            external_payload: None,
         };
     
         TAGS_BY_ID_HASHTABLE.with(|store| {

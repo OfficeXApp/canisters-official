@@ -134,6 +134,8 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                         expires_at: -1,
                         is_revoked: false,
                         tags: vec![],
+                        external_id: None,
+                        external_payload: None,
                     })
                 },
                 Err(e) => {

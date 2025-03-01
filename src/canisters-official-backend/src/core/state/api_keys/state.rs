@@ -56,6 +56,8 @@ pub mod state {
             expires_at: -1,
             is_revoked: false,
             tags: vec![],
+            external_id: None,
+            external_payload: None,
         };
 
         debug_log!("Default admin api key: {}", default_key);

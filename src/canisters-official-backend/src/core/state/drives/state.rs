@@ -44,6 +44,8 @@ pub mod state {
             url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
             last_indexed_ms: None,
             tags: vec![],
+            external_id: None,
+            external_payload: None,
         };
 
         DRIVES_BY_ID_HASHTABLE.with(|map| {

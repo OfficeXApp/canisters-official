@@ -363,6 +363,8 @@ pub struct CreateFilePayload {
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -374,6 +376,8 @@ pub struct CreateFolderPayload {
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -383,6 +387,8 @@ pub struct UpdateFilePayload {
     pub tags: Option<Vec<TagStringValue>>,
     pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -391,6 +397,8 @@ pub struct UpdateFolderPayload {
     pub name: Option<String>,
     pub tags: Option<Vec<TagStringValue>>,
     pub expires_at: Option<i64>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

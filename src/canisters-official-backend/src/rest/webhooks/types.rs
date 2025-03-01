@@ -92,7 +92,9 @@ pub struct CreateWebhookRequestBody {
     pub event: String,
     pub signature: Option<String>,
     pub description: Option<String>,
-    pub filters: Option<String> // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
+    pub filters: Option<String>, // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 
@@ -108,7 +110,11 @@ pub struct UpdateWebhookRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active: Option<bool>,   
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub filters: Option<String>
+    pub filters: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

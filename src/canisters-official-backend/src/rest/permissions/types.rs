@@ -24,7 +24,9 @@ pub struct UpsertPermissionsRequestBody {
     pub expiry_date_ms: Option<i64>,
     pub inheritable: bool,
     pub note: Option<String>,
-    pub metadata: Option<PermissionMetadata>
+    pub metadata: Option<PermissionMetadata>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -98,6 +100,8 @@ pub struct UpsertSystemPermissionsRequestBody {
     pub expiry_date_ms: Option<i64>,
     pub note: Option<String>,
     pub metadata: Option<PermissionMetadata>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

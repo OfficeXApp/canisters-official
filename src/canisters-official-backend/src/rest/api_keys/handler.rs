@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID, EXTERNAL_PAYLOAD_MAX_LEN}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -180,6 +180,23 @@ pub mod apikeys_handlers {
                     } else {
                         requester_api_key.user_id.clone()
                     };
+
+                    if let Some(external_payload) = create_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                    }
             
                     // Generate new API key with proper user_id
                     let new_api_key = ApiKey {
@@ -191,6 +208,8 @@ pub mod apikeys_handlers {
                         expires_at: create_req.expires_at.unwrap_or(-1),
                         is_revoked: false,
                         tags: vec![],
+                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };
             
                     // Update all three hashtables
@@ -212,6 +231,12 @@ pub mod apikeys_handlers {
                             .or_insert_with(Vec::new)
                             .push(new_api_key.id.clone());
                     });
+
+                    update_external_id_mapping(
+                        None,
+                        Some(new_api_key.external_id.clone().unwrap()),
+                        Some(new_api_key.id.to_string()),
+                    );
             
                     snapshot_poststate(prestate, Some(
                         format!(
@@ -237,6 +262,8 @@ pub mod apikeys_handlers {
                             ErrorResponse::err(404, "API key not found".to_string()).encode()
                         ),
                     };
+                    let old_external_id = api_key.external_id.clone();
+                    let old_internal_id = Some(api_key.id.to_string());
 
                     let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
                     let is_own_key = requester_api_key.user_id == api_key.user_id;
@@ -270,6 +297,27 @@ pub mod apikeys_handlers {
                     if let Some(is_revoked) = update_req.is_revoked {
                         api_key.is_revoked = is_revoked;
                     }
+
+                    if let Some(external_id) = update_req.external_id.clone() {
+                        api_key.external_id = Some(ExternalID(external_id.clone()));
+                    }
+                    if let Some(external_payload) = update_req.external_payload.clone() {
+                        // Check length of external_payload (limit: 8192 characters)
+                        if external_payload.len() > EXTERNAL_PAYLOAD_MAX_LEN {
+                            return create_response(
+                                StatusCode::BAD_REQUEST,
+                                ErrorResponse::err(
+                                    400, 
+                                    format!(
+                                        "external_payload is too large ({} bytes). Max allowed is {} chars",
+                                        external_payload.len(),
+                                        EXTERNAL_PAYLOAD_MAX_LEN
+                                    )
+                                ).encode()
+                            );
+                        }
+                        api_key.external_payload = Some(ExternalPayload(external_payload));
+                    }
             
                     // Update the API key in APIKEYS_BY_ID_HASHTABLE
                     APIKEYS_BY_ID_HASHTABLE.with(|store| {
@@ -280,6 +328,12 @@ pub mod apikeys_handlers {
                     let updated_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
                         store.borrow().get(&api_key.id.clone()).cloned()
                     });
+
+                    update_external_id_mapping(
+                        old_external_id,
+                        Some(ExternalID(update_req.external_id.clone().unwrap_or("".to_string()))),
+                        old_internal_id
+                    );
 
                     match updated_api_key {
                         Some(key) => {
@@ -348,6 +402,8 @@ pub mod apikeys_handlers {
                 )
             }
         };
+        let old_external_id = api_key.external_id.clone();
+        let old_internal_id = api_key.id.to_string();
 
         // Check authorization:
         // 1. The requester's API key must belong to the owner
@@ -396,6 +452,11 @@ pub mod apikeys_handlers {
             }
         });
 
+        update_external_id_mapping(
+            old_external_id,
+            None,
+            Some(old_internal_id),
+        );
 
         snapshot_poststate(prestate, Some(
             format!(
