@@ -4,7 +4,7 @@ pub mod tags_handlers {
     use crate::{
         core::{
             api::{
-                permissions::system::check_system_permissions, 
+                permissions::system::{check_system_resource_permissions_tags,check_system_permissions}, 
                 replay::diff::{snapshot_poststate, snapshot_prestate}, 
                 uuid::generate_unique_id, webhooks::tags::{fire_tag_webhook, get_active_tag_webhooks}
             },
@@ -65,28 +65,29 @@ pub mod tags_handlers {
             store.borrow().get(&tag_id).cloned()
         });
 
-        // Check permissions if not owner
-        if !is_owner {
-            // First check table-level permissions
-            let table_resource_id = SystemResourceID::Table(SystemTableEnum::Tags);
-            let table_permissions = check_system_permissions(
-                table_resource_id,
-                PermissionGranteeID::User(requester_api_key.user_id.clone())
-            );
-
-            let resource_id = SystemResourceID::Record(tag_id.to_string());
-            let permissions = check_system_permissions(
-                resource_id,
-                PermissionGranteeID::User(requester_api_key.user_id.clone())
-            );
-            
-            if !table_permissions.contains(&SystemPermissionType::View) && !permissions.contains(&SystemPermissionType::View) {
-                return create_auth_error_response();
-            }
-        }
-
         match tag {
             Some(tag) => {
+                // Check permissions if not owner
+                if !is_owner {
+                    // First check table-level permissions
+                    let table_resource_id = SystemResourceID::Table(SystemTableEnum::Tags);
+                    let table_permissions = check_system_resource_permissions_tags(
+                        &table_resource_id,
+                        &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                        &tag.value.to_string(),
+                    );
+
+                    let resource_id = SystemResourceID::Record(tag_id.to_string());
+                    let permissions = check_system_resource_permissions_tags(
+                        &resource_id,
+                        &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                        &tag.value.to_string(),
+                    );
+                    
+                    if !table_permissions.contains(&SystemPermissionType::View) && !permissions.contains(&SystemPermissionType::View) {
+                        return create_auth_error_response();
+                    }
+                }
                 create_response(
                     StatusCode::OK,
                     GetTagResponse::ok(&tag).encode()
@@ -105,23 +106,9 @@ pub mod tags_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-
+    
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-
-        // Check table permissions if not owner
-        if !is_owner {
-            
-            let resource_id = SystemResourceID::Table(SystemTableEnum::Tags);
-            let permissions = check_system_permissions(
-                resource_id,
-                PermissionGranteeID::User(requester_api_key.user_id.clone())
-            );
-            
-            if !permissions.contains(&SystemPermissionType::View) {
-                return create_auth_error_response();
-            }
-        }
-
+    
         // Parse request body
         let body = request.body();
         let request_body: ListTagsRequestBody = match serde_json::from_slice(body) {
@@ -131,7 +118,26 @@ pub mod tags_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
+        let prefix_filter = request_body.filters.prefix.as_deref().unwrap_or("");
+        
+        // If not owner, check early if user has permission to search with the given prefix
+        if !is_owner {
+            let table_permissions = check_system_resource_permissions_tags(
+                &SystemResourceID::Table(SystemTableEnum::Tags),
+                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                prefix_filter
+            );
+            
+            // Throw early error if user doesn't have permission to search with this prefix
+            if !table_permissions.contains(&SystemPermissionType::View) {
+                return create_response(
+                    StatusCode::FORBIDDEN,
+                    ErrorResponse::err(403, format!("You don't have permission to search tags with prefix '{}'", prefix_filter)).encode()
+                );
+            }
+        }
+    
         // Parse cursors if provided
         let cursor_up = if let Some(cursor) = request_body.cursor_up {
             match cursor.parse::<usize>() {
@@ -144,7 +150,7 @@ pub mod tags_handlers {
         } else {
             None
         };
-
+    
         let cursor_down = if let Some(cursor) = request_body.cursor_down {
             match cursor.parse::<usize>() {
                 Ok(idx) => Some(idx),
@@ -156,131 +162,122 @@ pub mod tags_handlers {
         } else {
             None
         };
-
-        // Get total count
-        let total_count = TAGS_BY_TIME_LIST.with(|list| list.borrow().len());
-
-        // If there are no tags, return early
-        if total_count == 0 {
+    
+        // First collect all tags that match the filter
+        let mut all_filtered_tags = Vec::new();
+        
+        TAGS_BY_TIME_LIST.with(|time_index| {
+            let time_index = time_index.borrow();
+            TAGS_BY_ID_HASHTABLE.with(|id_store| {
+                let id_store = id_store.borrow();
+                
+                for idx in 0..time_index.len() {
+                    if let Some(tag) = id_store.get(&time_index[idx]) {
+                        // Check record-level permissions for non-owners
+                        let has_access = is_owner || {
+                            // For non-owners, check record-level permissions
+                            let tag_id = &tag.id;
+                            let resource_id = SystemResourceID::Record(tag_id.0.clone());
+                            let permissions = check_system_resource_permissions_tags(
+                                &resource_id,
+                                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                                &tag.value.0
+                            );
+                            // We already checked table-level permissions earlier,
+                            // so we only need to check if there are any record-specific
+                            // permissions that explicitly deny access
+                            permissions.is_empty() || permissions.contains(&SystemPermissionType::View)
+                        };
+                        
+                        if has_access {
+                            // Apply prefix filter if provided
+                            let meets_prefix_filter = if let Some(prefix) = &request_body.filters.prefix {
+                                tag.value.0.to_lowercase().starts_with(&prefix.to_lowercase())
+                            } else {
+                                true
+                            };
+                            
+                            if meets_prefix_filter {
+                                all_filtered_tags.push((idx, tag.clone()));
+                            }
+                        }
+                    }
+                }
+            });
+        });
+        
+        // If there are no matching tags, return early
+        if all_filtered_tags.is_empty() {
             return create_response(
                 StatusCode::OK,
                 ListTagsResponse::ok(&ListTagsResponseData {
                     items: vec![],
-                    page_size: 0,
+                    page_size: request_body.page_size,
                     total: 0,
                     cursor_up: None,
                     cursor_down: None,
                 }).encode()
             );
         }
-
-        let page_size = request_body.page_size;
-
+        
+        // Sort tags based on the requested direction
+        match request_body.direction {
+            SortDirection::Asc => all_filtered_tags.sort_by(|a, b| a.0.cmp(&b.0)),
+            SortDirection::Desc => all_filtered_tags.sort_by(|a, b| b.0.cmp(&a.0)),
+        }
+        
+        let total_filtered_count = all_filtered_tags.len();
+        
         // Determine starting point based on cursors
-        let start_index = if let Some(up) = cursor_up {
-            up.min(total_count - 1)
-        } else if let Some(down) = cursor_down {
-            down.min(total_count - 1)
-        } else {
+        let start_pos = if let Some(up) = cursor_up {
+            // Find position in filtered tags where index >= up
             match request_body.direction {
-                SortDirection::Asc => 0,
-                SortDirection::Desc => total_count - 1,
+                SortDirection::Asc => all_filtered_tags.iter().position(|(idx, _)| *idx >= up).unwrap_or(0),
+                SortDirection::Desc => all_filtered_tags.iter().position(|(idx, _)| *idx <= up).unwrap_or(0),
             }
-        };
-
-        // Get tags with pagination and filtering
-        let mut filtered_tags = Vec::new();
-        let mut processed_count = 0;
-
-        TAGS_BY_TIME_LIST.with(|time_index| {
-            let time_index = time_index.borrow();
-            TAGS_BY_ID_HASHTABLE.with(|id_store| {
-                let id_store = id_store.borrow();
-                
-                match request_body.direction {
-                    SortDirection::Desc => {
-                        let mut current_idx = start_index;
-                        while filtered_tags.len() < page_size && current_idx < total_count {
-                            if let Some(tag) = id_store.get(&time_index[current_idx]) {
-                                // Apply filter if provided
-                                let should_include = if !request_body.filters.is_empty() {
-                                    tag.value.0.to_lowercase().contains(&request_body.filters.to_lowercase()) ||
-                                    tag.description.as_ref().map(|d| d.to_lowercase().contains(&request_body.filters.to_lowercase())).unwrap_or(false)
-                                } else {
-                                    true
-                                };
-                                
-                                if should_include {
-                                    filtered_tags.push(tag.clone());
-                                }
-                            }
-                            if current_idx == 0 {
-                                break;
-                            }
-                            current_idx -= 1;
-                            processed_count = start_index - current_idx;
-                        }
-                    },
-                    SortDirection::Asc => {
-                        let mut current_idx = start_index;
-                        while filtered_tags.len() < page_size && current_idx < total_count {
-                            if let Some(tag) = id_store.get(&time_index[current_idx]) {
-                                // Apply filter if provided
-                                let should_include = if !request_body.filters.is_empty() {
-                                    tag.value.0.to_lowercase().contains(&request_body.filters.to_lowercase()) ||
-                                    tag.description.as_ref().map(|d| d.to_lowercase().contains(&request_body.filters.to_lowercase())).unwrap_or(false)
-                                } else {
-                                    true
-                                };
-                                
-                                if should_include {
-                                    filtered_tags.push(tag.clone());
-                                }
-                            }
-                            current_idx += 1;
-                            processed_count = current_idx - start_index;
-                        }
-                    }
-                }
-            });
-        });
-
-        // Calculate next cursors based on direction and current position
-        let (cursor_up, cursor_down) = match request_body.direction {
-            SortDirection::Desc => {
-                let next_up = if start_index < total_count - 1 {
-                    Some((start_index + 1).to_string())
-                } else {
-                    None
-                };
-                let next_down = if processed_count > 0 && start_index >= processed_count {
-                    Some((start_index - processed_count).to_string())
-                } else {
-                    None
-                };
-                (next_up, next_down)
-            },
-            SortDirection::Asc => {
-                let next_up = if processed_count > 0 {
-                    Some((start_index + processed_count).to_string())
-                } else {
-                    None
-                };
-                let next_down = if start_index > 0 {
-                    Some((start_index - 1).to_string())
-                } else {
-                    None
-                };
-                (next_up, next_down)
+        } else if let Some(down) = cursor_down {
+            // Find position in filtered tags where index <= down
+            match request_body.direction {
+                SortDirection::Asc => all_filtered_tags.iter().position(|(idx, _)| *idx <= down)
+                    .map(|pos| if pos > 0 { pos - 1 } else { 0 })
+                    .unwrap_or(0),
+                SortDirection::Desc => all_filtered_tags.iter().position(|(idx, _)| *idx >= down)
+                    .map(|pos| if pos > 0 { pos - 1 } else { 0 })
+                    .unwrap_or(0),
             }
+        } else {
+            0 // Start at beginning by default
         };
-
+        
+        // Apply pagination
+        let page_size = request_body.page_size;
+        let end_pos = (start_pos + page_size).min(total_filtered_count);
+        
+        // Extract the paginated tags
+        let paginated_tags: Vec<Tag> = all_filtered_tags[start_pos..end_pos]
+            .iter()
+            .map(|(_, tag)| tag.clone())
+            .collect();
+        
+        // Calculate next cursors
+        let cursor_up = if end_pos < total_filtered_count {
+            Some(all_filtered_tags[end_pos].0.to_string())
+        } else {
+            None
+        };
+        
+        let cursor_down = if start_pos > 0 {
+            Some(all_filtered_tags[start_pos - 1].0.to_string())
+        } else {
+            None
+        };
+        
         create_response(
             StatusCode::OK,
             ListTagsResponse::ok(&ListTagsResponseData {
-                items: filtered_tags,
+                items: paginated_tags,
                 page_size: page_size,
-                total: total_count,
+                total: total_filtered_count,
                 cursor_up,
                 cursor_down,
             }).encode()
@@ -316,15 +313,17 @@ pub mod tags_handlers {
                     // Check update permission if not owner
                     if !is_owner {
 
-                        let table_permissions = check_system_permissions(
-                            SystemResourceID::Table(SystemTableEnum::Tags),
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        let table_permissions = check_system_resource_permissions_tags(
+                            &SystemResourceID::Table(SystemTableEnum::Tags),
+                            &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                            &tag.value.to_string()
                         );
 
                         let resource_id = SystemResourceID::Record(tag_id.to_string());
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        let permissions = check_system_resource_permissions_tags(
+                            &resource_id,
+                            &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                            &tag.value.to_string()
                         );
                         
                         if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
@@ -402,14 +401,8 @@ pub mod tags_handlers {
                             SystemResourceID::Table(SystemTableEnum::Tags),
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
-
-                        let resource_id = SystemResourceID::Table(SystemTableEnum::Tags);
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
                         
-                        if !permissions.contains(&SystemPermissionType::Create) && !table_permissions.contains(&SystemPermissionType::Create) {
+                        if !table_permissions.contains(&SystemPermissionType::Create) {
                             return create_auth_error_response();
                         }
                     }
@@ -538,15 +531,17 @@ pub mod tags_handlers {
         // Check delete permission if not owner
         if !is_owner {
 
-            let table_permissions = check_system_permissions(
-                SystemResourceID::Table(SystemTableEnum::Tags),
-                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            let table_permissions = check_system_resource_permissions_tags(
+                &SystemResourceID::Table(SystemTableEnum::Tags),
+                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                &tag.value.to_string()
             );
 
             let resource_id = SystemResourceID::Record(tag_id.to_string());
-            let permissions = check_system_permissions(
-                resource_id,
-                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            let permissions = check_system_resource_permissions_tags(
+                &resource_id,
+                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                &tag.value.to_string()
             );
             
             if !permissions.contains(&SystemPermissionType::Delete) && !table_permissions.contains(&SystemPermissionType::Delete) {
@@ -626,23 +621,6 @@ pub mod tags_handlers {
             ),
         };
 
-        // Check update permission on the resource
-        if !is_owner {
-            let table_permissions = check_system_permissions(
-                SystemResourceID::Table(SystemTableEnum::Tags),
-                PermissionGranteeID::User(requester_api_key.user_id.clone())
-            );
-
-            let system_resource_id = SystemResourceID::Record(resource_id.get_id_string());
-            let permissions = check_system_permissions(
-                system_resource_id,
-                PermissionGranteeID::User(requester_api_key.user_id.clone())
-            );
-            
-            if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
-                return create_auth_error_response();
-            }
-        }
         
         let prestate = snapshot_prestate();
 
@@ -650,6 +628,27 @@ pub mod tags_handlers {
         let tag_value = TAGS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&tag_id).map(|tag| tag.value.clone())
         }).unwrap();
+
+
+        // Check update permission on the resource
+        if !is_owner {
+            let table_permissions = check_system_resource_permissions_tags(
+                &SystemResourceID::Table(SystemTableEnum::Tags),
+                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                &tag_value.to_string()
+            );
+
+            let system_resource_id = SystemResourceID::Record(resource_id.get_id_string());
+            let permissions = check_system_resource_permissions_tags(
+                &system_resource_id,
+                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                &tag_value.to_string()
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
+                return create_auth_error_response();
+            }
+        }
 
         let result = if tag_request.add {
             // Add tag to resource

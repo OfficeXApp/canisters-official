@@ -77,6 +77,7 @@ pub struct DirectoryPermission {
     pub tags: Vec<TagStringValue>,
 }
 
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct SystemPermissionID(pub String);
 
@@ -151,4 +152,45 @@ pub struct SystemPermission {
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
     pub tags: Vec<TagStringValue>,
+    pub metadata: Option<PermissionMetadata>
+}
+
+
+// TagStringValuePrefix definition
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub struct TagStringValuePrefix(pub String);
+
+impl fmt::Display for TagStringValuePrefix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// The main metadata container
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+pub struct PermissionMetadata {
+    pub metadata_type: PermissionMetadataTypeEnum, // Using existing enum but not assuming table connection
+    pub content: PermissionMetadataContent,
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub enum PermissionMetadataTypeEnum {
+    Tags
+}
+
+impl fmt::Display for PermissionMetadataTypeEnum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PermissionMetadataTypeEnum::Tags => write!(f, "tags"),
+        }
+    }
+}
+
+
+// Define an enum for different types of metadata
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+pub enum PermissionMetadataContent {
+    Tags(TagStringValuePrefix),
+    // Future types can be added here without breaking changes
 }

@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID};
+use crate::core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID};
 
 use super::directory::parse_permission_grantee_id;
 
@@ -135,7 +135,10 @@ fn check_system_resource_permissions(
                         };
 
                         if applies {
-                            permissions_set.extend(permission.permission_types.iter().cloned());
+                            // permissions_set.extend(permission.permission_types.iter().cloned());
+
+                            // check permission metadata, handled differently for different types of permissions
+
                         }
                     }
                 }
@@ -185,4 +188,97 @@ pub fn check_permissions_table_access(
         PermissionGranteeID::User(user_id.clone())
     );
     permissions.contains(&required_permission)
+}
+
+
+
+pub fn check_system_resource_permissions_tags(
+    resource_id: &SystemResourceID,
+    grantee_id: &PermissionGranteeID,
+    tag_string_value: &str,
+) -> HashSet<SystemPermissionType> {
+    let mut permissions_set = HashSet::new();
+    
+    // Get all permission IDs for this resource
+    SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+        if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
+            // Check each permission
+            SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
+                let permissions = permissions_by_id.borrow();
+                
+                for permission_id in permission_ids {
+                    if let Some(permission) = permissions.get(permission_id) {
+                        // Skip if permission is expired or not yet active
+                        let current_time = ic_cdk::api::time() as i64;
+                        if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
+                            continue;
+                        }
+                        if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
+                            continue;
+                        }
+
+                        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
+                            Ok(parsed_grantee) => parsed_grantee,
+                            Err(_) => continue, // Skip if parsing fails
+                        };
+
+                        // Check if permission applies to this grantee
+                        let applies = match &permission_granted_to {
+                            // If permission is public, anyone can access
+                            PermissionGranteeID::Public => true,
+                            // For other types, just match the raw IDs since we don't validate type
+                            PermissionGranteeID::User(permission_user_id) => {
+                                if let PermissionGranteeID::User(request_user_id) = grantee_id {
+                                    permission_user_id.0 == request_user_id.0
+                                } else {
+                                    false
+                                }
+                            },
+                            PermissionGranteeID::Team(permission_team_id) => {
+                                if let PermissionGranteeID::Team(request_team_id) = grantee_id {
+                                    permission_team_id.0 == request_team_id.0
+                                } else {
+                                    false
+                                }
+                            },
+                            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
+                                if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
+                                    permission_link_id.0 == request_link_id.0
+                                } else {
+                                    false
+                                }
+                            }
+                        };
+
+                        if applies {
+                            // Check if there's metadata and it's a tag prefix match
+                            let tag_match = match &permission.metadata {
+                                Some(metadata) => {
+                                    if metadata.metadata_type == PermissionMetadataTypeEnum::Tags {
+                                        match &metadata.content {
+                                            PermissionMetadataContent::Tags(prefix) => {
+                                                // Case insensitive prefix check
+                                                tag_string_value.to_lowercase()
+                                                    .starts_with(&prefix.0.to_lowercase())
+                                            }
+                                        }
+                                    } else {
+                                        false
+                                    }
+                                },
+                                None => true
+                            };
+
+                            // If there's a tag match, add the permission types
+                            if tag_match {
+                                permissions_set.extend(permission.permission_types.iter().cloned());
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+    
+    permissions_set
 }
