@@ -1,10 +1,7 @@
 // src/rest/api_keys/types.rs
 
-
-
 use serde::{Deserialize, Serialize};
-
-use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::{IDPrefix, UserID}}, types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ValidationError}};
+use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::{IDPrefix, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, ValidationError}};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyHidden {
@@ -30,35 +27,6 @@ impl From<ApiKey> for ApiKeyHidden {
 }
 
 
-#[derive(Debug, Clone, Serialize)]
-pub enum ApiKeyResponse<'a, T = ()> {
-    #[serde(rename = "ok")]
-    Ok { data: &'a T },
-    #[serde(rename = "err")]
-    Err { code: u16, message: String },
-}
-
-impl<'a, T: Serialize> ApiKeyResponse<'a, T> {
-    pub fn ok(data: &'a T) -> ApiKeyResponse<'a, T> {
-        Self::Ok { data }
-    }
-
-    pub fn not_found() -> Self {
-        Self::err(404, "Not found".to_string())
-    }
-
-    pub fn unauthorized() -> Self {
-        Self::err(401, "Unauthorized".to_string())
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        Self::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("Failed to serialize value")
-    }
-}
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -106,7 +74,7 @@ impl CreateApiKeyRequestBody {
         Ok(())
     }
 }
-pub type CreateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
+pub type CreateApiKeyResponse<'a> = ApiResponse<'a, ApiKey>;
 
 
 
@@ -137,7 +105,7 @@ pub struct DeletedApiKeyData {
     pub id: String,
     pub deleted: bool
 }
-pub type DeleteApiKeyResponse<'a> = ApiKeyResponse<'a, DeletedApiKeyData>;
+pub type DeleteApiKeyResponse<'a> = ApiResponse<'a, DeletedApiKeyData>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateApiKeyRequestBody {
@@ -212,11 +180,7 @@ impl UpsertApiKeyRequestBody {
     }
 }
 
-pub type UpdateApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
-
-
-pub type ListApiKeysResponse<'a> = ApiKeyResponse<'a, Vec<ApiKeyHidden>>;
-
-pub type GetApiKeyResponse<'a> = ApiKeyResponse<'a, ApiKey>;
-
-pub type ErrorResponse<'a> = ApiKeyResponse<'a, ()>;
+pub type UpdateApiKeyResponse<'a> = ApiResponse<'a, ApiKey>;
+pub type ListApiKeysResponse<'a> = ApiResponse<'a, Vec<ApiKeyHidden>>;
+pub type GetApiKeyResponse<'a> = ApiResponse<'a, ApiKey>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;

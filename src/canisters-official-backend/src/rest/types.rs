@@ -10,6 +10,56 @@ use crate::core::types::IDPrefix;
 pub type RouteHandler = for<'a, 'k, 'v> fn(&'a HttpRequest<'a>, &'a Params<'k, 'v>) 
     -> core::pin::Pin<Box<dyn core::future::Future<Output = HttpResponse<'static>> + 'a>>;
 
+
+#[derive(Debug, Clone, Serialize)]
+pub enum ApiResponse<'a, T = ()> {
+    #[serde(rename = "ok")]
+    Ok { data: &'a T },
+    #[serde(rename = "err")]
+    Err { code: u16, message: String },
+}
+
+impl<'a, T: Serialize> ApiResponse<'a, T> {
+    pub fn ok(data: &'a T) -> Self {
+        Self::Ok { data }
+    }
+
+    pub fn not_found() -> Self {
+        Self::err(404, "Not found".to_string())
+    }
+
+    pub fn unauthorized() -> Self {
+        Self::err(401, "Unauthorized".to_string())
+    }
+
+    pub fn forbidden() -> Self {
+        Self::err(403, "Forbidden".to_string())
+    }
+
+    pub fn bad_request(message: String) -> Self {
+        Self::err(400, message)
+    }
+
+    pub fn server_error(message: String) -> Self {
+        Self::err(500, message)
+    }
+
+    pub fn err(code: u16, message: String) -> Self {
+        Self::Err { code, message }
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap_or_else(|_| 
+            // Explicitly specify the type parameter
+            serde_json::to_vec(&ApiResponse::<()>::err(
+                500, 
+                "Failed to serialize response".to_string()
+            ))
+            .unwrap_or_default()
+        )
+    }
+}
+
     // Add ValidationError struct
 #[derive(Debug, Clone)]
 pub struct ValidationError {

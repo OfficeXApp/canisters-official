@@ -30,6 +30,7 @@ impl fmt::Display for PlaceholderPermissionGranteeID {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryPermissionType {
     View,
     Upload,   // Can upload/edit/delete own files
@@ -88,6 +89,7 @@ impl fmt::Display for SystemPermissionID {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemPermissionType {
     Create,
     Update,
@@ -97,12 +99,13 @@ pub enum SystemPermissionType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemTableEnum {
     Drives,
     Disks,
     Contacts,
     Teams,
-    ApiKeys,
+    Api_Keys,
     Permissions,
     Webhooks,
     Tags
@@ -111,14 +114,14 @@ pub enum SystemTableEnum {
 impl fmt::Display for SystemTableEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SystemTableEnum::Drives => write!(f, "drives"),
-            SystemTableEnum::Disks => write!(f, "disks"),
-            SystemTableEnum::Contacts => write!(f, "contacts"),
-            SystemTableEnum::Teams => write!(f, "teams"),
-            SystemTableEnum::ApiKeys => write!(f, "api_keys"),
-            SystemTableEnum::Permissions => write!(f, "permissions"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
-            SystemTableEnum::Webhooks => write!(f, "webhooks"),
-            SystemTableEnum::Tags => write!(f, "tags"),
+            SystemTableEnum::Drives => write!(f, "DRIVES"),
+            SystemTableEnum::Disks => write!(f, "DISKS"),
+            SystemTableEnum::Contacts => write!(f, "CONTACTS"),
+            SystemTableEnum::Teams => write!(f, "TEAMS"),
+            SystemTableEnum::Api_Keys => write!(f, "API_KEYS"),
+            SystemTableEnum::Permissions => write!(f, "PERMISSIONS"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
+            SystemTableEnum::Webhooks => write!(f, "WEBHOOKS"),
+            SystemTableEnum::Tags => write!(f, "TAGS"),
         }
     }
 }
@@ -177,6 +180,7 @@ pub struct PermissionMetadata {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PermissionMetadataTypeEnum {
     Tags
 }
@@ -184,7 +188,7 @@ pub enum PermissionMetadataTypeEnum {
 impl fmt::Display for PermissionMetadataTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PermissionMetadataTypeEnum::Tags => write!(f, "tags"),
+            PermissionMetadataTypeEnum::Tags => write!(f, "TAGS"),
         }
     }
 }

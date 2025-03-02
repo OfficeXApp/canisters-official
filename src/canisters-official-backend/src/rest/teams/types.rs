@@ -3,37 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::{core::{
     state::teams::types::{Team, TeamID},
     types::UserID
-}, rest::webhooks::types::SortDirection, types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, validate_user_id, ValidationError}};
+}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, validate_user_id, ApiResponse, ValidationError}, webhooks::types::SortDirection}};
 
-#[derive(Debug, Clone, Serialize)]
-pub enum TeamResponse<'a, T = ()> {
-    #[serde(rename = "ok")]
-    Ok { data: &'a T },
-    #[serde(rename = "err")]
-    Err { code: u16, message: String },
-}
-
-impl<'a, T: Serialize> TeamResponse<'a, T> {
-    pub fn ok(data: &'a T) -> TeamResponse<'a, T> {
-        Self::Ok { data }
-    }
-
-    pub fn not_found() -> Self {
-        Self::err(404, "Not found".to_string())
-    }
-
-    pub fn unauthorized() -> Self {
-        Self::err(401, "Unauthorized".to_string())
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        Self::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("Failed to serialize value")
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListTeamsRequestBody {
@@ -101,7 +72,7 @@ pub struct ListTeamsResponseData {
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
 }
-pub type ListTeamsResponse<'a> = TeamResponse<'a, ListTeamsResponseData>;
+pub type ListTeamsResponse<'a> = ApiResponse<'a, ListTeamsResponseData>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -255,9 +226,9 @@ pub struct ValidateTeamResponseData {
 }
 
 
-pub type GetTeamResponse<'a> = TeamResponse<'a, Team>;
-pub type CreateTeamResponse<'a> = TeamResponse<'a, Team>;
-pub type UpdateTeamResponse<'a> = TeamResponse<'a, Team>;
-pub type DeleteTeamResponse<'a> = TeamResponse<'a, DeletedTeamData>;
-pub type ErrorResponse<'a> = TeamResponse<'a, ()>;
-pub type ValidateTeamResponse<'a> = TeamResponse<'a, ValidateTeamResponseData>;
+pub type GetTeamResponse<'a> = ApiResponse<'a, Team>;
+pub type CreateTeamResponse<'a> = ApiResponse<'a, Team>;
+pub type UpdateTeamResponse<'a> = ApiResponse<'a, Team>;
+pub type DeleteTeamResponse<'a> = ApiResponse<'a, DeletedTeamData>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
+pub type ValidateTeamResponse<'a> = ApiResponse<'a, ValidateTeamResponseData>;

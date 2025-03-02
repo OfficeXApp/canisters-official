@@ -5,7 +5,7 @@ pub mod state {
     use ic_cdk::api::management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod};
     use num_bigint::BigUint;
     use num_traits::FromPrimitive;
-    use crate::{debug_log, rest::teams::types::{TeamResponse, ValidateTeamResponseData}};
+    use crate::{debug_log, rest::teams::types::{ValidateTeamResponseData}};
     use serde_json::json;
 
     use crate::core::{state::{drives::state::state::URL_ENDPOINT, team_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::{TeamInviteID, TeamInviteeID}}, teams::types::{Team, TeamID}}, types::UserID};

@@ -1,7 +1,7 @@
 // src/rest/permissions/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 
 pub const DIRECTORY_PERMISSIONS_GET_PATH: &str =    genroute!("/permissions/directory/get/{directory_permission_id}");

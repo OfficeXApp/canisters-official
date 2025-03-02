@@ -7,7 +7,7 @@
 
 ## Urgent Next
 
-- [ ] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
+- [ ] Refactor unify Errors
 - [ ] Regenerate proper REST API docs
 
 ## Awkward Urgent
@@ -102,3 +102,4 @@
 - [x] Ability to change drive owners (this can be a single REST route with 2-step process, where admin simply calls function twice with same new owner_id. a local state can be used to track 1st "placeholder" of who and timestamp, and 2nd call only works if after 24 hours or something)
 - [x] Add validation to `contact.icp_principal` and `contact.evm_public_address`
 - [x] Add route body validation to all routes (eg. similar to external_payload max 8kb, nicknames max 64 chars, etc)
+- [x] Review & standardize backend routes and their ingress/egress shapes to be a unified clean

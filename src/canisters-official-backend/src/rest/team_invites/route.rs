@@ -1,7 +1,7 @@
 // src/rest/team_invites/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 
 pub const TEAM_INVITES_GET_PATH: &str =     genroute!("/teams/invites/get/{invite_id}");

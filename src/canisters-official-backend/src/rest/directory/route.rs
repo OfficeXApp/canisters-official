@@ -1,7 +1,7 @@
 // src/rest/directory/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 pub const DIRECTORYS_LIST_PATH: &str =      genroute!("/directory/list");
 pub const DIRECTORYS_ACTION_PATH: &str =    genroute!("/directory/action");

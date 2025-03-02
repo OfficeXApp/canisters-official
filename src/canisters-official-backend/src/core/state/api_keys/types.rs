@@ -52,17 +52,17 @@ impl fmt::Display for ApiKeyValue {
 
     
 #[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AuthTypeEnum {
     Signature,
-    ApiKey
+    Api_Key
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
 pub enum AuthJsonDecoded {
     Signature(SignatureAuthProof),
-    ApiKey(ApiKeyProof),
+    Api_Key(ApiKeyProof),
 }
 
 

@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection, types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -168,7 +168,7 @@ pub struct FileMetadataResponse {
 
 pub type SearchDirectoryResponse = DirectoryListResponse;
 
-pub type DirectoryResponse<'a, T> = crate::rest::drives::types::DriveResponse<'a, T>;
+pub type DirectoryResponse<'a, T> = crate::rest::types::ApiResponse<'a, T>;
 pub type ErrorResponse<'a> = DirectoryResponse<'a, ()>;
 
 

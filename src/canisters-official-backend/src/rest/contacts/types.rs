@@ -2,38 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::UserID}, rest::webhooks::types::SortDirection, types::{validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ValidationError}};
-
-#[derive(Debug, Clone, Serialize)]
-pub enum ContactResponse<'a, T = ()> {
-    #[serde(rename = "ok")]
-    Ok { data: &'a T },
-    #[serde(rename = "err")]
-    Err { code: u16, message: String },
-}
-
-impl<'a, T: Serialize> ContactResponse<'a, T> {
-    pub fn ok(data: &'a T) -> ContactResponse<'a, T> {
-        Self::Ok { data }
-    }
-
-    pub fn not_found() -> Self {
-        Self::err(404, "Not found".to_string())
-    }
-
-    pub fn unauthorized() -> Self {
-        Self::err(401, "Unauthorized".to_string())
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        Self::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("Failed to serialize value")
-    }
-}
-
+use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::UserID}, rest::{types::{validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -103,9 +72,9 @@ pub struct ListContactsResponseData {
     pub cursor_down: Option<String>,
 }
 
-pub type GetContactResponse<'a> = ContactResponse<'a, Contact>;
+pub type GetContactResponse<'a> = ApiResponse<'a, Contact>;
 
-pub type ListContactsResponse<'a> = ContactResponse<'a, ListContactsResponseData>;
+pub type ListContactsResponse<'a> = ApiResponse<'a, ListContactsResponseData>;
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -289,7 +258,7 @@ impl UpdateContactRequestBody {
 }
 
 
-pub type CreateContactResponse<'a> = ContactResponse<'a, Contact>;
+pub type CreateContactResponse<'a> = ApiResponse<'a, Contact>;
 
 
 
@@ -299,7 +268,7 @@ pub struct UpdateContactRequest {
     pub completed: Option<bool>,
 }
 
-pub type UpdateContactResponse<'a> = ContactResponse<'a, Contact>;
+pub type UpdateContactResponse<'a> = ApiResponse<'a, Contact>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteContactRequest {
@@ -321,7 +290,7 @@ pub struct DeletedContactData {
     pub deleted: bool
 }
 
-pub type DeleteContactResponse<'a> = ContactResponse<'a, DeletedContactData>;
+pub type DeleteContactResponse<'a> = ApiResponse<'a, DeletedContactData>;
 
 
-pub type ErrorResponse<'a> = ContactResponse<'a, ()>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;

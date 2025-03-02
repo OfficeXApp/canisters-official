@@ -1,7 +1,7 @@
 // src/rest/api_keys/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 
 // ROUTE_PREFIX

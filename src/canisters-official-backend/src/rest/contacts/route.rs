@@ -1,7 +1,7 @@
 // src/rest/contacts/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 pub const CONTACTS_GET_PATH: &str =     genroute!("/contacts/get/{contact_id}");
 pub const CONTACTS_LIST_PATH: &str =    genroute!("/contacts/list");

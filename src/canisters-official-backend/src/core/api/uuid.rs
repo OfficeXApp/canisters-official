@@ -47,7 +47,7 @@ pub fn generate_api_key() -> String {
     let api_key_inner_value = hex::encode(hash);
 
     let api_key_proof = ApiKeyProof {
-        auth_type: AuthTypeEnum::ApiKey,
+        auth_type: AuthTypeEnum::Api_Key,
         value: ApiKeyValue(api_key_inner_value.to_string()),
     };
     

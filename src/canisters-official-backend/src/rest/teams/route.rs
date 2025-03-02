@@ -1,7 +1,7 @@
 // src/rest/teams/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 pub const TEAMS_GET_PATH: &str =        genroute!("/teams/get/{team_id}");
 pub const TEAMS_LIST_PATH: &str =       genroute!("/teams/list");
