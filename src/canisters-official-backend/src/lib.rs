@@ -5,7 +5,6 @@ use core::state::{api_keys::state::state::init_default_admin_apikey, disks::stat
 use std::{cell::RefCell, collections::HashMap};
 
 mod logger;
-mod types;
 mod rest;
 mod core;
 use rest::{router};

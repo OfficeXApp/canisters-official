@@ -2,39 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::state::team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}, rest::webhooks::types::SortDirection, types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ValidationError}};
+use crate::{core::state::team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, ValidationError}, webhooks::types::SortDirection}};
 
-
-
-#[derive(Debug, Clone, Serialize)]
-pub enum Team_InviteResponse<'a, T = ()> {
-    #[serde(rename = "ok")]
-    Ok { data: &'a T },
-    #[serde(rename = "err")]
-    Err { code: u16, message: String },
-}
-
-impl<'a, T: Serialize> Team_InviteResponse<'a, T> {
-    pub fn ok(data: &'a T) -> Team_InviteResponse<'a, T> {
-        Self::Ok { data }
-    }
-
-    pub fn not_found() -> Self {
-        Self::err(404, "Not found".to_string())
-    }
-
-    pub fn unauthorized() -> Self {
-        Self::err(401, "Unauthorized".to_string())
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        Self::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("Failed to serialize value")
-    }
-}
 
 
 // Update CreateTeam_InviteRequest in rest/team_invites/types.rs
@@ -203,12 +172,12 @@ impl UpsertTeamInviteRequestBody {
 }
 
 
-pub type GetTeam_InviteResponse<'a> = Team_InviteResponse<'a, Team_Invite>;
+pub type GetTeam_InviteResponse<'a> = ApiResponse<'a, Team_Invite>;
 
-pub type ListTeam_InvitesResponse<'a> = Team_InviteResponse<'a, ListTeamInvitesResponseData>;
+pub type ListTeam_InvitesResponse<'a> = ApiResponse<'a, ListTeamInvitesResponseData>;
 
 
-pub type CreateTeam_InviteResponse<'a> = Team_InviteResponse<'a, Team_Invite>;
+pub type CreateTeam_InviteResponse<'a> = ApiResponse<'a, Team_Invite>;
 
 
 
@@ -218,7 +187,7 @@ pub struct UpdateTeam_InviteRequest {
     pub completed: Option<bool>,
 }
 
-pub type UpdateTeam_InviteResponse<'a> = Team_InviteResponse<'a, Team_Invite>;
+pub type UpdateTeam_InviteResponse<'a> = ApiResponse<'a, Team_Invite>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteTeam_InviteRequest {
@@ -240,10 +209,10 @@ pub struct DeletedTeam_InviteData {
     pub deleted: bool
 }
 
-pub type DeleteTeam_InviteResponse<'a> = Team_InviteResponse<'a, DeletedTeam_InviteData>;
+pub type DeleteTeam_InviteResponse<'a> = ApiResponse<'a, DeletedTeam_InviteData>;
 
 
-pub type ErrorResponse<'a> = Team_InviteResponse<'a, ()>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RedeemTeamInviteRequest {

@@ -37,6 +37,7 @@ pub struct Team_Invite {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TeamRole {
     Admin,
     Member

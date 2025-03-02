@@ -4,38 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::PublicKeyICP;
-use crate::rest::webhooks::types::{SortDirection, WebhookResponse};
-use crate::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ValidationError};
-
-#[derive(Debug, Clone, Serialize)]
-pub enum DriveResponse<'a, T = ()> {
-    #[serde(rename = "ok")]
-    Ok { data: &'a T },
-    #[serde(rename = "err")]
-    Err { code: u16, message: String },
-}
-
-impl<'a, T: Serialize> DriveResponse<'a, T> {
-    pub fn ok(data: &'a T) -> DriveResponse<'a, T> {
-        Self::Ok { data }
-    }
-
-    pub fn not_found() -> Self {
-        Self::err(404, "Not found".to_string())
-    }
-
-    pub fn unauthorized() -> Self {
-        Self::err(401, "Unauthorized".to_string())
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        Self::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("Failed to serialize value")
-    }
-}
+use crate::rest::webhooks::types::{SortDirection};
+use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ApiResponse, ValidationError};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListDrivesRequestBody {
@@ -263,10 +233,10 @@ impl UpdateDriveRequestBody {
     }
 }
 
-pub type GetDriveResponse<'a> = DriveResponse<'a, Drive>;
-pub type ListDrivesResponse<'a> = DriveResponse<'a, ListDrivesResponseData>;
-pub type CreateDriveResponse<'a> = DriveResponse<'a, Drive>;
-pub type UpdateDriveResponse<'a> = DriveResponse<'a, Drive>;
+pub type GetDriveResponse<'a> = ApiResponse<'a, Drive>;
+pub type ListDrivesResponse<'a> = ApiResponse<'a, ListDrivesResponseData>;
+pub type CreateDriveResponse<'a> = ApiResponse<'a, Drive>;
+pub type UpdateDriveResponse<'a> = ApiResponse<'a, Drive>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteDriveRequest {
@@ -287,8 +257,8 @@ pub struct DeletedDriveData {
     pub deleted: bool
 }
 
-pub type DeleteDriveResponse<'a> = DriveResponse<'a, DeletedDriveData>;
-pub type ErrorResponse<'a> = DriveResponse<'a, ()>;
+pub type DeleteDriveResponse<'a> = ApiResponse<'a, DeletedDriveData>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 
 
@@ -329,15 +299,16 @@ pub struct ReplayDriveResponseData {
     pub final_checksum: StateChecksum,
 }
 
-pub type ReplayDriveResponse<'a> = DriveResponse<'a, ReplayDriveResponseData>;
+pub type ReplayDriveResponse<'a> = ApiResponse<'a, ReplayDriveResponseData>;
 
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SearchSortByEnum {
-    #[serde(rename = "created_at")]
+    #[serde(rename = "CREATED_AT")]
     CreatedAt,
-    #[serde(rename = "updated_at")]
+    #[serde(rename = "UPDATED_AT")]
     UpdatedAt,
 }
 
@@ -418,7 +389,7 @@ pub struct SearchDriveResponseData {
     pub cursor_down: Option<String>,
 }
 
-pub type SearchDriveResponse<'a> = DriveResponse<'a, SearchDriveResponseData>;
+pub type SearchDriveResponse<'a> = ApiResponse<'a, SearchDriveResponseData>;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -440,7 +411,7 @@ pub struct ReindexDriveResponseData {
     pub indexed_count: usize,
 }
 
-pub type ReindexDriveResponse<'a> = DriveResponse<'a, ReindexDriveResponseData>;
+pub type ReindexDriveResponse<'a> = ApiResponse<'a, ReindexDriveResponseData>;
 
 
 
@@ -479,7 +450,7 @@ pub struct ExternalIDvsInternalIDMaps {
     pub internal_ids: Vec<String>,
 }
 
-pub type ExternalIDsDriveResponse<'a> = DriveResponse<'a, ExternalIDsDriveResponseData>;
+pub type ExternalIDsDriveResponse<'a> = ApiResponse<'a, ExternalIDsDriveResponseData>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct TransferOwnershipDriveRequestBody {
@@ -516,4 +487,4 @@ pub struct TransferOwnershipResponseData {
     pub ready_ms: u64,
 }
 
-pub type TransferOwnershipDriveResponse<'a> = DriveResponse<'a, TransferOwnershipResponseData>;
+pub type TransferOwnershipDriveResponse<'a> = ApiResponse<'a, TransferOwnershipResponseData>;

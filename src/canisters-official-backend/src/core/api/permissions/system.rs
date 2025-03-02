@@ -160,7 +160,7 @@ pub fn parse_system_resource_id(id_str: &str) -> Result<SystemResourceID, Direct
                 Some("disks") => Ok(SystemResourceID::Table(SystemTableEnum::Disks)),
                 Some("contacts") => Ok(SystemResourceID::Table(SystemTableEnum::Contacts)),
                 Some("teams") => Ok(SystemResourceID::Table(SystemTableEnum::Teams)),
-                Some("api_keys") => Ok(SystemResourceID::Table(SystemTableEnum::ApiKeys)),
+                Some("api_keys") => Ok(SystemResourceID::Table(SystemTableEnum::Api_Keys)),
                 Some("permissions") => Ok(SystemResourceID::Table(SystemTableEnum::Permissions)),
                 _ => Err(DirectoryIDError::InvalidPrefix),
             }

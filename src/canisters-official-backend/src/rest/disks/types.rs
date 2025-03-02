@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::state::disks::types::{Disk, DiskID, DiskTypeEnum},
-    rest::webhooks::types::SortDirection, types::{validate_external_id, validate_external_payload, validate_id_string, ValidationError},
+    rest::{types::{validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError}, webhooks::types::SortDirection},
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -248,50 +248,9 @@ pub struct DeletedDiskData {
     pub deleted: bool,
 }
 
-pub type GetDiskResponse<'a> = DiskResponse<'a, Disk>;
-pub type DeleteDiskResponse<'a> = DiskResponse<'a, DeletedDiskData>;
-pub type ErrorResponse<'a> = DiskResponse<'a, ()>;
-pub type ListDisksResponse<'a> = DiskResponse<'a, ListDisksResponseData>;
-pub type CreateDiskResponse<'a> = DiskResponse<'a, Disk>;
-pub type UpdateDiskResponse<'a> = DiskResponse<'a, Disk>;
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DiskResponse<'a, T>
-where
-    T: Serialize,
-{
-    Ok { data: &'a T },
-    Err { code: u16, message: String },
-}
-
-impl<'a, T> DiskResponse<'a, T>
-where
-    T: Serialize,
-{
-    pub fn ok(data: &'a T) -> Self {
-        DiskResponse::Ok { data }
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        DiskResponse::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap_or_else(|_| 
-            serde_json::to_vec(&DiskResponse::Err::<()> {
-                code: 500,
-                message: "Failed to serialize response".to_string(),
-            }).unwrap_or_default()
-        )
-    }
-}
-
-impl<'a> DiskResponse<'a, ()> {
-    pub fn not_found() -> Self {
-        DiskResponse::Err {
-            code: 404,
-            message: "Not found".to_string(),
-        }
-    }
-}
+pub type GetDiskResponse<'a> = ApiResponse<'a, Disk>;
+pub type DeleteDiskResponse<'a> = ApiResponse<'a, DeletedDiskData>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
+pub type ListDisksResponse<'a> = ApiResponse<'a, ListDisksResponseData>;
+pub type CreateDiskResponse<'a> = ApiResponse<'a, Disk>;
+pub type UpdateDiskResponse<'a> = ApiResponse<'a, Disk>;

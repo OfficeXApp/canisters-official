@@ -1,6 +1,6 @@
 // src/rest/router.rs
 use crate::{debug_log, rest::helpers};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use matchit::{Params, Router};
 use std::{cell::RefCell, collections::HashMap};

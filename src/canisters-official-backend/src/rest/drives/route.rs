@@ -1,7 +1,7 @@
 // src/rest/drives/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 pub const DRIVES_GET_PATH: &str =                   genroute!("/drives/get/{drive_id}");
 pub const DRIVES_LIST_PATH: &str =                  genroute!("/drives/list");

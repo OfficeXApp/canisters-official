@@ -1,7 +1,7 @@
 // src/rest/webhooks/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 
 pub const WEBHOOKS_GET_PATH: &str =     genroute!("/webhooks/get/{webhook_id}");

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use crate::core::state::tags::types::{Tag, TagID, TagResourceID};
 use crate::rest::webhooks::types::SortDirection;
-use crate::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -316,52 +316,11 @@ pub struct GetTagResourcesResponseData {
     pub cursor_down: Option<String>,
 }
 
-pub type GetTagResponse<'a> = TagResponse<'a, Tag>;
-pub type DeleteTagResponse<'a> = TagResponse<'a, DeletedTagData>;
-pub type ErrorResponse<'a> = TagResponse<'a, ()>;
-pub type ListTagsResponse<'a> = TagResponse<'a, ListTagsResponseData>;
-pub type CreateTagResponse<'a> = TagResponse<'a, Tag>;
-pub type UpdateTagResponse<'a> = TagResponse<'a, Tag>;
-pub type TagResourceResponse<'a> = TagResponse<'a, TagOperationResponse>;
-pub type GetTagResourcesResponse<'a> = TagResponse<'a, GetTagResourcesResponseData>;
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TagResponse<'a, T>
-where
-    T: Serialize,
-{
-    Ok { data: &'a T },
-    Err { code: u16, message: String },
-}
-
-impl<'a, T> TagResponse<'a, T>
-where
-    T: Serialize,
-{
-    pub fn ok(data: &'a T) -> Self {
-        TagResponse::Ok { data }
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        TagResponse::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap_or_else(|_| 
-            serde_json::to_vec(&TagResponse::Err::<()> {
-                code: 500,
-                message: "Failed to serialize response".to_string(),
-            }).unwrap_or_default()
-        )
-    }
-}
-
-impl<'a> TagResponse<'a, ()> {
-    pub fn not_found() -> Self {
-        TagResponse::Err {
-            code: 404,
-            message: "Not found".to_string(),
-        }
-    }
-}
+pub type GetTagResponse<'a> = ApiResponse<'a, Tag>;
+pub type DeleteTagResponse<'a> = ApiResponse<'a, DeletedTagData>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
+pub type ListTagsResponse<'a> = ApiResponse<'a, ListTagsResponseData>;
+pub type CreateTagResponse<'a> = ApiResponse<'a, Tag>;
+pub type UpdateTagResponse<'a> = ApiResponse<'a, Tag>;
+pub type TagResourceResponse<'a> = ApiResponse<'a, TagOperationResponse>;
+pub type GetTagResourcesResponse<'a> = ApiResponse<'a, GetTagResourcesResponseData>;

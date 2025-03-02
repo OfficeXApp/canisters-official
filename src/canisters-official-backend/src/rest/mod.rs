@@ -4,6 +4,7 @@
 pub mod router; 
 pub mod helpers;
 pub mod auth;
+pub mod types;
 
 // rest route imports
 pub mod templates;  

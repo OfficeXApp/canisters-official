@@ -1,7 +1,7 @@
 // src/rest/disks/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
-use crate::types::RouteHandler;
+use crate::rest::types::RouteHandler;
 
 pub const DISKS_GET_PATH: &str =        genroute!("/disks/get/{disk_id}");
 pub const DISKS_LIST_PATH: &str =       genroute!("/disks/list");

@@ -691,7 +691,7 @@ pub mod permissions_handlers {
                     "disks" => SystemResourceID::Table(SystemTableEnum::Disks),
                     "contacts" => SystemResourceID::Table(SystemTableEnum::Contacts),
                     "teams" => SystemResourceID::Table(SystemTableEnum::Teams),
-                    "api_keys" => SystemResourceID::Table(SystemTableEnum::ApiKeys),
+                    "api_keys" => SystemResourceID::Table(SystemTableEnum::Api_Keys),
                     "permissions" => SystemResourceID::Table(SystemTableEnum::Permissions),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,
@@ -1027,7 +1027,7 @@ pub mod permissions_handlers {
                     "disks" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Disks),
                     "contacts" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Contacts),
                     "teams" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Teams),
-                    "api_keys" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::ApiKeys),
+                    "api_keys" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Api_Keys),
                     "permissions" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Permissions),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,

@@ -144,9 +144,9 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                 },
             }
         },
-        AuthJsonDecoded::ApiKey(proof) => {
+        AuthJsonDecoded::Api_Key(proof) => {
             // Verify it's the API key type
-            if proof.auth_type != AuthTypeEnum::ApiKey {
+            if proof.auth_type != AuthTypeEnum::Api_Key {
                 debug_log!("Auth type mismatch in API key proof");
                 return None;
             }

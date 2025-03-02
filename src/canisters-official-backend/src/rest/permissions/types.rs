@@ -2,9 +2,8 @@
 use serde::{Deserialize, Serialize};
 use crate::core::state::permissions::types::*;
 use crate::rest::directory::types::DirectoryResourceID;
-use crate::rest::drives::types::DriveResponse;
 use crate::core::state::permissions::types::PermissionMetadata;
-use crate::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
 
 // Response type included in FileMetadata/FolderMetadata
 #[derive(Debug, Clone, Serialize)]
@@ -149,15 +148,15 @@ pub struct RedeemPermissionResponseData {
     pub permission: DirectoryPermission,
 }
 
-pub type RedeemPermissionResponse<'a> = DriveResponse<'a, RedeemPermissionResponseData>;
+pub type RedeemPermissionResponse<'a> = ApiResponse<'a, RedeemPermissionResponseData>;
 
 
-// Response type aliases using DriveResponse
-pub type GetPermissionResponse<'a> = DriveResponse<'a, DirectoryPermission>;
-pub type UpsertPermissionsResponse<'a> = DriveResponse<'a, UpsertPermissionsResponseData>;
-pub type DeletePermissionResponse<'a> = DriveResponse<'a, DeletePermissionResponseData>;
-pub type CheckPermissionResponse<'a> = DriveResponse<'a, CheckPermissionResult>;
-pub type ErrorResponse<'a> = DriveResponse<'a, ()>;
+// Response type aliases using ApiResponse
+pub type GetPermissionResponse<'a> = ApiResponse<'a, DirectoryPermission>;
+pub type UpsertPermissionsResponse<'a> = ApiResponse<'a, UpsertPermissionsResponseData>;
+pub type DeletePermissionResponse<'a> = ApiResponse<'a, DeletePermissionResponseData>;
+pub type CheckPermissionResponse<'a> = ApiResponse<'a, CheckPermissionResult>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 
 
@@ -305,8 +304,8 @@ pub struct RedeemSystemPermissionResponseData {
 }
 
 // Response type aliases
-pub type GetSystemPermissionResponse<'a> = DriveResponse<'a, SystemPermission>;
-pub type UpsertSystemPermissionsResponse<'a> = DriveResponse<'a, UpsertSystemPermissionsResponseData>;
-pub type DeleteSystemPermissionResponse<'a> = DriveResponse<'a, DeleteSystemPermissionResponseData>;
-pub type CheckSystemPermissionResponse<'a> = DriveResponse<'a, CheckSystemPermissionResult>;
-pub type RedeemSystemPermissionResponse<'a> = DriveResponse<'a, RedeemSystemPermissionResponseData>;
+pub type GetSystemPermissionResponse<'a> = ApiResponse<'a, SystemPermission>;
+pub type UpsertSystemPermissionsResponse<'a> = ApiResponse<'a, UpsertSystemPermissionsResponseData>;
+pub type DeleteSystemPermissionResponse<'a> = ApiResponse<'a, DeleteSystemPermissionResponseData>;
+pub type CheckSystemPermissionResponse<'a> = ApiResponse<'a, CheckSystemPermissionResult>;
+pub type RedeemSystemPermissionResponse<'a> = ApiResponse<'a, RedeemSystemPermissionResponseData>;

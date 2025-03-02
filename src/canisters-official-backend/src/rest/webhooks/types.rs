@@ -11,41 +11,12 @@ use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::UserID;
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
-use crate::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ApiResponse, ValidationError};
 
-#[derive(Debug, Clone, Serialize)]
-pub enum WebhookResponse<'a, T = ()> {
-    #[serde(rename = "ok")]
-    Ok { data: &'a T },
-    #[serde(rename = "err")]
-    Err { code: u16, message: String },
-}
-
-impl<'a, T: Serialize> WebhookResponse<'a, T> {
-    pub fn ok(data: &'a T) -> WebhookResponse<'a, T> { 
-        Self::Ok { data }
-    }
-
-    pub fn not_found() -> Self {
-        Self::err(404, "Not found".to_string())
-    }
-
-    pub fn unauthorized() -> Self {
-        Self::err(401, "Unauthorized".to_string())
-    }
-
-    pub fn err(code: u16, message: String) -> Self {
-        Self::Err { code, message }
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("Failed to serialize value")
-    }
-}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SortDirection {
     Asc,
     Desc,
@@ -274,12 +245,12 @@ pub struct DeletedWebhookData {
 }
 
 
-pub type GetWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
-pub type ListWebhooksResponse<'a> = WebhookResponse<'a, ListWebhooksResponseData>;
-pub type CreateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
-pub type UpdateWebhookResponse<'a> = WebhookResponse<'a, Webhook>;
-pub type DeleteWebhookResponse<'a> = WebhookResponse<'a, DeletedWebhookData>;
-pub type ErrorResponse<'a> = WebhookResponse<'a, ()>;
+pub type GetWebhookResponse<'a> = ApiResponse<'a, Webhook>;
+pub type ListWebhooksResponse<'a> = ApiResponse<'a, ListWebhooksResponseData>;
+pub type CreateWebhookResponse<'a> = ApiResponse<'a, Webhook>;
+pub type UpdateWebhookResponse<'a> = ApiResponse<'a, Webhook>;
+pub type DeleteWebhookResponse<'a> = ApiResponse<'a, DeletedWebhookData>;
+pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 
 /**
