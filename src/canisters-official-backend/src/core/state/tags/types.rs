@@ -8,7 +8,7 @@ use crate::core::{
     state::{
         api_keys::types::ApiKeyID,
         contacts::types::Contact,
-        directory::types::{FileUUID, FolderUUID},
+        directory::types::{FileID, FolderID},
         disks::types::DiskID,
         drives::types::{DriveID, ExternalID, ExternalPayload},
         permissions::types::{DirectoryPermissionID, SystemPermissionID},
@@ -70,8 +70,8 @@ pub struct Tag {
 pub enum TagResourceID {
     ApiKey(ApiKeyID),
     Contact(UserID),
-    File(FileUUID),
-    Folder(FolderUUID),
+    File(FileID),
+    Folder(FolderID),
     Disk(DiskID),
     Drive(DriveID),
     DirectoryPermission(DirectoryPermissionID),

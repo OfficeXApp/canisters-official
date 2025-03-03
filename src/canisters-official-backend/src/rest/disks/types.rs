@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::state::disks::types::{Disk, DiskID, DiskTypeEnum},
-    rest::{types::{validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError}, webhooks::types::SortDirection},
+    rest::{types::{validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -93,6 +93,7 @@ impl UpsertDiskRequestBody {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateDiskRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub disk_type: DiskTypeEnum,
     pub public_note: Option<String>,
@@ -152,6 +153,7 @@ impl CreateDiskRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateDiskRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

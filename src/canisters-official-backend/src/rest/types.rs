@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use ic_http_certification::{HttpRequest, HttpResponse};
 use matchit::Params;
 use candid::Principal;
-use std::str::FromStr;
+use serde_diff::SerdeDiff;
+use std::{fmt, str::FromStr};
 
 use crate::core::types::IDPrefix;
 
@@ -11,6 +12,24 @@ pub type RouteHandler = for<'a, 'k, 'v> fn(&'a HttpRequest<'a>, &'a Params<'k, '
     -> core::pin::Pin<Box<dyn core::future::Future<Output = HttpResponse<'static>> + 'a>>;
 
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+
+pub enum UpsertActionTypeEnum {
+    Create,
+    Update,
+}
+impl fmt::Display for UpsertActionTypeEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UpsertActionTypeEnum::Create => write!(f, "CREATE"),
+            UpsertActionTypeEnum::Update => write!(f, "UPDATE"),
+        }
+    }
+}
+
+
+    
 #[derive(Debug, Clone, Serialize)]
 pub enum ApiResponse<'a, T = ()> {
     #[serde(rename = "ok")]

@@ -7,7 +7,7 @@ use crate::{
     core::{
         api::{types::DirectoryIDError, uuid::generate_unique_id},
         state::{
-            api_keys::{state::state::APIKEYS_BY_ID_HASHTABLE, types::ApiKeyID}, contacts::{state::state::CONTACTS_BY_ID_HASHTABLE, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::DiskID}, drives::{state::state::DRIVES_BY_ID_HASHTABLE, types::DriveID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionID, SystemPermissionID}}, tags::types::{TagResourceID, TagStringValue}, team_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::TeamInviteID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::{state::state::WEBHOOKS_BY_ID_HASHTABLE, types::WebhookID}
+            api_keys::{state::state::APIKEYS_BY_ID_HASHTABLE, types::ApiKeyID}, contacts::{state::state::CONTACTS_BY_ID_HASHTABLE, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::DiskID}, drives::{state::state::DRIVES_BY_ID_HASHTABLE, types::DriveID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionID, SystemPermissionID}}, tags::types::{TagResourceID, TagStringValue}, team_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::TeamInviteID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::{state::state::WEBHOOKS_BY_ID_HASHTABLE, types::WebhookID}
         },
         types::{IDPrefix, UserID}
     },
@@ -71,8 +71,8 @@ pub fn parse_tag_resource_id(id_str: &str) -> Result<TagResourceID, DirectoryIDE
         match prefix_str {
             "ApiKeyID" => Ok(TagResourceID::ApiKey(ApiKeyID(id_str.to_string()))),
             "UserID" => Ok(TagResourceID::Contact(UserID(id_str.to_string()))),
-            "FileID" => Ok(TagResourceID::File(FileUUID(id_str.to_string()))),
-            "FolderID" => Ok(TagResourceID::Folder(FolderUUID(id_str.to_string()))),
+            "FileID" => Ok(TagResourceID::File(FileID(id_str.to_string()))),
+            "FolderID" => Ok(TagResourceID::Folder(FolderID(id_str.to_string()))),
             "DiskID" => Ok(TagResourceID::Disk(DiskID(id_str.to_string()))),
             "DriveID" => Ok(TagResourceID::Drive(DriveID(id_str.to_string()))),
             "DirectoryPermissionID" => Ok(TagResourceID::DirectoryPermission(DirectoryPermissionID(id_str.to_string()))),

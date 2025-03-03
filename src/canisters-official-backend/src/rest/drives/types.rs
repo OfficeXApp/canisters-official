@@ -5,7 +5,7 @@ use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, Extern
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::PublicKeyICP;
 use crate::rest::webhooks::types::{SortDirection};
-use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ApiResponse, ValidationError};
+use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListDrivesRequestBody {
@@ -93,6 +93,7 @@ impl UpsertDriveRequestBody {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateDriveRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub icp_principal: Option<String>,
     pub public_note: Option<String>,
@@ -158,6 +159,7 @@ impl CreateDriveRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateDriveRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

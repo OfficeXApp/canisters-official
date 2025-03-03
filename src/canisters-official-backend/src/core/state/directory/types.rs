@@ -8,16 +8,16 @@ use crate::core::{state::{disks::types::{DiskID, DiskTypeEnum}, drives::types::{
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct FolderUUID(pub String);
-impl fmt::Display for FolderUUID {
+pub struct FolderID(pub String);
+impl fmt::Display for FolderID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct FileUUID(pub String);
-impl fmt::Display for FileUUID {
+pub struct FileID(pub String);
+impl fmt::Display for FileID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -35,12 +35,12 @@ impl fmt::Display for DriveFullFilePath {
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
-pub struct FolderMetadata {
-    pub(crate) id: FolderUUID,
+pub struct FolderRecord {
+    pub(crate) id: FolderID,
     pub(crate) name: String,
-    pub(crate) parent_folder_uuid: Option<FolderUUID>,
-    pub(crate) subfolder_uuids: Vec<FolderUUID>,
-    pub(crate) file_uuids: Vec<FileUUID>,
+    pub(crate) parent_folder_uuid: Option<FolderID>,
+    pub(crate) subfolder_uuids: Vec<FolderID>,
+    pub(crate) file_uuids: Vec<FileID>,
     pub(crate) full_folder_path: DriveFullFilePath,
     pub(crate) tags: Vec<TagStringValue>,
     pub(crate) created_by: UserID,
@@ -59,13 +59,13 @@ pub struct FolderMetadata {
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
-pub struct FileMetadata {
-    pub(crate) id: FileUUID,
+pub struct FileRecord {
+    pub(crate) id: FileID,
     pub(crate) name: String,
-    pub(crate) folder_uuid: FolderUUID,
+    pub(crate) folder_uuid: FolderID,
     pub(crate) file_version: u32,
-    pub(crate) prior_version: Option<FileUUID>,
-    pub(crate) next_version: Option<FileUUID>,
+    pub(crate) prior_version: Option<FileID>,
+    pub(crate) next_version: Option<FileID>,
     pub(crate) extension: String,
     pub(crate) full_file_path: DriveFullFilePath,
     pub(crate) tags: Vec<TagStringValue>,
@@ -91,8 +91,8 @@ pub struct FileMetadata {
 
 #[derive(Serialize, Deserialize, Debug, SerdeDiff)]
 pub struct PathTranslationResponse {
-    pub folder: Option<FolderMetadata>,
-    pub file: Option<FileMetadata>,
+    pub folder: Option<FolderRecord>,
+    pub file: Option<FileRecord>,
 }
 
 
@@ -110,8 +110,8 @@ impl fmt::Display for ShareTrackID {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum ShareTrackResourceID {
-    File(FileUUID),
-    Folder(FolderUUID)
+    File(FileID),
+    Folder(FolderID)
 }
 
 impl fmt::Display for ShareTrackResourceID {

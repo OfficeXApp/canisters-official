@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID};
+use crate::core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID};
 
 use super::directory::parse_permission_grantee_id;
 
@@ -150,28 +150,6 @@ fn check_system_resource_permissions(
 }
 
 
-pub fn parse_system_resource_id(id_str: &str) -> Result<SystemResourceID, DirectoryIDError> {
-    // Check if the string contains a valid prefix
-    if let Some(prefix_str) = id_str.splitn(2, '_').next() {
-        if prefix_str == "Table" {
-            // Handle Table case - parse the remainder as SystemTableEnum
-            match id_str.splitn(2, '_').nth(1) {
-                Some("drives") => Ok(SystemResourceID::Table(SystemTableEnum::Drives)),
-                Some("disks") => Ok(SystemResourceID::Table(SystemTableEnum::Disks)),
-                Some("contacts") => Ok(SystemResourceID::Table(SystemTableEnum::Contacts)),
-                Some("teams") => Ok(SystemResourceID::Table(SystemTableEnum::Teams)),
-                Some("api_keys") => Ok(SystemResourceID::Table(SystemTableEnum::Api_Keys)),
-                Some("permissions") => Ok(SystemResourceID::Table(SystemTableEnum::Permissions)),
-                _ => Err(DirectoryIDError::InvalidPrefix),
-            }
-        } else {
-            // Handle Record case - use the entire string
-            Ok(SystemResourceID::Record(id_str.to_string()))
-        }
-    } else {
-        Err(DirectoryIDError::MalformedID)
-    }
-}
 
 // This is a helper function specifically for checking permissions table access
 pub fn check_permissions_table_access(

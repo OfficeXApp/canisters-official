@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, GLOBAL_UUID_NONCE}, types::{DriveID, DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}};
+use crate::{core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, GLOBAL_UUID_NONCE}, types::{DriveID, DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}}, debug_log};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
@@ -50,10 +50,14 @@ pub fn generate_api_key() -> String {
         auth_type: AuthTypeEnum::Api_Key,
         value: ApiKeyValue(api_key_inner_value.to_string()),
     };
+
+    debug_log!("API Key Proof: {:?}", api_key_proof);
     
     // Serialize to JSON
     let json_payload = serde_json::to_string(&api_key_proof)
         .unwrap_or_else(|_| String::from("{}"));
+
+    debug_log!("json_payload: {}", json_payload);
     
     // Base64 encode the JSON
     base64::encode(json_payload)

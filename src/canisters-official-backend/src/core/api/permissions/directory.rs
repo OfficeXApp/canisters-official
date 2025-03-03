@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::{state::state::is_user_on_team, types::TeamID}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::{state::state::is_user_on_team, types::TeamID}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
 
 
 // Check if a user can CRUD the permission record
@@ -220,8 +220,8 @@ pub fn parse_directory_resource_id(id_str: &str) -> Result<DirectoryResourceID, 
     // Check if the string contains a valid prefix
     if let Some(prefix_str) = id_str.splitn(2, '_').next() {
         match prefix_str {
-            "FileID" => Ok(DirectoryResourceID::File(FileUUID(id_str.to_string()))),
-            "FolderID" => Ok(DirectoryResourceID::Folder(FolderUUID(id_str.to_string()))),
+            "FileID" => Ok(DirectoryResourceID::File(FileID(id_str.to_string()))),
+            "FolderID" => Ok(DirectoryResourceID::Folder(FolderID(id_str.to_string()))),
             _ => Err(DirectoryIDError::InvalidPrefix),
         }
     } else {

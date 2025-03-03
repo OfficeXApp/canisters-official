@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileUUID, FolderMetadata, FolderUUID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderRecord, FolderID, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -26,7 +26,7 @@ pub mod drive_internals {
     }
     
 
-    pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderUUID {
+    pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderID {
         let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
@@ -37,8 +37,8 @@ pub mod drive_internals {
             uuid.clone()
         } else {
             let root_folder_uuid = generate_unique_id(IDPrefix::Folder, "");
-            let root_folder = FolderMetadata {
-                id: FolderUUID(root_folder_uuid.clone()),
+            let root_folder = FolderRecord {
+                id: FolderID(root_folder_uuid.clone()),
                 name: String::new(),
                 parent_folder_uuid: None,
                 restore_trash_prior_folder_path: None,
@@ -59,17 +59,17 @@ pub mod drive_internals {
                 external_payload: None,
             };
     
-            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid.clone()), root_folder);
-            FolderUUID(root_folder_uuid)
+            full_folder_path_to_uuid.insert(root_path, FolderID(root_folder_uuid.clone()));
+            folder_uuid_to_metadata.insert(FolderID(root_folder_uuid.clone()), root_folder);
+            FolderID(root_folder_uuid)
         };
 
         // Ensure .trash folder exists
         let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
         if !full_folder_path_to_uuid.contains_key(&trash_path) {
             let trash_folder_uuid = generate_unique_id(IDPrefix::Folder, "");
-            let trash_folder = FolderMetadata {
-                id: FolderUUID(trash_folder_uuid.clone()),
+            let trash_folder = FolderRecord {
+                id: FolderID(trash_folder_uuid.clone()),
                 name: ".trash".to_string(),
                 parent_folder_uuid: Some(root_uuid.clone()),
                 restore_trash_prior_folder_path: None,
@@ -90,13 +90,13 @@ pub mod drive_internals {
                 external_payload: None,
             };
 
-            full_folder_path_to_uuid.insert(trash_path, FolderUUID(trash_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(trash_folder_uuid.clone()), trash_folder);
+            full_folder_path_to_uuid.insert(trash_path, FolderID(trash_folder_uuid.clone()));
+            folder_uuid_to_metadata.insert(FolderID(trash_folder_uuid.clone()), trash_folder);
             
             // Add trash folder to root's subfolders
             folder_uuid_to_metadata.with_mut(|map| {
                 if let Some(root_folder) = map.get_mut(&root_uuid) {
-                    root_folder.subfolder_uuids.push(FolderUUID(trash_folder_uuid));
+                    root_folder.subfolder_uuids.push(FolderID(trash_folder_uuid));
                 }
             });
         }
@@ -104,7 +104,7 @@ pub mod drive_internals {
         root_uuid
     }
 
-    pub fn update_subfolder_paths(folder_id: &FolderUUID, old_path: &str, new_path: &str) {
+    pub fn update_subfolder_paths(folder_id: &FolderID, old_path: &str, new_path: &str) {
         // Get folder metadata first
         let folder = match folder_uuid_to_metadata.get(folder_id) {
             Some(f) => f,
@@ -173,7 +173,7 @@ pub mod drive_internals {
         has_sovereign_permissions: bool,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
-    ) -> FolderUUID {
+    ) -> FolderID {
         let path_parts: Vec<&str> = folder_path.split("::").collect();
         let mut current_path = format!("{}::", path_parts[0]);
 
@@ -190,8 +190,8 @@ pub mod drive_internals {
             
             if !full_folder_path_to_uuid.contains_key(&DriveFullFilePath(current_path.clone())) {
                 let is_final_folder= part == path_parts[1].split('/').filter(|&p| !p.is_empty()).last().unwrap();
-                let new_folder_uuid = FolderUUID(generate_unique_id(IDPrefix::Folder,""));
-                let new_folder = FolderMetadata {
+                let new_folder_uuid = FolderID(generate_unique_id(IDPrefix::Folder,""));
+                let new_folder = FolderRecord {
                     id: new_folder_uuid.clone(),
                     name: part.to_string(),
                     parent_folder_uuid: Some(parent_uuid.clone()),
@@ -272,7 +272,7 @@ pub mod drive_internals {
     }
     
 
-    pub fn update_folder_file_uuids(folder_uuid: &FolderUUID, file_uuid: &FileUUID, is_add: bool) {
+    pub fn update_folder_file_uuids(folder_uuid: &FolderID, file_uuid: &FileID, is_add: bool) {
         folder_uuid_to_metadata.with_mut(|map| {
             if let Some(folder) = map.get_mut(folder_uuid) {
                 if is_add {
@@ -313,7 +313,7 @@ pub mod drive_internals {
     }
 
     pub fn format_file_asset_path (
-        file_uuid: FileUUID,
+        file_uuid: FileID,
         extension: String,
     ) -> String {
         format!(
@@ -426,12 +426,12 @@ pub mod drive_internals {
 
     // Helper function to get destination folder from either ID or path
     pub fn get_destination_folder(
-        folder_id: Option<FolderUUID>, 
+        folder_id: Option<FolderID>, 
         folder_path: Option<DriveFullFilePath>,
         disk_id: DiskID,
         user_id: UserID,
         canister_id: String,
-    ) -> Result<FolderMetadata, String> {
+    ) -> Result<FolderRecord, String> {
         if let Some(id) = folder_id {
             folder_uuid_to_metadata
                 .get(&id)

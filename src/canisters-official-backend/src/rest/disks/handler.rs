@@ -3,7 +3,7 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -39,7 +39,7 @@ pub mod disks_handlers {
                 SystemResourceID::Table(SystemTableEnum::Disks),
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
-            let resource_id = SystemResourceID::Record(disk_id.to_string());
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.to_string()));
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -69,6 +69,9 @@ pub mod disks_handlers {
     }
 
     pub async fn list_disks_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        
+        debug_log!("Handling list_disks_handler...");
+        
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -289,7 +292,7 @@ pub mod disks_handlers {
                             SystemResourceID::Table(SystemTableEnum::Disks),
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
-                        let resource_id = SystemResourceID::Record(disk_id.to_string());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.to_string()));
                         let permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -471,7 +474,7 @@ pub mod disks_handlers {
                 SystemResourceID::Table(SystemTableEnum::Disks),
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
-            let resource_id = SystemResourceID::Record(disk_id.to_string());
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.to_string()));
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())

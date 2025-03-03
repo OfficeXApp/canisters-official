@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::state::team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::state::team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 
@@ -81,6 +81,7 @@ pub struct ListTeamInvitesResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamInviteRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub team_id: String,
     pub invitee_id: Option<String>,
     pub role: TeamRole,
@@ -122,6 +123,7 @@ impl CreateTeamInviteRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateTeamInviteRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: TeamInviteID,
     pub role: Option<TeamRole>,
     pub active_from: Option<u64>,

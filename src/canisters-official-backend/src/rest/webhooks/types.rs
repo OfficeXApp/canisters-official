@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use crate::core::api::uuid::ShareTrackHash;
-use crate::core::state::directory::types::{FileMetadata, FolderMetadata, ShareTrackID, ShareTrackResourceID};
+use crate::core::state::directory::types::{FileRecord, FolderRecord, ShareTrackID, ShareTrackResourceID};
 use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChecksum, DriveStateDiffID, DriveStateDiffImplementationType, StateDiffRecord, DriveStateDiffString};
 use crate::core::state::tags::types::{Tag, TagID, TagResourceID, TagStringValue};
 use crate::core::state::team_invites::types::Team_Invite;
@@ -11,7 +11,7 @@ use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::UserID;
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ApiResponse, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -90,6 +90,7 @@ pub struct ListWebhooksResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateWebhookRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub alt_index: String,
     pub url: String,
     pub event: String,
@@ -147,6 +148,7 @@ impl CreateWebhookRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateWebhookRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -343,10 +345,10 @@ pub enum DirectoryWebhookData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileWebhookData {
-    pub file: Option<FileMetadata>,
+    pub file: Option<FileRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FolderWebhookData {
-    pub folder: Option<FolderMetadata>,
+    pub folder: Option<FolderRecord>,
 }
