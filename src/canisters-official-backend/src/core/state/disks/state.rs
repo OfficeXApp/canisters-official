@@ -3,7 +3,7 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderMetadata, FolderUUID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::{state::state::{CANISTER_ID, OWNER_ID}, types::ExternalID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
+    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderRecord, FolderID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::{state::state::{CANISTER_ID, OWNER_ID}, types::ExternalID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
     
     thread_local! {
         pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
@@ -68,8 +68,8 @@ pub mod state {
         // Only create if root folder doesn't exist
         if !full_folder_path_to_uuid.contains_key(&root_path) {
             let root_folder_uuid = generate_unique_id(IDPrefix::Folder, "");
-            let root_folder = FolderMetadata {
-                id: FolderUUID(root_folder_uuid.clone()),
+            let root_folder = FolderRecord {
+                id: FolderID(root_folder_uuid.clone()),
                 name: String::new(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
@@ -90,8 +90,8 @@ pub mod state {
                 external_payload: None,
             };
 
-            full_folder_path_to_uuid.insert(root_path, FolderUUID(root_folder_uuid.clone()));
-            folder_uuid_to_metadata.insert(FolderUUID(root_folder_uuid), root_folder);
+            full_folder_path_to_uuid.insert(root_path, FolderID(root_folder_uuid.clone()));
+            folder_uuid_to_metadata.insert(FolderID(root_folder_uuid), root_folder);
         }
     }
 }

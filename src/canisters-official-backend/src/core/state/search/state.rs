@@ -11,10 +11,10 @@ pub mod state {
     use crate::core::api::permissions::directory::check_directory_permissions;
     use crate::core::api::permissions::system::check_system_permissions;
     use crate::core::state::directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata};
-    use crate::core::state::directory::types::{DriveFullFilePath, FileUUID, FolderUUID};
+    use crate::core::state::directory::types::{DriveFullFilePath, FileID, FolderID};
     use crate::core::state::drives::state::state::{DRIVES_BY_ID_HASHTABLE, DRIVE_ID};
     use crate::core::state::drives::types::ExternalID;
-    use crate::core::state::permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum};
+    use crate::core::state::permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
     use crate::core::state::search::types::{SearchResult, SearchResultResourceID, SearchCategoryEnum};
     use crate::core::state::contacts::state::state::{CONTACTS_BY_ID_HASHTABLE};
     use crate::core::state::disks::state::state::{DISKS_BY_ID_HASHTABLE};
@@ -354,7 +354,7 @@ pub mod state {
                 // System resources
                 SearchCategoryEnum::Contacts => {
                     if let SearchResultResourceID::Contact(user_id) = &result.resource_id {
-                        let resource_id = SystemResourceID::Record(user_id.0.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(user_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
                             grantee_id.clone()
@@ -375,7 +375,7 @@ pub mod state {
                 },
                 SearchCategoryEnum::Disks => {
                     if let SearchResultResourceID::Disk(disk_id) = &result.resource_id {
-                        let resource_id = SystemResourceID::Record(disk_id.0.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
                             grantee_id.clone()
@@ -396,7 +396,7 @@ pub mod state {
                 },
                 SearchCategoryEnum::Drives => {
                     if let SearchResultResourceID::Drive(drive_id) = &result.resource_id {
-                        let resource_id = SystemResourceID::Record(drive_id.0.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
                             grantee_id.clone()
@@ -417,7 +417,7 @@ pub mod state {
                 },
                 SearchCategoryEnum::Teams => {
                     if let SearchResultResourceID::Team(team_id) = &result.resource_id {
-                        let resource_id = SystemResourceID::Record(team_id.0.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Team(team_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
                             grantee_id.clone()
@@ -456,7 +456,7 @@ pub mod state {
                             permissions.contains(&DirectoryPermissionType::View)
                         },
                         SearchResultResourceID::Contact(user_id) => {
-                            let resource_id = SystemResourceID::Record(user_id.0.clone());
+                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(user_id.0.clone()));
                             let permissions = check_system_permissions(
                                 resource_id,
                                 grantee_id.clone()
@@ -472,7 +472,7 @@ pub mod state {
                             }
                         },
                         SearchResultResourceID::Disk(disk_id) => {
-                            let resource_id = SystemResourceID::Record(disk_id.0.clone());
+                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.0.clone()));
                             let permissions = check_system_permissions(
                                 resource_id,
                                 grantee_id.clone()
@@ -488,7 +488,7 @@ pub mod state {
                             }
                         },
                         SearchResultResourceID::Drive(drive_id) => {
-                            let resource_id = SystemResourceID::Record(drive_id.0.clone());
+                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive_id.0.clone()));
                             let permissions = check_system_permissions(
                                 resource_id,
                                 grantee_id.clone()
@@ -504,7 +504,7 @@ pub mod state {
                             }
                         },
                         SearchResultResourceID::Team(team_id) => {
-                            let resource_id = SystemResourceID::Record(team_id.0.clone());
+                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Team(team_id.0.clone()));
                             let permissions = check_system_permissions(
                                 resource_id,
                                 grantee_id.clone()

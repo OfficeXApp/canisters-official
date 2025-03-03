@@ -21,6 +21,8 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         },
     };
 
+    debug_log!("auth_header: {}", auth_header);
+
     // Parse "Bearer <token>"
     let btoa_token = match auth_header.strip_prefix("Bearer ") {
         Some(token) => token.trim(),
@@ -29,6 +31,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
             return None;
         },
     };
+    
 
     debug_log!("btoa_token: {}", btoa_token);
 

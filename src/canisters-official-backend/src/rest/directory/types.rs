@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -540,8 +540,8 @@ impl fmt::Display for FileConflictResolutionEnum {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum DirectoryResourceID {
-    File(FileUUID),
-    Folder(FolderUUID),
+    File(FileID),
+    Folder(FolderID),
 }
 impl fmt::Display for DirectoryResourceID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -554,9 +554,9 @@ impl fmt::Display for DirectoryResourceID {
 impl DirectoryResourceID {
     fn from_string(id: String) -> Option<Self> {
         if id.starts_with(IDPrefix::File.as_str()) {
-            Some(DirectoryResourceID::File(FileUUID(id)))
+            Some(DirectoryResourceID::File(FileID(id)))
         } else if id.starts_with(IDPrefix::Folder.as_str()) {
-            Some(DirectoryResourceID::Folder(FolderUUID(id)))
+            Some(DirectoryResourceID::Folder(FolderID(id)))
         } else {
             None
         }
@@ -886,7 +886,7 @@ impl DeleteFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CopyFilePayload {
-    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
@@ -922,7 +922,7 @@ impl CopyFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CopyFolderPayload {
-    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
@@ -958,7 +958,7 @@ impl CopyFolderPayload {
 #[derive(Debug, Clone,Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MoveFilePayload {
-    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
@@ -994,7 +994,7 @@ impl MoveFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MoveFolderPayload {
-    pub destination_folder_id: Option<FolderUUID>,
+    pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
@@ -1058,15 +1058,15 @@ pub enum DirectoryActionResult {
     GetFile(GetFileResponse),
     GetFolder(GetFolderResponse),
     CreateFile(CreateFileResponse),
-    CreateFolder(FolderMetadata),
-    UpdateFile(FileMetadata),
-    UpdateFolder(FolderMetadata),
+    CreateFolder(FolderRecord),
+    UpdateFile(FileRecord),
+    UpdateFolder(FolderRecord),
     DeleteFile(DeleteFileResponse),
     DeleteFolder(DeleteFolderResponse),
-    CopyFile(FileMetadata),
-    CopyFolder(FolderMetadata),
-    MoveFile(FileMetadata),
-    MoveFolder(FolderMetadata),
+    CopyFile(FileRecord),
+    CopyFolder(FolderRecord),
+    MoveFile(FileRecord),
+    MoveFolder(FolderRecord),
     RestoreTrash(RestoreTrashResponse)
 }
 
@@ -1074,7 +1074,7 @@ pub enum DirectoryActionResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetFileResponse {
-    pub file: FileMetadata,
+    pub file: FileRecord,
     pub permissions: Vec<DirectoryResourcePermissionFE>,
     pub requester_id: UserID,
 }
@@ -1082,14 +1082,14 @@ pub struct GetFileResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetFolderResponse {
-    pub folder: FolderMetadata,
+    pub folder: FolderRecord,
     pub permissions: Vec<DirectoryResourcePermissionFE>,
     pub requester_id: UserID,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFileResponse {
-    pub file: FileMetadata,
+    pub file: FileRecord,
     pub upload: DiskUploadResponse,
     pub notes: String,
 }
@@ -1097,30 +1097,30 @@ pub struct CreateFileResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFolderResponse {
     pub notes: String,
-    pub folder: FolderMetadata,
+    pub folder: FolderRecord,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFileResponse {
-    pub file_id: FileUUID,
+    pub file_id: FileID,
     pub path_to_trash: DriveFullFilePath,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteFolderResponse {
-    pub folder_id: FolderUUID,
+    pub folder_id: FolderID,
     pub path_to_trash: DriveFullFilePath, // if empty then its permanently deleted
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deleted_files: Option<Vec<FileUUID>>,
+    pub deleted_files: Option<Vec<FileID>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deleted_folders: Option<Vec<FolderUUID>>,
+    pub deleted_folders: Option<Vec<FolderID>>,
 }
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreTrashResponse {
-    pub restored_files: Vec<FileUUID>,
-    pub restored_folders: Vec<FolderUUID>,
+    pub restored_files: Vec<FileID>,
+    pub restored_folders: Vec<FolderID>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

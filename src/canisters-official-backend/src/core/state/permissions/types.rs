@@ -127,9 +127,38 @@ impl fmt::Display for SystemTableEnum {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub enum SystemRecordIDEnum {
+    Drive(String),        // DriveID_xxx
+    Disk(String),         // DiskID_xxx
+    User(String),      // UserID_xxx (for contacts)
+    Team(String),         // TeamID_xxx
+    ApiKey(String),       // ApiKeyID_xxx
+    Permission(String),   // SystemPermissionID_xxx or DirectoryPermissionID_xxx
+    Webhook(String),      // WebhookID_xxx
+    Tag(String),          // TagID_xxx
+    Unknown(String), // General catch
+}
+
+impl fmt::Display for SystemRecordIDEnum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SystemRecordIDEnum::Drive(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Disk(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::User(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Team(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::ApiKey(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Permission(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Webhook(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Tag(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Unknown(id) => write!(f, "{}", id),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum SystemResourceID {
     Table(SystemTableEnum),
-    Record(String), // Stores the full ID like "DiskID_123"
+    Record(SystemRecordIDEnum), // Stores the full ID like "DiskID_123"
 }
 
 impl fmt::Display for SystemResourceID {

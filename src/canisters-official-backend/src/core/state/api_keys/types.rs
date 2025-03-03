@@ -15,7 +15,7 @@ pub struct ApiKeyValue(pub String);
 // Implement Display for ApiKey
 impl fmt::Display for ApiKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ApiKey {{ id: {}, name: {}, user_id: {} }}", 
+        write!(f, "API_KEY {{ id: {}, name: {}, user_id: {} }}", 
             self.id, self.name, self.user_id)
     }
 }
@@ -56,6 +56,14 @@ impl fmt::Display for ApiKeyValue {
 pub enum AuthTypeEnum {
     Signature,
     Api_Key
+}
+impl fmt::Display for AuthTypeEnum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AuthTypeEnum::Signature => write!(f, "SIGNATURE"),
+            AuthTypeEnum::Api_Key => write!(f, "API_KEY"),
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]

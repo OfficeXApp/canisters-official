@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -46,7 +46,7 @@ pub mod apikeys_handlers {
                 SystemResourceID::Table(SystemTableEnum::Api_Keys),
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
-            let resource_id = SystemResourceID::Record(requested_id.to_string());
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::ApiKey(requested_id.to_string()));
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -274,7 +274,7 @@ pub mod apikeys_handlers {
                             SystemResourceID::Table(SystemTableEnum::Api_Keys),
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
                         );
-                        let resource_id = SystemResourceID::Record(api_key.id.to_string());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::ApiKey(api_key.id.to_string()));
                         let permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -413,7 +413,7 @@ pub mod apikeys_handlers {
                 SystemResourceID::Table(SystemTableEnum::Api_Keys),
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
-            let resource_id = SystemResourceID::Record(api_key.id.to_string());
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::ApiKey(api_key.id.to_string()));
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())

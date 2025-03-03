@@ -1,7 +1,7 @@
 // src/rest/api_keys/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::{IDPrefix, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, ValidationError}};
+use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::{IDPrefix, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyHidden {
@@ -32,6 +32,7 @@ impl From<ApiKey> for ApiKeyHidden {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateApiKeyRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,6 +110,7 @@ pub type DeleteApiKeyResponse<'a> = ApiResponse<'a, DeletedApiKeyData>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateApiKeyRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

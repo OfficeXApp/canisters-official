@@ -8,7 +8,7 @@ pub const TAGS_GET_PATH: &str =         genroute!("/tags/get/{id}");
 pub const TAGS_LIST_PATH: &str =        genroute!("/tags/list");
 pub const TAGS_UPSERT_PATH: &str =      genroute!("/tags/upsert");
 pub const TAGS_DELETE_PATH: &str =      genroute!("/tags/delete");
-pub const TAGS_RESOURCE_PATH: &str =    genroute!("/tags/resource");
+pub const TAGS_RESOURCE_PATH: &str =    genroute!("/tags/pin");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -37,7 +37,7 @@ pub fn init_routes() {
         (
             "POST",
             TAGS_RESOURCE_PATH,
-            |req, params| Box::pin(crate::rest::tags::handler::tags_handlers::tag_resource_handler(req, params)),
+            |req, params| Box::pin(crate::rest::tags::handler::tags_handlers::tag_pin_handler(req, params)),
         )
     ];
 

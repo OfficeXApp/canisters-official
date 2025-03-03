@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use crate::core::state::permissions::types::*;
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::core::state::permissions::types::PermissionMetadata;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
-// Response type included in FileMetadata/FolderMetadata
+// Response type included in FileRecord/FolderRecord
 #[derive(Debug, Clone, Serialize)]
 pub struct ResourcePermissionInfo {
     pub user_permissions: Vec<DirectoryPermissionType>,
@@ -16,13 +16,14 @@ pub struct ResourcePermissionInfo {
 // Upsert Permissions
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpsertPermissionsRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: Option<DirectoryPermissionID>,
     pub resource_id: String,
     pub granted_to: Option<String>,
     pub permission_types: Vec<DirectoryPermissionType>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
-    pub inheritable: bool,
+    pub inheritable: Option<bool>,
     pub note: Option<String>,
     pub metadata: Option<PermissionMetadata>,
     pub external_id: Option<String>,

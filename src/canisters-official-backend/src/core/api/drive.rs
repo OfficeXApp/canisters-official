@@ -8,7 +8,7 @@ pub mod drive {
             state::{
                 directory::{
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
-                    types::{DriveFullFilePath, FileMetadata, FileUUID, FolderMetadata, FolderUUID}
+                    types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::update_external_id_mapping, types::{ExternalID, ExternalPayload}},
             }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
@@ -27,7 +27,7 @@ pub mod drive {
     
         // Get the folder UUID either from folder_id or path
         let folder_uuid = if let Some(id) = folder_id {
-            FolderUUID(id)
+            FolderID(id)
         } else if let Some(path_str) = path {
             full_folder_path_to_uuid
                 .get(&DriveFullFilePath(path_str.clone()))
@@ -133,7 +133,7 @@ pub mod drive {
         has_sovereign_permissions: Option<bool>,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
-    ) -> Result<(FileMetadata, DiskUploadResponse), String> {
+    ) -> Result<(FileRecord, DiskUploadResponse), String> {
         let sanitized_file_path: String = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
         
@@ -161,7 +161,7 @@ pub mod drive {
         }).ok_or_else(|| "Disk not found".to_string())?;
         
         let full_file_path = final_path;
-        let new_file_uuid = FileUUID(generate_unique_id(IDPrefix::File, ""));
+        let new_file_uuid = FileID(generate_unique_id(IDPrefix::File, ""));
 
         ic_cdk::println!(
             "Checking full path: {} -> {}",
@@ -258,7 +258,7 @@ pub mod drive {
         let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
 
     
-        let file_metadata = FileMetadata {
+        let file_metadata = FileRecord {
             id: new_file_uuid.clone(),
             name: file_name,
             folder_uuid: folder_uuid.clone(),
@@ -372,7 +372,7 @@ pub mod drive {
         has_sovereign_permissions: Option<bool>,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
-    ) -> Result<FolderMetadata, String> {
+    ) -> Result<FolderRecord, String> {
         // Ensure the path ends with a slash
         let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
         if !sanitized_path.ends_with('/') {
@@ -488,21 +488,21 @@ pub mod drive {
 
     }
 
-    pub fn get_file_by_id(file_id: FileUUID) -> Result<FileMetadata, String> {
+    pub fn get_file_by_id(file_id: FileID) -> Result<FileRecord, String> {
         file_uuid_to_metadata
             .get(&file_id)
             .map(|metadata| metadata.clone())
             .ok_or_else(|| "File not found".to_string())
     }
 
-    pub fn get_folder_by_id(folder_id: FolderUUID) -> Result<FolderMetadata, String> {
+    pub fn get_folder_by_id(folder_id: FolderID) -> Result<FolderRecord, String> {
         folder_uuid_to_metadata
             .get(&folder_id)
             .map(|metadata| metadata.clone())
             .ok_or_else(|| "Folder not found".to_string())
     }
 
-    pub fn rename_folder(folder_id: FolderUUID, new_name: String) -> Result<FolderUUID, String> {
+    pub fn rename_folder(folder_id: FolderID, new_name: String) -> Result<FolderID, String> {
         // Get current folder metadata
         let folder = folder_uuid_to_metadata
             .get(&folder_id)
@@ -584,7 +584,7 @@ pub mod drive {
         Ok(folder_id)
     }
     
-    pub fn rename_file(file_id: FileUUID, new_name: String) -> Result<FileUUID, String> {
+    pub fn rename_file(file_id: FileID, new_name: String) -> Result<FileID, String> {
         ic_cdk::println!(
             "Attempting to rename file. File ID: {}, New Name: {}",
             file_id,
@@ -660,9 +660,9 @@ pub mod drive {
     }
 
     pub fn delete_folder(
-        folder_id: &FolderUUID,
-        all_deleted_folders: &mut Vec<FolderUUID>,
-        all_deleted_files: &mut Vec<FileUUID>,
+        folder_id: &FolderID,
+        all_deleted_folders: &mut Vec<FolderID>,
+        all_deleted_files: &mut Vec<FileID>,
         permanent: bool,
     ) -> Result<DriveFullFilePath, String> {
         // Get folder metadata
@@ -820,7 +820,7 @@ pub mod drive {
         }
     }
 
-    pub fn delete_file(file_id: &FileUUID, permanent: bool) -> Result<DriveFullFilePath, String> {
+    pub fn delete_file(file_id: &FileID, permanent: bool) -> Result<DriveFullFilePath, String> {
         // Get file metadata
         let file = file_uuid_to_metadata
             .get(file_id)
@@ -910,10 +910,10 @@ pub mod drive {
     }
 
     pub fn copy_file(
-        file_id: &FileUUID,
-        destination_folder: &FolderMetadata,
+        file_id: &FileID,
+        destination_folder: &FolderRecord,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    ) -> Result<FileMetadata, String> {
+    ) -> Result<FileRecord, String> {
         // Get source file metadata
         let source_file = file_uuid_to_metadata
             .get(file_id)
@@ -943,7 +943,7 @@ pub mod drive {
         }
 
         // Generate new UUID for the copy
-        let new_file_uuid = FileUUID(generate_unique_id(IDPrefix::File, ""));
+        let new_file_uuid = FileID(generate_unique_id(IDPrefix::File, ""));
 
         // If this is an S3 or Storj bucket, perform copy operation
         if source_file.disk_type == DiskTypeEnum::AwsBucket || 
@@ -1002,10 +1002,10 @@ pub mod drive {
     }
 
     pub fn copy_folder(
-        folder_id: &FolderUUID,
-        destination_folder: &FolderMetadata,
+        folder_id: &FolderID,
+        destination_folder: &FolderRecord,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    ) -> Result<FolderMetadata, String> {
+    ) -> Result<FolderRecord, String> {
         // Get source folder metadata
         let source_folder = folder_uuid_to_metadata
             .get(folder_id)
@@ -1025,7 +1025,7 @@ pub mod drive {
         );
     
         // Generate new UUID for the copy
-        let new_folder_uuid = FolderUUID(generate_unique_id(IDPrefix::Folder, ""));
+        let new_folder_uuid = FolderID(generate_unique_id(IDPrefix::Folder, ""));
     
         // Create new metadata for the copy
         let mut new_folder_metadata = source_folder.clone();
@@ -1076,10 +1076,10 @@ pub mod drive {
     }
     
     pub fn move_file(
-        file_id: &FileUUID,
-        destination_folder: &FolderMetadata,
+        file_id: &FileID,
+        destination_folder: &FolderRecord,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    ) -> Result<FileMetadata, String> {
+    ) -> Result<FileRecord, String> {
         // Get source file metadata
         let source_file = file_uuid_to_metadata
             .get(file_id)
@@ -1142,10 +1142,10 @@ pub mod drive {
     }
     
     pub fn move_folder(
-        folder_id: &FolderUUID,
-        destination_folder: &FolderMetadata,
+        folder_id: &FolderID,
+        destination_folder: &FolderRecord,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
-    ) -> Result<FolderMetadata, String> {
+    ) -> Result<FolderRecord, String> {
         // Get source folder metadata
         let source_folder = folder_uuid_to_metadata
             .get(folder_id)
@@ -1234,7 +1234,7 @@ pub mod drive {
         payload: &RestoreTrashPayload,
     ) -> Result<DirectoryActionResult, String> {
         // Check if resource exists as a folder
-        let folder_id = FolderUUID(resource_id.to_string());
+        let folder_id = FolderID(resource_id.to_string());
         if let Some(folder) = folder_uuid_to_metadata.get(&folder_id) {
             // Verify folder is actually in trash
             if folder.restore_trash_prior_folder_path.is_none() {
@@ -1342,7 +1342,7 @@ pub mod drive {
             }))
         }
         // Handle file restore case similarly
-        else if let Some(file) = file_uuid_to_metadata.get(&FileUUID(resource_id.to_string())) {
+        else if let Some(file) = file_uuid_to_metadata.get(&FileID(resource_id.to_string())) {
             // Verify file is actually in trash
             if file.restore_trash_prior_folder_path.is_none() {
                 return Err("File is not in trash".to_string());
@@ -1399,7 +1399,7 @@ pub mod drive {
                 return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
             }
 
-            let file_id = FileUUID(resource_id.to_string());
+            let file_id = FileID(resource_id.to_string());
 
             // Move file to target location
             let restored_file = move_file(

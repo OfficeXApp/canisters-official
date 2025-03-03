@@ -36,7 +36,7 @@ pub struct Webhook {
 And here are the possible set of events and their corresponding alt_index patterns
 
 - `file.*` -> `{FileID}`
-- `folder.*` -> `{FolderUUID}`
+- `folder.*` -> `{FolderID}`
 - `folder.file.*` -> `{FolderID_files}`
 - `team.invite.*` -> `{TeamID}_{InviteID}`
 - `drive.*` -> `""` empty string

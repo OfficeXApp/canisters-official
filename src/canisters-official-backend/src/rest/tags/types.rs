@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use crate::core::state::tags::types::{Tag, TagID, TagResourceID};
 use crate::rest::webhooks::types::SortDirection;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -99,6 +99,7 @@ impl UpsertTagRequestBody {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTagRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub value: String,
     pub description: Option<String>,
     pub color: Option<String>,
@@ -151,6 +152,7 @@ impl CreateTagRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateTagRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,

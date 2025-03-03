@@ -7,9 +7,9 @@ pub mod webhooks_handlers {
     use crate::{
         core::{
             api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id},
-            state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::{
+            state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
-            }}, types::{IDPrefix}
+            }}, types::IDPrefix
         },
         debug_log,
         rest::{
@@ -37,7 +37,7 @@ pub mod webhooks_handlers {
         // Only owner can access webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
-            let resource_id = SystemResourceID::Record(webhook_id.to_string());
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
             let record_permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -357,7 +357,7 @@ pub mod webhooks_handlers {
                     };
 
                     if !is_owner {
-                        let resource_id = SystemResourceID::Record(webhook_id.to_string());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
                         let record_permissions = check_system_permissions(
                             resource_id,
                             PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -461,7 +461,7 @@ pub mod webhooks_handlers {
         // Only owner can manage webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
-            let resource_id = SystemResourceID::Record(webhook_id.to_string());
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
             let record_permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())

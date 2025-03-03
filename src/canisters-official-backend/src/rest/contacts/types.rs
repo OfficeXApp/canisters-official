@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::UserID}, rest::{types::{validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::UserID}, rest::{types::{validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -96,6 +96,7 @@ impl UpsertContactRequestBody {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateContactRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub icp_principal: String,
     pub nickname: String,
     pub evm_public_address: Option<String>,
@@ -171,6 +172,7 @@ impl CreateContactRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateContactRequestBody {
+    pub action: UpsertActionTypeEnum,
     pub id: UserID,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,

@@ -7,8 +7,9 @@
 
 ## Urgent Next
 
-- [ ] Refactor unify Errors
-- [ ] Regenerate proper REST API docs
+- [ ] Setup Redux Offline
+- [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
+- [ ] Add indempotency to REST API spec
 
 ## Awkward Urgent
 
@@ -39,6 +40,7 @@
 - [ ] Implement recent files/folders queue (should this be a frontend only distinction instead of a tag per user, `Recent::{UserID}`?) --> this should be frontend only because removing a recent tag is pain in ass
 - [ ] Paywalls
 - [ ] Should we allow "network visualization" where we give frontend a JSON graph of what a user has access to? their teams, etc
+- [ ] Refactor unify Errors
 - [ ] Audit broken atomic transactions on route, if throw an error we should undo mutations
 - [ ] Unit Tests (https://www.startearly.ai/)
 - [ ] Implement deterministic canister public keys so that we can set a public icp principal without spending gas or wifi (this is moreso for NodeJS)
@@ -89,7 +91,7 @@
 - [x] Consider the danger of UserID values that dont comply with ICP Principals and how it would work in non-canister envs such as NodeJS and ClientJS. where are all the touchpoints? especially future signature proofs --> we dont know all the touchpoints yet as we are still making on the fly decisions. but the encryption method itself would be the same in NodeJS as we can just run the same code
 - [x] Update the deferred placeholder team invites & permissions, with cryptographic proofs of public address ownership --> unncessary as we might actually _want_ to allow delegated placeholder redemption
 - [x] Implement fuzzy string search to files with re-indexing & update search directory route -> use crate rust-fuzzy-search and minimize search space by searching within a folder
-- [x] Implement universal tagging of files/folders/contacts/drives/disks/teams/webhooks & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileMetadata.tags/FolderMetadata.tags = Vec<TagString>, and should be able to set tags on create too, with auto ignore invalid tags or unauth tags --> also we dont allow creating resources with tags pre-set for simplicity purposes. if you want to add tags to a new resource, it must be done after create via the dedicated tag route
+- [x] Implement universal tagging of files/folders/contacts/drives/disks/teams/webhooks & update search directory route -> keep a hashtable of tags Hashtable<TagString, Vec<ResourceID>>, update FileRecord.tags/FolderRecord.tags = Vec<TagString>, and should be able to set tags on create too, with auto ignore invalid tags or unauth tags --> also we dont allow creating resources with tags pre-set for simplicity purposes. if you want to add tags to a new resource, it must be done after create via the dedicated tag route
 - [x] Add support for protected tags so that users cant masquerade attack tag groups (do we need to setup permissions for this?) --> we likely need to refactor tags from its simple strings to a full crud with acl, because we want to let team leaders manage tags too
 - [x] Implement tag deletion
 - [x] Add webhooks on tags
@@ -103,3 +105,4 @@
 - [x] Add validation to `contact.icp_principal` and `contact.evm_public_address`
 - [x] Add route body validation to all routes (eg. similar to external_payload max 8kb, nicknames max 64 chars, etc)
 - [x] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
+- [x] Regenerate proper REST API docs

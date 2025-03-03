@@ -1,6 +1,6 @@
 // src/core/api/webhooks/directory.rs
 
-use crate::{core::state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileUUID, FolderUUID}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, rest::webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}};
+use crate::{core::state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, rest::webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -17,7 +17,7 @@ use ic_cdk::spawn;
 use serde_json;
 
 pub fn get_active_file_webhooks(
-    file_id: &FileUUID, 
+    file_id: &FileID, 
     event: WebhookEventLabel,
 ) -> Vec<Webhook> {
     let mut all_webhooks = Vec::new();
@@ -110,7 +110,7 @@ pub fn get_active_file_webhooks(
 }
 
 pub fn get_active_folder_webhooks(
-    folder_id: &FolderUUID, 
+    folder_id: &FolderID, 
     event: WebhookEventLabel,
 ) -> Vec<Webhook> {
     let mut all_webhooks = Vec::new();

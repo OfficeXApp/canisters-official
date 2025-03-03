@@ -1,6 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileUUID, FolderUUID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
@@ -348,7 +348,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     };
 
                     // Get webhooks for both event types and combine them
-                    let webhooks_file = get_active_file_webhooks(&FileUUID(WebhookAltIndexID::file_created_slug().to_string()), WebhookEventLabel::FileCreated);
+                    let webhooks_file = get_active_file_webhooks(&FileID(WebhookAltIndexID::file_created_slug().to_string()), WebhookEventLabel::FileCreated);
                     let webhooks_subfile = get_active_folder_webhooks(&parent_folder_id, WebhookEventLabel::SubfileCreated);
 
                     // Check if user has Upload, Edit, or Manage permission on the parent folder
@@ -471,7 +471,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     };
 
                     // Get webhooks for both event types and combine them
-                    let webhooks_folder = get_active_folder_webhooks(&FolderUUID(WebhookAltIndexID::folder_created_slug().to_string()), WebhookEventLabel::FolderCreated);
+                    let webhooks_folder = get_active_folder_webhooks(&FolderID(WebhookAltIndexID::folder_created_slug().to_string()), WebhookEventLabel::FolderCreated);
                     let webhooks_subfolder = get_active_folder_webhooks(&parent_folder_id, WebhookEventLabel::SubfolderCreated);
 
         
@@ -1177,7 +1177,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     };
 
                     // Get webhooks for both event types and combine them
-                    let webhooks_file = get_active_file_webhooks(&FileUUID(WebhookAltIndexID::file_created_slug().to_string()), WebhookEventLabel::FileCreated);
+                    let webhooks_file = get_active_file_webhooks(&FileID(WebhookAltIndexID::file_created_slug().to_string()), WebhookEventLabel::FileCreated);
                     let before_snap_file = DirectoryWebhookData::File(FileWebhookData {
                         file: Some(source_file.clone()),
                     });
@@ -1310,7 +1310,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     };
 
                     // Get webhooks for both event types and combine them
-                    let webhooks_folder = get_active_folder_webhooks(&&FolderUUID(WebhookAltIndexID::folder_created_slug().to_string()), WebhookEventLabel::FolderCreated);
+                    let webhooks_folder = get_active_folder_webhooks(&&FolderID(WebhookAltIndexID::folder_created_slug().to_string()), WebhookEventLabel::FolderCreated);
                     let before_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
                         folder: Some(source_folder.clone()),
                     });
@@ -1446,7 +1446,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
 
 
                     // Get webhooks for both event types and combine them
-                    let webhooks_file = get_active_file_webhooks(&FileUUID(WebhookAltIndexID::file_created_slug().to_string()), WebhookEventLabel::FileCreated);
+                    let webhooks_file = get_active_file_webhooks(&FileID(WebhookAltIndexID::file_created_slug().to_string()), WebhookEventLabel::FileCreated);
                     
                     let before_snap_file = DirectoryWebhookData::File(FileWebhookData {
                         file: Some(file.clone()),
@@ -1589,7 +1589,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         }),
                     };
                     // Get webhooks for both event types and combine them
-                    let webhooks_folder = get_active_folder_webhooks(&&FolderUUID(WebhookAltIndexID::folder_created_slug().to_string()), WebhookEventLabel::FolderCreated);
+                    let webhooks_folder = get_active_folder_webhooks(&&FolderID(WebhookAltIndexID::folder_created_slug().to_string()), WebhookEventLabel::FolderCreated);
                     let before_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
                         folder: Some(folder.clone()),
                     });
@@ -1714,7 +1714,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         DirectoryResourceID::Folder(id) => Some(id.clone()),
                         _ => None,
                     };
-                    let webhooks_restore_trash = get_active_folder_webhooks(&&FolderUUID(WebhookAltIndexID::restore_trash_slug().to_string()), WebhookEventLabel::DriveRestoreTrash);
+                    let webhooks_restore_trash = get_active_folder_webhooks(&&FolderID(WebhookAltIndexID::restore_trash_slug().to_string()), WebhookEventLabel::DriveRestoreTrash);
         
                     if let Some(folder_id) = folder_id {
                         // Get folder metadata

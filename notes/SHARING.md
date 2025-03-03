@@ -10,14 +10,14 @@ Internal Share Tracking is expensive and higher risk.
 Share tracking is enabled at the direct file or ancestor folder level up to 20 folders up. It still respects sovereign permissions.
 
 ```ts
-FileMetadata.enable_share_tracking = bool;
-FolderMetadata.enable_share_tracking = bool;
+FileRecord.enable_share_tracking = bool;
+FolderRecord.enable_share_tracking = bool;
 ```
 
 Share tracking is managed via a Radix-tree which lets us quickly query sharing by ResourceID (fileID or folderID). The node ID is a concat of resource_id and referrer share_id, so for example:
 
 ```ts
-const radix_node_id = `${FileUUID}_${refererShareTrackID}` // refererShareID may also be blank
+const radix_node_id = `${FileID}_${refererShareTrackID}` // refererShareID may also be blank
 const radix_node = (radix_node_id, ShareTrackID[])
 ```
 
@@ -33,7 +33,7 @@ interface ShareTrack {
   origin?: ShareTrackID;
   from?: UserID;
   to?: UserID;
-  resource_id: FileUUID | FolderUUID;
+  resource_id: FileID | FolderID;
   timestamp_ms: number;
   metadata?: String; // metadata can contain utm params and other data
 }
@@ -73,7 +73,7 @@ interface ShareTrack {
   origin_hash?: ShareTrackHash;
   from_user?: UserID;
   to_user?: UserID;
-  resource_id: FileUUID | FolderUUID;
+  resource_id: FileID | FolderID;
   resource_name: String;
   canister_id: CanisterID;
   timestamp_ms: number;

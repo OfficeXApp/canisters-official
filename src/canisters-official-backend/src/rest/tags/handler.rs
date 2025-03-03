@@ -10,7 +10,7 @@ pub mod tags_handlers {
             },
             state::{
                 drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, 
-                permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, 
+                permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, 
                 tags::{
                     state::{
                         add_tag_to_resource, 
@@ -26,7 +26,7 @@ pub mod tags_handlers {
                     types::{HexColorString, Tag, TagID, TagResourceID, TagStringValue}
                 }, webhooks::types::WebhookEventLabel
             }, 
-            types::{IDPrefix}
+            types::IDPrefix
         }, 
         debug_log, 
         rest::{
@@ -58,12 +58,31 @@ pub mod tags_handlers {
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         // Get tag ID from params
-        let tag_id = TagID(params.get("tag_id").unwrap().to_string());
-
-        // Get the tag
-        let tag = TAGS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&tag_id).cloned()
-        });
+        let tag_str = params.get("tag_id").unwrap().to_string();
+        let tag = match tag_str.starts_with(&IDPrefix::TagID.as_str()) {
+            // It's a TagID
+            true => {
+                let tag_id = TagID(tag_str);
+                TAGS_BY_ID_HASHTABLE.with(|store| {
+                    store.borrow().get(&tag_id).cloned()
+                })
+            },
+            // It's a TagStringValue
+            false => {
+                let tag_value = TagStringValue(tag_str);
+                // First get the tag ID from the value hashtable
+                TAGS_BY_VALUE_HASHTABLE.with(|store| {
+                    if let Some(tag_id) = store.borrow().get(&tag_value) {
+                        // Then use the tag ID to get the full tag
+                        TAGS_BY_ID_HASHTABLE.with(|id_store| {
+                            id_store.borrow().get(tag_id).cloned()
+                        })
+                    } else {
+                        None
+                    }
+                })
+            }
+        };
 
         match tag {
             Some(tag) => {
@@ -77,7 +96,8 @@ pub mod tags_handlers {
                         &tag.value.to_string(),
                     );
 
-                    let resource_id = SystemResourceID::Record(tag_id.to_string());
+                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag.id.to_string()));
+                     
                     let permissions = check_system_resource_permissions_tags(
                         &resource_id,
                         &PermissionGranteeID::User(requester_api_key.user_id.clone()),
@@ -184,7 +204,7 @@ pub mod tags_handlers {
                         let has_access = is_owner || {
                             // For non-owners, check record-level permissions
                             let tag_id = &tag.id;
-                            let resource_id = SystemResourceID::Record(tag_id.0.clone());
+                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag_id.0.clone()));
                             let permissions = check_system_resource_permissions_tags(
                                 &resource_id,
                                 &PermissionGranteeID::User(requester_api_key.user_id.clone()),
@@ -334,7 +354,7 @@ pub mod tags_handlers {
                             &tag.value.to_string()
                         );
 
-                        let resource_id = SystemResourceID::Record(tag_id.to_string());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag_id.to_string()));
                         let permissions = check_system_resource_permissions_tags(
                             &resource_id,
                             &PermissionGranteeID::User(requester_api_key.user_id.clone()),
@@ -580,7 +600,7 @@ pub mod tags_handlers {
                 &tag.value.to_string()
             );
 
-            let resource_id = SystemResourceID::Record(tag_id.to_string());
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag_id.to_string()));
             let permissions = check_system_resource_permissions_tags(
                 &resource_id,
                 &PermissionGranteeID::User(requester_api_key.user_id.clone()),
@@ -627,7 +647,7 @@ pub mod tags_handlers {
         )
     }
 
-    pub async fn tag_resource_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn tag_pin_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -690,7 +710,7 @@ pub mod tags_handlers {
                 &tag_value.to_string()
             );
 
-            let system_resource_id = SystemResourceID::Record(resource_id.get_id_string());
+            let system_resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(resource_id.get_id_string()));
             let permissions = check_system_resource_permissions_tags(
                 &system_resource_id,
                 &PermissionGranteeID::User(requester_api_key.user_id.clone()),
