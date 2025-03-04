@@ -14,7 +14,7 @@ pub mod state {
 
         debug_log!("Initializing default admin api key...");
 
-        let current_canister_disk_id = generate_unique_id(IDPrefix::Disk, &format!("__DiskType_{}", DiskTypeEnum::IcpCanister));
+        let current_canister_disk_id = generate_unique_id(IDPrefix::Disk, "");
         let default_canister_disk = Disk {
             id: DiskID(current_canister_disk_id.clone()),
             name: "Self Canister Storage (Default)".to_string(),
@@ -26,7 +26,7 @@ pub mod state {
             external_id: Some(ExternalID(ic_cdk::api::id().to_text())),
             external_payload: None,
         };
-        let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, &format!("__DiskType_{}", DiskTypeEnum::BrowserCache));
+        let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, "");
         let default_browsercache_disk = Disk {
             id: DiskID(browsercache_disk_id.clone()),
             name: "Ephemeral Browser Storage (Default)".to_string(),

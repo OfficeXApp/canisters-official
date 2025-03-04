@@ -7,6 +7,7 @@
 
 ## Urgent Next
 
+- [🔵] Generate typescript types
 - [ ] Setup Redux Offline
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
 - [ ] Add indempotency to REST API spec
