@@ -355,6 +355,9 @@ pub mod contacts_handlers {
                     if let Some(icp_principal) = update_req.icp_principal {
                         contact.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
                     }
+                    if let Some(seed_phrase) = update_req.seed_phrase {
+                        contact.seed_phrase = Some(seed_phrase);
+                    }
 
                     if let Some(external_id) = update_req.external_id.clone() {
                         contact.external_id = Some(ExternalID(external_id));
@@ -416,7 +419,7 @@ pub mod contacts_handlers {
                         private_note: Some(create_req.private_note.unwrap_or_default()),
                         evm_public_address: create_req.evm_public_address.unwrap_or_default(),
                         icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
-                        seed_phrase: None,
+                        seed_phrase: Some(create_req.seed_phrase.unwrap_or_default()),
                         teams: [].to_vec(),
                         tags: vec![],
                         past_user_ids: [].to_vec(),

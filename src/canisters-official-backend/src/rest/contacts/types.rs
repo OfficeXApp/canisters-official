@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::UserID}, rest::{types::{validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -97,9 +97,10 @@ impl UpsertContactRequestBody {
 #[serde(deny_unknown_fields)]
 pub struct CreateContactRequestBody {
     pub action: UpsertActionTypeEnum,
-    pub icp_principal: String,
     pub nickname: String,
+    pub icp_principal: String,
     pub evm_public_address: Option<String>,
+    pub seed_phrase: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub external_id: Option<String>,
@@ -134,6 +135,43 @@ impl CreateContactRequestBody {
         // Validate EVM address if provided
         if let Some(evm_address) = &self.evm_public_address {
             validate_evm_address(evm_address)?;
+        }
+
+        if let Some(seed_phrase) = &self.seed_phrase {
+            // If a seed phrase is provided, verify that it generates the expected addresses
+            match seed_phrase_to_wallet_addresses(seed_phrase) {
+                Ok(addresses) => {
+                    // Verify that the provided ICP principal matches the one derived from the seed
+                    if addresses.icp_principal != self.icp_principal {
+                        return Err(ValidationError {
+                            field: "seed_phrase".to_string(),
+                            message: format!(
+                                "Seed phrase generates ICP principal '{}' which doesn't match the provided principal '{}'",
+                                addresses.icp_principal, self.icp_principal
+                            ),
+                        });
+                    }
+                    
+                    // If EVM address is provided, verify it matches the one derived from the seed
+                    if let Some(evm_address) = &self.evm_public_address {
+                        if &addresses.evm_public_address != evm_address {
+                            return Err(ValidationError {
+                                field: "seed_phrase".to_string(),
+                                message: format!(
+                                    "Seed phrase generates EVM address '{}' which doesn't match the provided address '{}'",
+                                    addresses.evm_public_address, evm_address
+                                ),
+                            });
+                        }
+                    }
+                },
+                Err(err) => {
+                    return Err(ValidationError {
+                        field: "seed_phrase".to_string(),
+                        message: err.message,
+                    });
+                }
+            }
         }
 
         // Validate public_note if provided (up to 8192 chars for descriptions)
@@ -185,6 +223,8 @@ pub struct UpdateContactRequestBody {
     pub evm_public_address: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icp_principal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed_phrase: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -241,6 +281,86 @@ impl UpdateContactRequestBody {
                     return Err(ValidationError {
                         field: "icp_principal".to_string(),
                         message: "Invalid ICP principal format".to_string(),
+                    });
+                }
+            }
+        }
+
+        if let Some(seed_phrase) = &self.seed_phrase {
+            // If a seed phrase is provided, both ICP principal and EVM address must also be provided
+            if self.icp_principal.is_none() {
+                return Err(ValidationError {
+                    field: "icp_principal".to_string(),
+                    message: "When seed phrase is provided, ICP principal must also be provided".to_string(),
+                });
+            }
+
+            if self.evm_public_address.is_none() {
+                return Err(ValidationError {
+                    field: "evm_public_address".to_string(),
+                    message: "When seed phrase is provided, EVM address must also be provided".to_string(),
+                });
+            }
+
+            // Now validate the seed phrase generates the expected addresses
+            match seed_phrase_to_wallet_addresses(seed_phrase) {
+                Ok(addresses) => {
+                    // Verify ICP principal matches
+                    if let Some(icp_principal) = &self.icp_principal {
+                        if &addresses.icp_principal != icp_principal {
+                            return Err(ValidationError {
+                                field: "seed_phrase".to_string(),
+                                message: format!(
+                                    "Seed phrase generates ICP principal '{}' which doesn't match the provided principal '{}'",
+                                    addresses.icp_principal, icp_principal
+                                ),
+                            });
+                        }
+                    }
+
+                    // Verify EVM address matches
+                    if let Some(evm_address) = &self.evm_public_address {
+                        if &addresses.evm_public_address != evm_address {
+                            return Err(ValidationError {
+                                field: "seed_phrase".to_string(),
+                                message: format!(
+                                    "Seed phrase generates EVM address '{}' which doesn't match the provided address '{}'",
+                                    addresses.evm_public_address, evm_address
+                                ),
+                            });
+                        }
+                    }
+
+                    // Extract principal from UserID (removing the prefix)
+                    let user_prefix = IDPrefix::User.as_str();
+                    if self.id.0.starts_with(user_prefix) {
+                        let user_principal = &self.id.0[user_prefix.len()..];
+                        
+                        // Extract principal from the derived ICP principal
+                        // The derived ICP principal doesn't have the prefix, so we compare directly
+                        if addresses.icp_principal != user_principal {
+                            return Err(ValidationError {
+                                field: "seed_phrase".to_string(),
+                                message: format!(
+                                    "Seed phrase generates ICP principal '{}' which doesn't match the user ID principal '{}'",
+                                    addresses.icp_principal, user_principal
+                                ),
+                            });
+                        }
+                    } else {
+                        return Err(ValidationError {
+                            field: "id".to_string(),
+                            message: format!(
+                                "User ID '{}' doesn't start with the expected prefix '{}'",
+                                self.id.0, user_prefix
+                            ),
+                        });
+                    }
+                },
+                Err(err) => {
+                    return Err(ValidationError {
+                        field: "seed_phrase".to_string(),
+                        message: err.message,
                     });
                 }
             }
