@@ -416,6 +416,7 @@ pub mod contacts_handlers {
                         private_note: Some(create_req.private_note.unwrap_or_default()),
                         evm_public_address: create_req.evm_public_address.unwrap_or_default(),
                         icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
+                        seed_phrase: None,
                         teams: [].to_vec(),
                         tags: vec![],
                         external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),

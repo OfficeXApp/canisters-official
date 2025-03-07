@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
-use crate::core::types::PublicKeyICP;
+use crate::core::types::{ICPPrincipalString, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
 use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
@@ -490,3 +490,15 @@ pub struct TransferOwnershipResponseData {
 }
 
 pub type TransferOwnershipDriveResponse<'a> = ApiResponse<'a, TransferOwnershipResponseData>;
+
+
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WhoAmIReport {
+    pub userID: UserID,
+    pub driveID: DriveID,
+    pub icp_principal: ICPPrincipalString,
+    pub evm_public_address: Option<String>,
+    pub is_owner: bool,
+}
+pub type GetWhoAmIResponse<'a> = ApiResponse<'a, WhoAmIReport>;

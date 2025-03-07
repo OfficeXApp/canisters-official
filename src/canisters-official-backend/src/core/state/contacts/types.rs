@@ -13,6 +13,7 @@ pub struct Contact {
     pub private_note: Option<String>,
     pub evm_public_address: String,
     pub icp_principal: ICPPrincipalString,
+    pub seed_phrase: Option<String>,
     pub teams: Vec<TeamID>,
     pub tags: Vec<TagStringValue>,
     pub external_id: Option<ExternalID>,
