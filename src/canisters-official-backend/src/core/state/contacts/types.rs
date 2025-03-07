@@ -19,4 +19,6 @@ pub struct Contact {
     pub past_user_ids: Vec<UserID>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
-}   
+    pub from_placeholder_user_id: Option<UserID>,
+    pub redeem_token: Option<String>,
+}

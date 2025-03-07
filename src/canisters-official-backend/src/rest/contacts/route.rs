@@ -7,6 +7,7 @@ pub const CONTACTS_GET_PATH: &str =     genroute!("/contacts/get/{contact_id}");
 pub const CONTACTS_LIST_PATH: &str =    genroute!("/contacts/list");
 pub const CONTACTS_UPSERT_PATH: &str =  genroute!("/contacts/upsert");
 pub const CONTACTS_DELETE_PATH: &str =  genroute!("/contacts/delete");
+pub const CONTACTS_REDEEM_PATH: &str =  genroute!("/contacts/redeem");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -31,6 +32,11 @@ pub fn init_routes() {
             "POST",
             CONTACTS_DELETE_PATH,
             |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::delete_contact_handler(req, params)),
+        ),
+        (
+            "POST",
+            CONTACTS_REDEEM_PATH,
+            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::redeem_contact_handler(req, params)),
         )
     ];
 

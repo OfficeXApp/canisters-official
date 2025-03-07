@@ -7,8 +7,6 @@
 
 ## Urgent Next
 
-- [x] Implement userid superswap, with webhook
-- [🔵] Refactor Contacts to support placeholder contacts, which requires refactor ContactID as primary key, not UserID. This has implications on how permissions work, we still want every user to be an ICP public address.(which i think we still can, since Contacts are simply a wrapper around public address string as user). --> solution is superswap userid (keep contacts.id as userid, add new route to globally swap user_id primary key to new user_id)
 - [🔵] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
 - [🔵] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
 - [ ] Write all the redux-offline states and actions for webapp
@@ -114,3 +112,5 @@
 - [x] Generate & publish typescript types
 - [x] Setup Redux Offline Boilerplate
 - [x] Setup offline service worker
+- [x] Implement userid superswap, with webhook
+- [x] Refactor Contacts to support placeholder contacts, which requires refactor ContactID as primary key, not UserID. This has implications on how permissions work, we still want every user to be an ICP public address.(which i think we still can, since Contacts are simply a wrapper around public address string as user). --> solution is superswap userid (keep contacts.id as userid, add new route to globally swap user_id primary key to new user_id)

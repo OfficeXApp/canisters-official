@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_unique_id}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_unique_id}, webhooks::organization::{fire_organization_webhook, get_active_organization_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -422,6 +422,20 @@ pub mod contacts_handlers {
                         past_user_ids: [].to_vec(),
                         external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
                         external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+                        from_placeholder_user_id: create_req.is_placeholder.and_then(|is_placeholder| {
+                            if is_placeholder {
+                                Some(contact_id.clone())
+                            } else {
+                                None
+                            }
+                        }),
+                        redeem_token: create_req.is_placeholder.and_then(|is_placeholder| {
+                            if is_placeholder {
+                                Some(generate_unique_id(IDPrefix::RedeemToken, ""))
+                            } else {
+                                None
+                            }
+                        }),
                     };
 
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {
@@ -570,6 +584,106 @@ pub mod contacts_handlers {
                 deleted: true
             }).encode()
         )
+    }
+
+    pub async fn redeem_contact_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+
+        let prestate = snapshot_prestate();
+
+        // Parse request body
+        let body: &[u8] = request.body();
+        let redeem_request = match serde_json::from_slice::<RedeemContactRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+
+        // Validate request body
+        if let Err(validation_error) = redeem_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
+
+        let current_user_id = UserID(redeem_request.current_user_id.clone());
+        let new_user_id = UserID(redeem_request.new_user_id.clone());
+        let redeem_token = redeem_request.redeem_token.clone();
+
+        // Check for existence of current user contact and redeem token match
+        let current_contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&current_user_id).cloned()) {
+            Some(contact) => contact,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+        // throw error if redeem token does not match
+        if current_contact.redeem_token != Some(redeem_token.clone()) {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Redeem token does not match".to_string()).encode()
+            );
+        }
+
+        // superswap the user_ids with superswap_userid which returns the number of records updated or error
+        match superswap_userid(current_user_id.clone(), new_user_id.clone()) {
+            Ok(update_count) => {
+                // Update the redeem token to None
+                CONTACTS_BY_ID_HASHTABLE.with(|store| {
+                    if let Some(contact) = store.borrow_mut().get_mut(&current_user_id) {
+                        contact.redeem_token = None;
+                    }
+                });
+
+                let active_webhooks = get_active_organization_webhooks(
+                    WebhookEventLabel::OrganizationSuperswapUser
+                );
+
+                // Fire organization webhook
+                fire_organization_webhook(
+                    WebhookEventLabel::OrganizationSuperswapUser,
+                    active_webhooks,
+                    Some(current_user_id.clone()),
+                    Some(new_user_id.clone()),
+                    Some(format!("Redeem Contact - superswap {} to {}, updated {} records", current_user_id, new_user_id, update_count))
+                );
+
+                snapshot_poststate(prestate, Some(
+                    format!(
+                        "{}: Redeem Contact - superswap {} to {}, updated {} records", 
+                        requester_api_key.user_id,
+                        current_user_id,
+                        new_user_id,
+                        update_count
+                    ).to_string())
+                );
+
+                create_response(
+                    StatusCode::OK,
+                    UpdateContactResponse::ok(&current_contact).encode()
+                )
+            },
+            Err(err) => {
+                create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, err).encode()
+                )
+            }
+        }
+
     }
 
     fn json_decode<T>(value: &[u8]) -> T

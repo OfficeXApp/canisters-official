@@ -104,6 +104,7 @@ pub struct CreateContactRequestBody {
     pub private_note: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
+    pub is_placeholder: Option<bool>,
 }
 
 impl CreateContactRequestBody {
@@ -296,3 +297,23 @@ pub type DeleteContactResponse<'a> = ApiResponse<'a, DeletedContactData>;
 
 
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
+
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RedeemContactRequestBody {
+    pub current_user_id: String,
+    pub new_user_id: String,
+    pub redeem_token: String,
+}
+
+impl RedeemContactRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        
+        // validate user ids
+        validate_user_id(&self.new_user_id)?;
+        validate_user_id(&self.current_user_id)?;
+
+        Ok(())
+    }
+}
