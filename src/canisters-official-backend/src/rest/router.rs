@@ -13,7 +13,7 @@ const WILDCARD_PATH: &str = "/*";
 
 macro_rules! genroute {
     ($path:expr) => {
-        concat!("/v1/canister/{drive_id}", $path)
+        concat!("/v1/{organization_id}", $path)
     }
 }
 pub(crate) use genroute;

@@ -7,9 +7,12 @@
 
 ## Urgent Next
 
-- [ ] Setup Redux Offline
+- [🔵] Refactor Contacts to support placeholder contacts, which requires refactor ContactID as primary key, not UserID. This has implications on how permissions work, we still want every user to be an ICP public address (which i think we still can, since Contacts are simply a wrapper around public address string as user)
+- [🔵] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
+- [🔵] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
+- [ ] Write all the redux-offline states and actions for webapp
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
-- [ ] Add indempotency to REST API spec
+- [ ] Consider whether we change userID to user_id for consistent rest api spec (and force JS/other languages to comply too)
 
 ## Awkward Urgent
 
@@ -47,6 +50,7 @@
 - [ ] Implement signed signatures in canister-to-canister REST calls (that icp canister can create same signature as frontend for signing). should use same signing pattern as frontend js but doesnt have to, just add new AuthTypeEnum
 - [ ] Video preview slides? (this would probably have to be a limited feature or post upload job)
 - [ ] Standardized Error codes? Useful for internationalization and 3rd party developers --> i18n might not need error codes if we allow frontend clients to handle translation of errors, but having standardized error codes is definately helpful for 3rd party developers
+- [ ] Add indempotency to REST API spec --> simply add uuid to header, however we might end up with OPTIONS preflight cors issues on ICP http canister again, due to it potentially being a non-default header
 
 ## Completed
 
@@ -106,3 +110,6 @@
 - [x] Add route body validation to all routes (eg. similar to external_payload max 8kb, nicknames max 64 chars, etc)
 - [x] Review & standardize backend routes and their ingress/egress shapes to be a unified clean
 - [x] Regenerate proper REST API docs
+- [x] Generate & publish typescript types
+- [x] Setup Redux Offline Boilerplate
+- [x] Setup offline service worker

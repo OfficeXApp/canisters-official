@@ -382,7 +382,7 @@ pub mod disks_handlers {
                     
                     // Create new disk
                     let disk_type_suffix = format!("__DiskType_{}", create_req.disk_type);
-                    let disk_id = DiskID(generate_unique_id(IDPrefix::Disk, &disk_type_suffix));
+                    let disk_id = DiskID(generate_unique_id(IDPrefix::Disk, ""));
                     let new_external_id = Some(ExternalID(create_req.external_id.unwrap_or("".to_string())));
                     let disk = Disk {
                         id: disk_id.clone(),
