@@ -32,6 +32,18 @@ impl fmt::Display for UserID {
         write!(f, "{}", self.0)
     }
 }
+impl UserID {
+    pub fn to_icp_principal_string(&self) -> ICPPrincipalString {
+        // Remove the IDPrefix::User prefix ("UserID_") if present
+        let prefix = IDPrefix::User.as_str();
+        if self.0.starts_with(prefix) {
+            ICPPrincipalString(PublicKeyICP(self.0[prefix.len()..].to_string()))
+        } else {
+            // this should probably throw an error instead of just returning the same thing
+            ICPPrincipalString(PublicKeyICP(self.0.clone()))
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum IDPrefix {
@@ -51,7 +63,8 @@ pub enum IDPrefix {
     PlaceholderTeamInviteeID,
     ShareTrackID,
     DriveStateDiffID,
-    TagID
+    TagID,
+    RedeemToken,
 }
 
 impl IDPrefix {
@@ -74,6 +87,7 @@ impl IDPrefix {
             IDPrefix::ShareTrackID => "ShareTrackID_",
             IDPrefix::DriveStateDiffID => "DriveStateDiffID_",
             IDPrefix::TagID => "TagID_",
+            IDPrefix::RedeemToken => "RedeemTokenID_",
         }
     }
 }

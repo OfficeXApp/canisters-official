@@ -43,10 +43,10 @@ pub struct FolderRecord {
     pub(crate) file_uuids: Vec<FileID>,
     pub(crate) full_folder_path: DriveFullFilePath,
     pub(crate) tags: Vec<TagStringValue>,
-    pub(crate) created_by: UserID,
+    pub(crate) created_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub(crate) created_date_ms: u64, // unix ms
     pub(crate) last_updated_date_ms: u64,  // unix ms
-    pub(crate) last_updated_by: UserID,
+    pub(crate) last_updated_by: UserID,  // wont get updated by superswap, reverse loopup HISTORY_SUPERSWAP_USERID
     pub(crate) disk_id: DiskID,
     pub(crate) deleted: bool,
     pub(crate) expires_at: i64,
@@ -69,14 +69,14 @@ pub struct FileRecord {
     pub(crate) extension: String,
     pub(crate) full_file_path: DriveFullFilePath,
     pub(crate) tags: Vec<TagStringValue>,
-    pub(crate) created_by: UserID,
+    pub(crate) created_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub(crate) created_date_ms: u64, // unix ms
     pub(crate) disk_id: DiskID,
     pub(crate) disk_type: DiskTypeEnum,
     pub(crate) file_size: u64,
     pub(crate) raw_url: String,
     pub(crate) last_updated_date_ms: u64,  // unix ms
-    pub(crate) last_updated_by: UserID,
+    pub(crate) last_updated_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub(crate) deleted: bool,
     pub(crate) canister_id: ICPPrincipalString,
     pub(crate) expires_at: i64,

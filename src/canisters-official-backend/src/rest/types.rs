@@ -8,6 +8,8 @@ use std::{fmt, str::FromStr};
 
 use crate::core::types::IDPrefix;
 
+use super::auth::{seed_phrase_to_wallet_addresses, WalletAddresses};
+
 pub type RouteHandler = for<'a, 'k, 'v> fn(&'a HttpRequest<'a>, &'a Params<'k, 'v>) 
     -> core::pin::Pin<Box<dyn core::future::Future<Output = HttpResponse<'static>> + 'a>>;
 
@@ -213,6 +215,16 @@ pub fn validate_icp_principal(principal: &str) -> Result<(), ValidationError> {
         }),
     }
 }
+
+pub fn validate_seed_phrase(seed_phrase: &str) -> Result<WalletAddresses, ValidationError> {
+    seed_phrase_to_wallet_addresses(seed_phrase).map_err(|err| {
+        ValidationError {
+            field: "seed_phrase".to_string(),
+            message: err.message,
+        }
+    })
+}
+
 
 pub fn validate_external_id(external_id: &str) -> Result<(), ValidationError> {
     // External IDs are simpler, just validate the string length
