@@ -18,3 +18,4 @@ pub mod disks;
 pub mod directory;
 pub mod permissions;
 pub mod tags;
+pub mod organization;

@@ -297,6 +297,8 @@ pub enum WebhookResourceData {
     StateDiffs(DriveStateDiffWebhookData),
     #[serde(rename = "tag")]
     Tag(TagWebhookData),
+    #[serde(rename = "superswap_userid")]
+    SuperswapUserID(UserID),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

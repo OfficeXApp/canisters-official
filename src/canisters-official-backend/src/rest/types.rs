@@ -214,6 +214,8 @@ pub fn validate_icp_principal(principal: &str) -> Result<(), ValidationError> {
     }
 }
 
+
+
 pub fn validate_external_id(external_id: &str) -> Result<(), ValidationError> {
     // External IDs are simpler, just validate the string length
     if external_id.len() > 256 {

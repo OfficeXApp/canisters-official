@@ -16,6 +16,7 @@ pub struct Contact {
     pub seed_phrase: Option<String>,
     pub teams: Vec<TeamID>,
     pub tags: Vec<TagStringValue>,
+    pub past_user_ids: Vec<UserID>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }   

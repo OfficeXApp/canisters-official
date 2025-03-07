@@ -26,6 +26,7 @@ impl WebhookAltIndexID {
     pub const FOLDER_CREATED: &'static str = "FOLDER_CREATED";
     pub const RESTORE_TRASH: &'static str = "RESTORE_TRASH";
     pub const STATE_DIFFS: &'static str = "STATE_DIFFS";
+    pub const SUPERSWAP_USER: &'static str = "SUPERSWAP_USER";
 
     // Helper method to create new instances
     pub fn new(id: String) -> Self {
@@ -47,6 +48,10 @@ impl WebhookAltIndexID {
 
     pub fn state_diffs_slug() -> Self {
         WebhookAltIndexID(Self::STATE_DIFFS.to_string())
+    }
+
+    pub fn superswap_user_slug() -> Self {
+        WebhookAltIndexID(Self::SUPERSWAP_USER.to_string())
     }
 }
 
@@ -124,6 +129,8 @@ pub enum WebhookEventLabel {
     TagAdded,
     #[serde(rename = "tag.removed")]
     TagRemoved,
+    #[serde(rename = "organization.superswap_user")]
+    OrganizationSuperswapUser,
 }
 
 impl std::str::FromStr for WebhookEventLabel {
@@ -157,6 +164,7 @@ impl std::str::FromStr for WebhookEventLabel {
             "tag.removed" => Ok(Self::TagRemoved),
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
             "drive.state_diffs" => Ok(Self::DriveStateDiffs),
+            "organization.superswap_user" => Ok(Self::OrganizationSuperswapUser),
             _ => Err(format!("Invalid webhook event: {}", s)),
         }
     }
@@ -199,6 +207,8 @@ impl ToString for WebhookEventLabel {
             // tags
             Self::TagAdded => "tag.added",
             Self::TagRemoved => "tag.removed",
+            // organization
+            Self::OrganizationSuperswapUser => "organization.superswap_user",
         }.to_string()
     }
 }

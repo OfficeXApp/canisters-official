@@ -368,7 +368,7 @@ pub mod contacts_handlers {
                     });
 
                     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
+                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
                     });
 
                     update_external_id_mapping(
@@ -419,6 +419,7 @@ pub mod contacts_handlers {
                         seed_phrase: None,
                         teams: [].to_vec(),
                         tags: vec![],
+                        past_user_ids: [].to_vec(),
                         external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
                         external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };
@@ -428,7 +429,7 @@ pub mod contacts_handlers {
                     });
 
                     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone().to_string(), contact_id.clone());
+                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
                     });
 
                     CONTACTS_BY_TIME_LIST.with(|store| {

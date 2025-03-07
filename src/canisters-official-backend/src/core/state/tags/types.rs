@@ -56,7 +56,7 @@ pub struct Tag {
     pub value: TagStringValue,
     pub description: Option<String>,
     pub color: HexColorString,
-    pub created_by: UserID,
+    pub created_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub created_at: u64,
     pub last_updated_at: u64,
     pub resources: Vec<TagResourceID>,
