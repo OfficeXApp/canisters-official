@@ -225,6 +225,134 @@ pub fn validate_seed_phrase(seed_phrase: &str) -> Result<WalletAddresses, Valida
     })
 }
 
+pub fn validate_email(email: &str) -> Result<(), ValidationError> {
+    // Check if empty
+    if email.is_empty() {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email cannot be empty".to_string(),
+        });
+    }
+    
+    // Check maximum length (RFC 5321 limits to 254 characters)
+    if email.len() > 254 {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email must be 254 characters or less".to_string(),
+        });
+    }
+    
+    // Basic format validation: must contain exactly one @
+    let parts: Vec<&str> = email.split('@').collect();
+    if parts.len() != 2 {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email must contain exactly one @ symbol".to_string(),
+        });
+    }
+    
+    let (local_part, domain) = (parts[0], parts[1]);
+    
+    // Local part cannot be empty
+    if local_part.is_empty() {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email local part (before @) cannot be empty".to_string(),
+        });
+    }
+    
+    // Domain cannot be empty
+    if domain.is_empty() {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email domain (after @) cannot be empty".to_string(),
+        });
+    }
+    
+    // Domain must contain at least one dot
+    if !domain.contains('.') {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email domain must contain at least one dot".to_string(),
+        });
+    }
+    
+    // Domain cannot end with a dot
+    if domain.ends_with('.') {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email domain cannot end with a dot".to_string(),
+        });
+    }
+    
+    // Check for illegal characters
+    if local_part.chars().any(|c| !c.is_ascii_alphanumeric() && "!#$%&'*+-/=?^_`{|}~.".find(c).is_none()) {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email local part contains illegal characters".to_string(),
+        });
+    }
+    
+    if domain.chars().any(|c| !c.is_ascii_alphanumeric() && c != '.' && c != '-') {
+        return Err(ValidationError {
+            field: "email".to_string(),
+            message: "Email domain contains illegal characters".to_string(),
+        });
+    }
+    
+    Ok(())
+}
+
+pub fn validate_url(url: &str, field_name: &str) -> Result<(), ValidationError> {
+    // Check if empty
+    if url.is_empty() {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} cannot be empty", field_name),
+        });
+    }
+    
+    // Check maximum length
+    if url.len() > 2048 {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} must be 2048 characters or less", field_name),
+        });
+    }
+    
+    // URL must start with http:// or https://
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} must start with http:// or https://", field_name),
+        });
+    }
+    
+    // Check if URL has a domain part
+    let url_without_scheme = if url.starts_with("https://") {
+        &url[8..]
+    } else {
+        &url[7..]
+    };
+    
+    // Domain part cannot be empty
+    if url_without_scheme.is_empty() {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} must contain a domain", field_name),
+        });
+    }
+    
+    // Domain part must contain at least one dot (except for localhost)
+    if !url_without_scheme.starts_with("localhost") && !url_without_scheme.contains('.') {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} domain must contain at least one dot", field_name),
+        });
+    }
+    
+    Ok(())
+}
 
 pub fn validate_external_id(external_id: &str) -> Result<(), ValidationError> {
     // External IDs are simpler, just validate the string length

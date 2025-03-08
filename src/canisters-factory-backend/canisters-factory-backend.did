@@ -1,6 +1,6 @@
 type InitArgs = record {
   owner : text;
-  nickname : opt text;
+  title : opt text;
   spawn_redeem_code : opt text;
 };
 

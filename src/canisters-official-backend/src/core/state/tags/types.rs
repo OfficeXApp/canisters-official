@@ -5,19 +5,20 @@ use serde::{Serialize, Deserialize};
 use serde_diff::SerdeDiff;
 
 use crate::core::{
-    state::{
+    api::permissions::system::check_system_resource_permissions_tags, state::{
         api_keys::types::ApiKeyID,
         contacts::types::Contact,
         directory::types::{FileID, FolderID},
         disks::types::DiskID,
-        drives::types::{DriveID, ExternalID, ExternalPayload},
-        permissions::types::{DirectoryPermissionID, SystemPermissionID},
+        drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}},
+        permissions::types::{DirectoryPermissionID, PermissionGranteeID, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum},
         team_invites::types::TeamInviteID,
         teams::types::TeamID,
         webhooks::types::WebhookID
-    },
-    types::{IDPrefix, UserID}
+    }, types::{IDPrefix, UserID}
 };
+
+use super::state::TAGS_BY_VALUE_HASHTABLE;
 
 // TagID is the unique identifier for a tag
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -201,4 +202,50 @@ pub struct GetTagResourcesResponse {
     pub total: usize,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
+}
+
+pub fn redact_tag(tag_value: TagStringValue, user_id: UserID) -> Option<TagStringValue> {
+    // Get the tag ID from the value
+    let tag_id = TAGS_BY_VALUE_HASHTABLE.with(|store| {
+        store.borrow().get(&tag_value).cloned()
+    });
+    
+    if let Some(tag_id) = tag_id {
+        // Check if the user is the owner
+        let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+        
+        if is_owner {
+            // Owner sees everything, no redaction needed
+            return Some(tag_value);
+        }
+        
+        // Check permissions for this specific tag
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag_id.to_string()));
+        let permissions = check_system_resource_permissions_tags(
+            &resource_id,
+            &PermissionGranteeID::User(user_id.clone()),
+            &tag_value.to_string()
+        );
+        
+        // Check permissions for the Tags table
+        let table_permissions = check_system_resource_permissions_tags(
+            &SystemResourceID::Table(SystemTableEnum::Tags),
+            &PermissionGranteeID::User(user_id.clone()),
+            &tag_value.to_string()
+        );
+        
+        // If the user has View permission either at the table level or for this specific tag
+        if permissions.contains(&SystemPermissionType::View) || table_permissions.contains(&SystemPermissionType::View) {
+            return Some(tag_value);
+        }
+
+        // Check if there are any permissions with tag prefixes that would allow viewing
+        // (This is already handled by check_system_resource_permissions_tags)
+        
+        // If we get here, the user doesn't have permission to see this tag
+        return None;
+    }
+    
+    // Tag not found, so we can't provide it
+    None
 }

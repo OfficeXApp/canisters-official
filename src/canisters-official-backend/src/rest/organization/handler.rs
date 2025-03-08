@@ -670,7 +670,7 @@ pub mod drives_handlers {
         let nickname = CONTACTS_BY_ID_HASHTABLE.with(|store| {
             store.borrow()
                 .get(&requester_api_key.user_id)
-                .map(|contact| contact.nickname.clone())
+                .map(|contact| contact.name.clone())
                 .unwrap_or_else(|| String::new())
         });
         

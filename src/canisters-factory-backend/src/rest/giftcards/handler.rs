@@ -595,7 +595,7 @@ pub mod giftcards_handlers {
     // Helper function to deploy a drive canister
     async fn deploy_drive_canister(
         owner_icp_principal: String, 
-        nickname: Option<String>, 
+        title: Option<String>, 
         spawn_redeem_code: String,
         note: Option<String>,
         cycles: u64
@@ -640,7 +640,7 @@ pub mod giftcards_handlers {
                 // Create SpawnInitArgs for the canister
                 let init_args = SpawnInitArgs {
                     owner: owner_icp_principal,
-                    nickname,
+                    title,
                     note,
                     spawn_redeem_code: Some(spawn_redeem_code),
                 };

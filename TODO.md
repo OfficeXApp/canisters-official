@@ -7,7 +7,6 @@
 
 ## Urgent Next
 
-- [🔵] Write code for self factory spawn new organizations
 - [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)
 - [x] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
 - [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
@@ -23,7 +22,6 @@
 
 ## Near Future
 
-- [ ] Setup factory to spawn Drive canisters with owner set
 - [ ] Test out webapp http server
 - [ ] Test out webapp torrenting
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
@@ -32,6 +30,7 @@
 
 ## Priority Backlog
 
+- [ ] Graduating canisters via state sync import (from offline to web2 to web3)
 - [ ] Test whether the s3/storj copy operation works (does raw_storage actually get duplicated?)
 - [ ] Implement browser-cache raw file storage --> no raw_url as it lives in browser cache, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
 - [ ] Implement local-ssd raw file storage --> no raw_url as it lives in local SSD, only way to access is via p2p webrtc which is a non-persistent link or via torrent link
@@ -118,3 +117,5 @@
 - [x] Implement userid superswap, with webhook
 - [x] Refactor Contacts to support placeholder contacts, which requires refactor ContactID as primary key, not UserID. This has implications on how permissions work, we still want every user to be an ICP public address.(which i think we still can, since Contacts are simply a wrapper around public address string as user). --> solution is superswap userid (keep contacts.id as userid, add new route to globally swap user_id primary key to new user_id)
 - [x] Add support for contacts.seed_phrase for employer owned user accounts (employers can just give api_keys to users)
+- [x] Write code for self factory spawn new organizations
+- [x] Setup factory to spawn Drive canisters with owner set
