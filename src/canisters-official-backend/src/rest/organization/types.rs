@@ -1,4 +1,7 @@
-// src/rest/drives/types.rs
+// src/rest/organization/types.rs
+
+use std::error::Error;
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
@@ -323,6 +326,36 @@ pub struct FactorySpawnOrgResponseData {
     pub drive_id: DriveID, // spawned drive id
     pub endpoint: String, // spawned drive url endpoint
     pub api_key: String, // admin api key for the spawned drive
-    pub factory_endpoint: String, // factory url endpoint
-    pub factory_drive_id: DriveID, // factory drive id
+    pub note: String, // note about the spawned drive, particularly info about the factory
+    pub admin_login_password: String, // admin login password for the spawned drive
 }
+pub type FactorySpawnOrgResponse<'a> = ApiResponse<'a, FactorySpawnOrgResponseData>;
+
+
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedeemSpawnOrgRequestBody {
+    pub redeem_code: String,
+}
+impl RedeemSpawnOrgRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        
+        // validate the redeem_code is a valid redeem code
+        validate_id_string(&self.redeem_code, "redeem_code")?;
+        
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedeemSpawnOrgResponseData {
+    pub drive_id: DriveID, // spawned drive id
+    pub endpoint: String, // spawned drive url endpoint
+    pub api_key: String, // admin api key for the spawned drive
+    pub note: String, // note about the spawned drive, particularly info about the factory
+    pub admin_login_password: String, // admin login password for the spawned drive
+}
+pub type RedeemSpawnOrgResponse<'a> = ApiResponse<'a, RedeemSpawnOrgResponseData>;
+

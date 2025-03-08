@@ -5,6 +5,7 @@ pub mod state {
     use std::cell::Cell;
     use std::cell::RefCell;
     use std::collections::HashMap;
+    use crate::core::api::factory::get_appropriate_url_endpoint;
     use crate::core::api::replay::diff::update_checksum_for_state_diff;
     use crate::core::api::uuid::format_drive_id;
     use crate::core::api::uuid::generate_unique_id;
@@ -43,13 +44,15 @@ pub mod state {
         pub(crate) static EXTERNAL_ID_MAPPINGS: RefCell<HashMap<ExternalID, Vec<String>>> = RefCell::new(HashMap::new());
         // factory spawn tracking
         pub(crate) static RECENT_DEPLOYMENTS: RefCell<Vec<FactorySpawnHistoryRecord>> = RefCell::new(Vec::new());
+        pub(crate) static SPAWN_NOTE: RefCell<String> = RefCell::new("".to_string());
         pub(crate) static SPAWN_REDEEM_CODE: RefCell<SpawnRedeemCode> = RefCell::new(SpawnRedeemCode("".to_string()));
     }
 
     pub fn init_self_drive(
         owner_id: UserID,
         nickname: Option<String>,
-        spawn_redeem_code: Option<String>
+        spawn_redeem_code: Option<String>,
+        note: Option<String>,
     ) {
         debug_log!("Setting owner_id: {}", owner_id.0);
         OWNER_ID.with(|id| {
@@ -65,6 +68,20 @@ pub mod state {
             debug_log!("Confirmed spawn redeem code set to: {}", c.borrow().0);
         });
         
+        // Set spawn note if provided
+        let note = note.unwrap_or_else(|| "".to_string());
+        debug_log!("Setting spawn note to: {}", note);
+        SPAWN_NOTE.with(|n| {
+            *n.borrow_mut() = note.clone();
+        });
+
+        // Handle the URL endpoint
+        let endpoint = get_appropriate_url_endpoint();
+        debug_log!("Setting URL endpoint to: {}", endpoint);
+        URL_ENDPOINT.with(|url| {
+            *url.borrow_mut() = DriveRESTUrlEndpoint(endpoint);
+            debug_log!("Confirmed URL endpoint set to: {}", url.borrow().0);
+        });
         
         // Use provided nickname or default
         let drive_name = nickname.unwrap_or_else(|| "Anonymous Org".to_string());

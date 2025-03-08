@@ -11,10 +11,16 @@ mod core;
 use rest::{router, types::validate_icp_principal};
 use candid::{CandidType, Decode, Encode};
 
+
+// change this to false for production
+pub static LOCAL_DEV_MODE: bool = true;
+
+
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct InitArgs {
     pub owner: String, // Plain string for simplicity, really should be ICPPrincipalString
     pub nickname: Option<String>,
+    pub note: Option<String>,
     pub spawn_redeem_code: Option<String>,
 }
 
@@ -65,7 +71,8 @@ fn initialize_canister(args: Option<InitArgs>) {
                 init_self_drive(
                     owner_id,
                     init_args.nickname,
-                    init_args.spawn_redeem_code
+                    init_args.spawn_redeem_code,
+                    init_args.note,
                 );
 
                 // Verify the values were set correctly

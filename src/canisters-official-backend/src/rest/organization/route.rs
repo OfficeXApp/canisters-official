@@ -1,4 +1,4 @@
-// src/rest/drives/route.rs
+// src/rest/organization/route.rs
 use crate::debug_log;
 use crate::rest::router::{self, genroute};
 use crate::rest::types::RouteHandler;
@@ -12,6 +12,7 @@ pub const ORG_TRANSFER_OWNERSHIP_PATH: &str =       genroute!("/organization/tra
 pub const ORG_WHOAMI_PATH: &str =                   genroute!("/organization/whoami");
 pub const ORG_SUPERSWAP_PATH: &str =                genroute!("/organization/superswap_user");
 pub const ORG_FACTORY_SPAWN_PATH: &str =            genroute!("/organization/factory_spawn");
+pub const ORG_REDEEM_SPAWN_PATH: &str =             genroute!("/organization/redeem_spawn");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -59,12 +60,18 @@ pub fn init_routes() {
             // transfering ownership requires owner call this route twice with the same body at least 24 hours apart
             |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::superswap_userid_drive_handler(req, params)),
         ),
-        // (
-        //     "POST",
-        //     ORG_FACTORY_SPAWN_PATH,
-        //     // transfering ownership requires owner call this route twice with the same body at least 24 hours apart
-        //     |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::factory_spawn_drive_handler(req, params)),
-        // ),
+        (
+            "POST",
+            ORG_FACTORY_SPAWN_PATH,
+            // transfering ownership requires owner call this route twice with the same body at least 24 hours apart
+            |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::factory_spawn_drive_handler(req, params)),
+        ),
+        (
+            "POST",
+            ORG_REDEEM_SPAWN_PATH,
+            // transfering ownership requires owner call this route twice with the same body at least 24 hours apart
+            |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::redeem_spawn_drive_handler(req, params)),
+        ),
     ];
 
     for &(method, path, handler) in routes {
