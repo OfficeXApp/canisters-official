@@ -1,29 +1,30 @@
-// src/rest/vouchers/handler.rs
+// src/rest/giftcards/handler.rs
 
-pub mod vouchers_handlers {
+pub mod giftcards_handlers {
     use std::{thread::sleep, time::Duration};
+    use crate::core::api::helpers::is_local_environment;
     use crate::core::api::uuid::format_drive_id;
-    use crate::core::state::vouchers::types::DriveID;
-    use crate::core::state::vouchers::types::DriveRESTUrlEndpoint;
-    use crate::core::state::vouchers::types::FactorySpawnHistoryRecord;
-    use crate::core::state::vouchers::types::VoucherID;
-    use crate::core::state::vouchers::types::Voucher;
-    use crate::rest::vouchers::types::RedeemVoucherData;
-    use crate::rest::vouchers::types::RedeemVoucherResult;
-    use crate::rest::vouchers::types::SpawnInitArgs;
+    use crate::core::state::giftcards::types::DriveID;
+    use crate::core::state::giftcards::types::DriveRESTUrlEndpoint;
+    use crate::core::state::giftcards::types::FactorySpawnHistoryRecord;
+    use crate::core::state::giftcards::types::GiftcardID;
+    use crate::core::state::giftcards::types::Giftcard;
+    use crate::rest::giftcards::types::RedeemGiftcardData;
+    use crate::rest::giftcards::types::RedeemGiftcardResult;
+    use crate::rest::giftcards::types::SpawnInitArgs;
     use crate::{
         core::{
             api::uuid::{format_user_id, generate_unique_id}, 
-            state::vouchers::{
-                    state::state::{HISTORICAL_VOUCHERS, OWNER_ID, USER_TO_VOUCHERS_HASHTABLE, VOUCHER_BY_ID},
+            state::giftcards::{
+                    state::state::{HISTORICAL_GIFTCARDS, OWNER_ID, USER_TO_GIFTCARDS_HASHTABLE, GIFTCARD_BY_ID},
                     
                 }, 
             types::{IDPrefix, UserID}
         }, 
         debug_log, 
         rest::{
-            auth::{authenticate_request, create_auth_error_response}, vouchers::types::{
-                CreateVoucherRequestBody, CreateVoucherResponse, DeleteVoucherRequestBody, DeleteVoucherResponse, DeletedVoucherData, ErrorResponse, GetVoucherResponse, ListVouchersRequestBody, ListVouchersResponse, ListVouchersResponseData, RedeemVoucherResponse, SortDirection, UpdateVoucherRequestBody, UpdateVoucherResponse, UpsertVoucherRequestBody
+            auth::{authenticate_request, create_auth_error_response}, giftcards::types::{
+                CreateGiftcardRequestBody, CreateGiftcardResponse, DeleteGiftcardRequestBody, DeleteGiftcardResponse, DeletedGiftcardData, ErrorResponse, GetGiftcardResponse, ListGiftcardsRequestBody, ListGiftcardsResponse, ListGiftcardsResponseData, RedeemGiftcardResponse, SortDirection, UpdateGiftcardRequestBody, UpdateGiftcardResponse, UpsertGiftcardRequestBody
             }
         }, 
     };
@@ -36,44 +37,44 @@ pub mod vouchers_handlers {
         note: Option<String>,
     }
 
-    pub async fn get_voucher_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn get_giftcard_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
-        // Get the requested voucher ID from params
-        let requested_id = VoucherID(params.get("voucher_id").unwrap().to_string());
+        // Get the requested giftcard ID from params
+        let requested_id = GiftcardID(params.get("giftcard_id").unwrap().to_string());
 
-        // Get the requested voucher
-        let voucher = VOUCHER_BY_ID.with(|store| {
+        // Get the requested giftcard
+        let giftcard = GIFTCARD_BY_ID.with(|store| {
             store.borrow().get(&requested_id).cloned()
         });
 
-        // Check authorization (only owner can view vouchers)
+        // Check authorization (only owner can view giftcards)
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         
         if !is_owner {
             return create_auth_error_response();
         }
  
-        match voucher {
+        match giftcard {
             Some(v) => {
                 create_response(
                     StatusCode::OK,
-                    GetVoucherResponse::ok(&v).encode()
+                    GetGiftcardResponse::ok(&v).encode()
                 )
             },
             None => create_response(
                 StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "Voucher not found".to_string()).encode()
+                ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
             ),
         }
     }
 
-    pub async fn list_vouchers_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
-        debug_log!("Incoming list vouchers request: {}", request.url());
+    pub async fn list_giftcards_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        debug_log!("Incoming list giftcards request: {}", request.url());
 
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -81,7 +82,7 @@ pub mod vouchers_handlers {
             None => return create_auth_error_response(),
         };
 
-        // Check authorization - only owner can list all vouchers
+        // Check authorization - only owner can list all giftcards
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
         if !is_owner {
@@ -90,7 +91,7 @@ pub mod vouchers_handlers {
 
         // Parse request body
         let body = request.body();
-        let request_body: ListVouchersRequestBody = match serde_json::from_slice(body) {
+        let request_body: ListGiftcardsRequestBody = match serde_json::from_slice(body) {
             Ok(body) => body,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -131,16 +132,16 @@ pub mod vouchers_handlers {
             None
         };
 
-        // Get total count from historical vouchers
-        let total_count = HISTORICAL_VOUCHERS.with(|historical_ids| {
+        // Get total count from historical giftcards
+        let total_count = HISTORICAL_GIFTCARDS.with(|historical_ids| {
             historical_ids.borrow().len()
         });
 
-        // If there are no vouchers, return early
+        // If there are no giftcards, return early
         if total_count == 0 {
             return create_response(
                 StatusCode::OK,
-                ListVouchersResponse::ok(&ListVouchersResponseData {
+                ListGiftcardsResponse::ok(&ListGiftcardsResponseData {
                     items: vec![],
                     page_size: 0,
                     total: 0,
@@ -162,24 +163,24 @@ pub mod vouchers_handlers {
             }
         };
 
-        // Get vouchers with pagination and filtering
-        let mut filtered_vouchers = Vec::new();
+        // Get giftcards with pagination and filtering
+        let mut filtered_giftcards = Vec::new();
         let mut processed_count = 0;
 
-        HISTORICAL_VOUCHERS.with(|historical_ids| {
+        HISTORICAL_GIFTCARDS.with(|historical_ids| {
             let historical_ids = historical_ids.borrow();
-            VOUCHER_BY_ID.with(|store| {
+            GIFTCARD_BY_ID.with(|store| {
                 let store = store.borrow();
                 
                 match request_body.direction {
                     SortDirection::Desc => {
                         let mut current_idx = start_index;
-                        while filtered_vouchers.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(voucher) = store.get(&historical_ids[current_idx]) {
+                        while filtered_giftcards.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(giftcard) = store.get(&historical_ids[current_idx]) {
                                 // Apply filters if any
                                 if request_body.filters.is_empty() || 
-                                   (voucher.note.to_lowercase().contains(&request_body.filters.to_lowercase())) {
-                                    filtered_vouchers.push(voucher.clone());
+                                   (giftcard.note.to_lowercase().contains(&request_body.filters.to_lowercase())) {
+                                    filtered_giftcards.push(giftcard.clone());
                                 }
                             }
                             if current_idx == 0 {
@@ -191,12 +192,12 @@ pub mod vouchers_handlers {
                     },
                     SortDirection::Asc => {
                         let mut current_idx = start_index;
-                        while filtered_vouchers.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(voucher) = store.get(&historical_ids[current_idx]) {
+                        while filtered_giftcards.len() < request_body.page_size && current_idx < total_count {
+                            if let Some(giftcard) = store.get(&historical_ids[current_idx]) {
                                 // Apply filters if any
                                 if request_body.filters.is_empty() || 
-                                   (voucher.note.to_lowercase().contains(&request_body.filters.to_lowercase())) {
-                                    filtered_vouchers.push(voucher.clone());
+                                   (giftcard.note.to_lowercase().contains(&request_body.filters.to_lowercase())) {
+                                    filtered_giftcards.push(giftcard.clone());
                                 }
                             }
                             current_idx += 1;
@@ -242,9 +243,9 @@ pub mod vouchers_handlers {
 
         create_response(
             StatusCode::OK,
-            ListVouchersResponse::ok(&ListVouchersResponseData {
-                items: filtered_vouchers.clone(),
-                page_size: filtered_vouchers.len(),
+            ListGiftcardsResponse::ok(&ListGiftcardsResponseData {
+                items: filtered_giftcards.clone(),
+                page_size: filtered_giftcards.len(),
                 total: total_count,
                 cursor_up,
                 cursor_down,
@@ -252,14 +253,14 @@ pub mod vouchers_handlers {
         )
     }
 
-    pub async fn upsert_voucher_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn upsert_giftcard_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
-        // Check if requester is owner (only owner can create/update vouchers)
+        // Check if requester is owner (only owner can create/update giftcards)
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
@@ -268,7 +269,7 @@ pub mod vouchers_handlers {
         // Parse request body
         let body: &[u8] = request.body();
 
-        if let Ok(req) = serde_json::from_slice::<UpsertVoucherRequestBody>(body) {
+        if let Ok(req) = serde_json::from_slice::<UpsertGiftcardRequestBody>(body) {
             // Validate request body
             if let Err(validation_error) = req.validate_body() {
                 return create_response(
@@ -281,11 +282,11 @@ pub mod vouchers_handlers {
             }
 
             match req {
-                UpsertVoucherRequestBody::Create(create_req) => {            
-                    // Create new voucher
+                UpsertGiftcardRequestBody::Create(create_req) => {            
+                    // Create new giftcard
                     let current_time = ic_cdk::api::time();
-                    let new_voucher = Voucher {
-                        id: VoucherID(generate_unique_id(IDPrefix::Voucher, "")),
+                    let new_giftcard = Giftcard {
+                        id: GiftcardID(generate_unique_id(IDPrefix::Giftcard, "")),
                         usd_revenue_cents: create_req.usd_revenue_cents,
                         note: create_req.note,
                         gas_cycles_included: create_req.gas_cycles_included,
@@ -294,63 +295,63 @@ pub mod vouchers_handlers {
                         redeemed: false,
                     };
             
-                    // Add to VOUCHER_BY_ID
-                    VOUCHER_BY_ID.with(|store| {
-                        store.borrow_mut().insert(new_voucher.id.clone(), new_voucher.clone());
+                    // Add to GIFTCARD_BY_ID
+                    GIFTCARD_BY_ID.with(|store| {
+                        store.borrow_mut().insert(new_giftcard.id.clone(), new_giftcard.clone());
                     });
             
-                    // Add to USER_TO_VOUCHERS_HASHTABLE for the owner
+                    // Add to USER_TO_GIFTCARDS_HASHTABLE for the owner
                     let owner_id = OWNER_ID.with(|id| id.borrow().clone());
-                    USER_TO_VOUCHERS_HASHTABLE.with(|store| {
+                    USER_TO_GIFTCARDS_HASHTABLE.with(|store| {
                         store.borrow_mut()
                             .entry(owner_id)
                             .or_insert_with(Vec::new)
-                            .push(new_voucher.id.clone());
+                            .push(new_giftcard.id.clone());
                     });
                     
-                    // Add to HISTORICAL_VOUCHERS
-                    crate::core::state::vouchers::state::state::HISTORICAL_VOUCHERS.with(|vouchers| {
-                        vouchers.borrow_mut().push(new_voucher.id.clone());
+                    // Add to HISTORICAL_GIFTCARDS
+                    crate::core::state::giftcards::state::state::HISTORICAL_GIFTCARDS.with(|giftcards| {
+                        giftcards.borrow_mut().push(new_giftcard.id.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
-                        CreateVoucherResponse::ok(&new_voucher).encode()
+                        CreateGiftcardResponse::ok(&new_giftcard).encode()
                     )  
                 },
-                UpsertVoucherRequestBody::Update(update_req) => {
-                    // Get the voucher to update
-                    let voucher_id = VoucherID(update_req.id);
-                    let mut voucher = match VOUCHER_BY_ID.with(|store| store.borrow().get(&voucher_id).cloned()) {
+                UpsertGiftcardRequestBody::Update(update_req) => {
+                    // Get the giftcard to update
+                    let giftcard_id = GiftcardID(update_req.id);
+                    let mut giftcard = match GIFTCARD_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
                         Some(v) => v,
                         None => return create_response(
                             StatusCode::NOT_FOUND,
-                            ErrorResponse::err(404, "Voucher not found".to_string()).encode()
+                            ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
                         ),
                     };
 
                     // Update only the fields that were provided
                     if let Some(notes) = update_req.notes {
-                        voucher.note = notes;
+                        giftcard.note = notes;
                     }
                     if let Some(usd_revenue_cents) = update_req.usd_revenue_cents {
-                        voucher.usd_revenue_cents = usd_revenue_cents;
+                        giftcard.usd_revenue_cents = usd_revenue_cents;
                     }
                     if let Some(gas_cycles_included) = update_req.gas_cycles_included {
-                        voucher.gas_cycles_included = gas_cycles_included;
+                        giftcard.gas_cycles_included = gas_cycles_included;
                     }
                     if let Some(external_id) = update_req.external_id {
-                        voucher.external_id = external_id;
+                        giftcard.external_id = external_id;
                     }
             
-                    // Update the voucher in VOUCHER_BY_ID
-                    VOUCHER_BY_ID.with(|store| {
-                        store.borrow_mut().insert(voucher.id.clone(), voucher.clone());
+                    // Update the giftcard in GIFTCARD_BY_ID
+                    GIFTCARD_BY_ID.with(|store| {
+                        store.borrow_mut().insert(giftcard.id.clone(), giftcard.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
-                        UpdateVoucherResponse::ok(&voucher).encode()
+                        UpdateGiftcardResponse::ok(&giftcard).encode()
                     )
                 }
             }
@@ -362,7 +363,7 @@ pub mod vouchers_handlers {
         }
     }
 
-    pub async fn delete_voucher_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn delete_giftcard_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("Incoming request: {}", request.url());
 
         // Authenticate request
@@ -371,7 +372,7 @@ pub mod vouchers_handlers {
             None => return create_auth_error_response(),
         };
 
-        // Check if requester is owner (only owner can delete vouchers)
+        // Check if requester is owner (only owner can delete giftcards)
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
             return create_auth_error_response();
@@ -381,7 +382,7 @@ pub mod vouchers_handlers {
         let body: &[u8] = request.body();
         
         debug_log!("Incoming request body: {}", String::from_utf8_lossy(request.body()));
-        let delete_request = match serde_json::from_slice::<DeleteVoucherRequestBody>(body) {
+        let delete_request = match serde_json::from_slice::<DeleteGiftcardRequestBody>(body) {
             Ok(req) => req,
             Err(_) => {
                 return create_response(
@@ -401,51 +402,51 @@ pub mod vouchers_handlers {
             );
         }
 
-        // Get the voucher to be deleted
-        let voucher_id = VoucherID(delete_request.id.clone());
-        let _voucher = match VOUCHER_BY_ID.with(|store| store.borrow().get(&voucher_id).cloned()) {
+        // Get the giftcard to be deleted
+        let giftcard_id = GiftcardID(delete_request.id.clone());
+        let _giftcard = match GIFTCARD_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
             Some(v) => v,
             None => {
                 return create_response(
                     StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "Voucher not found".to_string()).encode()
+                    ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
                 )
             }
         };
 
-        // Remove from VOUCHER_BY_ID
-        VOUCHER_BY_ID.with(|store| {
-            store.borrow_mut().remove(&voucher_id);
+        // Remove from GIFTCARD_BY_ID
+        GIFTCARD_BY_ID.with(|store| {
+            store.borrow_mut().remove(&giftcard_id);
         });
 
-        // Remove from USER_TO_VOUCHERS_HASHTABLE
+        // Remove from USER_TO_GIFTCARDS_HASHTABLE
         let owner_id = OWNER_ID.with(|id| id.borrow().clone());
-        USER_TO_VOUCHERS_HASHTABLE.with(|store| {
+        USER_TO_GIFTCARDS_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            if let Some(voucher_ids) = store.get_mut(&owner_id) {
-                voucher_ids.retain(|id| id != &voucher_id);
-                // If this was the last voucher for the user, remove the user entry
-                if voucher_ids.is_empty() {
+            if let Some(giftcard_ids) = store.get_mut(&owner_id) {
+                giftcard_ids.retain(|id| id != &giftcard_id);
+                // If this was the last giftcard for the user, remove the user entry
+                if giftcard_ids.is_empty() {
                     store.remove(&owner_id);
                 }
             }
         });
         
-        // Note: We intentionally do NOT remove from HISTORICAL_VOUCHERS
-        // This preserves the historical record even if a voucher is deleted
+        // Note: We intentionally do NOT remove from HISTORICAL_GIFTCARDS
+        // This preserves the historical record even if a giftcard is deleted
 
         // Return success response
         create_response(
             StatusCode::OK,
-            DeleteVoucherResponse::ok(&DeletedVoucherData {
+            DeleteGiftcardResponse::ok(&DeletedGiftcardData {
                 id: delete_request.id,
                 deleted: true
             }).encode()
         )
     }
 
-    pub async fn redeem_voucher_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
-        debug_log!("Incoming redeem voucher request: {}", request.url());
+    pub async fn redeem_giftcard_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        debug_log!("Incoming redeem giftcard request: {}", request.url());
     
         // // Authenticate request
         // let requester_api_key = match authenticate_request(request) {
@@ -456,7 +457,7 @@ pub mod vouchers_handlers {
         // Parse request body
         let body: &[u8] = request.body();
         
-        let redeem_request = match serde_json::from_slice::<RedeemVoucherData>(body) {
+        let redeem_request = match serde_json::from_slice::<RedeemGiftcardData>(body) {
             Ok(req) => req,
             Err(_) => {
                 return create_response(
@@ -474,23 +475,23 @@ pub mod vouchers_handlers {
             );
         }
     
-        // Get the voucher to be redeemed
-        let voucher_id = redeem_request.id.clone();
-        let voucher = match VOUCHER_BY_ID.with(|store| store.borrow().get(&voucher_id).cloned()) {
+        // Get the giftcard to be redeemed
+        let giftcard_id = redeem_request.id.clone();
+        let giftcard = match GIFTCARD_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
             Some(v) => v,
             None => {
                 return create_response(
                     StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "Voucher not found".to_string()).encode()
+                    ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
                 )
             }
         };
     
-        // Check if voucher is already redeemed
-        if voucher.redeemed {
+        // Check if giftcard is already redeemed
+        if giftcard.redeemed {
             return create_response(
                 StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Voucher already redeemed".to_string()).encode()
+                ErrorResponse::err(400, "Giftcard already redeemed".to_string()).encode()
             );
         }
     
@@ -507,11 +508,11 @@ pub mod vouchers_handlers {
         // Deploy the canister using IC management canister
         let deployed_canister = match deploy_drive_canister(
             redeem_request.owner_icp_principal.clone(),
-            redeem_request.organization_nickname.clone(),
+            redeem_request.organization_name.clone(),
             redeem_code.clone(),
-            Some(format!("voucher {} was redeemed to spawn drive with {} cycles, owned by {}, on timestamp_ms {} {}", 
-                voucher_id.0, voucher.gas_cycles_included, owner_id.0, current_time, time_iso)),
-            voucher.gas_cycles_included,
+            Some(format!("giftcard {} was redeemed to spawn drive with {} cycles, owned by {}, on timestamp_ms {} {}", 
+                giftcard_id.0, giftcard.gas_cycles_included, owner_id.0, current_time, time_iso)),
+            giftcard.gas_cycles_included,
         ).await {
             Ok(canister_id) => canister_id,
             Err(e) => {
@@ -523,48 +524,61 @@ pub mod vouchers_handlers {
         };
     
         // Create a record of the deployment
-        let version = crate::core::state::vouchers::state::state::VERSION.with(|v| v.borrow().clone());
+        let version = crate::core::state::giftcards::state::state::VERSION.with(|v| v.borrow().clone());
         
         // Get appropriate URL endpoint for the deployed canister
-        let endpoint = DriveRESTUrlEndpoint(format!("https://{}.icp0.io", deployed_canister));
+        let endpoint = match is_local_environment() {
+            true => {
+                // Use the configured local port if available
+                let port = option_env!("IC_LOCAL_PORT").unwrap_or("8000");
+                
+                // In local development, URLs are typically structured like:
+                // http://{canister_id}.localhost:{port}
+                DriveRESTUrlEndpoint(format!("http://{}.localhost:{}", deployed_canister, port))
+            },
+            false => {
+                // In production, use the standard IC URL format
+                DriveRESTUrlEndpoint(format!("https://{}.icp0.io", deployed_canister))
+            }
+        };
         
         let history_record = FactorySpawnHistoryRecord {
             owner_id: owner_id.clone(),
             drive_id: format_drive_id(&deployed_canister.clone()),
             endpoint: endpoint.clone(),
             version,
-            note: voucher.note.clone(),
-            gas_cycles_included: voucher.gas_cycles_included,
+            note: giftcard.note.clone(),
+            gas_cycles_included: giftcard.gas_cycles_included,
             timestamp_ms: current_time,
-            voucher_id: voucher_id.clone(),
+            giftcard_id: giftcard_id.clone(),
         };
     
-        // Update voucher as redeemed
-        VOUCHER_BY_ID.with(|store| {
-            let mut voucher = voucher.clone();
-            voucher.redeemed = true;
-            store.borrow_mut().insert(voucher_id.clone(), voucher);
+        // Update giftcard as redeemed
+        GIFTCARD_BY_ID.with(|store| {
+            let mut giftcard = giftcard.clone();
+            giftcard.redeemed = true;
+            store.borrow_mut().insert(giftcard_id.clone(), giftcard);
         });
     
         // Store the deployment history
-        crate::core::state::vouchers::state::state::DEPLOYMENTS_BY_VOUCHER_ID.with(|records| {
-            records.borrow_mut().insert(voucher_id.clone(), history_record.clone());
+        crate::core::state::giftcards::state::state::DEPLOYMENTS_BY_GIFTCARD_ID.with(|records| {
+            records.borrow_mut().insert(giftcard_id.clone(), history_record.clone());
         });
     
-        // Add to DRIVE_TO_VOUCHER_HASHTABLE
-        crate::core::state::vouchers::state::state::DRIVE_TO_VOUCHER_HASHTABLE.with(|map| {
-            map.borrow_mut().insert(format_drive_id(&deployed_canister.clone()), voucher_id.clone());
+        // Add to DRIVE_TO_GIFTCARD_HASHTABLE
+        crate::core::state::giftcards::state::state::DRIVE_TO_GIFTCARD_HASHTABLE.with(|map| {
+            map.borrow_mut().insert(format_drive_id(&deployed_canister.clone()), giftcard_id.clone());
         });
     
-        // Add to USER_TO_VOUCHERS_HASHTABLE for the owner
-        USER_TO_VOUCHERS_HASHTABLE.with(|store| {
+        // Add to USER_TO_GIFTCARDS_HASHTABLE for the owner
+        USER_TO_GIFTCARDS_HASHTABLE.with(|store| {
             store.borrow_mut()
                 .entry(owner_id.clone())
                 .or_insert_with(Vec::new)
-                .push(voucher_id.clone());
+                .push(giftcard_id.clone());
         });
 
-        let redeem_voucher_result = RedeemVoucherResult {
+        let redeem_giftcard_result = RedeemGiftcardResult {
             owner_id: owner_id,
             drive_id: format_drive_id(&deployed_canister),
             endpoint: endpoint,
@@ -574,7 +588,7 @@ pub mod vouchers_handlers {
         // Return success response
         create_response(
             StatusCode::OK,
-            RedeemVoucherResponse::ok(&redeem_voucher_result).encode()
+            RedeemGiftcardResponse::ok(&redeem_giftcard_result).encode()
         )
     }
     

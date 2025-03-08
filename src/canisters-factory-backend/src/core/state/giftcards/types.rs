@@ -16,8 +16,8 @@ impl fmt::Display for DriveID {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct VoucherID(pub String);
-impl fmt::Display for VoucherID {
+pub struct GiftcardID(pub String);
+impl fmt::Display for GiftcardID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -32,15 +32,15 @@ pub struct FactorySpawnHistoryRecord {
     pub endpoint: DriveRESTUrlEndpoint,
     pub version: String,
     pub note: String,
-    pub voucher_id: VoucherID,
+    pub giftcard_id: GiftcardID,
     pub gas_cycles_included: u64,
     pub timestamp_ms: u64,
 }
 
 // Define a struct to track deployment history
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
-pub struct Voucher {
-    pub id: VoucherID,
+pub struct Giftcard {
+    pub id: GiftcardID,
     pub usd_revenue_cents: u64,
     pub note: String,
     pub gas_cycles_included: u64,

@@ -1,10 +1,10 @@
-// src/rest/vouchers/types.rs
+// src/rest/giftcards/types.rs
 
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use crate::{
     core::{
-        state::vouchers::types::{DriveID, DriveRESTUrlEndpoint, FactorySpawnHistoryRecord, Voucher, VoucherID}, 
+        state::giftcards::types::{DriveID, DriveRESTUrlEndpoint, FactorySpawnHistoryRecord, Giftcard, GiftcardID}, 
         types::{ICPPrincipalString, IDPrefix, UserID}
     }, 
     rest::types::{
@@ -31,7 +31,7 @@ impl Default for SortDirection {
 
 // Add pagination request body
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListVouchersRequestBody {
+pub struct ListGiftcardsRequestBody {
     #[serde(default)]
     pub filters: String,
     #[serde(default = "default_page_size")]
@@ -46,7 +46,7 @@ fn default_page_size() -> usize {
     50
 }
 
-impl ListVouchersRequestBody {
+impl ListGiftcardsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate filters string length
         if self.filters.len() > 256 {
@@ -88,8 +88,8 @@ impl ListVouchersRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ListVouchersResponseData {
-    pub items: Vec<Voucher>,
+pub struct ListGiftcardsResponseData {
+    pub items: Vec<Giftcard>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -98,14 +98,14 @@ pub struct ListVouchersResponseData {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CreateVoucherRequestBody {
+pub struct CreateGiftcardRequestBody {
     pub action: UpsertActionTypeEnum,
     pub usd_revenue_cents: u64,
     pub note: String,
     pub gas_cycles_included: u64,
     pub external_id: String,
 }
-impl CreateVoucherRequestBody {
+impl CreateGiftcardRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         
         // validate gas_cycles_included (must be greater than 1T)
@@ -127,19 +127,19 @@ impl CreateVoucherRequestBody {
         Ok(())
     }
 }
-pub type CreateVoucherResponse<'a> = ApiResponse<'a, Voucher>;
+pub type CreateGiftcardResponse<'a> = ApiResponse<'a, Giftcard>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeleteVoucherRequestBody {
+pub struct DeleteGiftcardRequestBody {
     pub id: String,
 }
-impl DeleteVoucherRequestBody {
+impl DeleteGiftcardRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate id (must not be empty, up to 256 chars)
         validate_id_string(&self.id, "id")?;
         
         // Check if ID has the correct prefix
-        let api_key_prefix = IDPrefix::Voucher.as_str();
+        let api_key_prefix = IDPrefix::Giftcard.as_str();
         if !self.id.starts_with(api_key_prefix) {
             return Err(ValidationError {
                 field: "id".to_string(),
@@ -152,14 +152,14 @@ impl DeleteVoucherRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DeletedVoucherData {
+pub struct DeletedGiftcardData {
     pub id: String,
     pub deleted: bool
 }
-pub type DeleteVoucherResponse<'a> = ApiResponse<'a, DeletedVoucherData>;
+pub type DeleteGiftcardResponse<'a> = ApiResponse<'a, DeletedGiftcardData>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateVoucherRequestBody {
+pub struct UpdateGiftcardRequestBody {
     pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -171,13 +171,13 @@ pub struct UpdateVoucherRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
 }
-impl UpdateVoucherRequestBody {
+impl UpdateGiftcardRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate id (must not be empty, up to 256 chars, and start with VoucherID_ prefix)
+        // Validate id (must not be empty, up to 256 chars, and start with GiftcardID_ prefix)
         validate_id_string(&self.id, "id")?;
         
         // Check if ID has the correct prefix
-        let api_key_prefix = IDPrefix::Voucher.as_str();
+        let api_key_prefix = IDPrefix::Giftcard.as_str();
         if !self.id.starts_with(api_key_prefix) {
             return Err(ValidationError {
                 field: "id".to_string(),
@@ -209,38 +209,38 @@ impl UpdateVoucherRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum UpsertVoucherRequestBody {
-    Create(CreateVoucherRequestBody),
-    Update(UpdateVoucherRequestBody),
+pub enum UpsertGiftcardRequestBody {
+    Create(CreateGiftcardRequestBody),
+    Update(UpdateGiftcardRequestBody),
 }
-impl UpsertVoucherRequestBody {
+impl UpsertGiftcardRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         match self {
-            UpsertVoucherRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertVoucherRequestBody::Update(update_req) => update_req.validate_body(),
+            UpsertGiftcardRequestBody::Create(create_req) => create_req.validate_body(),
+            UpsertGiftcardRequestBody::Update(update_req) => update_req.validate_body(),
         }
     }
 }
 
-pub type UpdateVoucherResponse<'a> = ApiResponse<'a, Voucher>;
-pub type ListVouchersResponse<'a> = ApiResponse<'a, ListVouchersResponseData>;
-pub type GetVoucherResponse<'a> = ApiResponse<'a, Voucher>;
+pub type UpdateGiftcardResponse<'a> = ApiResponse<'a, Giftcard>;
+pub type ListGiftcardsResponse<'a> = ApiResponse<'a, ListGiftcardsResponseData>;
+pub type GetGiftcardResponse<'a> = ApiResponse<'a, Giftcard>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedeemVoucherData {
-    pub id: VoucherID,
+pub struct RedeemGiftcardData {
+    pub id: GiftcardID,
     pub owner_icp_principal: String,
-    pub organization_nickname: Option<String>
+    pub organization_name: Option<String>
 }
-impl RedeemVoucherData {
+impl RedeemGiftcardData {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate voucher_id format
-        if !self.id.0.starts_with(IDPrefix::Voucher.as_str()) {
+        // Validate giftcard_id format
+        if !self.id.0.starts_with(IDPrefix::Giftcard.as_str()) {
             return Err(ValidationError {
                 field: "id".to_string(),
-                message: format!("Voucher ID must start with '{}'", IDPrefix::Voucher.as_str()),
+                message: format!("Giftcard ID must start with '{}'", IDPrefix::Giftcard.as_str()),
             });
         }
 
@@ -256,17 +256,17 @@ impl RedeemVoucherData {
         };
 
         // Validate nickname if provided
-        if let Some(organization_nickname) = &self.organization_nickname {
-            if organization_nickname.trim().is_empty() {
+        if let Some(organization_name) = &self.organization_name {
+            if organization_name.trim().is_empty() {
                 return Err(ValidationError {
-                    field: "organization_nickname".to_string(),
+                    field: "organization_name".to_string(),
                     message: "Org Name cannot be empty".to_string(),
                 });
             }
 
-            if organization_nickname.len() > 64 {
+            if organization_name.len() > 64 {
                 return Err(ValidationError {
-                    field: "organization_nickname".to_string(),
+                    field: "organization_name".to_string(),
                     message: "Org Name must be 64 characters or less".to_string(),
                 });
             }
@@ -278,14 +278,14 @@ impl RedeemVoucherData {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedeemVoucherResult {
+pub struct RedeemGiftcardResult {
     pub owner_id: UserID,
     pub drive_id: DriveID,
     pub endpoint: DriveRESTUrlEndpoint,
     pub redeem_code: String,
 }
 
-pub type RedeemVoucherResponse<'a> = ApiResponse<'a, RedeemVoucherResult>;
+pub type RedeemGiftcardResponse<'a> = ApiResponse<'a, RedeemGiftcardResult>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct SpawnInitArgs {

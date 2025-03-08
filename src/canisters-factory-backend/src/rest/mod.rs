@@ -9,4 +9,4 @@ pub mod types;
 // rest route imports
 pub mod templates;  
 pub mod api_keys;
-pub mod vouchers;
+pub mod giftcards;

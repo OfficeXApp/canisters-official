@@ -1,7 +1,7 @@
 // src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
-use core::{api::uuid::format_user_id, state::{api_keys::state::state::init_default_admin_apikey, vouchers::state::state::init_self_factory}, types::UserID};
+use core::{api::uuid::format_user_id, state::{api_keys::state::state::init_default_admin_apikey, giftcards::state::state::init_self_factory}, types::UserID};
 use std::{cell::RefCell, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use bip39::{Mnemonic, Language};
@@ -70,7 +70,7 @@ fn initialize_canister(args: Option<InitArgs>) {
                 );
 
                 // Verify the values were set correctly
-                crate::core::state::vouchers::state::state::OWNER_ID.with(|id| {
+                crate::core::state::giftcards::state::state::OWNER_ID.with(|id| {
                     debug_log!("After init, owner_id is: {}", id.borrow().0);
                 });
             },

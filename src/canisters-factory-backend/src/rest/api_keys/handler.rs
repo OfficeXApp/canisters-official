@@ -2,12 +2,12 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, vouchers::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, giftcards::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
-    use crate::{core::state::vouchers::{state::state::{GLOBAL_UUID_NONCE, CANISTER_ID, VERSION, URL_ENDPOINT, DEPLOYMENTS_BY_VOUCHER_ID, HISTORICAL_VOUCHERS, DRIVE_TO_VOUCHER_HASHTABLE, USER_TO_VOUCHERS_HASHTABLE, VOUCHER_BY_ID}, types::{DriveID}}};
+    use crate::{core::state::giftcards::{state::state::{GLOBAL_UUID_NONCE, CANISTER_ID, VERSION, URL_ENDPOINT, DEPLOYMENTS_BY_GIFTCARD_ID, HISTORICAL_GIFTCARDS, DRIVE_TO_GIFTCARD_HASHTABLE, USER_TO_GIFTCARDS_HASHTABLE, GIFTCARD_BY_ID}, types::{DriveID}}};
 
     #[derive(Deserialize, Default)]
     struct ListQueryParams {
@@ -386,12 +386,12 @@ pub mod apikeys_handlers {
             users_apikeys: USERS_APIKEYS_HASHTABLE.with(|store| store.borrow().clone()),
             apikeys_history: APIKEYS_BY_HISTORY.with(|store| store.borrow().clone()),
             
-            // Voucher state
-            deployments_by_voucher_id: DEPLOYMENTS_BY_VOUCHER_ID.with(|store| store.borrow().clone()),
-            historical_vouchers: HISTORICAL_VOUCHERS.with(|store| store.borrow().clone()),
-            drive_to_voucher_hashtable: DRIVE_TO_VOUCHER_HASHTABLE.with(|store| store.borrow().clone()),
-            user_to_vouchers_hashtable: USER_TO_VOUCHERS_HASHTABLE.with(|store| store.borrow().clone()),
-            voucher_by_id: VOUCHER_BY_ID.with(|store| store.borrow().clone()),
+            // Giftcard state
+            deployments_by_giftcard_id: DEPLOYMENTS_BY_GIFTCARD_ID.with(|store| store.borrow().clone()),
+            historical_giftcards: HISTORICAL_GIFTCARDS.with(|store| store.borrow().clone()),
+            drive_to_giftcard_hashtable: DRIVE_TO_GIFTCARD_HASHTABLE.with(|store| store.borrow().clone()),
+            user_to_giftcards_hashtable: USER_TO_GIFTCARDS_HASHTABLE.with(|store| store.borrow().clone()),
+            giftcard_by_id: GIFTCARD_BY_ID.with(|store| store.borrow().clone()),
             
             // Add timestamp
             timestamp_ns: ic_cdk::api::time(),

@@ -5,11 +5,11 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
     use crate::core::api::helpers::get_appropriate_url_endpoint;
-    use crate::core::state::vouchers::types::DriveID;
-    use crate::core::state::vouchers::types::DriveRESTUrlEndpoint;
-    use crate::core::state::vouchers::types::FactorySpawnHistoryRecord;
-    use crate::core::state::vouchers::types::VoucherID;
-    use crate::core::state::vouchers::types::Voucher;
+    use crate::core::state::giftcards::types::DriveID;
+    use crate::core::state::giftcards::types::DriveRESTUrlEndpoint;
+    use crate::core::state::giftcards::types::FactorySpawnHistoryRecord;
+    use crate::core::state::giftcards::types::GiftcardID;
+    use crate::core::state::giftcards::types::Giftcard;
 
     use crate::core::types::{UserID,PublicKeyICP};
     use crate::debug_log;
@@ -22,12 +22,12 @@ pub mod state {
         pub(crate) static OWNER_ID: RefCell<UserID> = RefCell::new(UserID("Anonymous_Owner".to_string()));
         pub(crate) static URL_ENDPOINT: RefCell<DriveRESTUrlEndpoint> = RefCell::new(DriveRESTUrlEndpoint(format!("https://{}.icp0.io", CANISTER_ID.with(|id| id.0.clone()))));
         
-        // Voucher and deployment tracking
-        pub(crate) static DEPLOYMENTS_BY_VOUCHER_ID: RefCell<HashMap<VoucherID, FactorySpawnHistoryRecord>> = RefCell::new(HashMap::new());
-        pub(crate) static HISTORICAL_VOUCHERS: RefCell<Vec<VoucherID>> = RefCell::new(Vec::new());
-        pub(crate) static DRIVE_TO_VOUCHER_HASHTABLE: RefCell<HashMap<DriveID, VoucherID>> = RefCell::new(HashMap::new());
-        pub(crate) static USER_TO_VOUCHERS_HASHTABLE: RefCell<HashMap<UserID, Vec<VoucherID>>> = RefCell::new(HashMap::new());
-        pub(crate) static VOUCHER_BY_ID: RefCell<HashMap<VoucherID, Voucher>> = RefCell::new(HashMap::new());
+        // Giftcard and deployment tracking
+        pub(crate) static DEPLOYMENTS_BY_GIFTCARD_ID: RefCell<HashMap<GiftcardID, FactorySpawnHistoryRecord>> = RefCell::new(HashMap::new());
+        pub(crate) static HISTORICAL_GIFTCARDS: RefCell<Vec<GiftcardID>> = RefCell::new(Vec::new());
+        pub(crate) static DRIVE_TO_GIFTCARD_HASHTABLE: RefCell<HashMap<DriveID, GiftcardID>> = RefCell::new(HashMap::new());
+        pub(crate) static USER_TO_GIFTCARDS_HASHTABLE: RefCell<HashMap<UserID, Vec<GiftcardID>>> = RefCell::new(HashMap::new());
+        pub(crate) static GIFTCARD_BY_ID: RefCell<HashMap<GiftcardID, Giftcard>> = RefCell::new(HashMap::new());
     }
 
     pub fn init_self_factory(
