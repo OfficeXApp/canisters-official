@@ -19,9 +19,10 @@ $ dfx start --clean
 Then deploy canisters:
 
 ```sh
+$ dfx canister create canisters-official-frontend
 $ dfx canister create canisters-official-backend
 $ dfx build
-$ dfx deploy
+$ dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 ```
 
 Then test:

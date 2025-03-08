@@ -5,7 +5,7 @@ use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, Extern
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::{ICPPrincipalString, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
-use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_seed_phrase, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
@@ -247,11 +247,13 @@ pub type TransferOwnershipDriveResponse<'a> = ApiResponse<'a, TransferOwnershipR
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WhoAmIReport {
+    pub nickname: String,
     pub userID: UserID,
     pub driveID: DriveID,
     pub icp_principal: ICPPrincipalString,
     pub evm_public_address: Option<String>,
     pub is_owner: bool,
+    pub drive_nickname: String,
 }
 pub type GetWhoAmIResponse<'a> = ApiResponse<'a, WhoAmIReport>;
 
@@ -287,3 +289,40 @@ pub struct SuperswapUserIDResponseData {
     pub message: String,
 }
 pub type SuperswapUserIDResponse<'a> = ApiResponse<'a, SuperswapUserIDResponseData>;
+
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FactorySpawnOrgRequestBody {
+    pub owner_id: String,
+    pub nickname: Option<String>,
+}
+impl FactorySpawnOrgRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        
+        // validate the owner_id is a valid UserID
+        validate_user_id(&self.owner_id)?;
+
+        // validate the nickname if provided
+        if let Some(nickname) = &self.nickname {
+            if nickname.len() > 256 {
+                return Err(ValidationError {
+                    field: "nickname".to_string(),
+                    message: "Nickname must be 256 characters or less".to_string(),
+                });
+            }
+        }
+        
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FactorySpawnOrgResponseData {
+    pub drive_id: DriveID, // spawned drive id
+    pub endpoint: String, // spawned drive url endpoint
+    pub api_key: String, // admin api key for the spawned drive
+    pub factory_endpoint: String, // factory url endpoint
+    pub factory_drive_id: DriveID, // factory drive id
+}

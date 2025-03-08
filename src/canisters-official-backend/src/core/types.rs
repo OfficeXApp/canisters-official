@@ -25,6 +25,16 @@ impl fmt::Display for ICPPrincipalString {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub struct PublicKeyEVM(pub String);
+
+impl fmt::Display for PublicKeyEVM {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct UserID(pub String);
 
 impl fmt::Display for UserID {

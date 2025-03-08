@@ -11,6 +11,7 @@ pub const ORG_EXTERNAL_ID_PATH: &str =              genroute!("/organization/ext
 pub const ORG_TRANSFER_OWNERSHIP_PATH: &str =       genroute!("/organization/transfer_ownership");
 pub const ORG_WHOAMI_PATH: &str =                   genroute!("/organization/whoami");
 pub const ORG_SUPERSWAP_PATH: &str =                genroute!("/organization/superswap_user");
+pub const ORG_FACTORY_SPAWN_PATH: &str =            genroute!("/organization/factory_spawn");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
@@ -58,6 +59,12 @@ pub fn init_routes() {
             // transfering ownership requires owner call this route twice with the same body at least 24 hours apart
             |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::superswap_userid_drive_handler(req, params)),
         ),
+        // (
+        //     "POST",
+        //     ORG_FACTORY_SPAWN_PATH,
+        //     // transfering ownership requires owner call this route twice with the same body at least 24 hours apart
+        //     |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::factory_spawn_drive_handler(req, params)),
+        // ),
     ];
 
     for &(method, path, handler) in routes {

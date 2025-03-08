@@ -7,6 +7,7 @@
 
 ## Urgent Next
 
+- [🔵] Write code for self factory spawn new organizations
 - [🔵] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
 - [🔵] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
 - [ ] Write all the redux-offline states and actions for webapp
