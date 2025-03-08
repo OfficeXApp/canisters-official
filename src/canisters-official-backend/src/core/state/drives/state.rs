@@ -5,7 +5,7 @@ pub mod state {
     use std::cell::Cell;
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use crate::core::api::factory::get_appropriate_url_endpoint;
+    use crate::core::api::helpers::get_appropriate_url_endpoint;
     use crate::core::api::replay::diff::update_checksum_for_state_diff;
     use crate::core::api::uuid::format_drive_id;
     use crate::core::api::uuid::generate_unique_id;

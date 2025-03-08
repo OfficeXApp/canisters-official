@@ -297,45 +297,6 @@ pub type SuperswapUserIDResponse<'a> = ApiResponse<'a, SuperswapUserIDResponseDa
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FactorySpawnOrgRequestBody {
-    pub owner_id: String,
-    pub nickname: Option<String>,
-}
-impl FactorySpawnOrgRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        
-        // validate the owner_id is a valid UserID
-        validate_user_id(&self.owner_id)?;
-
-        // validate the nickname if provided
-        if let Some(nickname) = &self.nickname {
-            if nickname.len() > 256 {
-                return Err(ValidationError {
-                    field: "nickname".to_string(),
-                    message: "Nickname must be 256 characters or less".to_string(),
-                });
-            }
-        }
-        
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FactorySpawnOrgResponseData {
-    pub drive_id: DriveID, // spawned drive id
-    pub endpoint: String, // spawned drive url endpoint
-    pub api_key: String, // admin api key for the spawned drive
-    pub note: String, // note about the spawned drive, particularly info about the factory
-    pub admin_login_password: String, // admin login password for the spawned drive
-}
-pub type FactorySpawnOrgResponse<'a> = ApiResponse<'a, FactorySpawnOrgResponseData>;
-
-
-
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedeemSpawnOrgRequestBody {
     pub redeem_code: String,
 }

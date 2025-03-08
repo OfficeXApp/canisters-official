@@ -224,6 +224,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "canisters-factory-backend"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "bip39",
+ "candid",
+ "ciborium",
+ "ed25519-dalek",
+ "fst",
+ "getrandom",
+ "hex",
+ "hmac",
+ "ic-cdk 0.17.1",
+ "ic-cdk-macros 0.17.1",
+ "ic-cdk-timers",
+ "ic-crypto-sha2",
+ "ic-crypto-standalone-sig-verifier",
+ "ic-dummy-getrandom-for-wasm",
+ "ic-http-certification",
+ "ic-stable-structures",
+ "ic-types",
+ "lazy_static",
+ "matchit",
+ "num-bigint",
+ "num-traits",
+ "regex",
+ "rmp-serde",
+ "serde",
+ "serde-diff",
+ "serde_bytes",
+ "serde_cbor",
+ "serde_json",
+ "serde_urlencoded",
+ "sha2",
+ "time",
+ "tiny-keccak",
+ "url",
+ "urlencoding",
+]
+
+[[package]]
 name = "canisters-official-backend"
 version = "0.1.0"
 dependencies = [
