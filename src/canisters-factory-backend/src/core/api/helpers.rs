@@ -3,6 +3,7 @@
 use crate::LOCAL_DEV_MODE;
 
 
+
 pub fn get_appropriate_url_endpoint() -> String {
     if is_local_environment() {
         // For local development, use the correct local format with canister ID

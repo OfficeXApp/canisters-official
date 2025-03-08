@@ -10,6 +10,12 @@ Powers the cloud smart contract of https://drive.officex.app
 - `TODO.md` for roadmap triage
 - View developer docs at https://dev.officex.app
 
+Dev single line restart:
+
+```sh
+$ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+```
+
 From clean start:
 
 ```sh
@@ -24,6 +30,7 @@ $ dfx canister create canisters-official-backend
 $ dfx canister create canisters-factory-backend
 $ dfx build
 $ dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+$ dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 
 # Optional: Then we can get the admin api key (this redeem can only happen once)
 # You can also do this via REST call elsewhere

@@ -4,7 +4,7 @@ use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use crate::{
     core::{
-        state::vouchers::types::{FactorySpawnHistoryRecord, Voucher, VoucherID}, 
+        state::vouchers::types::{DriveID, DriveRESTUrlEndpoint, FactorySpawnHistoryRecord, Voucher, VoucherID}, 
         types::{ICPPrincipalString, IDPrefix, UserID}
     }, 
     rest::types::{
@@ -232,7 +232,7 @@ pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 pub struct RedeemVoucherData {
     pub id: VoucherID,
     pub owner_icp_principal: String,
-    pub nickname: Option<String>
+    pub organization_nickname: Option<String>
 }
 impl RedeemVoucherData {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -256,18 +256,18 @@ impl RedeemVoucherData {
         };
 
         // Validate nickname if provided
-        if let Some(nickname) = &self.nickname {
-            if nickname.trim().is_empty() {
+        if let Some(organization_nickname) = &self.organization_nickname {
+            if organization_nickname.trim().is_empty() {
                 return Err(ValidationError {
-                    field: "nickname".to_string(),
-                    message: "Nickname cannot be empty".to_string(),
+                    field: "organization_nickname".to_string(),
+                    message: "Org Name cannot be empty".to_string(),
                 });
             }
 
-            if nickname.len() > 64 {
+            if organization_nickname.len() > 64 {
                 return Err(ValidationError {
-                    field: "nickname".to_string(),
-                    message: "Nickname must be 64 characters or less".to_string(),
+                    field: "organization_nickname".to_string(),
+                    message: "Org Name must be 64 characters or less".to_string(),
                 });
             }
         }
@@ -276,7 +276,16 @@ impl RedeemVoucherData {
     }
 }
 
-pub type RedeemVoucherResponse<'a> = ApiResponse<'a, FactorySpawnHistoryRecord>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedeemVoucherResult {
+    pub owner_id: UserID,
+    pub drive_id: DriveID,
+    pub endpoint: DriveRESTUrlEndpoint,
+    pub redeem_code: String,
+}
+
+pub type RedeemVoucherResponse<'a> = ApiResponse<'a, RedeemVoucherResult>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct SpawnInitArgs {

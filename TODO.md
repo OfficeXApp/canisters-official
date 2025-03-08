@@ -8,6 +8,7 @@
 ## Urgent Next
 
 - [🔵] Write code for self factory spawn new organizations
+- [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)
 - [x] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
 - [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
 - [ ] Write all the redux-offline states and actions for webapp

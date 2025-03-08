@@ -2,12 +2,14 @@
 
 pub mod vouchers_handlers {
     use std::{thread::sleep, time::Duration};
+    use crate::core::api::uuid::format_drive_id;
     use crate::core::state::vouchers::types::DriveID;
     use crate::core::state::vouchers::types::DriveRESTUrlEndpoint;
     use crate::core::state::vouchers::types::FactorySpawnHistoryRecord;
     use crate::core::state::vouchers::types::VoucherID;
     use crate::core::state::vouchers::types::Voucher;
     use crate::rest::vouchers::types::RedeemVoucherData;
+    use crate::rest::vouchers::types::RedeemVoucherResult;
     use crate::rest::vouchers::types::SpawnInitArgs;
     use crate::{
         core::{
@@ -71,7 +73,7 @@ pub mod vouchers_handlers {
     }
 
     pub async fn list_vouchers_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, _params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
-        debug_log!("Incoming request: {}", request.url());
+        debug_log!("Incoming list vouchers request: {}", request.url());
 
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -505,7 +507,7 @@ pub mod vouchers_handlers {
         // Deploy the canister using IC management canister
         let deployed_canister = match deploy_drive_canister(
             redeem_request.owner_icp_principal.clone(),
-            redeem_request.nickname.clone(),
+            redeem_request.organization_nickname.clone(),
             redeem_code.clone(),
             Some(format!("voucher {} was redeemed to spawn drive with {} cycles, owned by {}, on timestamp_ms {} {}", 
                 voucher_id.0, voucher.gas_cycles_included, owner_id.0, current_time, time_iso)),
@@ -520,19 +522,6 @@ pub mod vouchers_handlers {
             }
         };
     
-        // Wait a brief moment to ensure the canister is ready for HTTP calls
-        // This may need to be adjusted based on deployment timing
-        sleep(Duration::from_secs(2));
-    
-        // Now make a call to redeem_spawn to get the API credentials
-        let admin_login_password = match get_spawn_login_password(&deployed_canister, &redeem_code).await {
-            Ok(creds) => creds,
-            Err(e) => {
-                debug_log!("Warning: Failed to fetch API credentials: {}", e);
-                format!("API credentials could not be automatically retrieved. Please use the redeem_spawn endpoint with code: {}", redeem_code)
-            }
-        };
-    
         // Create a record of the deployment
         let version = crate::core::state::vouchers::state::state::VERSION.with(|v| v.borrow().clone());
         
@@ -541,14 +530,13 @@ pub mod vouchers_handlers {
         
         let history_record = FactorySpawnHistoryRecord {
             owner_id: owner_id.clone(),
-            drive_id: DriveID(deployed_canister.clone()),
+            drive_id: format_drive_id(&deployed_canister.clone()),
             endpoint: endpoint.clone(),
             version,
             note: voucher.note.clone(),
-            voucher_id: voucher_id.clone(),
             gas_cycles_included: voucher.gas_cycles_included,
             timestamp_ms: current_time,
-            admin_login_password: admin_login_password.clone(),
+            voucher_id: voucher_id.clone(),
         };
     
         // Update voucher as redeemed
@@ -565,7 +553,7 @@ pub mod vouchers_handlers {
     
         // Add to DRIVE_TO_VOUCHER_HASHTABLE
         crate::core::state::vouchers::state::state::DRIVE_TO_VOUCHER_HASHTABLE.with(|map| {
-            map.borrow_mut().insert(DriveID(deployed_canister.clone()), voucher_id.clone());
+            map.borrow_mut().insert(format_drive_id(&deployed_canister.clone()), voucher_id.clone());
         });
     
         // Add to USER_TO_VOUCHERS_HASHTABLE for the owner
@@ -575,85 +563,19 @@ pub mod vouchers_handlers {
                 .or_insert_with(Vec::new)
                 .push(voucher_id.clone());
         });
+
+        let redeem_voucher_result = RedeemVoucherResult {
+            owner_id: owner_id,
+            drive_id: format_drive_id(&deployed_canister),
+            endpoint: endpoint,
+            redeem_code: redeem_code,
+        };
     
         // Return success response
         create_response(
             StatusCode::OK,
-            RedeemVoucherResponse::ok(&history_record).encode()
+            RedeemVoucherResponse::ok(&redeem_voucher_result).encode()
         )
-    }
-    
-    // Helper function to get API credentials via redeem_spawn endpoint
-    async fn get_spawn_login_password(canister_id: &str, redeem_code: &str) -> Result<String, String> {
-        use ic_cdk::api::management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod};
-        use serde_json::{json, Value};
-    
-        let url = format!("https://{}.icp0.io/v1/default/organization/redeem_spawn", canister_id);
-        let is_local = crate::core::api::helpers::is_local_environment();
-        
-        if is_local {
-            // Get the port for local development
-            let port = option_env!("IC_LOCAL_PORT").unwrap_or("8000");
-            // In local development, URLs are typically structured like:
-            // http://{canister_id}.localhost:{port}
-            let url = format!("http://{}.localhost:{}/v1/default/organization/redeem_spawn", canister_id, port);
-        }
-    
-        // Prepare the request body
-        let request_body = json!({
-            "redeem_code": redeem_code
-        }).to_string();
-    
-        // Prepare headers
-        let headers = vec![
-            HttpHeader {
-                name: "Content-Type".to_string(),
-                value: "application/json".to_string(),
-            },
-        ];
-    
-        // Create the HTTP request
-        let request = CanisterHttpRequestArgument {
-            url,
-            method: HttpMethod::POST,
-            headers,
-            body: Some(request_body.into_bytes()),
-            max_response_bytes: Some(5 * 1024), // 5KB should be enough
-            transform: None,
-        };
-    
-        // Make the HTTP request
-        let cycles: u128 = 100_000_000_000; // 100 billion cycles
-        
-        match http_request(request, cycles).await {
-            Ok((response,)) => {
-                // Check if the response was successful
-                let status_u16 = match response.status.0.try_into() {
-                    Ok(n) => n,
-                    Err(_) => 500, // Default to 500 if conversion fails
-                };
-                if status_u16 >= 200 && status_u16 < 300 {
-                    // Parse the response JSON
-                    match serde_json::from_slice::<Value>(&response.body) {
-                        Ok(json_response) => {
-                            // Try to extract the admin_login_password
-                            if let Some(data) = json_response.get("ok").and_then(|ok| ok.get("data")) {
-                                if let Some(password) = data.get("admin_login_password").and_then(|pw| pw.as_str()) {
-                                    return Ok(password.to_string());
-                                }
-                            }
-                            Err("Could not find admin_login_password in response".to_string())
-                        },
-                        Err(e) => Err(format!("Failed to parse response JSON: {}", e)),
-                    }
-                } else {
-                    Err(format!("HTTP request failed with status {}: {}", 
-                    status_u16,
-                        String::from_utf8_lossy(&response.body)))
-                }
-            },
-            Err((code, msg)) => Err(format!("HTTP request failed: {:?} - {}", code, msg))
-        }
     }
     
     // Helper function to deploy a drive canister

@@ -1,6 +1,6 @@
 // src/core/api/factory.rs
 
-use crate::{core::{state::drives::state::state::{DRIVE_ID, RECENT_DEPLOYMENTS, URL_ENDPOINT}, types::UserID}, debug_log, rest::organization::types::{ RedeemSpawnOrgRequestBody, RedeemSpawnOrgResponseData}, LOCAL_DEV_MODE};
+use crate::{core::{state::drives::state::state::{DRIVE_ID, RECENT_DEPLOYMENTS, URL_ENDPOINT}, types::UserID}, debug_log, rest::organization::types::{ RedeemOrgRequestBody, RedeemOrgResponseData}, LOCAL_DEV_MODE};
 use candid::{CandidType, Encode};
 use ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, TransformArgs, TransformContext, TransformFunc

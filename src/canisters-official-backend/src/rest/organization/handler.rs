@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::organization::{fire_organization_webhook, get_active_organization_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, SpawnRedeemCode}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, RedeemSpawnOrgRequestBody, RedeemSpawnOrgResponse, RedeemSpawnOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::organization::{fire_organization_webhook, get_active_organization_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, SpawnRedeemCode}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, RedeemOrgRequestBody, RedeemOrgResponse, RedeemOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
         
     };
     use ic_types::crypto::canister_threshold_sig::PublicKey;
@@ -783,12 +783,12 @@ pub mod drives_handlers {
         }
     }
 
-    pub async fn redeem_spawn_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn redeem_organization_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         
     
         // Parse the request body
         let body = request.body();
-        let request_body: RedeemSpawnOrgRequestBody = match serde_json::from_slice(body) {
+        let request_body: RedeemOrgRequestBody = match serde_json::from_slice(body) {
             Ok(body) => body,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -849,7 +849,7 @@ pub mod drives_handlers {
         let admin_login_password = format!("{}:{}@{}", drive_id, admin_api_key, url_endpoint);
     
         // Create the response data
-        let response_data = RedeemSpawnOrgResponseData {
+        let response_data = RedeemOrgResponseData {
             drive_id,
             endpoint: url_endpoint,
             api_key: admin_api_key,
@@ -866,7 +866,7 @@ pub mod drives_handlers {
         // Encode and return the response
         create_response(
             StatusCode::OK,
-            RedeemSpawnOrgResponse::ok(&response_data).encode()
+            RedeemOrgResponse::ok(&response_data).encode()
         )
     }
 

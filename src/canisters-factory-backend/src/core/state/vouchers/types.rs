@@ -35,7 +35,6 @@ pub struct FactorySpawnHistoryRecord {
     pub voucher_id: VoucherID,
     pub gas_cycles_included: u64,
     pub timestamp_ms: u64,
-    pub admin_login_password: String,
 }
 
 // Define a struct to track deployment history
