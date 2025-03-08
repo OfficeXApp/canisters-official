@@ -30,15 +30,7 @@ pub async fn not_found_handler<'a, 'k, 'v>(
 pub fn init_routes() {
     crate::rest::templates::route::init_routes();
     crate::rest::api_keys::route::init_routes();
-    crate::rest::webhooks::route::init_routes();
-    crate::rest::contacts::route::init_routes();
-    crate::rest::teams::route::init_routes();
-    crate::rest::team_invites::route::init_routes();
-    crate::rest::drives::route::init_routes();
-    crate::rest::organization::route::init_routes();
-    crate::rest::disks::route::init_routes();
-    crate::rest::directory::route::init_routes();
-    crate::rest::permissions::route::init_routes();
+    crate::rest::vouchers::route::init_routes();
 
     debug_log!("Initializing routes...");
 

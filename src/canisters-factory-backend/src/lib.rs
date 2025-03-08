@@ -1,7 +1,7 @@
 // src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse};
-use core::{api::uuid::format_user_id, state::{api_keys::state::state::init_default_admin_apikey, contacts::state::state::init_default_owner_contact, disks::state::state::init_default_disks, drives::state::state::init_self_drive}, types::UserID};
+use core::{api::uuid::format_user_id, state::{api_keys::state::state::init_default_admin_apikey, vouchers::state::state::init_self_factory}, types::UserID};
 use std::{cell::RefCell, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use bip39::{Mnemonic, Language};
@@ -19,9 +19,6 @@ pub static LOCAL_DEV_MODE: bool = true;
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct InitArgs {
     pub owner: String, // Plain string for simplicity, really should be ICPPrincipalString
-    pub nickname: Option<String>,
-    pub note: Option<String>,
-    pub spawn_redeem_code: Option<String>,
 }
 
 // Track if we've already initialized to prevent double initialization
@@ -68,20 +65,13 @@ fn initialize_canister(args: Option<InitArgs>) {
                 let owner_id = format_user_id(&init_args.owner);
                 
                 // Initialize the drive with all parameters
-                init_self_drive(
-                    owner_id,
-                    init_args.nickname,
-                    init_args.spawn_redeem_code,
-                    init_args.note,
+                init_self_factory(
+                    owner_id
                 );
 
                 // Verify the values were set correctly
-                crate::core::state::drives::state::state::OWNER_ID.with(|id| {
+                crate::core::state::vouchers::state::state::OWNER_ID.with(|id| {
                     debug_log!("After init, owner_id is: {}", id.borrow().0);
-                });
-                
-                crate::core::state::drives::state::state::SPAWN_REDEEM_CODE.with(|code| {
-                    debug_log!("After init, spawn_redeem_code is: {}", code.borrow().0);
                 });
             },
             Err(validation_error) => {
@@ -98,8 +88,6 @@ fn initialize_canister(args: Option<InitArgs>) {
     }
     
     init_default_admin_apikey();
-    init_default_owner_contact();
-    init_default_disks();
 }
 
 #[post_upgrade]

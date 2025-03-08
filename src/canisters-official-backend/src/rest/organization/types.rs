@@ -1,11 +1,14 @@
-// src/rest/drives/types.rs
+// src/rest/organization/types.rs
+
+use std::error::Error;
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::{ICPPrincipalString, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
-use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_seed_phrase, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
@@ -247,11 +250,13 @@ pub type TransferOwnershipDriveResponse<'a> = ApiResponse<'a, TransferOwnershipR
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WhoAmIReport {
+    pub nickname: String,
     pub userID: UserID,
     pub driveID: DriveID,
     pub icp_principal: ICPPrincipalString,
     pub evm_public_address: Option<String>,
     pub is_owner: bool,
+    pub drive_nickname: String,
 }
 pub type GetWhoAmIResponse<'a> = ApiResponse<'a, WhoAmIReport>;
 
@@ -287,3 +292,31 @@ pub struct SuperswapUserIDResponseData {
     pub message: String,
 }
 pub type SuperswapUserIDResponse<'a> = ApiResponse<'a, SuperswapUserIDResponseData>;
+
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedeemOrgRequestBody {
+    pub redeem_code: String,
+}
+impl RedeemOrgRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        
+        // validate the redeem_code is a valid redeem code
+        validate_id_string(&self.redeem_code, "redeem_code")?;
+        
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedeemOrgResponseData {
+    pub drive_id: DriveID, // spawned drive id
+    pub endpoint: String, // spawned drive url endpoint
+    pub api_key: String, // admin api key for the spawned drive
+    pub note: String, // note about the spawned drive, particularly info about the factory
+    pub admin_login_password: String, // admin login password for the spawned drive
+}
+pub type RedeemOrgResponse<'a> = ApiResponse<'a, RedeemOrgResponseData>;
+

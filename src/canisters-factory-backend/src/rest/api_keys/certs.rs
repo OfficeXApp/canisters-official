@@ -1,4 +1,4 @@
-// src/rest/organization/certs.rs
+// src/rest/api_keys/certs.rs
 
 
 #[derive(Debug, Clone)]
@@ -7,7 +7,7 @@ struct CertifiedHttpResponse<'a> {
     certification: HttpCertification,
 }
 
-use crate::rest::drives::route::DRIVES_LIST_PATH;
+use crate::rest::api_keys::route::APIKEYS_LIST_PATH;
 
 
 use ic_http_certification::{
@@ -31,15 +31,15 @@ const NOT_FOUND_PATH: &str = "";
 
 
 lazy_static! {
-    pub static ref DRIVES_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(DRIVES_LIST_PATH);
+    pub static ref APIKEYS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(APIKEYS_LIST_PATH);
     static ref NOT_FOUND_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::wildcard(NOT_FOUND_PATH);
 
-    static ref DRIVES_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
+    static ref APIKEYS_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
         .with_request_headers(vec![])
         .with_request_query_parameters(vec![])
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))
         .build();
-    static ref DRIVES_CEL_EXPR: String = DRIVES_CEL_EXPR_DEF.to_string();
+    static ref APIKEYS_CEL_EXPR: String = APIKEYS_CEL_EXPR_DEF.to_string();
 
     static ref NOT_FOUND_CEL_EXPR_DEF: DefaultResponseOnlyCelExpression<'static> = DefaultCelBuilder::response_only_certification()
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))

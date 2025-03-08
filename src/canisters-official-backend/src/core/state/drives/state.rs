@@ -5,6 +5,7 @@ pub mod state {
     use std::cell::Cell;
     use std::cell::RefCell;
     use std::collections::HashMap;
+    use crate::core::api::helpers::get_appropriate_url_endpoint;
     use crate::core::api::replay::diff::update_checksum_for_state_diff;
     use crate::core::api::uuid::format_drive_id;
     use crate::core::api::uuid::generate_unique_id;
@@ -12,12 +13,15 @@ pub mod state {
     use crate::core::state::drives::types::DriveID;
     use crate::core::state::drives::types::DriveRESTUrlEndpoint;
     use crate::core::state::drives::types::ExternalID;
+    use crate::core::state::drives::types::FactorySpawnHistoryRecord;
+    use crate::core::state::drives::types::SpawnRedeemCode;
     use crate::core::state::drives::types::StateChecksum;
     use crate::core::state::drives::types::DriveStateDiffString;
     use crate::core::state::team_invites::types::TeamInviteeID;
     use crate::core::state::webhooks::types::WebhookAltIndexID;
     use crate::core::types::ICPPrincipalString;
     use crate::core::types::IDPrefix;
+    use crate::core::types::PublicKeyEVM;
     use crate::core::types::{UserID,PublicKeyICP};
     use crate::debug_log;
 
@@ -26,6 +30,7 @@ pub mod state {
         pub(crate) static DRIVE_ID: DriveID = format_drive_id(&ic_cdk::api::id().to_text());
         pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
         pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
+        pub(crate) static VERSION: RefCell<String> = RefCell::new("OfficeX.Beta.0.0.1".to_string());
         pub(crate) static DRIVE_STATE_CHECKSUM: RefCell<StateChecksum> = RefCell::new(StateChecksum("genesis".to_string()));
         pub(crate) static DRIVE_STATE_TIMESTAMP_NS: Cell<u64> = Cell::new(ic_cdk::api::time());
         // self info - mutable
@@ -37,12 +42,54 @@ pub mod state {
         pub(crate) static DRIVES_BY_TIME_LIST: RefCell<Vec<DriveID>> = RefCell::new(Vec::new());
         // external id tracking
         pub(crate) static EXTERNAL_ID_MAPPINGS: RefCell<HashMap<ExternalID, Vec<String>>> = RefCell::new(HashMap::new());
+        // factory spawn tracking
+        pub(crate) static RECENT_DEPLOYMENTS: RefCell<Vec<FactorySpawnHistoryRecord>> = RefCell::new(Vec::new());
+        pub(crate) static SPAWN_NOTE: RefCell<String> = RefCell::new("".to_string());
+        pub(crate) static SPAWN_REDEEM_CODE: RefCell<SpawnRedeemCode> = RefCell::new(SpawnRedeemCode("".to_string()));
     }
 
-    pub fn init_self_drive() {
+    pub fn init_self_drive(
+        owner_id: UserID,
+        nickname: Option<String>,
+        spawn_redeem_code: Option<String>,
+        note: Option<String>,
+    ) {
+        debug_log!("Setting owner_id: {}", owner_id.0);
+        OWNER_ID.with(|id| {
+            *id.borrow_mut() = owner_id.clone();
+            debug_log!("Confirmed owner_id set to: {}", id.borrow().0);
+        });
+        
+        // Set spawn redeem code if provided
+        let code = spawn_redeem_code.unwrap_or_else(|| "DEFAULT_SPAWN_REDEEM_CODE".to_string());
+        debug_log!("Setting spawn redeem code to: {}", code);
+        SPAWN_REDEEM_CODE.with(|c| {
+            *c.borrow_mut() = SpawnRedeemCode(code.clone());
+            debug_log!("Confirmed spawn redeem code set to: {}", c.borrow().0);
+        });
+        
+        // Set spawn note if provided
+        let note = note.unwrap_or_else(|| "".to_string());
+        debug_log!("Setting spawn note to: {}", note);
+        SPAWN_NOTE.with(|n| {
+            *n.borrow_mut() = note.clone();
+        });
+
+        // Handle the URL endpoint
+        let endpoint = get_appropriate_url_endpoint();
+        debug_log!("Setting URL endpoint to: {}", endpoint);
+        URL_ENDPOINT.with(|url| {
+            *url.borrow_mut() = DriveRESTUrlEndpoint(endpoint);
+            debug_log!("Confirmed URL endpoint set to: {}", url.borrow().0);
+        });
+        
+        // Use provided nickname or default
+        let drive_name = nickname.unwrap_or_else(|| "Anonymous Org".to_string());
+        debug_log!("Initializing self drive with name: {}", drive_name);
+        
         let self_drive = Drive {
             id: DRIVE_ID.with(|id| id.clone()),
-            name: "Anonymous_Canister".to_string(),
+            name: drive_name,
             public_note: Some("".to_string()),
             private_note: Some("".to_string()),
             icp_principal: ICPPrincipalString(PublicKeyICP(ic_cdk::api::id().to_text())),

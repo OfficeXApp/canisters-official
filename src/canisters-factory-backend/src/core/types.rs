@@ -57,47 +57,19 @@ impl UserID {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum IDPrefix {
-    File,
-    Folder,
-    Drive,
     ApiKey,
-    Disk,
-    Team,
-    Invite,
-    Webhook,
+    Drive,
     User,
-    SystemPermission,
-    DirectoryPermission,
-    PlaceholderPermissionGrantee,
-    DirectoryActionOutcome,
-    PlaceholderTeamInviteeID,
-    ShareTrackID,
-    DriveStateDiffID,
-    TagID,
-    RedeemToken,
+    Voucher,
 }
 
 impl IDPrefix {
     pub fn as_str(&self) -> &'static str {
         match self {
-            IDPrefix::File => "FileID_",
-            IDPrefix::Folder => "FolderID_",
+            IDPrefix::ApiKey => "ApiKey_",
             IDPrefix::Drive => "DriveID_",
-            IDPrefix::ApiKey => "ApiKeyID_",
-            IDPrefix::Disk => "DiskID_",
-            IDPrefix::Team => "TeamID_",
-            IDPrefix::Invite => "InviteID_",
-            IDPrefix::SystemPermission => "SystemPermissionID_",
-            IDPrefix::DirectoryPermission => "DirectoryPermissionID_",
-            IDPrefix::PlaceholderPermissionGrantee => "PlaceholderPermissionGranteeID_",
-            IDPrefix::Webhook => "WebhookID_",
             IDPrefix::User => "UserID_",
-            IDPrefix::DirectoryActionOutcome => "DirectoryActionOutcomeID_",
-            IDPrefix::PlaceholderTeamInviteeID => "PlaceholderTeamInviteeID_",
-            IDPrefix::ShareTrackID => "ShareTrackID_",
-            IDPrefix::DriveStateDiffID => "DriveStateDiffID_",
-            IDPrefix::TagID => "TagID_",
-            IDPrefix::RedeemToken => "RedeemTokenID_",
+            IDPrefix::Voucher => "VoucherID_",
         }
     }
 }

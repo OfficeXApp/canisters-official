@@ -7,14 +7,17 @@
 
 ## Urgent Next
 
-- [🔵] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
-- [🔵] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
+- [🔵] Write code for self factory spawn new organizations
+- [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)
+- [x] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
+- [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
 - [ ] Write all the redux-offline states and actions for webapp
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
 - [ ] Consider whether we change userID to user_id for consistent rest api spec (and force JS/other languages to comply too)
 
 ## Awkward Urgent
 
+- [ ] Fix validate_id_string which accepts an id prefix arg but does nothign with it, and the various implementations of validate_id_string pass in wrong prefix anyways. fix this ai slop!
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
 

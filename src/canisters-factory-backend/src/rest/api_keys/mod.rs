@@ -1,4 +1,4 @@
-// src/rest/organization/mod.rs
+// src/rest/api_keys/mod.rs
 pub mod route;
 pub mod handler;
 pub mod certs;

@@ -3,7 +3,7 @@
 use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
-use crate::core::{state::tags::types::TagStringValue, types::{ICPPrincipalString, PublicKeyICP}};
+use crate::core::{state::tags::types::TagStringValue, types::{ICPPrincipalString, PublicKeyICP, UserID}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -29,6 +29,16 @@ pub struct Drive {
     pub external_payload: Option<ExternalPayload>,
 }   
 
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+pub struct SpawnRedeemCode(pub String);
+
+// Define a struct to track deployment history
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+pub struct FactorySpawnHistoryRecord {
+    pub owner_id: UserID,
+    pub drive_id: DriveID,
+    pub endpoint: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DriveStateDiffID(pub String);
