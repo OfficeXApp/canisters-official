@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use serde_diff::SerdeDiff;
 
 use crate::core::{
-    api::permissions::system::check_system_resource_permissions_tags, state::{
+    api::permissions::system::{check_system_permissions, check_system_resource_permissions_tags}, state::{
         api_keys::types::ApiKeyID,
         contacts::types::Contact,
         directory::types::{FileID, FolderID},
@@ -51,6 +51,7 @@ impl fmt::Display for HexColorString {
 }
 
 // The main Tag type that represents a tag definition
+// We also dont redact tags here, for convinience. if we find this is a security issue, we can redact tags here too
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Tag {
     pub id: TagID,
@@ -65,6 +66,35 @@ pub struct Tag {
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }
+
+impl Tag {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        // let table_permissions = check_system_permissions(
+        //     SystemResourceID::Table(SystemTableEnum::Tags),
+        //     PermissionGranteeID::User(user_id.clone())
+        // );
+        // let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
+        // let permissions = check_system_permissions(
+        //     resource_id,
+        //     PermissionGranteeID::User(user_id.clone())
+        // );
+        // let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+
+        // Filter tags
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 // TagResourceID represents any resource that can be tagged
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]

@@ -7,6 +7,8 @@
 
 ## Urgent Next
 
+- [ ] For every route, apply redaction (as we go along)
+- [ ] Audit types for file/folders, some missing disk_enum, canister_id maybe replace with endpoint_url, etc
 - [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)
 - [x] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
 - [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
@@ -119,3 +121,4 @@
 - [x] Add support for contacts.seed_phrase for employer owned user accounts (employers can just give api_keys to users)
 - [x] Write code for self factory spawn new organizations
 - [x] Setup factory to spawn Drive canisters with owner set
+- [x] Add redaction to all route types

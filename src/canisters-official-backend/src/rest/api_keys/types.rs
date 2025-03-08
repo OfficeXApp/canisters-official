@@ -1,7 +1,7 @@
 // src/rest/api_keys/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID}, types::{IDPrefix, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{api_keys::types::{ApiKey, ApiKeyID}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::{IDPrefix, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyHidden {
@@ -11,6 +11,7 @@ pub struct ApiKeyHidden {
     pub created_at: u64,
     pub expires_at: i64,
     pub is_revoked: bool,
+    pub tags: Vec<TagStringValue>,
 }
 
 impl From<ApiKey> for ApiKeyHidden {
@@ -22,9 +23,41 @@ impl From<ApiKey> for ApiKeyHidden {
             created_at: key.created_at,
             expires_at: key.expires_at,
             is_revoked: key.is_revoked,
+            tags: key.tags,
         }
     }
 }
+
+
+impl ApiKeyHidden {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let is_owned = *user_id != self.user_id;
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Tags),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
+        let permissions = check_system_permissions(
+            resource_id,
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+
+        // Filter tags
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 
 

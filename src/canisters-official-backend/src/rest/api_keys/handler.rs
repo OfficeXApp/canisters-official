@@ -14,9 +14,6 @@ pub mod apikeys_handlers {
         completed: Option<bool>,
     }
 
-    
-
-
     pub async fn get_apikey_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
 
 
@@ -69,9 +66,10 @@ pub mod apikeys_handlers {
                 //         requested_id
                 //     ).to_string())
                 // );
+                let redacted_key = key.clone().redacted(&requester_api_key.user_id);
                 create_response(
                     StatusCode::OK,
-                    GetApiKeyResponse::ok(&key).encode()
+                    GetApiKeyResponse::ok(&redacted_key).encode()
                 )
             },
             None => create_response(
@@ -130,6 +128,7 @@ pub mod apikeys_handlers {
                         .map(|key| ApiKeyHidden::from(key.clone()))
                         .collect()
                 });
+                let redacted_api_keys = api_keys.clone().iter().map(|key| key.redacted(&requester_api_key.user_id)).collect();
 
                 // snapshot_poststate(prestate, Some(
                 //     format!("{}: List API Keys", requester_api_key.user_id).to_string())
@@ -137,7 +136,7 @@ pub mod apikeys_handlers {
 
                 create_response(
                     StatusCode::OK,
-                    ListApiKeysResponse::ok(&api_keys).encode()
+                    ListApiKeysResponse::ok(&redacted_api_keys).encode()
                 )
             },
             None => create_response(
@@ -246,9 +245,11 @@ pub mod apikeys_handlers {
                         ).to_string())
                     );
 
+                    let redacted_key = new_api_key.clone().redacted(&requester_api_key.user_id);
+
                     create_response(
                         StatusCode::OK,
-                        CreateApiKeyResponse::ok(&new_api_key).encode()
+                        CreateApiKeyResponse::ok(&redacted_key).encode()
                     )  
                 },
                 UpsertApiKeyRequestBody::Update(update_req) => {
@@ -330,9 +331,10 @@ pub mod apikeys_handlers {
                                     api_key.id
                                 ).to_string())
                             );
+                            let redacted_key = key.clone().redacted(&requester_api_key.user_id);
                             create_response(
                                 StatusCode::OK,
-                                UpdateApiKeyResponse::ok(&key).encode()
+                                UpdateApiKeyResponse::ok(&redacted_key).encode()
                             )
                         },
                         None => create_response(

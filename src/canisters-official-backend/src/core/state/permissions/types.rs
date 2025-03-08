@@ -6,7 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     state::{
-        directory::types::DriveFullFilePath, drives::types::{ExternalID, ExternalPayload}, tags::types::TagStringValue, teams::types::TeamID
+        directory::types::DriveFullFilePath, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, tags::types::{redact_tag, TagStringValue}, teams::types::TeamID
     },
     types::UserID,
 }, rest::directory::types::DirectoryResourceID};
@@ -77,6 +77,23 @@ pub struct DirectoryPermission {
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
     pub tags: Vec<TagStringValue>,
 }
+
+impl DirectoryPermission {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        // Filter tags
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -188,6 +205,23 @@ pub struct SystemPermission {
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }
+
+impl SystemPermission {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        // Filter tags
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 
 // TagStringValuePrefix definition

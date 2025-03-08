@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::core::{state::{disks::types::{DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, tags::types::TagStringValue}, types::{ICPPrincipalString, UserID}};
+use crate::core::{api::permissions::system::check_system_permissions, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::{ICPPrincipalString, UserID}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -57,6 +57,22 @@ pub struct FolderRecord {
     pub(crate) external_payload: Option<ExternalPayload>,
 }
 
+impl FolderRecord {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        // Filter tags
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
 pub struct FileRecord {
@@ -85,6 +101,23 @@ pub struct FileRecord {
     pub(crate) external_id: Option<ExternalID>,
     pub(crate) external_payload: Option<ExternalPayload>,
 }
+
+impl FileRecord {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        // Filter tags
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 
 

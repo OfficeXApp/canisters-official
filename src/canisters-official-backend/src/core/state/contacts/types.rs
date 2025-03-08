@@ -30,7 +30,7 @@ impl Contact {
         let mut redacted = self.clone();
 
         let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        let is_owned = *user_id != self.id;
+        let is_owned = *user_id == self.id;
         let table_permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Contacts),
             PermissionGranteeID::User(user_id.clone())
