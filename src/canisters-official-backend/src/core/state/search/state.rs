@@ -158,7 +158,7 @@ pub mod state {
                 let search_string = format!(
                     "{}|{}|{}|{}",
                     contact_id.0,
-                    contact.nickname,
+                    contact.name,
                     contact.icp_principal.0.0,
                     contact.evm_public_address
                 );
@@ -570,7 +570,7 @@ pub mod state {
                 
                 CONTACTS_BY_ID_HASHTABLE.with(|contacts| {
                     if let Some(contact) = contacts.borrow().get(user_id) {
-                        title = contact.nickname.clone();
+                        title = contact.name.clone();
                         preview = contact.icp_principal.0.0.clone();
                     }
                 });

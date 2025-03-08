@@ -25,7 +25,9 @@ pub mod state {
 
         let default_contact = Contact {
             id: owner_id.clone(),
-            nickname: "Anonymous Owner".to_string(),
+            name: "Anonymous Owner".to_string(),
+            email: None,
+            webhook_url: None,
             public_note: "Default system owner".to_string(),
             private_note: None,
             evm_public_address: "".to_string(), // Empty string as placeholder

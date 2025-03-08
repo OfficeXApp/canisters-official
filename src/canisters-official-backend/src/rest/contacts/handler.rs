@@ -67,10 +67,10 @@ pub mod contacts_handlers {
                 //         contact.id
                 //     ).to_string())
                 // );
-                
+                let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
                 create_response(
                     StatusCode::OK,
-                    GetContactResponse::ok(&contact).encode()
+                    GetContactResponse::ok(&redacted_contact).encode()
                 )
             },
             None => create_response(
@@ -254,7 +254,10 @@ pub mod contacts_handlers {
     
         // Create response
         let response_data = ListContactsResponseData {
-            items: filtered_contacts.clone(),
+            // filtered, redacted contacts
+            items: filtered_contacts.clone().into_iter().map(|contact| {
+                contact.redacted(&requester_api_key.user_id)
+            }).collect(),
             page_size: filtered_contacts.len(),
             total: total_count,
             cursor_up,
@@ -338,8 +341,8 @@ pub mod contacts_handlers {
                     let prestate = snapshot_prestate();
 
                     // Update fields - ignoring alt_index and event as they cannot be modified
-                    if let Some(nickname) = update_req.nickname {
-                        contact.nickname = nickname;
+                    if let Some(name) = update_req.name {
+                        contact.name = name;
                     }
                     if let Some(public_note) = update_req.public_note {
                         contact.public_note = public_note;
@@ -348,6 +351,12 @@ pub mod contacts_handlers {
                         if is_owner {
                             contact.private_note = Some(private_note);
                         }
+                    }
+                    if let Some(email) = update_req.email {
+                        contact.email = Some(email);
+                    }
+                    if let Some(webhook_url) = update_req.webhook_url {
+                        contact.webhook_url = Some(webhook_url);
                     }
                     if let Some(evm_public_address) = update_req.evm_public_address {
                         contact.evm_public_address = evm_public_address;
@@ -387,10 +396,11 @@ pub mod contacts_handlers {
                             contact.id
                         ).to_string())
                     );
+                    let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
 
                     create_response(
                         StatusCode::OK,
-                        UpdateContactResponse::ok(&contact).encode()
+                        UpdateContactResponse::ok(&redacted_contact).encode()
                     )
                 },
                 UpsertContactRequestBody::Create(create_req) => {
@@ -414,7 +424,9 @@ pub mod contacts_handlers {
                     let contact_id = format_user_id(&create_req.icp_principal.clone());
                     let contact = Contact {
                         id: contact_id.clone(),
-                        nickname: create_req.nickname,
+                        name: create_req.name,
+                        email: create_req.email,
+                        webhook_url: create_req.webhook_url,
                         public_note: create_req.public_note.unwrap_or_default(),
                         private_note: Some(create_req.private_note.unwrap_or_default()),
                         evm_public_address: create_req.evm_public_address.unwrap_or_default(),
@@ -463,9 +475,11 @@ pub mod contacts_handlers {
                         ).to_string())
                     );
 
+                    let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
+
                     create_response(
                         StatusCode::OK,
-                        CreateContactResponse::ok(&contact).encode()
+                        CreateContactResponse::ok(&redacted_contact).encode()
                     )
                 }
             }
@@ -674,9 +688,11 @@ pub mod contacts_handlers {
                     ).to_string())
                 );
 
+                let redacted_contact = current_contact.clone().redacted(&requester_api_key.user_id);
+
                 create_response(
                     StatusCode::OK,
-                    UpdateContactResponse::ok(&current_contact).encode()
+                    UpdateContactResponse::ok(&redacted_contact).encode()
                 )
             },
             Err(err) => {

@@ -255,7 +255,7 @@ impl RedeemGiftcardData {
             }
         };
 
-        // Validate nickname if provided
+        // Validate title if provided
         if let Some(organization_name) = &self.organization_name {
             if organization_name.trim().is_empty() {
                 return Err(ValidationError {
@@ -290,7 +290,7 @@ pub type RedeemGiftcardResponse<'a> = ApiResponse<'a, RedeemGiftcardResult>;
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct SpawnInitArgs {
     pub owner: String, // Plain string for simplicity, really should be ICPPrincipalString
-    pub nickname: Option<String>,
+    pub title: Option<String>,
     pub note: Option<String>,
     pub spawn_redeem_code: Option<String>,
 }

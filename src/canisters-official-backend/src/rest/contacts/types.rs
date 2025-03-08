@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -97,8 +97,10 @@ impl UpsertContactRequestBody {
 #[serde(deny_unknown_fields)]
 pub struct CreateContactRequestBody {
     pub action: UpsertActionTypeEnum,
-    pub nickname: String,
+    pub name: String,
     pub icp_principal: String,
+    pub email: Option<String>,
+    pub webhook_url: Option<String>,
     pub evm_public_address: Option<String>,
     pub seed_phrase: Option<String>,
     pub public_note: Option<String>,
@@ -129,8 +131,18 @@ impl CreateContactRequestBody {
             }
         }
 
-        // Validate nickname (up to 256 chars)
-        validate_id_string(&self.nickname, "nickname")?;
+        // Validate name (up to 256 chars)
+        validate_id_string(&self.name, "name")?;
+
+        // Validate email if provided
+        if let Some(email) = &self.email {
+            validate_email(email)?;
+        }
+
+        // Validate webhook_url if provided
+        if let Some(webhook_url) = &self.webhook_url {
+            validate_url(webhook_url, "webhook_url")?;
+        }
 
         // Validate EVM address if provided
         if let Some(evm_address) = &self.evm_public_address {
@@ -214,7 +226,11 @@ pub struct UpdateContactRequestBody {
     pub action: UpsertActionTypeEnum,
     pub id: UserID,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub nickname: Option<String>,
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -237,8 +253,8 @@ impl UpdateContactRequestBody {
         validate_user_id(&self.id.0)?;
 
         // Validate nickname if provided
-        if let Some(nickname) = &self.nickname {
-            validate_id_string(nickname, "nickname")?;
+        if let Some(name) = &self.name {
+            validate_id_string(name, "name")?;
         }
 
         // Validate public_note if provided
@@ -259,6 +275,16 @@ impl UpdateContactRequestBody {
                     message: "Private note must be 8,192 characters or less".to_string(),
                 });
             }
+        }
+
+        // Validate email if provided
+        if let Some(email) = &self.email {
+            validate_email(email)?;
+        }
+
+        // Validate webhook_url if provided
+        if let Some(webhook_url) = &self.webhook_url {
+            validate_url(webhook_url, "webhook_url")?;
         }
 
         // Validate EVM address if provided
