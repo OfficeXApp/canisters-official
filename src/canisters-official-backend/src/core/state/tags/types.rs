@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::SerdeDiff;
 
-use crate::core::{
+use crate::{core::{
     api::permissions::system::{check_system_permissions, check_system_resource_permissions_tags}, state::{
         api_keys::types::ApiKeyID,
         contacts::types::Contact,
@@ -16,7 +16,7 @@ use crate::core::{
         teams::types::TeamID,
         webhooks::types::WebhookID
     }, types::{IDPrefix, UserID}
-};
+}, rest::contacts::types::ContactTeamInvitePreview};
 
 use super::state::TAGS_BY_VALUE_HASHTABLE;
 
@@ -277,5 +277,51 @@ pub fn redact_tag(tag_value: TagStringValue, user_id: UserID) -> Option<TagStrin
     }
     
     // Tag not found, so we can't provide it
+    None
+}
+
+pub fn redact_team_previews(team_preview: ContactTeamInvitePreview, user_id: UserID) -> Option<ContactTeamInvitePreview> {
+    // Get the team ID from the preview
+    let team_id = &team_preview.team_id;
+    
+    // Check if the user is the owner
+    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+    
+    if is_owner {
+        // Owner sees everything, no redaction needed
+        return Some(team_preview);
+    }
+    
+    // Check permissions for this specific team
+    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Team(team_id.to_string()));
+    let permissions = check_system_permissions(
+        resource_id,
+        PermissionGranteeID::User(user_id.clone())
+    );
+    
+    // Check permissions for the Teams table
+    let table_permissions = check_system_permissions(
+        SystemResourceID::Table(SystemTableEnum::Teams),
+        PermissionGranteeID::User(user_id.clone())
+    );
+
+    let team = match crate::core::state::teams::state::state::TEAMS_BY_ID_HASHTABLE
+        .with(|teams| teams.borrow().get(team_id).cloned()) {
+        Some(team) => team,
+        None => return None
+    };
+    
+    // Check if user is a member of this team
+    let is_team_member = crate::core::state::teams::state::state::is_user_on_local_team(&user_id, &team);
+    
+    // If the user has View permission either at the table level or for this specific team
+    // or if the user is a member of the team
+    if permissions.contains(&SystemPermissionType::View) || 
+       table_permissions.contains(&SystemPermissionType::View) ||
+       is_team_member {
+        return Some(team_preview);
+    }
+    
+    // If we get here, the user doesn't have permission to see this team
     None
 }

@@ -2,7 +2,72 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, redact_team_previews}, team_invites::types::{TeamInviteID, TeamInviteeID}, teams::types::TeamID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContactFE {
+    #[serde(flatten)] // this lets us "extend" the Contact struct
+    pub contact: Contact,
+    pub team_previews: Vec<ContactTeamInvitePreview>,
+}
+impl ContactFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let is_owned = *user_id == self.contact.id;
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Contacts),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.contact.id.clone().to_string()));
+        let permissions = check_system_permissions(
+            resource_id,
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+
+        // Most sensitive
+        if !is_owner {
+            redacted.contact.seed_phrase = None;
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                redacted.contact.redeem_token = None;
+                redacted.contact.private_note = None;
+
+                // 3rd most sensitive
+                if !is_owned {
+                    redacted.contact.webhook_url = None;
+                    redacted.contact.from_placeholder_user_id = None;
+                }
+            }
+        }
+        // Filter tags
+        redacted.contact.tags = match is_owner {
+            true => redacted.contact.tags,
+            false => redacted.contact.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        // Filter team previews
+        redacted.team_previews = redacted.team_previews.iter()
+            .filter_map(|team_preview| redact_team_previews(team_preview.clone(), user_id.clone()))
+            .collect();
+        redacted
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContactTeamInvitePreview {
+    pub team_id: TeamID,
+    pub invite_id: TeamInviteID,
+    pub is_admin: bool,
+    pub team_name: String,
+    pub team_avatar: Option<String>,
+}
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,14 +130,14 @@ impl ListContactsRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListContactsResponseData {
-    pub items: Vec<Contact>,
+    pub items: Vec<ContactFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
 }
 
-pub type GetContactResponse<'a> = ApiResponse<'a, Contact>;
+pub type GetContactResponse<'a> = ApiResponse<'a, ContactFE>;
 
 pub type ListContactsResponse<'a> = ApiResponse<'a, ListContactsResponseData>;
 
@@ -420,7 +485,7 @@ impl UpdateContactRequestBody {
 }
 
 
-pub type CreateContactResponse<'a> = ApiResponse<'a, Contact>;
+pub type CreateContactResponse<'a> = ApiResponse<'a, ContactFE>;
 
 
 
@@ -430,7 +495,7 @@ pub struct UpdateContactRequest {
     pub completed: Option<bool>,
 }
 
-pub type UpdateContactResponse<'a> = ApiResponse<'a, Contact>;
+pub type UpdateContactResponse<'a> = ApiResponse<'a, ContactFE>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteContactRequest {

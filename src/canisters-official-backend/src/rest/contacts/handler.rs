@@ -67,10 +67,10 @@ pub mod contacts_handlers {
                 //         contact.id
                 //     ).to_string())
                 // );
-                let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
+                let cast_fe_contact = contact.clone().cast_fe(&requester_api_key.user_id);
                 create_response(
                     StatusCode::OK,
-                    GetContactResponse::ok(&redacted_contact).encode()
+                    GetContactResponse::ok(&cast_fe_contact).encode()
                 )
             },
             None => create_response(
@@ -254,9 +254,9 @@ pub mod contacts_handlers {
     
         // Create response
         let response_data = ListContactsResponseData {
-            // filtered, redacted contacts
+            // filtered, cast_fe contacts
             items: filtered_contacts.clone().into_iter().map(|contact| {
-                contact.redacted(&requester_api_key.user_id)
+                contact.cast_fe(&requester_api_key.user_id)
             }).collect(),
             page_size: filtered_contacts.len(),
             total: total_count,
@@ -399,11 +399,11 @@ pub mod contacts_handlers {
                             contact.id
                         ).to_string())
                     );
-                    let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
+                    let cast_fe_contact = contact.clone().cast_fe(&requester_api_key.user_id);
 
                     create_response(
                         StatusCode::OK,
-                        UpdateContactResponse::ok(&redacted_contact).encode()
+                        UpdateContactResponse::ok(&cast_fe_contact).encode()
                     )
                 },
                 UpsertContactRequestBody::Create(create_req) => {
@@ -481,11 +481,11 @@ pub mod contacts_handlers {
                         ).to_string())
                     );
 
-                    let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
+                    let cast_fe_contact = contact.clone().cast_fe(&requester_api_key.user_id);
 
                     create_response(
                         StatusCode::OK,
-                        CreateContactResponse::ok(&redacted_contact).encode()
+                        CreateContactResponse::ok(&cast_fe_contact).encode()
                     )
                 }
             }
@@ -694,11 +694,11 @@ pub mod contacts_handlers {
                     ).to_string())
                 );
 
-                let redacted_contact = current_contact.clone().redacted(&requester_api_key.user_id);
+                let cast_fe_contact = current_contact.clone().cast_fe(&requester_api_key.user_id);
 
                 create_response(
                     StatusCode::OK,
-                    UpdateContactResponse::ok(&redacted_contact).encode()
+                    UpdateContactResponse::ok(&cast_fe_contact).encode()
                 )
             },
             Err(err) => {

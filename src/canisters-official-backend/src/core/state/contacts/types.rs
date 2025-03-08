@@ -2,7 +2,7 @@
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, teams::types::TeamID}, types::{ICPPrincipalString, PublicKeyICP, UserID}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::TeamInviteeID, teams::types::TeamID}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::contacts::types::{ContactFE, ContactTeamInvitePreview}};
 
 
 // frontend ui
@@ -34,46 +34,55 @@ pub struct Contact {
 }
 
 impl Contact {
-    pub fn redacted(&self, user_id: &UserID) -> Self {
-        let mut redacted = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        let is_owned = *user_id == self.id;
-        let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Contacts),
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
-        let permissions = check_system_permissions(
-            resource_id,
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
-
-        // Most sensitive
-        if !is_owner {
-            redacted.seed_phrase = None;
-
-            // 2nd most sensitive
-            if !has_edit_permissions {
-                redacted.redeem_token = None;
-                redacted.private_note = None;
-
-                // 3rd most sensitive
-                if !is_owned {
-                    redacted.webhook_url = None;
-                    redacted.from_placeholder_user_id = None;
+    pub fn cast_fe(&self, user_id: &UserID) -> ContactFE {
+        let contact = self.clone();
+        // Collect team invites for this user
+        let team_previews: Vec<ContactTeamInvitePreview> = contact.teams.iter()
+            .filter_map(|team_id| {
+                // Get the team data
+                let team_opt = crate::core::state::teams::state::state::TEAMS_BY_ID_HASHTABLE
+                    .with(|teams| teams.borrow().get(team_id).cloned());
+                
+                if let Some(team) = team_opt {
+                    // Find user's invite in this team
+                    let invite_id_opt = team.member_invites.iter()
+                        .find(|invite_id| {
+                            crate::core::state::team_invites::state::state::INVITES_BY_ID_HASHTABLE
+                                .with(|invites| {
+                                    if let Some(invite) = invites.borrow().get(invite_id) {
+                                        invite.invitee_id == TeamInviteeID::User(self.id.clone())
+                                    } else {
+                                        false
+                                    }
+                                })
+                        }).cloned();
+                    
+                    if let Some(invite_id) = invite_id_opt {
+                        // Check if user is an admin
+                        let is_admin = crate::core::state::teams::state::state::is_team_admin(&self.id, team_id);
+                        
+                        Some(ContactTeamInvitePreview {
+                            team_id: team_id.clone(),
+                            invite_id,
+                            is_admin,
+                            team_name: team.name,
+                            team_avatar: team.avatar,
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 }
-            }
-        }
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
-            .collect()
-        };
+            })
+            .collect();
         
-        redacted
+        ContactFE {
+            contact,
+            team_previews,
+        }.redacted(user_id)
     }
+
+    
 }
