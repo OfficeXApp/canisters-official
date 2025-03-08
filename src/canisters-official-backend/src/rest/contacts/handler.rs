@@ -355,6 +355,9 @@ pub mod contacts_handlers {
                     if let Some(email) = update_req.email {
                         contact.email = Some(email);
                     }
+                    if let Some(avatar) = update_req.avatar {
+                        contact.avatar = Some(avatar);
+                    }
                     if let Some(webhook_url) = update_req.webhook_url {
                         contact.webhook_url = Some(webhook_url);
                     }
@@ -426,6 +429,7 @@ pub mod contacts_handlers {
                         id: contact_id.clone(),
                         name: create_req.name,
                         email: create_req.email,
+                        avatar: create_req.avatar,
                         webhook_url: create_req.webhook_url,
                         public_note: create_req.public_note.unwrap_or_default(),
                         private_note: Some(create_req.private_note.unwrap_or_default()),
@@ -451,6 +455,8 @@ pub mod contacts_handlers {
                                 None
                             }
                         }),
+                        created_at: ic_cdk::api::time() / 1_000_000,
+                        last_online_ms: 0,
                     };
 
                     CONTACTS_BY_ID_HASHTABLE.with(|store| {

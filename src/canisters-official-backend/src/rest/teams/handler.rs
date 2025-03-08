@@ -169,6 +169,7 @@ pub mod teams_handlers {
                     let new_team = Team {
                         id: team_id.clone(),
                         name: create_req.name,
+                        avatar: create_req.avatar,
                         owner: requester_api_key.user_id.clone(),
                         private_note: create_req.private_note,
                         public_note: create_req.public_note,
@@ -243,6 +244,9 @@ pub mod teams_handlers {
                     // Update fields
                     if let Some(name) = update_req.name {
                         team.name = name;
+                    }
+                    if let Some(avatar) = update_req.avatar {
+                        team.avatar = Some(avatar);
                     }
                     if let Some(public_note) = update_req.public_note {
                         team.public_note = Some(public_note);

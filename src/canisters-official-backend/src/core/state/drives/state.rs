@@ -98,6 +98,7 @@ pub mod state {
             tags: vec![],
             external_id: None,
             external_payload: None,
+            created_at: ic_cdk::api::time() / 1_000_000,
         };
 
         DRIVES_BY_ID_HASHTABLE.with(|map| {

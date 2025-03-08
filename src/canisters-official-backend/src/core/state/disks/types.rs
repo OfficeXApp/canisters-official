@@ -23,6 +23,7 @@ pub struct Disk {
     pub public_note: Option<String>,
     pub auth_json: Option<String>,
     pub tags: Vec<TagStringValue>,
+    pub created_at: u64,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }

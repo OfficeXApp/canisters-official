@@ -305,6 +305,7 @@ pub mod webhooks_handlers {
                         active: true,
                         filters: create_req.filters.unwrap_or_default(),
                         tags: vec![],
+                        created_at: ic_cdk::api::time() / 1_000_000,
                         external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
                         external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };

@@ -70,6 +70,7 @@ pub struct Webhook {
     pub tags: Vec<TagStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
+    pub created_at: u64,
 }
 
 impl Webhook {

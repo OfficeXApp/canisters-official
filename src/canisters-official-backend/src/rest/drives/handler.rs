@@ -387,6 +387,7 @@ pub mod drives_handlers {
                         ),
                         last_indexed_ms: None,
                         tags: vec![],
+                        created_at: ic_cdk::api::time() / 1_000_000,
                         external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
                         external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
                     };

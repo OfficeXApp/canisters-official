@@ -99,6 +99,7 @@ pub struct CreateContactRequestBody {
     pub action: UpsertActionTypeEnum,
     pub name: String,
     pub icp_principal: String,
+    pub avatar: Option<String>,
     pub email: Option<String>,
     pub webhook_url: Option<String>,
     pub evm_public_address: Option<String>,
@@ -137,6 +138,11 @@ impl CreateContactRequestBody {
         // Validate email if provided
         if let Some(email) = &self.email {
             validate_email(email)?;
+        }
+
+        // Validate avatar if provided
+        if let Some(avatar) = &self.avatar {
+            validate_url(avatar, "avatar")?;
         }
 
         // Validate webhook_url if provided
@@ -228,6 +234,8 @@ pub struct UpdateContactRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub webhook_url: Option<String>,
@@ -280,6 +288,11 @@ impl UpdateContactRequestBody {
         // Validate email if provided
         if let Some(email) = &self.email {
             validate_email(email)?;
+        }
+
+        // Validate avatar if provided
+        if let Some(avatar) = &self.avatar {
+            validate_url(avatar, "avatar")?;
         }
 
         // Validate webhook_url if provided

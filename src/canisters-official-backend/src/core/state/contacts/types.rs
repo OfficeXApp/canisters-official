@@ -5,10 +5,16 @@ use serde_diff::{SerdeDiff};
 use crate::core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, teams::types::TeamID}, types::{ICPPrincipalString, PublicKeyICP, UserID}};
 
 
+// frontend ui
+// row colums: avatar, name, icp, last_online_ms
+// popover: pub/priv note, email, evm/icp, tags
+// filters: search by name/icp/email, filter by tags, teams, sort by last_online_ms, created_at
+
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Contact {
     pub id: UserID,
     pub name: String,
+    pub avatar: Option<String>,
     pub email: Option<String>,
     pub webhook_url: Option<String>, // acts as an alternative to email, separate from main webhook system
     pub public_note: String,
@@ -23,6 +29,8 @@ pub struct Contact {
     pub external_payload: Option<ExternalPayload>,
     pub from_placeholder_user_id: Option<UserID>,
     pub redeem_token: Option<String>,
+    pub created_at: u64,
+    pub last_online_ms: u64,
 }
 
 impl Contact {
