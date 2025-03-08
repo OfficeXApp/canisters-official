@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::{core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum},  vouchers::{state::state::{GLOBAL_UUID_NONCE}, types::{DriveID}}}, types::{IDPrefix, UserID}}, debug_log};
+use crate::{core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum},  giftcards::{state::state::{GLOBAL_UUID_NONCE}, types::{DriveID}}}, types::{IDPrefix, UserID}}, debug_log};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};

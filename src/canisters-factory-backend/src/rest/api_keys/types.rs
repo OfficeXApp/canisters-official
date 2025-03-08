@@ -4,11 +4,11 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, types::{IDPrefix, PublicKeyICP, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
-use crate::core::state::vouchers::types::DriveID;
-use crate::core::state::vouchers::types::DriveRESTUrlEndpoint;
-use crate::core::state::vouchers::types::FactorySpawnHistoryRecord;
-use crate::core::state::vouchers::types::VoucherID;
-use crate::core::state::vouchers::types::Voucher;
+use crate::core::state::giftcards::types::DriveID;
+use crate::core::state::giftcards::types::DriveRESTUrlEndpoint;
+use crate::core::state::giftcards::types::FactorySpawnHistoryRecord;
+use crate::core::state::giftcards::types::GiftcardID;
+use crate::core::state::giftcards::types::Giftcard;
 
 
 
@@ -186,12 +186,12 @@ pub struct StateSnapshot {
     pub users_apikeys: HashMap<UserID, Vec<ApiKeyID>>,
     pub apikeys_history: Vec<ApiKeyID>,
     
-    // Voucher state
-    pub deployments_by_voucher_id: HashMap<VoucherID, FactorySpawnHistoryRecord>,
-    pub historical_vouchers: Vec<VoucherID>,
-    pub drive_to_voucher_hashtable: HashMap<DriveID, VoucherID>,
-    pub user_to_vouchers_hashtable: HashMap<UserID, Vec<VoucherID>>,
-    pub voucher_by_id: HashMap<VoucherID, Voucher>,
+    // Giftcard state
+    pub deployments_by_giftcard_id: HashMap<GiftcardID, FactorySpawnHistoryRecord>,
+    pub historical_giftcards: Vec<GiftcardID>,
+    pub drive_to_giftcard_hashtable: HashMap<DriveID, GiftcardID>,
+    pub user_to_giftcards_hashtable: HashMap<UserID, Vec<GiftcardID>>,
+    pub giftcard_by_id: HashMap<GiftcardID, Giftcard>,
     
     // Timestamp
     pub timestamp_ns: u64,
