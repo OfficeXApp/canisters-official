@@ -6,7 +6,8 @@ use crate::rest::types::RouteHandler;
 
 pub const WEBHOOKS_GET_PATH: &str =     genroute!("/webhooks/get/{webhook_id}");
 pub const WEBHOOKS_LIST_PATH: &str =    genroute!("/webhooks/list");
-pub const WEBHOOKS_UPSERT_PATH: &str =  genroute!("/webhooks/upsert");
+pub const WEBHOOKS_CREATE_PATH: &str =  genroute!("/webhooks/create");
+pub const WEBHOOKS_UPDATE_PATH: &str =  genroute!("/webhooks/update");
 pub const WEBHOOKS_DELETE_PATH: &str =  genroute!("/webhooks/delete");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
@@ -25,8 +26,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            WEBHOOKS_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::webhooks::handler::webhooks_handlers::upsert_webhook_handler(req, params)),
+            WEBHOOKS_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::webhooks::handler::webhooks_handlers::create_webhook_handler(req, params)),
+        ),
+        (
+            "POST",
+            WEBHOOKS_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::webhooks::handler::webhooks_handlers::update_webhook_handler(req, params)),
         ),
         (
             "POST",

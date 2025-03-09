@@ -32,7 +32,7 @@ pub mod tags_handlers {
         rest::{
             auth::{authenticate_request, create_auth_error_response}, 
             tags::types::{
-                CreateTagRequestBody, CreateTagResponse, DeleteTagRequest, DeleteTagResponse, DeletedTagData, ErrorResponse, GetTagResponse, ListTagsRequestBody, ListTagsResponse, ListTagsResponseData, TagOperationResponse, TagResourceRequest, TagResourceResponse, UpdateTagRequestBody, UpdateTagResponse, UpsertTagRequestBody
+                CreateTagRequestBody, CreateTagResponse, DeleteTagRequest, DeleteTagResponse, DeletedTagData, ErrorResponse, GetTagResponse, ListTagsRequestBody, ListTagsResponse, ListTagsResponseData, TagOperationResponse, TagResourceRequest, TagResourceResponse, UpdateTagRequestBody, UpdateTagResponse
             }, 
             webhooks::types::{SortDirection, TagWebhookData}
         }
@@ -83,6 +83,8 @@ pub mod tags_handlers {
                 })
             }
         };
+
+        
 
         match tag {
             Some(tag) => {
@@ -311,7 +313,7 @@ pub mod tags_handlers {
         )
     }
 
-    pub async fn upsert_tag_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_tag_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -322,231 +324,240 @@ pub mod tags_handlers {
 
         // Parse request body
         let body: &[u8] = request.body();
+        let create_req = serde_json::from_slice::<CreateTagRequestBody>(body).unwrap();
+        if let Err(validation_error) = create_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
 
-        if let Ok(req) = serde_json::from_slice::<UpsertTagRequestBody>(body) {
-
-            if let Err(validation_error) = req.validate_body() {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
-                );
+        // Check create permission if not owner
+        if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Tags),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !table_permissions.contains(&SystemPermissionType::Create) {
+                return create_auth_error_response();
             }
-
-            match req {
-                UpsertTagRequestBody::Update(update_req) => {
-                    let tag_id = TagID(update_req.id.clone());
-                    
-                    // Get existing tag
-                    let mut tag = match TAGS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&tag_id).cloned()) {
-                        Some(tag) => tag,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
-
-                    // Check update permission if not owner
-                    if !is_owner {
-
-                        let table_permissions = check_system_resource_permissions_tags(
-                            &SystemResourceID::Table(SystemTableEnum::Tags),
-                            &PermissionGranteeID::User(requester_api_key.user_id.clone()),
-                            &tag.value.to_string()
-                        );
-
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag_id.to_string()));
-                        let permissions = check_system_resource_permissions_tags(
-                            &resource_id,
-                            &PermissionGranteeID::User(requester_api_key.user_id.clone()),
-                            &tag.value.to_string()
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
-                            return create_auth_error_response();
-                        }
-                    }
-                    
-                    let prestate = snapshot_prestate();
-
-                    
-                    if let Some(description) = update_req.description {
-                        tag.description = Some(description);
-                    }
-                    
-                    if let Some(color_str) = update_req.color {
-                        match validate_color(&color_str) {
-                            Ok(color) => {
-                                tag.color = color;
-                            },
-                            Err(err) => return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(400, err).encode()
-                            ),
-                        }
-                    }
-                    
-                    // Update last modified timestamp
-                    tag.last_updated_at = ic_cdk::api::time() / 1_000_000;
-                    
-
-                    // Update fields
-                    if let Some(value_str) = update_req.value {
-                        match validate_tag_value(&value_str) {
-                            Ok(new_value) => {
-                                
-                                // Update all resources using the tag using our helper function
-                                if let Err(err) = update_tag_string_value(&tag_id,  &new_value) {
-                                    return create_response(
-                                        StatusCode::INTERNAL_SERVER_ERROR,
-                                        ErrorResponse::err(500, err).encode()
-                                    );
-                                }
-                                
-                                // Update the tag with new value
-                                tag.value = new_value.clone();
-                            },
-                            Err(err) => return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(400, err).encode()
-                            ),
-                        }
-                    }
-
-                    if let Some(external_id) = update_req.external_id.clone() {
-                        let old_external_id = tag.external_id.clone();
-                        let new_external_id = Some(ExternalID(external_id.clone()));
-                        tag.external_id = new_external_id.clone();
-                        update_external_id_mapping(
-                            old_external_id,
-                            new_external_id,
-                            Some(tag.id.to_string())
-                        );
-                    }
-                    if let Some(external_payload) = update_req.external_payload.clone() {
-                        tag.external_payload = Some(ExternalPayload(external_payload));
-                    }
-
-                    TAGS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(tag_id.clone(), tag.clone());
-                    });
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Update Tag {}", 
-                            requester_api_key.user_id,
-                            tag_id.clone()
-                        ).to_string())
-                    );
-
-                    create_response(
-                        StatusCode::OK,
-                        UpdateTagResponse::ok(&tag).encode()
-                    )
-                },
-                UpsertTagRequestBody::Create(create_req) => {
-                    // Check create permission if not owner
-                    if !is_owner {
-                        let table_permissions = check_system_permissions(
-                            SystemResourceID::Table(SystemTableEnum::Tags),
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !table_permissions.contains(&SystemPermissionType::Create) {
-                            return create_auth_error_response();
-                        }
-                    }
-                    
-                    // Validate tag value
-                    let tag_value = match validate_tag_value(&create_req.value) {
-                        Ok(value) => value,
-                        Err(err) => return create_response(
-                            StatusCode::BAD_REQUEST,
-                            ErrorResponse::err(400, err).encode()
-                        ),
-                    };
-                    
-                    // Check if tag already exists
-                    let tag_exists = TAGS_BY_VALUE_HASHTABLE.with(|store| {
-                        store.borrow().contains_key(&tag_value)
-                    });
-                    
-                    if tag_exists {
-                        return create_response(
-                            StatusCode::BAD_REQUEST,
-                            ErrorResponse::err(400, format!("Tag '{}' already exists", create_req.value)).encode()
-                        );
-                    }
-                    
-                    // Validate color if provided
-                    let color = if let Some(color_str) = create_req.color {
-                        match validate_color(&color_str) {
-                            Ok(color) => color,
-                            Err(err) => return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(400, err).encode()
-                            ),
-                        }
-                    } else {
-                        HexColorString("#3B82F6".to_string()) // Default blue color
-                    };
-                    
-                    let prestate = snapshot_prestate();
-
-                    
-                    // Create new tag
-                    let tag_id = TagID(generate_unique_id(IDPrefix::TagID, ""));
-                    let current_time = ic_cdk::api::time() / 1_000_000;
-                    let tag = Tag {
-                        id: tag_id.clone(),
-                        value: tag_value.clone(),
-                        description: create_req.description,
-                        color,
-                        created_by: requester_api_key.user_id.clone(),
-                        created_at: current_time,
-                        last_updated_at: current_time,
-                        resources: vec![],
-                        tags: vec![],
-                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
-                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
-                    };
-
-                    // Store the tag
-                    TAGS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(tag_id.clone(), tag.clone());
-                    });
-
-                    // Store the tag value mapping
-                    TAGS_BY_VALUE_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(tag_value, tag_id.clone());
-                    });
-
-                    TAGS_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(tag_id.clone());
-                    });
-
-                    update_external_id_mapping(None, tag.external_id.clone(), Some(tag_id.clone().to_string()));
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Create Tag {}", 
-                            requester_api_key.user_id,
-                            tag_id.clone()
-                        ).to_string())
-                    );
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateTagResponse::ok(&tag).encode()
-                    )
-                }
+        }
+        
+        // Validate tag value
+        let tag_value = match validate_tag_value(&create_req.value) {
+            Ok(value) => value,
+            Err(err) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, err).encode()
+            ),
+        };
+        
+        // Check if tag already exists
+        let tag_exists = TAGS_BY_VALUE_HASHTABLE.with(|store| {
+            store.borrow().contains_key(&tag_value)
+        });
+        
+        if tag_exists {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Tag '{}' already exists", create_req.value)).encode()
+            );
+        }
+        
+        // Validate color if provided
+        let color = if let Some(color_str) = create_req.color {
+            match validate_color(&color_str) {
+                Ok(color) => color,
+                Err(err) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, err).encode()
+                ),
             }
         } else {
-            create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            )
-        }
+            HexColorString("#3B82F6".to_string()) // Default blue color
+        };
+        
+        let prestate = snapshot_prestate();
+
+        
+        // Create new tag
+        let tag_id = TagID(generate_unique_id(IDPrefix::TagID, ""));
+        let current_time = ic_cdk::api::time() / 1_000_000;
+        let tag = Tag {
+            id: tag_id.clone(),
+            value: tag_value.clone(),
+            description: create_req.description,
+            color,
+            created_by: requester_api_key.user_id.clone(),
+            created_at: current_time,
+            last_updated_at: current_time,
+            resources: vec![],
+            tags: vec![],
+            external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+            external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+        };
+
+        // Store the tag
+        TAGS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(tag_id.clone(), tag.clone());
+        });
+
+        // Store the tag value mapping
+        TAGS_BY_VALUE_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(tag_value, tag_id.clone());
+        });
+
+        TAGS_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().push(tag_id.clone());
+        });
+
+        update_external_id_mapping(None, tag.external_id.clone(), Some(tag_id.clone().to_string()));
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Tag {}", 
+                requester_api_key.user_id,
+                tag_id.clone()
+            ).to_string())
+        );
+
+        create_response(
+            StatusCode::OK,
+            CreateTagResponse::ok(&tag).encode()
+        )
     }
+
+    pub async fn update_tag_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+
+        // Parse request body
+        let body: &[u8] = request.body();
+        let update_req = serde_json::from_slice::<UpdateTagRequestBody>(body).unwrap();
+
+        if let Err(validation_error) = update_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("{}: {}", validation_error.field, validation_error.message)).encode()
+            );
+        }
+
+        let tag_id = TagID(update_req.id.clone());
+                    
+        // Get existing tag
+        let mut tag = match TAGS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&tag_id).cloned()) {
+            Some(tag) => tag,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+
+        // Check update permission if not owner
+        if !is_owner {
+
+            let table_permissions = check_system_resource_permissions_tags(
+                &SystemResourceID::Table(SystemTableEnum::Tags),
+                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                &tag.value.to_string()
+            );
+
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag_id.to_string()));
+            let permissions = check_system_resource_permissions_tags(
+                &resource_id,
+                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                &tag.value.to_string()
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
+                return create_auth_error_response();
+            }
+        }
+        
+        let prestate = snapshot_prestate();
+
+        
+        if let Some(description) = update_req.description {
+            tag.description = Some(description);
+        }
+        
+        if let Some(color_str) = update_req.color {
+            match validate_color(&color_str) {
+                Ok(color) => {
+                    tag.color = color;
+                },
+                Err(err) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, err).encode()
+                ),
+            }
+        }
+        
+        // Update last modified timestamp
+        tag.last_updated_at = ic_cdk::api::time() / 1_000_000;
+        
+
+        // Update fields
+        if let Some(value_str) = update_req.value {
+            match validate_tag_value(&value_str) {
+                Ok(new_value) => {
+                    
+                    // Update all resources using the tag using our helper function
+                    if let Err(err) = update_tag_string_value(&tag_id,  &new_value) {
+                        return create_response(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            ErrorResponse::err(500, err).encode()
+                        );
+                    }
+                    
+                    // Update the tag with new value
+                    tag.value = new_value.clone();
+                },
+                Err(err) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, err).encode()
+                ),
+            }
+        }
+
+        if let Some(external_id) = update_req.external_id.clone() {
+            let old_external_id = tag.external_id.clone();
+            let new_external_id = Some(ExternalID(external_id.clone()));
+            tag.external_id = new_external_id.clone();
+            update_external_id_mapping(
+                old_external_id,
+                new_external_id,
+                Some(tag.id.to_string())
+            );
+        }
+        if let Some(external_payload) = update_req.external_payload.clone() {
+            tag.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        TAGS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(tag_id.clone(), tag.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Tag {}", 
+                requester_api_key.user_id,
+                tag_id.clone()
+            ).to_string())
+        );
+
+        create_response(
+            StatusCode::OK,
+            UpdateTagResponse::ok(&tag).encode()
+        )
+    }
+
 
     pub async fn delete_tag_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
@@ -717,7 +728,7 @@ pub mod tags_handlers {
                 &tag_value.to_string()
             );
             
-            if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
+            if !permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
                 return create_auth_error_response();
             }
         }

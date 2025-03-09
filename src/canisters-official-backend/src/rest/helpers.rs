@@ -2,7 +2,7 @@
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use serde_json::json;
 use std::borrow::Cow;
-use url::form_urlencoded;
+use url::{form_urlencoded, Url};
 
 use crate::core::{state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE, types::UserID};
 

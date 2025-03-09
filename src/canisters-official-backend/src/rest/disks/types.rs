@@ -77,26 +77,8 @@ pub struct ListDisksResponseData {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertDiskRequestBody {
-    Create(CreateDiskRequestBody),
-    Update(UpdateDiskRequestBody),
-}
-
-impl UpsertDiskRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertDiskRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertDiskRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
-
-
-#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateDiskRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub disk_type: DiskTypeEnum,
     pub public_note: Option<String>,
@@ -156,7 +138,6 @@ impl CreateDiskRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateDiskRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

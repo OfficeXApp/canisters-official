@@ -69,7 +69,7 @@ pub mod templates_handlers {
         create_response(StatusCode::OK, body)
     }
 
-    pub async fn upsert_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(request.body());
 
         let id = TemplateID(generate_unique_id(IDPrefix::Disk, ""));
@@ -88,6 +88,27 @@ pub mod templates_handlers {
         let body = CreateTemplateResponse::ok(&template_item).encode();
         create_response(StatusCode::CREATED, body)
     }
+
+    pub async fn update_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let req_body: CreateTemplateRequest = json_decode(request.body());
+
+        let id = TemplateID(generate_unique_id(IDPrefix::Disk, ""));
+
+        let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
+            let template_item = TemplateItem {
+                id: id.clone(),
+                title: req_body.title,
+                completed: false,
+            };
+
+            items.insert(id.clone(), template_item.clone());
+            template_item
+        });
+
+        let body = CreateTemplateResponse::ok(&template_item).encode();
+        create_response(StatusCode::CREATED, body)
+    }
+
 
     pub async fn delete_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let req_body: DeleteTemplateRequest = json_decode(request.body());

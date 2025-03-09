@@ -7,6 +7,8 @@
 
 ## Urgent Next
 
+- [ ] Refactor upsert to seperate out into /create and /edit for simplicity (upsert was a mistake)
+- [ ] Augment the contact cast_fe with permissions array for that requester user
 - [ ] For every route, apply cast_fe & redaction (as we go along, use Contacts as reference)
 - [ ] Audit types for file/folders, some missing disk_enum, canister_id maybe replace with endpoint_url, etc
 - [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)

@@ -80,26 +80,10 @@ pub struct ListTagsResponseData {
     pub cursor_down: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertTagRequestBody {
-    Create(CreateTagRequestBody),
-    Update(UpdateTagRequestBody),
-}
-
-impl UpsertTagRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertTagRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertTagRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTagRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub value: String,
     pub description: Option<String>,
     pub color: Option<String>,
@@ -152,7 +136,6 @@ impl CreateTagRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateTagRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,

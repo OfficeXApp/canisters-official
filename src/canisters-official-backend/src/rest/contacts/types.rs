@@ -11,6 +11,7 @@ pub struct ContactFE {
     #[serde(flatten)] // this lets us "extend" the Contact struct
     pub contact: Contact,
     pub team_previews: Vec<ContactTeamInvitePreview>,
+    pub permission_previews: Vec<SystemPermissionType>,
 }
 impl ContactFE {
     pub fn redacted(&self, user_id: &UserID) -> Self {
@@ -27,7 +28,7 @@ impl ContactFE {
             resource_id,
             PermissionGranteeID::User(user_id.clone())
         );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
 
         // Most sensitive
         if !is_owner {
@@ -40,7 +41,7 @@ impl ContactFE {
 
                 // 3rd most sensitive
                 if !is_owned {
-                    redacted.contact.webhook_url = None;
+                    redacted.contact.notifications_url = None;
                     redacted.contact.from_placeholder_user_id = None;
                 }
             }
@@ -53,9 +54,13 @@ impl ContactFE {
             .collect()
         };
         // Filter team previews
-        redacted.team_previews = redacted.team_previews.iter()
+        let redacted_team_previews: Vec<ContactTeamInvitePreview> = redacted.team_previews.iter()
             .filter_map(|team_preview| redact_team_previews(team_preview.clone(), user_id.clone()))
             .collect();
+        redacted.team_previews = redacted_team_previews;
+        // this code is kinda redundant, but it's here for clarity
+        redacted.permission_previews = redacted.permission_previews;
+            
         redacted
     }
 }
@@ -143,30 +148,13 @@ pub type ListContactsResponse<'a> = ApiResponse<'a, ListContactsResponseData>;
 
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertContactRequestBody {
-    Create(CreateContactRequestBody),
-    Update(UpdateContactRequestBody),
-}
-
-impl UpsertContactRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertContactRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertContactRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateContactRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub icp_principal: String,
     pub avatar: Option<String>,
     pub email: Option<String>,
-    pub webhook_url: Option<String>,
+    pub notifications_url: Option<String>,
     pub evm_public_address: Option<String>,
     pub seed_phrase: Option<String>,
     pub public_note: Option<String>,
@@ -210,9 +198,9 @@ impl CreateContactRequestBody {
             validate_url(avatar, "avatar")?;
         }
 
-        // Validate webhook_url if provided
-        if let Some(webhook_url) = &self.webhook_url {
-            validate_url(webhook_url, "webhook_url")?;
+        // Validate notifications_url if provided
+        if let Some(notifications_url) = &self.notifications_url {
+            validate_url(notifications_url, "notifications_url")?;
         }
 
         // Validate EVM address if provided
@@ -294,7 +282,6 @@ impl CreateContactRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateContactRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: UserID,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -303,7 +290,7 @@ pub struct UpdateContactRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub webhook_url: Option<String>,
+    pub notifications_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -360,9 +347,9 @@ impl UpdateContactRequestBody {
             validate_url(avatar, "avatar")?;
         }
 
-        // Validate webhook_url if provided
-        if let Some(webhook_url) = &self.webhook_url {
-            validate_url(webhook_url, "webhook_url")?;
+        // Validate notifications_url if provided
+        if let Some(notifications_url) = &self.notifications_url {
+            validate_url(notifications_url, "notifications_url")?;
         }
 
         // Validate EVM address if provided

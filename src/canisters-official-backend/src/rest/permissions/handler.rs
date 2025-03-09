@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpsertPermissionsRequestBody, UpsertPermissionsResponseData, UpsertSystemPermissionsRequestBody, UpsertSystemPermissionsResponseData}},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -165,7 +165,7 @@ pub mod permissions_handlers {
         )
     }
 
-    pub async fn upsert_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -174,7 +174,7 @@ pub mod permissions_handlers {
     
         // 2. Parse request body
         let body: &[u8] = request.body();
-        let upsert_request = match serde_json::from_slice::<UpsertPermissionsRequestBody>(body) {
+        let upsert_request = match serde_json::from_slice::<CreateDirectoryPermissionsRequestBody>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -272,108 +272,218 @@ pub mod permissions_handlers {
         let prestate = snapshot_prestate();
     
         // 7. Handle update vs create based on ID presence
-        if let Some(id) = upsert_request.id {
-            // UPDATE case
-            let mut existing_permission = match DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
-                permissions.borrow().get(&id).cloned()
-            ) {
-                Some(permission) => permission,
-                None => return create_response(
-                    StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "Permission not found".to_string()).encode()
-                ),
-            };
-    
-            // Update modifiable fields
-            existing_permission.permission_types = allowed_permission_types
-                                                        .into_iter()
-                                                        .collect::<HashSet<_>>()
-                                                        .into_iter()
-                                                        .collect();
-            existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
-            existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
-            existing_permission.inheritable = upsert_request.inheritable.unwrap_or(true);
-            existing_permission.note = upsert_request.note.unwrap_or_default();
-            existing_permission.last_modified_at = current_time;
-    
-            // Update state
-            DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-                permissions.borrow_mut().insert(id.clone(), existing_permission.clone());
-            });
+        
+        // CREATE case
+        let permission_id = DirectoryPermissionID(generate_unique_id(IDPrefix::DirectoryPermission, ""));
+        
+        let new_permission = DirectoryPermission {
+            id: permission_id.clone(),
+            resource_id: resource_id.clone(),
+            resource_path: DriveFullFilePath(resource_id.to_string()),
+            granted_to: grantee_id.clone(),
+            granted_by: requester_api_key.user_id.clone(),
+            permission_types: allowed_permission_types.into_iter().collect(),
+            begin_date_ms: upsert_request.begin_date_ms.unwrap_or(0),
+            expiry_date_ms: upsert_request.expiry_date_ms.unwrap_or(-1),
+            inheritable: upsert_request.inheritable.unwrap_or(true),
+            note: upsert_request.note.unwrap_or_default(),
+            created_at: current_time,
+            last_modified_at: current_time,
+            from_placeholder_grantee: None,
+            tags: vec![],
+        };
 
-            snapshot_poststate(prestate, Some(
-                format!(
-                    "{}: Update Directory Permission {}", 
-                    requester_api_key.user_id,
-                    id.0
-                ).to_string()
-            ));
-    
-            create_response(
-                StatusCode::OK,
-                serde_json::to_vec(&UpsertPermissionsResponseData {
-                    permission: existing_permission,
-                }).expect("Failed to serialize response")
-            )
-        } else {
-            // CREATE case
-            let permission_id = DirectoryPermissionID(generate_unique_id(IDPrefix::DirectoryPermission, ""));
-            
-            let new_permission = DirectoryPermission {
-                id: permission_id.clone(),
-                resource_id: resource_id.clone(),
-                resource_path: DriveFullFilePath(resource_id.to_string()),
-                granted_to: grantee_id.clone(),
-                granted_by: requester_api_key.user_id.clone(),
-                permission_types: allowed_permission_types.into_iter().collect(),
-                begin_date_ms: upsert_request.begin_date_ms.unwrap_or(0),
-                expiry_date_ms: upsert_request.expiry_date_ms.unwrap_or(-1),
-                inheritable: upsert_request.inheritable.unwrap_or(true),
-                note: upsert_request.note.unwrap_or_default(),
-                created_at: current_time,
-                last_modified_at: current_time,
-                from_placeholder_grantee: None,
-                tags: vec![],
-            };
-    
-            // Update all state indices
-            DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-                permissions.borrow_mut().insert(permission_id.clone(), new_permission.clone());
-            });
-    
-            DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-                permissions_by_resource.borrow_mut()
-                    .entry(resource_id)
-                    .or_insert_with(Vec::new)
-                    .push(permission_id.clone());
-            });
-    
-            DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-                grantee_permissions.borrow_mut()
-                    .entry(grantee_id)
-                    .or_insert_with(Vec::new)
-                    .push(permission_id.clone());
-            });
-    
-            DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-                permissions_by_time.borrow_mut().push(permission_id.clone());
-            });
+        // Update all state indices
+        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+            permissions.borrow_mut().insert(permission_id.clone(), new_permission.clone());
+        });
 
-            snapshot_poststate(prestate, Some(
-                format!(
-                    "{}: Create Directory Permission {}", 
-                    requester_api_key.user_id,
-                    permission_id.clone()
-                ).to_string()
-            ));
+        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+            permissions_by_resource.borrow_mut()
+                .entry(resource_id)
+                .or_insert_with(Vec::new)
+                .push(permission_id.clone());
+        });
+
+        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
+            grantee_permissions.borrow_mut()
+                .entry(grantee_id)
+                .or_insert_with(Vec::new)
+                .push(permission_id.clone());
+        });
+
+        DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
+            permissions_by_time.borrow_mut().push(permission_id.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Directory Permission {}", 
+                requester_api_key.user_id,
+                permission_id.clone()
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&CreateDirectoryPermissionsResponseData {
+                permission: new_permission,
+            }).expect("Failed to serialize response")
+        )
+        
+    }
+
+    pub async fn update_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
     
-            create_response(
-                StatusCode::OK,
-                serde_json::to_vec(&UpsertPermissionsResponseData {
-                    permission: new_permission,
-                }).expect("Failed to serialize response")
-            )
+        // 2. Parse request body
+        let body: &[u8] = request.body();
+        let upsert_request = match serde_json::from_slice::<UpdateDirectoryPermissionsRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+
+        if let Err(e) = upsert_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
         }
+    
+        // 3. Parse and validate resource ID
+        let resource_id = match parse_directory_resource_id(&upsert_request.resource_id.to_string()) {
+            Ok(id) => id,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
+            ),
+        };
+    
+        // 4. Parse and validate grantee ID if provided (not required for deferred links)
+        let grantee_id = if let Some(grantee) = upsert_request.granted_to {
+            match parse_permission_grantee_id(&grantee.to_string()) {
+                Ok(id) => id,
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid grantee ID format".to_string()).encode()
+                ),
+            }
+        } else {
+            // Create a new deferred link ID for sharing
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
+                generate_unique_id(IDPrefix::PlaceholderPermissionGrantee, "")
+            ))
+        };
+    
+        // 5. Check if resource exists
+        let resource_exists = match &resource_id {
+            DirectoryResourceID::File(file_id) => file_uuid_to_metadata.contains_key(file_id),
+            DirectoryResourceID::Folder(folder_id) => folder_uuid_to_metadata.contains_key(folder_id),
+        };
+    
+        if !resource_exists {
+            return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Resource not found".to_string()).encode()
+            );
+        }
+    
+        // 6. Check authorization
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        let mut allowed_permission_types = if is_owner {
+            // Owner can grant any permission
+            upsert_request.permission_types.clone()
+        } else {
+            // Get requester's permissions on the resource and its parents
+            let resources_to_check = get_inherited_resources_list(resource_id.clone());
+            let mut requester_permissions = Vec::new();
+            for resource_id in resources_to_check.iter() {
+                let permissions = check_directory_permissions(
+                    resource_id.clone(),
+                    PermissionGranteeID::User(requester_api_key.user_id.clone())
+                ).await;
+                requester_permissions.extend(permissions);
+            }
+    
+            let has_manage = requester_permissions.contains(&DirectoryPermissionType::Manage);
+            let has_invite = requester_permissions.contains(&DirectoryPermissionType::Invite);
+    
+            if !has_manage && !has_invite {
+                return create_response(
+                    StatusCode::FORBIDDEN,
+                    ErrorResponse::err(403, "Not authorized to modify permissions".to_string()).encode()
+                );
+            }
+    
+            if has_manage {
+                // Can grant any permission if they have manage rights
+                upsert_request.permission_types.clone()
+            } else {
+                // Only include permissions they themselves have
+                upsert_request.permission_types.iter()
+                    .filter(|&perm| requester_permissions.contains(perm))
+                    .cloned()
+                    .collect()
+            }
+        };
+    
+        let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
+
+        let prestate = snapshot_prestate();
+    
+        // 7. Handle update vs create based on ID presence
+        // UPDATE case
+        let id = upsert_request.id;
+        let mut existing_permission = match DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
+            permissions.borrow().get(&id).cloned()
+        ) {
+            Some(permission) => permission,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Permission not found".to_string()).encode()
+            ),
+        };
+
+        // Update modifiable fields
+        existing_permission.permission_types = allowed_permission_types
+                                                    .into_iter()
+                                                    .collect::<HashSet<_>>()
+                                                    .into_iter()
+                                                    .collect();
+        existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
+        existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
+        existing_permission.inheritable = upsert_request.inheritable.unwrap_or(true);
+        existing_permission.note = upsert_request.note.unwrap_or_default();
+        existing_permission.last_modified_at = current_time;
+
+        // Update state
+        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+            permissions.borrow_mut().insert(id.clone(), existing_permission.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Directory Permission {}", 
+                requester_api_key.user_id,
+                id.0
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&UpdateDirectoryPermissionsResponseData {
+                permission: existing_permission,
+            }).expect("Failed to serialize response")
+        )
+        
     }
 
     pub async fn delete_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
@@ -659,7 +769,7 @@ pub mod permissions_handlers {
         }
     }
   
-    pub async fn upsert_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -668,7 +778,155 @@ pub mod permissions_handlers {
     
         // 2. Parse request body
         let body: &[u8] = request.body();
-        let upsert_request = match serde_json::from_slice::<UpsertSystemPermissionsRequestBody>(body) {
+        let upsert_request = match serde_json::from_slice::<CreateSystemPermissionsRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+
+        if let Err(e) = upsert_request.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, e.message).encode()
+            );
+        }
+    
+        // 3. Parse resource ID string into SystemResourceID
+        let resource_id = match upsert_request.resource_id.split_once('_') {
+            Some(("Table", table_name)) => {
+                match table_name {
+                    "drives" => SystemResourceID::Table(SystemTableEnum::Drives),
+                    "disks" => SystemResourceID::Table(SystemTableEnum::Disks),
+                    "contacts" => SystemResourceID::Table(SystemTableEnum::Contacts),
+                    "teams" => SystemResourceID::Table(SystemTableEnum::Teams),
+                    "api_keys" => SystemResourceID::Table(SystemTableEnum::Api_Keys),
+                    "permissions" => SystemResourceID::Table(SystemTableEnum::Permissions),
+                    _ => return create_response(
+                        StatusCode::BAD_REQUEST,
+                        ErrorResponse::err(400, "Invalid table name".to_string()).encode()
+                    ),
+                }
+            },
+            Some(_) => SystemResourceID::Record(SystemRecordIDEnum::Unknown(upsert_request.resource_id.clone())),
+            None => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
+            ),
+        };
+    
+        // 4. Parse and validate grantee ID if provided (not required for deferred links)
+        let grantee_id = if let Some(grantee) = upsert_request.granted_to {
+            match parse_permission_grantee_id(&grantee) {
+                Ok(id) => id,
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid grantee ID format".to_string()).encode()
+                ),
+            }
+        } else {
+            // Create a new deferred link ID for sharing
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
+                generate_unique_id(IDPrefix::PlaceholderPermissionGrantee, "")
+            ))
+        };
+    
+        // 5. Check authorization
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+    
+        let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
+    
+        
+        // CREATE case
+        let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Create, is_owner);
+        if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) &&!has_table_permission {
+            return create_response(
+                StatusCode::FORBIDDEN,
+                ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
+            );
+        }
+
+        let prestate = snapshot_prestate();
+
+
+        let permission_id = SystemPermissionID(generate_unique_id(IDPrefix::SystemPermission, ""));
+        
+        let new_permission = SystemPermission {
+            id: permission_id.clone(),
+            resource_id: resource_id.clone(),
+            granted_to: grantee_id.clone(),
+            granted_by: requester_api_key.user_id.clone(),
+            permission_types: upsert_request.permission_types.into_iter().collect(),
+            begin_date_ms: upsert_request.begin_date_ms.unwrap_or(0),
+            expiry_date_ms: upsert_request.expiry_date_ms.unwrap_or(-1),
+            note: upsert_request.note.unwrap_or_default(),
+            created_at: current_time,
+            last_modified_at: current_time,
+            from_placeholder_grantee: None,
+            tags: vec![],
+            metadata: upsert_request.metadata,
+            external_id: Some(ExternalID(upsert_request.external_id.unwrap_or("".to_string()))),
+            external_payload: Some(ExternalPayload(upsert_request.external_payload.unwrap_or("".to_string()))),
+        };
+
+        // Update all state indices
+        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+            permissions.borrow_mut().insert(permission_id.clone(), new_permission.clone());
+        });
+
+        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+            permissions_by_resource.borrow_mut()
+                .entry(resource_id)
+                .or_insert_with(Vec::new)
+                .push(permission_id.clone());
+        });
+
+        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
+            grantee_permissions.borrow_mut()
+                .entry(grantee_id)
+                .or_insert_with(Vec::new)
+                .push(permission_id.clone());
+        });
+
+        SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
+            permissions_by_time.borrow_mut().push(permission_id.clone());
+        });
+
+        update_external_id_mapping(
+            None,
+            Some(new_permission.external_id.clone().unwrap()),
+            Some(new_permission.id.clone().to_string()),
+        );
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create System Permission {}", 
+                requester_api_key.user_id,
+                permission_id.clone()
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&CreateSystemPermissionsResponseData {
+                permission: new_permission,
+            }).expect("Failed to serialize response")
+        )
+        
+    }
+
+    pub async fn update_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // 2. Parse request body
+        let body: &[u8] = request.body();
+        let upsert_request = match serde_json::from_slice::<UpdateSystemPermissionsRequestBody>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -729,154 +987,76 @@ pub mod permissions_handlers {
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
     
         // 6. Handle update vs create based on ID presence
-        if let Some(id) = upsert_request.id {
-
-            // UPDATE case
-            let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Update, is_owner);
-            if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) &&!has_table_permission {
-                return create_response(
-                    StatusCode::FORBIDDEN,
-                    ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
-                );
-            }
-
-            let mut existing_permission = match SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
-                permissions.borrow().get(&id).cloned()
-            ) {
-                Some(permission) => permission,
-                None => return create_response(
-                    StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "Permission not found".to_string()).encode()
-                ),
-            };
-
-            let prestate = snapshot_prestate();
-    
-            // Update modifiable fields
-            existing_permission.permission_types = upsert_request.permission_types
-                                                        .into_iter()
-                                                        .collect::<HashSet<_>>()
-                                                        .into_iter()
-                                                        .collect();
-            existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
-            existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
-            existing_permission.note = upsert_request.note.unwrap_or_default();
-            existing_permission.last_modified_at = current_time;
-
-            if upsert_request.metadata.is_some() {
-                existing_permission.metadata = upsert_request.metadata;
-            }
-
-            if let Some(external_id) = upsert_request.external_id.clone() {
-                let old_external_id = existing_permission.external_id.clone();
-                let new_external_id = Some(ExternalID(external_id.clone()));
-                existing_permission.external_id = new_external_id.clone();
-                update_external_id_mapping(
-                    old_external_id,
-                    new_external_id,
-                    Some(existing_permission.id.to_string())
-                );
-            }
-            if let Some(external_payload) = upsert_request.external_payload.clone() {
-                existing_permission.external_payload = Some(ExternalPayload(external_payload));
-            }
-    
-            // Update state
-            SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-                permissions.borrow_mut().insert(id.clone(), existing_permission.clone());
-            });
-
-            snapshot_poststate(prestate, Some(
-                format!(
-                    "{}: Update System Permission {}", 
-                    requester_api_key.user_id,
-                    id.0
-                ).to_string()
-            ));
-    
-            create_response(
-                StatusCode::OK,
-                serde_json::to_vec(&UpsertSystemPermissionsResponseData {
-                    permission: existing_permission,
-                }).expect("Failed to serialize response")
-            )
-        } else {
-            // CREATE case
-            let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Create, is_owner);
-            if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) &&!has_table_permission {
-                return create_response(
-                    StatusCode::FORBIDDEN,
-                    ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
-                );
-            }
-
-            let prestate = snapshot_prestate();
-
-
-            let permission_id = SystemPermissionID(generate_unique_id(IDPrefix::SystemPermission, ""));
-            
-            let new_permission = SystemPermission {
-                id: permission_id.clone(),
-                resource_id: resource_id.clone(),
-                granted_to: grantee_id.clone(),
-                granted_by: requester_api_key.user_id.clone(),
-                permission_types: upsert_request.permission_types.into_iter().collect(),
-                begin_date_ms: upsert_request.begin_date_ms.unwrap_or(0),
-                expiry_date_ms: upsert_request.expiry_date_ms.unwrap_or(-1),
-                note: upsert_request.note.unwrap_or_default(),
-                created_at: current_time,
-                last_modified_at: current_time,
-                from_placeholder_grantee: None,
-                tags: vec![],
-                metadata: upsert_request.metadata,
-                external_id: Some(ExternalID(upsert_request.external_id.unwrap_or("".to_string()))),
-                external_payload: Some(ExternalPayload(upsert_request.external_payload.unwrap_or("".to_string()))),
-            };
-    
-            // Update all state indices
-            SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-                permissions.borrow_mut().insert(permission_id.clone(), new_permission.clone());
-            });
-    
-            SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-                permissions_by_resource.borrow_mut()
-                    .entry(resource_id)
-                    .or_insert_with(Vec::new)
-                    .push(permission_id.clone());
-            });
-    
-            SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-                grantee_permissions.borrow_mut()
-                    .entry(grantee_id)
-                    .or_insert_with(Vec::new)
-                    .push(permission_id.clone());
-            });
-    
-            SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-                permissions_by_time.borrow_mut().push(permission_id.clone());
-            });
-
-            update_external_id_mapping(
-                None,
-                Some(new_permission.external_id.clone().unwrap()),
-                Some(new_permission.id.clone().to_string()),
+        // UPDATE case
+        let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Edit, is_owner);
+        if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) &&!has_table_permission {
+            return create_response(
+                StatusCode::FORBIDDEN,
+                ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
             );
-
-            snapshot_poststate(prestate, Some(
-                format!(
-                    "{}: Create System Permission {}", 
-                    requester_api_key.user_id,
-                    permission_id.clone()
-                ).to_string()
-            ));
-    
-            create_response(
-                StatusCode::OK,
-                serde_json::to_vec(&UpsertSystemPermissionsResponseData {
-                    permission: new_permission,
-                }).expect("Failed to serialize response")
-            )
         }
+        let id = upsert_request.id;
+        let mut existing_permission = match SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
+            permissions.borrow().get(&id).cloned()
+        ) {
+            Some(permission) => permission,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Permission not found".to_string()).encode()
+            ),
+        };
+
+        let prestate = snapshot_prestate();
+
+        // Update modifiable fields
+        existing_permission.permission_types = upsert_request.permission_types
+                                                    .into_iter()
+                                                    .collect::<HashSet<_>>()
+                                                    .into_iter()
+                                                    .collect();
+        existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
+        existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
+        existing_permission.note = upsert_request.note.unwrap_or_default();
+        existing_permission.last_modified_at = current_time;
+
+        if upsert_request.metadata.is_some() {
+            existing_permission.metadata = upsert_request.metadata;
+        }
+
+        if let Some(external_id) = upsert_request.external_id.clone() {
+            let old_external_id = existing_permission.external_id.clone();
+            let new_external_id = Some(ExternalID(external_id.clone()));
+            existing_permission.external_id = new_external_id.clone();
+            update_external_id_mapping(
+                old_external_id,
+                new_external_id,
+                Some(existing_permission.id.to_string())
+            );
+        }
+        if let Some(external_payload) = upsert_request.external_payload.clone() {
+            existing_permission.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        // Update state
+        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+            permissions.borrow_mut().insert(id.clone(), existing_permission.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update System Permission {}", 
+                requester_api_key.user_id,
+                id.0
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            serde_json::to_vec(&UpdateSystemPermissionsResponseData {
+                permission: existing_permission,
+            }).expect("Failed to serialize response")
+        )
+    
     }
 
     pub async fn delete_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
@@ -1122,7 +1302,6 @@ pub mod permissions_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-        
         // 1. Parse request body
         let body: &[u8] = request.body();
         let redeem_request = match serde_json::from_slice::<RedeemSystemPermissionRequest>(body) {
@@ -1132,7 +1311,7 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+        
         if let Err(e) = redeem_request.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,

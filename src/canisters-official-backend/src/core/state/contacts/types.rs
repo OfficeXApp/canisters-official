@@ -16,8 +16,8 @@ pub struct Contact {
     pub name: String,
     pub avatar: Option<String>,
     pub email: Option<String>,
-    pub webhook_url: Option<String>, // acts as an alternative to email, separate from main webhook system
-    pub public_note: String,
+    pub notifications_url: Option<String>, // acts as an alternative to email, separate from main webhook system
+    pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub evm_public_address: String,
     pub icp_principal: ICPPrincipalString,
@@ -78,9 +78,26 @@ impl Contact {
             })
             .collect();
         
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::User(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Contacts),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
         ContactFE {
             contact,
             team_previews,
+            permission_previews
         }.redacted(user_id)
     }
 

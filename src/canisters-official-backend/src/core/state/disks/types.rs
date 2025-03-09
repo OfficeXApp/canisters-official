@@ -43,7 +43,7 @@ impl Disk {
             resource_id,
             PermissionGranteeID::User(user_id.clone())
         );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
 
         // Most sensitive
         if !is_owner {

@@ -5,7 +5,8 @@ use crate::rest::types::RouteHandler;
 
 pub const CONTACTS_GET_PATH: &str =     genroute!("/contacts/get/{contact_id}");
 pub const CONTACTS_LIST_PATH: &str =    genroute!("/contacts/list");
-pub const CONTACTS_UPSERT_PATH: &str =  genroute!("/contacts/upsert");
+pub const CONTACTS_CREATE_PATH: &str =  genroute!("/contacts/create");
+pub const CONTACTS_UPDATE_PATH: &str =  genroute!("/contacts/update");
 pub const CONTACTS_DELETE_PATH: &str =  genroute!("/contacts/delete");
 pub const CONTACTS_REDEEM_PATH: &str =  genroute!("/contacts/redeem");
 
@@ -25,8 +26,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            CONTACTS_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::upsert_contact_handler(req, params)),
+            CONTACTS_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::create_contact_handler(req, params)),
+        ),
+        (
+            "POST",
+            CONTACTS_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::contacts::handler::contacts_handlers::update_contact_handler(req, params)),
         ),
         (
             "POST",

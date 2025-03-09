@@ -5,7 +5,8 @@ use crate::rest::types::RouteHandler;
 
 pub const DISKS_GET_PATH: &str =        genroute!("/disks/get/{disk_id}");
 pub const DISKS_LIST_PATH: &str =       genroute!("/disks/list");
-pub const DISKS_UPSERT_PATH: &str =     genroute!("/disks/upsert");
+pub const DISKS_CREATE_PATH: &str =     genroute!("/disks/create");
+pub const DISKS_UPDATE_PATH: &str =     genroute!("/disks/update");
 pub const DISKS_DELETE_PATH: &str =     genroute!("/disks/delete");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
@@ -24,8 +25,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            DISKS_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::disks::handler::disks_handlers::upsert_disk_handler(req, params)),
+            DISKS_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::disks::handler::disks_handlers::create_disk_handler(req, params)),
+        ),
+        (
+            "POST",
+            DISKS_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::disks::handler::disks_handlers::update_disk_handler(req, params)),
         ),
         (
             "POST",

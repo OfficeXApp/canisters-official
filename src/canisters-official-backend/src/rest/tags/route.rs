@@ -6,7 +6,8 @@ use crate::rest::types::RouteHandler;
 
 pub const TAGS_GET_PATH: &str =         genroute!("/tags/get/{id}");
 pub const TAGS_LIST_PATH: &str =        genroute!("/tags/list");
-pub const TAGS_UPSERT_PATH: &str =      genroute!("/tags/upsert");
+pub const TAGS_CREATE_PATH: &str =      genroute!("/tags/create");
+pub const TAGS_UPDATE_PATH: &str =      genroute!("/tags/update");
 pub const TAGS_DELETE_PATH: &str =      genroute!("/tags/delete");
 pub const TAGS_RESOURCE_PATH: &str =    genroute!("/tags/pin");
 
@@ -26,8 +27,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            TAGS_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::tags::handler::tags_handlers::upsert_tag_handler(req, params)),
+            TAGS_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::tags::handler::tags_handlers::create_tag_handler(req, params)),
+        ),
+        (
+            "POST",
+            TAGS_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::tags::handler::tags_handlers::update_tag_handler(req, params)),
         ),
         (
             "POST",

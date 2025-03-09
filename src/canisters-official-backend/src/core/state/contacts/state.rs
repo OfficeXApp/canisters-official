@@ -28,8 +28,8 @@ pub mod state {
             name: "Anonymous Owner".to_string(),
             avatar: None,
             email: None,
-            webhook_url: None,
-            public_note: "Default system owner".to_string(),
+            notifications_url: None,
+            public_note: Some("Default system owner".to_string()),
             private_note: None,
             evm_public_address: "".to_string(), // Empty string as placeholder
             icp_principal: default_icp_principal.clone(),

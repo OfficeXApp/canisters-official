@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::state::permissions::types::*;
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::core::state::permissions::types::PermissionMetadata;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
 
 // Response type included in FileRecord/FolderRecord
 #[derive(Debug, Clone, Serialize)]
@@ -13,11 +13,9 @@ pub struct ResourcePermissionInfo {
     pub can_share: bool,
 }
 
-// Upsert Permissions
+// Create Permissions
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpsertPermissionsRequestBody {
-    pub action: UpsertActionTypeEnum,
-    pub id: Option<DirectoryPermissionID>,
+pub struct CreateDirectoryPermissionsRequestBody {
     pub resource_id: String,
     pub granted_to: Option<String>,
     pub permission_types: Vec<DirectoryPermissionType>,
@@ -30,7 +28,7 @@ pub struct UpsertPermissionsRequestBody {
     pub external_payload: Option<String>,
 }
 
-impl UpsertPermissionsRequestBody {
+impl CreateDirectoryPermissionsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate resource_id
         validate_id_string(&self.resource_id, "resource_id")?;
@@ -63,10 +61,6 @@ impl UpsertPermissionsRequestBody {
             validate_external_payload(external_payload)?;
         }
         
-        // Validate ID if provided
-        if let Some(id) = &self.id {
-            validate_id_string(&id.0, "id")?;
-        }
         
         Ok(())
     }
@@ -74,7 +68,71 @@ impl UpsertPermissionsRequestBody {
 
 
 #[derive(Debug, Clone, Serialize)]
-pub struct UpsertPermissionsResponseData {
+pub struct CreateDirectoryPermissionsResponseData {
+    pub permission: DirectoryPermission,
+}
+
+
+// Update Permissions
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateDirectoryPermissionsRequestBody {
+    pub id: DirectoryPermissionID,
+    pub resource_id: String,
+    pub granted_to: Option<String>,
+    pub permission_types: Vec<DirectoryPermissionType>,
+    pub begin_date_ms: Option<i64>,
+    pub expiry_date_ms: Option<i64>,
+    pub inheritable: Option<bool>,
+    pub note: Option<String>,
+    pub metadata: Option<PermissionMetadata>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
+}
+
+impl UpdateDirectoryPermissionsRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        validate_id_string(&self.id.0, "id")?;
+
+        // Validate resource_id
+        validate_id_string(&self.resource_id, "resource_id")?;
+        
+        // Validate granted_to if provided
+        if let Some(granted_to) = &self.granted_to {
+            validate_id_string(granted_to, "granted_to")?;
+        }
+        
+        // Validate permission_types (must not be empty)
+        if self.permission_types.is_empty() {
+            return Err(ValidationError {
+                field: "permission_types".to_string(),
+                message: "Permission types cannot be empty".to_string(),
+            });
+        }
+        
+        // Validate note if provided
+        if let Some(note) = &self.note {
+            validate_description(note, "note")?;
+        }
+        
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+        
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+        
+        
+        Ok(())
+    }
+}
+
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateDirectoryPermissionsResponseData {
     pub permission: DirectoryPermission,
 }
 
@@ -154,7 +212,7 @@ pub type RedeemPermissionResponse<'a> = ApiResponse<'a, RedeemPermissionResponse
 
 // Response type aliases using ApiResponse
 pub type GetPermissionResponse<'a> = ApiResponse<'a, DirectoryPermission>;
-pub type UpsertPermissionsResponse<'a> = ApiResponse<'a, UpsertPermissionsResponseData>;
+pub type CreatePermissionsResponse<'a> = ApiResponse<'a, CreateDirectoryPermissionsResponseData>;
 pub type DeletePermissionResponse<'a> = ApiResponse<'a, DeletePermissionResponseData>;
 pub type CheckPermissionResponse<'a> = ApiResponse<'a, CheckPermissionResult>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
@@ -175,10 +233,9 @@ impl GetSystemPermissionRequest {
     }
 }
 
-// Upsert System Permissions
+// Create System Permissions
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpsertSystemPermissionsRequestBody {
-    pub id: Option<SystemPermissionID>,
+pub struct CreateSystemPermissionsRequestBody {
     pub resource_id: String, // Can be "Table_drives" or "DiskID_123" etc
     pub granted_to: Option<String>,
     pub permission_types: Vec<SystemPermissionType>,
@@ -189,7 +246,7 @@ pub struct UpsertSystemPermissionsRequestBody {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
-impl UpsertSystemPermissionsRequestBody {
+impl CreateSystemPermissionsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate resource_id
         validate_id_string(&self.resource_id, "resource_id")?;
@@ -222,19 +279,75 @@ impl UpsertSystemPermissionsRequestBody {
             validate_external_payload(external_payload)?;
         }
         
-        // Validate ID if provided
-        if let Some(id) = &self.id {
-            validate_id_string(&id.0, "id")?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateSystemPermissionsResponseData {
+    pub permission: SystemPermission,
+}
+
+
+// Update System Permissions
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateSystemPermissionsRequestBody {
+    pub id: SystemPermissionID,
+    pub resource_id: String, // Can be "Table_drives" or "DiskID_123" etc
+    pub granted_to: Option<String>,
+    pub permission_types: Vec<SystemPermissionType>,
+    pub begin_date_ms: Option<i64>,
+    pub expiry_date_ms: Option<i64>,
+    pub note: Option<String>,
+    pub metadata: Option<PermissionMetadata>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
+}
+impl UpdateSystemPermissionsRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        validate_id_string(&self.id.0, "id")?;
+
+        // Validate resource_id
+        validate_id_string(&self.resource_id, "resource_id")?;
+        
+        // Validate granted_to if provided
+        if let Some(granted_to) = &self.granted_to {
+            validate_id_string(granted_to, "granted_to")?;
         }
+        
+        // Validate permission_types (must not be empty)
+        if self.permission_types.is_empty() {
+            return Err(ValidationError {
+                field: "permission_types".to_string(),
+                message: "Permission types cannot be empty".to_string(),
+            });
+        }
+        
+        // Validate note if provided
+        if let Some(note) = &self.note {
+            validate_description(note, "note")?;
+        }
+        
+        // Validate external_id if provided
+        if let Some(external_id) = &self.external_id {
+            validate_external_id(external_id)?;
+        }
+        
+        // Validate external_payload if provided
+        if let Some(external_payload) = &self.external_payload {
+            validate_external_payload(external_payload)?;
+        }
+        
         
         Ok(())
     }
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct UpsertSystemPermissionsResponseData {
+pub struct UpdateSystemPermissionsResponseData {
     pub permission: SystemPermission,
 }
+
 
 // Delete System Permission
 #[derive(Debug, Clone, Deserialize)]
@@ -306,7 +419,7 @@ pub struct RedeemSystemPermissionResponseData {
 
 // Response type aliases
 pub type GetSystemPermissionResponse<'a> = ApiResponse<'a, SystemPermission>;
-pub type UpsertSystemPermissionsResponse<'a> = ApiResponse<'a, UpsertSystemPermissionsResponseData>;
+pub type CreateSystemPermissionsResponse<'a> = ApiResponse<'a, CreateSystemPermissionsResponseData>;
 pub type DeleteSystemPermissionResponse<'a> = ApiResponse<'a, DeleteSystemPermissionResponseData>;
 pub type CheckSystemPermissionResponse<'a> = ApiResponse<'a, CheckSystemPermissionResult>;
 pub type RedeemSystemPermissionResponse<'a> = ApiResponse<'a, RedeemSystemPermissionResponseData>;

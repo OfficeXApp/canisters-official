@@ -14,7 +14,7 @@ pub mod webhooks_handlers {
         debug_log,
         rest::{
             auth::{authenticate_request, create_auth_error_response}, webhooks::types::{
-                CreateWebhookRequestBody, CreateWebhookResponse, DeleteWebhookRequest, DeleteWebhookResponse, DeletedWebhookData, ErrorResponse, GetWebhookResponse, ListWebhooksRequestBody, ListWebhooksResponse, ListWebhooksResponseData, SortDirection, UpdateWebhookRequestBody, UpdateWebhookResponse, UpsertWebhookRequestBody
+                CreateWebhookRequestBody, CreateWebhookResponse, DeleteWebhookRequest, DeleteWebhookResponse, DeletedWebhookData, ErrorResponse, GetWebhookResponse, ListWebhooksRequestBody, ListWebhooksResponse, ListWebhooksResponseData, SortDirection, UpdateWebhookRequestBody, UpdateWebhookResponse
             }
         },
     };
@@ -249,7 +249,7 @@ pub mod webhooks_handlers {
         )
     }
 
-    pub async fn upsert_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -261,178 +261,188 @@ pub mod webhooks_handlers {
 
         // Parse request body
         let body: &[u8] = request.body();
+        let create_req = serde_json::from_slice::<CreateWebhookRequestBody>(body).unwrap();
 
-        if let Ok(req) = serde_json::from_slice::<UpsertWebhookRequestBody>(body) {
-
-            if let Err(validation_error) = req.validate_body() {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, validation_error.message).encode()
-                );
-            }
-
-            match req {
-                UpsertWebhookRequestBody::Create(create_req) => {
-                    // Create new webhook
-                    let webhook_id = WebhookID(generate_unique_id(IDPrefix::Webhook, ""));
-                    let alt_index = WebhookAltIndexID(create_req.alt_index);
-
-
-
-                    if !is_owner {
-                        let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Create) {
-                            return create_auth_error_response();
-                        }
-                    }
-
-
-                    let prestate = snapshot_prestate();
-
-
-                    let webhook = Webhook {
-                        id: webhook_id.clone(),
-                        alt_index: alt_index.clone(),
-                        url: create_req.url,
-                        event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
-                        signature: create_req.signature.unwrap_or_default(),
-                        description: create_req.description.unwrap_or_default(),
-                        active: true,
-                        filters: create_req.filters.unwrap_or_default(),
-                        tags: vec![],
-                        created_at: ic_cdk::api::time() / 1_000_000,
-                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
-                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
-                    };
-                    update_external_id_mapping(None, webhook.external_id.clone(), Some(webhook.id.clone().to_string()));
-
-                    // Update state tables – now storing a Vec<WebhookID> without removing others
-                    WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
-                        let mut store = store.borrow_mut();
-                        store.entry(alt_index.clone())
-                            .and_modify(|vec_ids| {
-                                if !vec_ids.contains(&webhook_id) {
-                                    vec_ids.push(webhook_id.clone());
-                                }
-                            })
-                            .or_insert_with(|| vec![webhook_id.clone()]);
-                    });
-
-                    WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
-                    });
-
-                    WEBHOOKS_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(webhook_id.clone());
-                    });
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Create Webhook {}", 
-                            requester_api_key.user_id,
-                            webhook_id.clone()
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateWebhookResponse::ok(&webhook).encode()
-                    )
-                },
-                UpsertWebhookRequestBody::Update(update_req) => {
-
-                    let webhook_id = WebhookID(update_req.id);
-                    
-                    // Get existing webhook
-                    let mut webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {
-                        Some(hook) => hook,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
-
-                    if !is_owner {
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
-                        let record_permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        let table_permissions = check_system_permissions(
-                            SystemResourceID::Table(SystemTableEnum::Webhooks),
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !record_permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
-                            return create_auth_error_response();
-                        }
-                    }
-
-                    let prestate = snapshot_prestate();
-
-                    // Update fields - ignoring alt_index and event as they cannot be modified
-                    if let Some(url) = update_req.url {
-                        webhook.url = url;
-                    }
-                    if let Some(signature) = update_req.signature {
-                        webhook.signature = signature;
-                    }
-                    if let Some(description) = update_req.description {
-                        webhook.description = description;
-                    }
-                    if let Some(active) = update_req.active {
-                        webhook.active = active;
-                    }
-                    if let Some(filters) = update_req.filters {
-                        webhook.filters = filters;
-                    }
-
-                    if let Some(external_id) = update_req.external_id.clone() {
-                        let old_external_id = webhook.external_id.clone();
-                        let new_external_id = Some(ExternalID(external_id.clone()));
-                        webhook.external_id = new_external_id.clone();
-                        update_external_id_mapping(
-                            old_external_id,
-                            new_external_id,
-                            Some(webhook.id.to_string())
-                        );
-                    }
-                    if let Some(external_payload) = update_req.external_payload.clone() {
-                        webhook.external_payload = Some(ExternalPayload(external_payload));
-                    }
-
-                    // Update webhook in ID table
-                    WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
-                    });
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Update Webhook {}", 
-                            requester_api_key.user_id,
-                            webhook_id.clone()
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        UpdateWebhookResponse::ok(&webhook).encode()
-                    )
-                }
-            }
-        } else {
-            create_response(
+        if let Err(validation_error) = create_req.validate_body() {
+            return create_response(
                 StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            )
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
         }
 
+        // Create new webhook
+        let webhook_id = WebhookID(generate_unique_id(IDPrefix::Webhook, ""));
+        let alt_index = WebhookAltIndexID(create_req.alt_index);
+
+
+
+        if !is_owner {
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Create) {
+                return create_auth_error_response();
+            }
+        }
+
+
+        let prestate = snapshot_prestate();
+
+        let webhook = Webhook {
+            id: webhook_id.clone(),
+            alt_index: alt_index.clone(),
+            url: create_req.url,
+            event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
+            signature: create_req.signature.unwrap_or_default(),
+            description: create_req.description.unwrap_or_default(),
+            active: true,
+            filters: create_req.filters.unwrap_or_default(),
+            tags: vec![],
+            created_at: ic_cdk::api::time() / 1_000_000,
+            external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+            external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+        };
+        update_external_id_mapping(None, webhook.external_id.clone(), Some(webhook.id.clone().to_string()));
+
+        // Update state tables – now storing a Vec<WebhookID> without removing others
+        WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
+            let mut store = store.borrow_mut();
+            store.entry(alt_index.clone())
+                .and_modify(|vec_ids| {
+                    if !vec_ids.contains(&webhook_id) {
+                        vec_ids.push(webhook_id.clone());
+                    }
+                })
+                .or_insert_with(|| vec![webhook_id.clone()]);
+        });
+
+        WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
+        });
+
+        WEBHOOKS_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().push(webhook_id.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Webhook {}", 
+                requester_api_key.user_id,
+                webhook_id.clone()
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            CreateWebhookResponse::ok(&webhook).encode()
+        )
+
     }
+
+    pub async fn update_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        // Only owner can manage webhooks
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+
+        // Parse request body
+        let body: &[u8] = request.body();
+        let update_req = serde_json::from_slice::<UpdateWebhookRequestBody>(body).unwrap();
+
+        if let Err(validation_error) = update_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
+        }
+
+        let webhook_id = WebhookID(update_req.id);
+        
+        // Get existing webhook
+        let mut webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {
+            Some(hook) => hook,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+
+        if !is_owner {
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
+            let record_permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Webhooks),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !record_permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
+                return create_auth_error_response();
+            }
+        }
+
+        let prestate = snapshot_prestate();
+
+        // Update fields - ignoring alt_index and event as they cannot be modified
+        if let Some(url) = update_req.url {
+            webhook.url = url;
+        }
+        if let Some(signature) = update_req.signature {
+            webhook.signature = signature;
+        }
+        if let Some(description) = update_req.description {
+            webhook.description = description;
+        }
+        if let Some(active) = update_req.active {
+            webhook.active = active;
+        }
+        if let Some(filters) = update_req.filters {
+            webhook.filters = filters;
+        }
+
+        if let Some(external_id) = update_req.external_id.clone() {
+            let old_external_id = webhook.external_id.clone();
+            let new_external_id = Some(ExternalID(external_id.clone()));
+            webhook.external_id = new_external_id.clone();
+            update_external_id_mapping(
+                old_external_id,
+                new_external_id,
+                Some(webhook.id.to_string())
+            );
+        }
+        if let Some(external_payload) = update_req.external_payload.clone() {
+            webhook.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        // Update webhook in ID table
+        WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(webhook_id.clone(), webhook.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Webhook {}", 
+                requester_api_key.user_id,
+                webhook_id.clone()
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            UpdateWebhookResponse::ok(&webhook).encode()
+        )
+
+    }
+
 
     pub async fn delete_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request

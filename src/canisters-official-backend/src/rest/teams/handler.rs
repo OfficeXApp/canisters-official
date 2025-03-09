@@ -3,7 +3,7 @@
 
 pub mod teams_handlers {
     use crate::{
-        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsRequestBody, ListTeamsResponseData, UpdateTeamResponse, UpsertTeamRequestBody, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}, types::ApiResponse}
+        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::Team_Invite}, teams::{state::state::{is_user_on_team, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, teams::types::{CreateTeamRequestBody, CreateTeamResponse, DeleteTeamRequestBody, DeleteTeamResponse, DeletedTeamData, ErrorResponse, GetTeamResponse, ListTeamsRequestBody, ListTeamsResponseData, UpdateTeamRequestBody, UpdateTeamResponse, ValidateTeamRequestBody, ValidateTeamResponse, ValidateTeamResponseData}, types::ApiResponse}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -122,7 +122,7 @@ pub mod teams_handlers {
 
     }
 
-    pub async fn upsert_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -134,171 +134,182 @@ pub mod teams_handlers {
 
         // Parse request body
         let body: &[u8] = request.body();
+        let create_req = serde_json::from_slice::<CreateTeamRequestBody>(body).unwrap();
         
-        if let Ok(req) = serde_json::from_slice::<UpsertTeamRequestBody>(body) {
-
-            if let Err(validation_error) = req.validate_body() {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(
-                        400, 
-                        format!("Validation error: {} - {}", validation_error.field, validation_error.message)
-                    ).encode()
-                );
-            }
-
-            match req {
-                UpsertTeamRequestBody::Create(create_req) => {
-
-                    // Check table-level permissions for Teams table
-                    let permissions = check_system_permissions(
-                        SystemResourceID::Table(SystemTableEnum::Teams),
-                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                    );
-
-                    if !permissions.contains(&SystemPermissionType::Create) && !is_owner {
-                        return create_auth_error_response();
-                    }
-                    let prestate = snapshot_prestate();
-                    
-                    let drive_id_suffix = format!("__DriveID_{}", ic_cdk::api::id().to_text());
-                    let team_id = TeamID(generate_unique_id(IDPrefix::Team, &drive_id_suffix));
-                    let now = ic_cdk::api::time();
-
-                    // Create new team
-                    let new_team = Team {
-                        id: team_id.clone(),
-                        name: create_req.name,
-                        avatar: create_req.avatar,
-                        owner: requester_api_key.user_id.clone(),
-                        private_note: create_req.private_note,
-                        public_note: create_req.public_note,
-                        admin_invites: Vec::new(),
-                        member_invites: Vec::new(),
-                        created_at: now,
-                        last_modified_at: now,
-                        drive_id: DRIVE_ID.with(|id| id.clone()),
-                        url_endpoint: DriveRESTUrlEndpoint(
-                            create_req.url_endpoint
-                                .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
-                                .trim_end_matches('/')
-                                .to_string()
-                        ),
-                        tags: vec![],
-                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
-                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
-                    };
-                    update_external_id_mapping(None, new_team.external_id.clone(), Some(new_team.id.clone().to_string()));
-
-                    // Update state
-                    TEAMS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(team_id.clone(), new_team.clone());
-                    });
-
-                    TEAMS_BY_TIME_LIST.with(|list| {
-                        list.borrow_mut().push(team_id.clone());
-                    });
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Create Team {}", 
-                            requester_api_key.user_id,
-                            team_id.0
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateTeamResponse::ok(&new_team).encode()
-                    )
-                },
-                UpsertTeamRequestBody::Update(update_req) => {
-
-                    // Check table-level permissions for Teams table
-                    let table_permissions = check_system_permissions(
-                        SystemResourceID::Table(SystemTableEnum::Teams),
-                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                    );
-                    let permissions = check_system_permissions(
-                        SystemResourceID::Record(SystemRecordIDEnum::Team(update_req.id.clone())),
-                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                    );
-
-                    if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) && !is_owner {
-                        return create_auth_error_response();
-                    }
-
-                    let prestate = snapshot_prestate();
-
-                    let team_id = TeamID(update_req.id);
-                    
-                    // Get existing team
-                    let mut team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {
-                        Some(team) => team,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
-
-                    // Update fields
-                    if let Some(name) = update_req.name {
-                        team.name = name;
-                    }
-                    if let Some(avatar) = update_req.avatar {
-                        team.avatar = Some(avatar);
-                    }
-                    if let Some(public_note) = update_req.public_note {
-                        team.public_note = Some(public_note);
-                    }
-                    if let Some(private_note) = update_req.private_note {
-                        team.private_note = Some(private_note);
-                    }
-                    if let Some(url_endpoint) = update_req.url_endpoint {
-                        team.url_endpoint = DriveRESTUrlEndpoint(url_endpoint.trim_end_matches('/')
-                        .to_string());
-                    }
-                    team.last_modified_at = ic_cdk::api::time();
-
-                    if let Some(external_id) = update_req.external_id.clone() {
-                        let old_external_id = team.external_id.clone();
-                        let new_external_id = Some(ExternalID(external_id.clone()));
-                        team.external_id = new_external_id.clone();
-                        update_external_id_mapping(
-                            old_external_id,
-                            new_external_id,
-                            Some(team.id.to_string())
-                        );
-                    }
-                    if let Some(external_payload) = update_req.external_payload.clone() {
-                        team.external_payload = Some(ExternalPayload(external_payload));
-                    }
-
-                    // Update state
-                    TEAMS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(team.id.clone(), team.clone());
-                    });
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Update Team {}", 
-                            requester_api_key.user_id,
-                            team_id.0
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        UpdateTeamResponse::ok(&team).encode()
-                    )
-                }
-            }
-        } else {
-            create_response(
+        if let Err(validation_error) = create_req.validate_body() {
+            return create_response(
                 StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            )
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
         }
+
+        // Check table-level permissions for Teams table
+        let permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+
+        if !permissions.contains(&SystemPermissionType::Create) && !is_owner {
+            return create_auth_error_response();
+        }
+        let prestate = snapshot_prestate();
+        
+        let drive_id_suffix = format!("__DriveID_{}", ic_cdk::api::id().to_text());
+        let team_id = TeamID(generate_unique_id(IDPrefix::Team, &drive_id_suffix));
+        let now = ic_cdk::api::time();
+
+        // Create new team
+        let new_team = Team {
+            id: team_id.clone(),
+            name: create_req.name,
+            avatar: create_req.avatar,
+            owner: requester_api_key.user_id.clone(),
+            private_note: create_req.private_note,
+            public_note: create_req.public_note,
+            admin_invites: Vec::new(),
+            member_invites: Vec::new(),
+            created_at: now,
+            last_modified_at: now,
+            drive_id: DRIVE_ID.with(|id| id.clone()),
+            url_endpoint: DriveRESTUrlEndpoint(
+                create_req.url_endpoint
+                    .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
+                    .trim_end_matches('/')
+                    .to_string()
+            ),
+            tags: vec![],
+            external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+            external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+        };
+        update_external_id_mapping(None, new_team.external_id.clone(), Some(new_team.id.clone().to_string()));
+
+        // Update state
+        TEAMS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(team_id.clone(), new_team.clone());
+        });
+
+        TEAMS_BY_TIME_LIST.with(|list| {
+            list.borrow_mut().push(team_id.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Team {}", 
+                requester_api_key.user_id,
+                team_id.0
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            CreateTeamResponse::ok(&new_team).encode()
+        )
+    }
+
+    pub async fn update_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        // Only owner can create/update teams for now
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+
+        // Parse request body
+        let body: &[u8] = request.body();
+        let update_req = serde_json::from_slice::<UpdateTeamRequestBody>(body).unwrap();
+        
+        if let Err(validation_error) = update_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
+
+        // Check table-level permissions for Teams table
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+        let permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::Team(update_req.id.clone())),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+
+        if !permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) && !is_owner {
+            return create_auth_error_response();
+        }
+
+        let prestate = snapshot_prestate();
+
+        let team_id = TeamID(update_req.id);
+        
+        // Get existing team
+        let mut team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {
+            Some(team) => team,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+
+        // Update fields
+        if let Some(name) = update_req.name {
+            team.name = name;
+        }
+        if let Some(avatar) = update_req.avatar {
+            team.avatar = Some(avatar);
+        }
+        if let Some(public_note) = update_req.public_note {
+            team.public_note = Some(public_note);
+        }
+        if let Some(private_note) = update_req.private_note {
+            team.private_note = Some(private_note);
+        }
+        if let Some(url_endpoint) = update_req.url_endpoint {
+            team.url_endpoint = DriveRESTUrlEndpoint(url_endpoint.trim_end_matches('/')
+            .to_string());
+        }
+        team.last_modified_at = ic_cdk::api::time();
+
+        if let Some(external_id) = update_req.external_id.clone() {
+            let old_external_id = team.external_id.clone();
+            let new_external_id = Some(ExternalID(external_id.clone()));
+            team.external_id = new_external_id.clone();
+            update_external_id_mapping(
+                old_external_id,
+                new_external_id,
+                Some(team.id.to_string())
+            );
+        }
+        if let Some(external_payload) = update_req.external_payload.clone() {
+            team.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        // Update state
+        TEAMS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(team.id.clone(), team.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Team {}", 
+                requester_api_key.user_id,
+                team_id.0
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            UpdateTeamResponse::ok(&team).encode()
+        )
     }
 
     pub async fn delete_team_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {

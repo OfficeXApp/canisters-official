@@ -109,7 +109,7 @@ impl fmt::Display for SystemPermissionID {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemPermissionType {
     Create,
-    Update,
+    Edit,
     Delete,
     View,
     Invite,

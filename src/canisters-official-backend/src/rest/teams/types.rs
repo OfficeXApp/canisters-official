@@ -77,7 +77,6 @@ pub type ListTeamsResponse<'a> = ApiResponse<'a, ListTeamsResponseData>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub avatar: Option<String>,
     pub public_note: Option<String>,
@@ -127,7 +126,6 @@ impl CreateTeamRequestBody {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateTeamRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     pub name: Option<String>,
     pub avatar: Option<String>,
@@ -178,21 +176,6 @@ impl UpdateTeamRequestBody {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertTeamRequestBody {
-    Create(CreateTeamRequestBody),
-    Update(UpdateTeamRequestBody),
-}
-impl UpsertTeamRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertTeamRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertTeamRequestBody::Update(update_req) => update_req.validate_body(),
-        }
     }
 }
 
