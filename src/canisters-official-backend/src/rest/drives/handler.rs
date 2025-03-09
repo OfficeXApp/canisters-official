@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveResponse, UpsertDriveRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, tags::{state::{add_tag_to_resource, parse_tag_resource_id, remove_tag_from_resource, validate_tag_value}, types::{TagOperationResponse, TagResourceID}}, team_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, teams::state::state::{is_team_admin, TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveRequestBody, CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveRequestBody, UpdateDriveResponse}, webhooks::types::SortDirection}
         
     };
     use ic_types::crypto::canister_threshold_sig::PublicKey;
@@ -251,7 +251,7 @@ pub mod drives_handlers {
         )
     }
 
-    pub async fn upsert_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -265,166 +265,179 @@ pub mod drives_handlers {
 
         // Parse request body
         let body: &[u8] = request.body();
-
-        if let Ok(req) = serde_json::from_slice::<UpsertDriveRequestBody>(body) {
-
-            if let Err(validation_error) = req.validate_body() {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, format!("Validation error: {}: {}", 
-                        validation_error.field, validation_error.message)).encode()
-                );
-            }
-
-            match req {
-                UpsertDriveRequestBody::Update(update_req) => {
-                    let drive_id = DriveID(update_req.id);
-                    
-                    // Get existing drive
-                    let mut drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
-                        Some(drive) => drive,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
-
-                    if !is_owner {
-                        let table_permissions = check_system_permissions(
-                            SystemResourceID::Table(SystemTableEnum::Drives),
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(drive_id.to_string()));
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
-                            return create_auth_error_response();
-                        }
-                    }
-
-                    let prestate = snapshot_prestate();
-
-                    // Update fields
-                    if let Some(name) = update_req.name {
-                        drive.name = name;
-                    }
-                    if let Some(public_note) = update_req.public_note {
-                        drive.public_note = Some(public_note);
-                    }
-                    if let Some(private_note) = update_req.private_note {
-                        drive.private_note = Some(private_note);
-                    }
-                    if let Some(icp_principal) = update_req.icp_principal {
-                        drive.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
-                    }
-                    if let Some(url_endpoint) = update_req.url_endpoint {
-                        drive.url_endpoint = DriveRESTUrlEndpoint(url_endpoint.trim_end_matches('/')
-                        .to_string());
-                    }
-
-                    if let Some(external_id) = update_req.external_id.clone() {
-                        let old_external_id = drive.external_id.clone();
-                        let new_external_id = Some(ExternalID(external_id.clone()));
-                        drive.external_id = new_external_id.clone();
-                        update_external_id_mapping(
-                            old_external_id,
-                            new_external_id,
-                            Some(drive.id.to_string())
-                        );
-                    }
-                    if let Some(external_payload) = update_req.external_payload.clone() {
-                        drive.external_payload = Some(ExternalPayload(external_payload));
-                    }
-
-                    DRIVES_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(drive_id.clone(), drive.clone());
-                    });
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Update Drive {}", 
-                            requester_api_key.user_id,
-                            drive_id.clone()
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        UpdateDriveResponse::ok(&drive).encode()
-                    )
-                },
-                UpsertDriveRequestBody::Create(create_req) => {
-                    if !is_owner {
-                        let resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Create) {
-                            return create_auth_error_response();
-                        }
-                    }
-                    let prestate = snapshot_prestate();
-
-
-                    // Create new drive
-                    let drive_id = DriveID(generate_unique_id(IDPrefix::Drive, ""));
-                    let drive = Drive {
-                        id: drive_id.clone(),
-                        name: create_req.name,
-                        public_note: Some(create_req.public_note.unwrap_or_default()),
-                        private_note: Some(create_req.private_note.unwrap_or_default()),
-                        icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal.unwrap_or_default())),
-                        url_endpoint: DriveRESTUrlEndpoint(
-                            create_req.url_endpoint
-                                .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
-                                .trim_end_matches('/')
-                                .to_string()
-                        ),
-                        last_indexed_ms: None,
-                        tags: vec![],
-                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
-                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
-                    };
-
-                    DRIVES_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(drive_id.clone(), drive.clone());
-                    });
-
-                    DRIVES_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(drive_id.clone());
-                    });
-
-                    update_external_id_mapping(
-                        None,
-                        Some(drive.external_id.clone().unwrap()),
-                        Some(drive_id.to_string())
-                    );
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Create Drive {}", 
-                            requester_api_key.user_id,
-                            drive_id.clone()
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateDriveResponse::ok(&drive).encode()
-                    )
-                }
-            }
-        } else {
-            create_response(
+        let create_req = serde_json::from_slice::<CreateDriveRequestBody>(body).unwrap();
+        if let Err(validation_error) = create_req.validate_body() {
+            return create_response(
                 StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            )
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
         }
+
+        if !is_owner {
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Create) {
+                return create_auth_error_response();
+            }
+        }
+        let prestate = snapshot_prestate();
+
+
+        // Create new drive
+        let drive_id = DriveID(generate_unique_id(IDPrefix::Drive, ""));
+        let drive = Drive {
+            id: drive_id.clone(),
+            name: create_req.name,
+            public_note: Some(create_req.public_note.unwrap_or_default()),
+            private_note: Some(create_req.private_note.unwrap_or_default()),
+            icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal.unwrap_or_default())),
+            url_endpoint: DriveRESTUrlEndpoint(
+                create_req.url_endpoint
+                    .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
+                    .trim_end_matches('/')
+                    .to_string()
+            ),
+            last_indexed_ms: None,
+            tags: vec![],
+            created_at: ic_cdk::api::time() / 1_000_000,
+            external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+            external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+        };
+
+        DRIVES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(drive_id.clone(), drive.clone());
+        });
+
+        DRIVES_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().push(drive_id.clone());
+        });
+
+        update_external_id_mapping(
+            None,
+            Some(drive.external_id.clone().unwrap()),
+            Some(drive_id.to_string())
+        );
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Drive {}", 
+                requester_api_key.user_id,
+                drive_id.clone()
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            CreateDriveResponse::ok(&drive).encode()
+        )
+    }
+
+    pub async fn update_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // Parse request body
+        let body: &[u8] = request.body();
+        let update_req = serde_json::from_slice::<UpdateDriveRequestBody>(body).unwrap();
+
+        if let Err(validation_error) = update_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
+
+        let drive_id = DriveID(update_req.id);
+                    
+        // Get existing drive
+        let mut drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
+            Some(drive) => drive,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+
+        if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Drives),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(drive_id.to_string()));
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
+                return create_auth_error_response();
+            }
+        }
+
+        let prestate = snapshot_prestate();
+
+        // Update fields
+        if let Some(name) = update_req.name {
+            drive.name = name;
+        }
+        if let Some(public_note) = update_req.public_note {
+            drive.public_note = Some(public_note);
+        }
+        if let Some(private_note) = update_req.private_note {
+            drive.private_note = Some(private_note);
+        }
+        if let Some(icp_principal) = update_req.icp_principal {
+            drive.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
+        }
+        if let Some(url_endpoint) = update_req.url_endpoint {
+            drive.url_endpoint = DriveRESTUrlEndpoint(url_endpoint.trim_end_matches('/')
+            .to_string());
+        }
+
+        if let Some(external_id) = update_req.external_id.clone() {
+            let old_external_id = drive.external_id.clone();
+            let new_external_id = Some(ExternalID(external_id.clone()));
+            drive.external_id = new_external_id.clone();
+            update_external_id_mapping(
+                old_external_id,
+                new_external_id,
+                Some(drive.id.to_string())
+            );
+        }
+        if let Some(external_payload) = update_req.external_payload.clone() {
+            drive.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        DRIVES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(drive_id.clone(), drive.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Drive {}", 
+                requester_api_key.user_id,
+                drive_id.clone()
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            UpdateDriveResponse::ok(&drive).encode()
+        )
     }
 
     pub async fn delete_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {

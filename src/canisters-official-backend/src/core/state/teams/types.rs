@@ -16,6 +16,7 @@ pub struct Team {
     pub id: TeamID,
     pub name: String,
     pub owner: UserID,
+    pub avatar: Option<String>,
     pub private_note: Option<String>,
     pub public_note: Option<String>,
     pub admin_invites: Vec<TeamInviteID>, // all admin_invites are also in member_invites
@@ -42,7 +43,7 @@ impl Team {
             resource_id,
             PermissionGranteeID::User(user_id.clone())
         );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
         let is_team_admin = is_team_admin(user_id, &self.id);
 
         // Most sensitive

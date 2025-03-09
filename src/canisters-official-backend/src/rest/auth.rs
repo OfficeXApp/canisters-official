@@ -2,7 +2,7 @@ use candid::Principal;
 use ed25519_dalek::SigningKey;
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::{core::{api::uuid::format_user_id, state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log};
+use crate::{core::{api::uuid::format_user_id, state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log, rest::helpers::update_last_online_at};
 use crate::rest::api_keys::types::ErrorResponse;
 use ic_types::crypto::AlgorithmId;
 use bip39::{Mnemonic, Language};
@@ -130,6 +130,8 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                     }
                     debug_log!("Successfully authenticated user: {}", computed_principal);
 
+                    update_last_online_at(&format_user_id(&computed_principal.clone()));
+
                     // Create and return an API key based on the computed principal.
                     Some(ApiKey {
                         id: ApiKeyID(format!("sig_auth_{}", now)),
@@ -183,6 +185,8 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                     
                     // Return the key if it's valid (not expired and not revoked)
                     if (key.expires_at <= 0 || now < key.expires_at) && !key.is_revoked {
+
+                        update_last_online_at(&key.user_id);
                         return Some(key);
                     }
                 }

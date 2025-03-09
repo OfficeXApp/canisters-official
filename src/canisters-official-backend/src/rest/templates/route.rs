@@ -6,7 +6,8 @@ use crate::rest::types::RouteHandler;
 
 pub const TEMPLATES_GET_PATH: &str =    genroute!("/templates/get/{id}");
 pub const TEMPLATES_LIST_PATH: &str =   genroute!("/templates/list");
-pub const TEMPLATES_UPSERT_PATH: &str = genroute!("/templates/upsert");
+pub const TEMPLATES_CREATE_PATH: &str = genroute!("/templates/create");
+pub const TEMPLATES_UPDATE_PATH: &str = genroute!("/templates/update");
 pub const TEMPLATES_DELETE_PATH: &str = genroute!("/templates/delete");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
@@ -25,8 +26,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            TEMPLATES_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::templates::handler::templates_handlers::upsert_template_handler(req, params)),
+            TEMPLATES_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::templates::handler::templates_handlers::create_template_handler(req, params)),
+        ),
+        (
+            "POST",
+            TEMPLATES_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::templates::handler::templates_handlers::update_template_handler(req, params)),
         ),
         (
             "POST",

@@ -5,7 +5,8 @@ use crate::rest::types::RouteHandler;
 
 pub const TEAMS_GET_PATH: &str =        genroute!("/teams/get/{team_id}");
 pub const TEAMS_LIST_PATH: &str =       genroute!("/teams/list");
-pub const TEAMS_UPSERT_PATH: &str =     genroute!("/teams/upsert");
+pub const TEAMS_CREATE_PATH: &str =     genroute!("/teams/create");
+pub const TEAMS_UPDATE_PATH: &str =     genroute!("/teams/update");
 pub const TEAMS_DELETE_PATH: &str =     genroute!("/teams/delete");
 pub const TEAMS_VALIDATE_PATH: &str =   genroute!("/teams/validate");
 
@@ -25,8 +26,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            TEAMS_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::upsert_team_handler(req, params)),
+            TEAMS_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::create_team_handler(req, params)),
+        ),
+        (
+            "POST",
+            TEAMS_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::teams::handler::teams_handlers::update_team_handler(req, params)),
         ),
         (
             "POST",

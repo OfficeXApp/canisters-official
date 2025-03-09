@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{core::{
     state::teams::types::{Team, TeamID},
     types::UserID
-}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -77,8 +77,8 @@ pub type ListTeamsResponse<'a> = ApiResponse<'a, ListTeamsResponseData>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
+    pub avatar: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: Option<String>,
@@ -98,6 +98,11 @@ impl CreateTeamRequestBody {
         // Validate private_note if provided
         if let Some(private_note) = &self.private_note {
             validate_description(private_note, "private_note")?;
+        }
+        
+        // Validate avatar if provided
+        if let Some(avatar) = &self.avatar {
+            validate_url(avatar, "avatar")?;
         }
 
         // Validate url_endpoint if provided
@@ -121,9 +126,9 @@ impl CreateTeamRequestBody {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateTeamRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     pub name: Option<String>,
+    pub avatar: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub url_endpoint: Option<String>,
@@ -150,6 +155,11 @@ impl UpdateTeamRequestBody {
             validate_description(private_note, "private_note")?;
         }
 
+        // Validate avatar if provided
+        if let Some(avatar) = &self.avatar {
+            validate_url(avatar, "avatar")?;
+        }
+
         // Validate url_endpoint if provided
         if let Some(url_endpoint) = &self.url_endpoint {
             validate_url_endpoint(url_endpoint, "url_endpoint")?;
@@ -166,21 +176,6 @@ impl UpdateTeamRequestBody {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertTeamRequestBody {
-    Create(CreateTeamRequestBody),
-    Update(UpdateTeamRequestBody),
-}
-impl UpsertTeamRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertTeamRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertTeamRequestBody::Update(update_req) => update_req.validate_body(),
-        }
     }
 }
 

@@ -70,6 +70,7 @@ pub struct Webhook {
     pub tags: Vec<TagStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
+    pub created_at: u64,
 }
 
 impl Webhook {
@@ -86,7 +87,7 @@ impl Webhook {
         //     resource_id,
         //     PermissionGranteeID::User(user_id.clone())
         // );
-        // let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+        // let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
 
         // Filter tags
         redacted.tags = match is_owner {

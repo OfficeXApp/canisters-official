@@ -44,7 +44,7 @@ impl ApiKeyHidden {
             resource_id,
             PermissionGranteeID::User(user_id.clone())
         );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Update) || table_permissions.contains(&SystemPermissionType::Update);
+        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
 
         // Filter tags
         redacted.tags = match is_owner {
@@ -65,7 +65,6 @@ impl ApiKeyHidden {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateApiKeyRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -143,7 +142,6 @@ pub type DeleteApiKeyResponse<'a> = ApiResponse<'a, DeletedApiKeyData>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateApiKeyRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -200,20 +198,6 @@ impl UpdateApiKeyRequestBody {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertApiKeyRequestBody {
-    Create(CreateApiKeyRequestBody),
-    Update(UpdateApiKeyRequestBody),
-}
-impl UpsertApiKeyRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertApiKeyRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertApiKeyRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
 
 pub type UpdateApiKeyResponse<'a> = ApiResponse<'a, ApiKey>;
 pub type ListApiKeysResponse<'a> = ApiResponse<'a, Vec<ApiKeyHidden>>;

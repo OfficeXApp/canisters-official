@@ -3,7 +3,7 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskResponse, UpsertDiskRequestBody}, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskRequestBody, CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskRequestBody, UpdateDiskResponse}, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -248,8 +248,7 @@ pub mod disks_handlers {
         )
     }
 
-
-    pub async fn upsert_disk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_disk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -263,179 +262,190 @@ pub mod disks_handlers {
 
         // Parse request body
         let body: &[u8] = request.body();
+        let create_req = serde_json::from_slice::<CreateDiskRequestBody>(body).unwrap();
+        if let Err(validation_error) = create_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
+        }
 
-        if let Ok(req) = serde_json::from_slice::<UpsertDiskRequestBody>(body) {
+        // Check create permission if not owner
+        if !is_owner {
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Disks);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Create) {
+                return create_auth_error_response();
+            }
+        }
+        
+        // Validate that auth_json is provided and valid for AwsBucket or StorjWeb3 types.
+        if let Err(err_msg) = validate_auth_json(&create_req.disk_type, &create_req.auth_json) {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, err_msg).encode()
+            );
+        }
+        let prestate = snapshot_prestate();
 
-            if let Err(validation_error) = req.validate_body() {
+        
+        // Create new disk
+        let disk_type_suffix = format!("__DiskType_{}", create_req.disk_type);
+        let disk_id = DiskID(generate_unique_id(IDPrefix::Disk, ""));
+        let new_external_id = Some(ExternalID(create_req.external_id.unwrap_or("".to_string())));
+        let disk = Disk {
+            id: disk_id.clone(),
+            name: create_req.name,
+            public_note: create_req.public_note,
+            private_note: create_req.private_note,
+            auth_json: create_req.auth_json,
+            disk_type: create_req.disk_type,
+            tags: vec![],
+            created_at: ic_cdk::api::time() / 1_000_000,
+            external_id: new_external_id.clone(),
+            external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+        };
+        update_external_id_mapping(
+            None,
+            new_external_id,
+            Some(disk_id.0.clone())
+        );
+
+        // Store the disk
+        DISKS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(disk_id.clone(), disk.clone());
+        });
+
+        DISKS_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().push(disk_id.clone());
+        });
+
+        ensure_disk_root_folder(
+            &disk_id,
+            &requester_api_key.user_id,
+            &ic_cdk::api::id().to_text()
+        );
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Disk {}", 
+                requester_api_key.user_id,
+                disk_id.clone()
+            ).to_string())
+        );
+
+        create_response(
+            StatusCode::OK,
+            CreateDiskResponse::ok(&disk).encode()
+        )
+    }
+
+    pub async fn update_disk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // Parse request body
+        let body: &[u8] = request.body();
+        let update_req = serde_json::from_slice::<UpdateDiskRequestBody>(body).unwrap();
+
+        if let Err(validation_error) = update_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, validation_error.message).encode()
+            );
+        }
+
+        let disk_id = DiskID(update_req.id);
+                    
+        // Get existing disk
+        let mut disk = match DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&disk_id).cloned()) {
+            Some(disk) => disk,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+
+        // Check update permission if not owner
+        if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Disks),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.to_string()));
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
+                return create_auth_error_response();
+            }
+        }
+        let prestate = snapshot_prestate();
+
+        // Update fields
+        if let Some(private_note) = update_req.private_note {
+            disk.private_note = Some(private_note);
+        }
+        if let Some(auth_json) = update_req.auth_json {
+            // Validate auth_json if provided
+            if let Err(err_msg) = validate_auth_json(&disk.disk_type, &Some(auth_json.clone())) {
                 return create_response(
                     StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, validation_error.message).encode()
+                    ErrorResponse::err(400, err_msg).encode()
                 );
             }
-
-            match req {
-                UpsertDiskRequestBody::Update(update_req) => {
-                    let disk_id = DiskID(update_req.id);
-                    
-                    // Get existing disk
-                    let mut disk = match DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&disk_id).cloned()) {
-                        Some(disk) => disk,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
-
-                    // Check update permission if not owner
-                    if !is_owner {
-                        let table_permissions = check_system_permissions(
-                            SystemResourceID::Table(SystemTableEnum::Disks),
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.to_string()));
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
-                            return create_auth_error_response();
-                        }
-                    }
-                    let prestate = snapshot_prestate();
-
-                    // Update fields
-                    if let Some(private_note) = update_req.private_note {
-                        disk.private_note = Some(private_note);
-                    }
-                    if let Some(auth_json) = update_req.auth_json {
-                        // Validate auth_json if provided
-                        if let Err(err_msg) = validate_auth_json(&disk.disk_type, &Some(auth_json.clone())) {
-                            return create_response(
-                                StatusCode::BAD_REQUEST,
-                                ErrorResponse::err(400, err_msg).encode()
-                            );
-                        }
-                        disk.auth_json = Some(auth_json);
-                    }
-                    if let Some(name) = update_req.name {
-                        disk.name = name;
-                    }
-                    if let Some(public_note) = update_req.public_note {
-                        disk.public_note = Some(public_note);
-                    }
-                    if let Some(external_id) = update_req.external_id {
-                        let old_external_id = disk.external_id.clone();
-                        let new_external_id = Some(ExternalID(external_id));
-                        disk.external_id = new_external_id.clone();
-                        update_external_id_mapping(
-                            old_external_id,
-                            new_external_id,
-                            Some(disk_id.0.clone())
-                        );
-                    }
-                    if let Some(external_payload) = update_req.external_payload {
-                        disk.external_payload = Some(ExternalPayload(external_payload));
-                    }
-
-                    DISKS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(disk_id.clone(), disk.clone());
-                    });
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Update Disk {}", 
-                            requester_api_key.user_id,
-                            disk_id.clone()
-                        ).to_string())
-                    );
-
-                    create_response(
-                        StatusCode::OK,
-                        UpdateDiskResponse::ok(&disk).encode()
-                    )
-                },
-                UpsertDiskRequestBody::Create(create_req) => {
-
-                    // Check create permission if not owner
-                    if !is_owner {
-                        let resource_id = SystemResourceID::Table(SystemTableEnum::Disks);
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Create) {
-                            return create_auth_error_response();
-                        }
-                    }
-                    
-                    // Validate that auth_json is provided and valid for AwsBucket or StorjWeb3 types.
-                    if let Err(err_msg) = validate_auth_json(&create_req.disk_type, &create_req.auth_json) {
-                        return create_response(
-                            StatusCode::BAD_REQUEST,
-                            ErrorResponse::err(400, err_msg).encode()
-                        );
-                    }
-                    let prestate = snapshot_prestate();
-
-                    
-                    // Create new disk
-                    let disk_type_suffix = format!("__DiskType_{}", create_req.disk_type);
-                    let disk_id = DiskID(generate_unique_id(IDPrefix::Disk, ""));
-                    let new_external_id = Some(ExternalID(create_req.external_id.unwrap_or("".to_string())));
-                    let disk = Disk {
-                        id: disk_id.clone(),
-                        name: create_req.name,
-                        public_note: create_req.public_note,
-                        private_note: create_req.private_note,
-                        auth_json: create_req.auth_json,
-                        disk_type: create_req.disk_type,
-                        tags: vec![],
-                        external_id: new_external_id.clone(),
-                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
-                    };
-                    update_external_id_mapping(
-                        None,
-                        new_external_id,
-                        Some(disk_id.0.clone())
-                    );
-
-                    // Store the disk
-                    DISKS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(disk_id.clone(), disk.clone());
-                    });
-
-                    DISKS_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(disk_id.clone());
-                    });
-
-                    ensure_disk_root_folder(
-                        &disk_id,
-                        &requester_api_key.user_id,
-                        &ic_cdk::api::id().to_text()
-                    );
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Create Disk {}", 
-                            requester_api_key.user_id,
-                            disk_id.clone()
-                        ).to_string())
-                    );
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateDiskResponse::ok(&disk).encode()
-                    )
-                }
-            }
-        } else {
-            create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            )
+            disk.auth_json = Some(auth_json);
         }
+        if let Some(name) = update_req.name {
+            disk.name = name;
+        }
+        if let Some(public_note) = update_req.public_note {
+            disk.public_note = Some(public_note);
+        }
+        if let Some(external_id) = update_req.external_id {
+            let old_external_id = disk.external_id.clone();
+            let new_external_id = Some(ExternalID(external_id));
+            disk.external_id = new_external_id.clone();
+            update_external_id_mapping(
+                old_external_id,
+                new_external_id,
+                Some(disk_id.0.clone())
+            );
+        }
+        if let Some(external_payload) = update_req.external_payload {
+            disk.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        DISKS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(disk_id.clone(), disk.clone());
+        });
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Disk {}", 
+                requester_api_key.user_id,
+                disk_id.clone()
+            ).to_string())
+        );
+
+        create_response(
+            StatusCode::OK,
+            UpdateDiskResponse::ok(&disk).encode()
+        )
     }
 
     pub async fn delete_disk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {

@@ -90,7 +90,6 @@ pub struct ListWebhooksResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateWebhookRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub alt_index: String,
     pub url: String,
     pub event: String,
@@ -148,7 +147,6 @@ impl CreateWebhookRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateWebhookRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -208,23 +206,6 @@ impl UpdateWebhookRequestBody {
         Ok(())
     }
 }
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertWebhookRequestBody {
-    Create(CreateWebhookRequestBody),
-    Update(UpdateWebhookRequestBody),
-}
-
-impl UpsertWebhookRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertWebhookRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertWebhookRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
-
 
 
 #[derive(Debug, Clone, Deserialize)]

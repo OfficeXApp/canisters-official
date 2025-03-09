@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse, UpsertTeamInviteRequestBody}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeamInviteRequestBody, CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeamInviteRequestBody, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
         
     };
     use crate::core::state::team_invites::{
@@ -19,7 +19,6 @@ pub mod team_invites_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-    
         let invite_id = TeamInviteID(params.get("invite_id").unwrap().to_string());
         
         let invite = INVITES_BY_ID_HASHTABLE.with(|store| {
@@ -167,7 +166,7 @@ pub mod team_invites_handlers {
         )
     }
     
-    pub async fn upsert_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -176,320 +175,328 @@ pub mod team_invites_handlers {
     
         // Parse request body
         let body: &[u8] = request.body();
+        let create_req = serde_json::from_slice::<CreateTeamInviteRequestBody>(body).unwrap();
         
-        if let Ok(req) = serde_json::from_slice::<UpsertTeamInviteRequestBody>(body) {
+        if let Err(validation_err) = create_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_err.field, validation_err.message)
+                ).encode()
+            );
+        }
 
-            // validate request
-            if let Err(validation_err) = req.validate_body() {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(
-                        400, 
-                        format!("Validation error: {} - {}", validation_err.field, validation_err.message)
-                    ).encode()
-                );
-            }
-            
+        let team_id = TeamID(create_req.team_id);
+        let active_webhooks = get_active_team_invite_webhooks(&team_id, WebhookEventLabel::TeamInviteCreated);
 
-            match req {
-                UpsertTeamInviteRequestBody::Create(create_req) => {
+        let before_snap = TeamInviteWebhookData {
+            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                store.borrow().get(&team_id).cloned()
+            ),
+            team_invite: None,
+        };
 
-                    let team_id = TeamID(create_req.team_id);
-                    let active_webhooks = get_active_team_invite_webhooks(&team_id, WebhookEventLabel::TeamInviteCreated);
+        // Verify team exists and user has permission
+        let team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {
+            Some(team) => team,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
 
-                    let before_snap = TeamInviteWebhookData {
-                        team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                            store.borrow().get(&team_id).cloned()
-                        ),
-                        team_invite: None,
-                    };
+        // Check if user is authorized (owner or admin)
+        let is_authorized = team.owner == requester_api_key.user_id.clone() || 
+                        team.admin_invites.iter().any(|invite_id| {
+                            INVITES_BY_ID_HASHTABLE.with(|store| {
+                                store.borrow()
+                                    .get(invite_id)
+                                    .map(|invite| invite.invitee_id == TeamInviteeID::User(requester_api_key.user_id.clone()))
+                                    .unwrap_or(false)
+                            })
+                        });
 
-                    // Verify team exists and user has permission
-                    let team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {
-                        Some(team) => team,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
 
-                    // Check if user is authorized (owner or admin)
-                    let is_authorized = team.owner == requester_api_key.user_id.clone() || 
-                                    team.admin_invites.iter().any(|invite_id| {
-                                        INVITES_BY_ID_HASHTABLE.with(|store| {
-                                            store.borrow()
-                                                .get(invite_id)
-                                                .map(|invite| invite.invitee_id == TeamInviteeID::User(requester_api_key.user_id.clone()))
-                                                .unwrap_or(false)
-                                        })
-                                    });
+        if !is_authorized && !table_permissions.contains(&SystemPermissionType::Create) {
+            return create_auth_error_response();
+        }
 
-                    let table_permissions = check_system_permissions(
-                        SystemResourceID::Table(SystemTableEnum::Teams),
-                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                    );
-        
-                    if !is_authorized && !table_permissions.contains(&SystemPermissionType::Create) {
-                        return create_auth_error_response();
-                    }
+        let prestate = snapshot_prestate();
 
-                    let prestate = snapshot_prestate();
+        // Create new invite
+        let invite_id = TeamInviteID(generate_unique_id(IDPrefix::Invite, ""));
+        let now = ic_cdk::api::time();
 
-                    // Create new invite
-                    let invite_id = TeamInviteID(generate_unique_id(IDPrefix::Invite, ""));
-                    let now = ic_cdk::api::time();
-
-                    // 4. Parse and validate grantee ID if provided (not required for deferred links)
-                    let invitee_id = if let Some(invitee_user_id) = create_req.invitee_id {
-                        TeamInviteeID::User(UserID(invitee_user_id))
-                    } else {
-                        // Create a new deferred link ID for sharing
-                        TeamInviteeID::PlaceholderTeamInvitee(PlaceholderTeamInviteeID(
-                            generate_unique_id(IDPrefix::PlaceholderTeamInviteeID, "")
-                        ))
-                    };
+        // 4. Parse and validate grantee ID if provided (not required for deferred links)
+        let invitee_id = if let Some(invitee_user_id) = create_req.invitee_id {
+            TeamInviteeID::User(UserID(invitee_user_id))
+        } else {
+            // Create a new deferred link ID for sharing
+            TeamInviteeID::PlaceholderTeamInvitee(PlaceholderTeamInviteeID(
+                generate_unique_id(IDPrefix::PlaceholderTeamInviteeID, "")
+            ))
+        };
 
 
-                    let new_invite = Team_Invite {
-                        id: invite_id.clone(),
-                        team_id: team_id.clone(),
-                        inviter_id: requester_api_key.user_id.clone(),
-                        invitee_id,
-                        role: create_req.role,
-                        note: create_req.note.unwrap_or("".to_string()),
-                        created_at: now,
-                        last_modified_at: now,
-                        active_from: create_req.active_from.unwrap_or(0),
-                        expires_at: create_req.expires_at.unwrap_or(-1),
-                        from_placeholder_invitee: None,
-                        tags: vec![],
-                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
-                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
-                    };
-                    update_external_id_mapping(None, new_invite.external_id.clone(), Some(invite_id.0.to_string()));
+        let new_invite = Team_Invite {
+            id: invite_id.clone(),
+            team_id: team_id.clone(),
+            inviter_id: requester_api_key.user_id.clone(),
+            invitee_id,
+            role: create_req.role,
+            note: create_req.note.unwrap_or("".to_string()),
+            created_at: now,
+            last_modified_at: now,
+            active_from: create_req.active_from.unwrap_or(0),
+            expires_at: create_req.expires_at.unwrap_or(-1),
+            from_placeholder_invitee: None,
+            tags: vec![],
+            external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+            external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+        };
+        update_external_id_mapping(None, new_invite.external_id.clone(), Some(invite_id.0.to_string()));
 
-                    // Update all relevant state stores
-                    INVITES_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(invite_id.clone(), new_invite.clone());
-                    });
+        // Update all relevant state stores
+        INVITES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(invite_id.clone(), new_invite.clone());
+        });
 
-                    // Update team's invite lists
-                    TEAMS_BY_ID_HASHTABLE.with(|store| {
-                        let mut store = store.borrow_mut();
-                        if let Some(team) = store.get_mut(&team_id) {
-                            match new_invite.role {
-                                TeamRole::Admin => {
-                                    team.admin_invites.push(invite_id.clone());
-                                    team.member_invites.push(invite_id.clone());
-                                },
-                                TeamRole::Member => team.member_invites.push(invite_id.clone()),
-                            }
-                        }
-                    });
-
-                    // Update user's team invites
-                    USERS_INVITES_LIST_HASHTABLE.with(|store| {
-                        let mut store = store.borrow_mut();
-                        store.entry(new_invite.invitee_id.clone())
-                            .or_insert_with(Vec::new)
-                            .push(invite_id.clone());
-                    });
-
-                    // Fire webhook if we have active ones - create snapshot with team data
-                    if !active_webhooks.is_empty() {
-                        let after_snap = TeamInviteWebhookData {
-                            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                                store.borrow().get(&team_id).cloned()
-                            ),
-                            team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
-                                store.borrow().get(&invite_id).cloned()
-                            ),
-                        };
-
-                        fire_team_invite_webhook(
-                            WebhookEventLabel::TeamInviteCreated,
-                            active_webhooks,
-                            Some(before_snap),
-                            Some(after_snap),
-                            Some("Invite created".to_string())
-                        );
-                    }
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Create Team Invite {}", 
-                            requester_api_key.user_id,
-                            invite_id.0
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateTeam_InviteResponse::ok(&new_invite).encode()
-                    )
-                },
-                UpsertTeamInviteRequestBody::Update(update_req) => {
-                    let invite_id = update_req.id;
-
-
-                    // Get existing invite
-                    let mut invite = match INVITES_BY_ID_HASHTABLE.with(|store| 
-                        store.borrow().get(&invite_id).cloned()
-                    ) {
-                        Some(invite) => invite,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
-                    let active_webhooks = get_active_team_invite_webhooks(&invite.team_id, WebhookEventLabel::TeamInviteUpdated);
-                    let before_snap = TeamInviteWebhookData {
-                        team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                            store.borrow().get(&invite.team_id).cloned()
-                        ),
-                        team_invite: Some(invite.clone()),
-                    };
-                    
-                    // Check if user is authorized (owner or admin)
-                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-                    let is_authorized = is_owner || 
-                    INVITES_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow()
-                            .get(&invite_id)
-                            .map(|invite| invite.inviter_id == requester_api_key.user_id)
-                            .unwrap_or(false)
-                    });
-
-                    let table_permissions = check_system_permissions(
-                        SystemResourceID::Table(SystemTableEnum::Teams),
-                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                    );
-        
-                    if !is_authorized && !table_permissions.contains(&SystemPermissionType::Update) {
-                        return create_auth_error_response();
-                    }
-
-                    let prestate = snapshot_prestate();
-                    
-
-                    // If role is being updated, we need to update the team's invite lists
-                    if let Some(new_role) = update_req.role {
-                        if new_role != invite.role {
-                            TEAMS_BY_ID_HASHTABLE.with(|store| {
-                                let mut store = store.borrow_mut();
-                                if let Some(team) = store.get_mut(&invite.team_id) {
-                                    // Remove from old role's list
-                                    match invite.role {
-                                        TeamRole::Admin => {
-                                            if let Some(pos) = team.admin_invites.iter().position(|id| *id == invite_id) {
-                                                team.admin_invites.remove(pos);
-                                            }
-                                            if let Some(pos) = team.member_invites.iter().position(|id| *id == invite_id) {
-                                                team.member_invites.remove(pos);
-                                            }
-                                        },
-                                        TeamRole::Member => {
-                                            if let Some(pos) = team.member_invites.iter().position(|id| *id == invite_id) {
-                                                team.member_invites.remove(pos);
-                                            }
-                                        },
-                                    }
-                                    // Add to new role's list
-                                    match new_role {
-                                        TeamRole::Admin => {
-                                            if !team.admin_invites.contains(&invite_id) {
-                                                team.admin_invites.push(invite_id.clone());
-                                            }
-                                            if !team.member_invites.contains(&invite_id) {
-                                                team.member_invites.push(invite_id.clone());
-                                            }
-                                        },
-                                        TeamRole::Member => {
-                                            if !team.member_invites.contains(&invite_id) {
-                                                team.member_invites.push(invite_id.clone());
-                                            }
-                                        },
-                                    }
-                                }
-                            });
-                            invite.role = new_role;
-                        }
-                    }
-
-                    // Update other fields if provided
-                    if let Some(active_from) = update_req.active_from {
-                        invite.active_from = active_from;
-                    }
-
-                    if let Some(expires_at) = update_req.expires_at {
-                        invite.expires_at = expires_at;
-                    }
-                    if let Some(note) = update_req.note {
-                        invite.note = note;
-                    }
-
-                    invite.last_modified_at = ic_cdk::api::time();
-
-                    if let Some(external_id) = update_req.external_id.clone() {
-                        let old_external_id = invite.external_id.clone();
-                        let new_external_id = Some(ExternalID(external_id.clone()));
-                        invite.external_id = new_external_id.clone();
-                        update_external_id_mapping(
-                            old_external_id,
-                            new_external_id,
-                            Some(invite.id.to_string())
-                        );
-                    }
-                    if let Some(external_payload) = update_req.external_payload.clone() {
-                        invite.external_payload = Some(ExternalPayload(external_payload));
-                    }
-
-                    // Update state
-                    INVITES_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(invite.id.clone(), invite.clone());
-                    });
-
-                    // Fire webhook if we have active ones - create snapshot with team data
-                    if !active_webhooks.is_empty() {
-                        let after_snap = TeamInviteWebhookData {
-                            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                                store.borrow().get(&invite.team_id).cloned()
-                            ),
-                            team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
-                                store.borrow().get(&invite_id).cloned()
-                            ),
-                        };
-                        fire_team_invite_webhook(
-                            WebhookEventLabel::TeamInviteUpdated,
-                            active_webhooks,
-                            Some(before_snap),
-                            Some(after_snap),
-                            Some("Invite updated".to_string())
-                        );
-                    }
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Update Team Invite {}", 
-                            requester_api_key.user_id,
-                            invite_id.0
-                        ).to_string()
-                    ));
-
-                    create_response(
-                        StatusCode::OK,
-                        UpdateTeam_InviteResponse::ok(&invite).encode()
-                    )
+        // Update team's invite lists
+        TEAMS_BY_ID_HASHTABLE.with(|store| {
+            let mut store = store.borrow_mut();
+            if let Some(team) = store.get_mut(&team_id) {
+                match new_invite.role {
+                    TeamRole::Admin => {
+                        team.admin_invites.push(invite_id.clone());
+                        team.member_invites.push(invite_id.clone());
+                    },
+                    TeamRole::Member => team.member_invites.push(invite_id.clone()),
                 }
             }
-        } else {
-            create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            )
+        });
+
+        // Update user's team invites
+        USERS_INVITES_LIST_HASHTABLE.with(|store| {
+            let mut store = store.borrow_mut();
+            store.entry(new_invite.invitee_id.clone())
+                .or_insert_with(Vec::new)
+                .push(invite_id.clone());
+        });
+
+        // Fire webhook if we have active ones - create snapshot with team data
+        if !active_webhooks.is_empty() {
+            let after_snap = TeamInviteWebhookData {
+                team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                    store.borrow().get(&team_id).cloned()
+                ),
+                team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
+                    store.borrow().get(&invite_id).cloned()
+                ),
+            };
+
+            fire_team_invite_webhook(
+                WebhookEventLabel::TeamInviteCreated,
+                active_webhooks,
+                Some(before_snap),
+                Some(after_snap),
+                Some("Invite created".to_string())
+            );
         }
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Team Invite {}", 
+                requester_api_key.user_id,
+                invite_id.0
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            CreateTeam_InviteResponse::ok(&new_invite).encode()
+        )
+
     }
     
+    pub async fn update_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Parse request body
+        let body: &[u8] = request.body();
+        let update_req = serde_json::from_slice::<UpdateTeamInviteRequestBody>(body).unwrap();
+        
+        if let Err(validation_err) = update_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_err.field, validation_err.message)
+                ).encode()
+            );
+        }
+
+        let invite_id = update_req.id;
+
+        // Get existing invite
+        let mut invite = match INVITES_BY_ID_HASHTABLE.with(|store| 
+            store.borrow().get(&invite_id).cloned()
+        ) {
+            Some(invite) => invite,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+        let active_webhooks = get_active_team_invite_webhooks(&invite.team_id, WebhookEventLabel::TeamInviteUpdated);
+        let before_snap = TeamInviteWebhookData {
+            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                store.borrow().get(&invite.team_id).cloned()
+            ),
+            team_invite: Some(invite.clone()),
+        };
+        
+        // Check if user is authorized (owner or admin)
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_authorized = is_owner || 
+        INVITES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow()
+                .get(&invite_id)
+                .map(|invite| invite.inviter_id == requester_api_key.user_id)
+                .unwrap_or(false)
+        });
+
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        );
+
+        if !is_authorized && !table_permissions.contains(&SystemPermissionType::Edit) {
+            return create_auth_error_response();
+        }
+
+        let prestate = snapshot_prestate();
+        
+
+        // If role is being updated, we need to update the team's invite lists
+        if let Some(new_role) = update_req.role {
+            if new_role != invite.role {
+                TEAMS_BY_ID_HASHTABLE.with(|store| {
+                    let mut store = store.borrow_mut();
+                    if let Some(team) = store.get_mut(&invite.team_id) {
+                        // Remove from old role's list
+                        match invite.role {
+                            TeamRole::Admin => {
+                                if let Some(pos) = team.admin_invites.iter().position(|id| *id == invite_id) {
+                                    team.admin_invites.remove(pos);
+                                }
+                                if let Some(pos) = team.member_invites.iter().position(|id| *id == invite_id) {
+                                    team.member_invites.remove(pos);
+                                }
+                            },
+                            TeamRole::Member => {
+                                if let Some(pos) = team.member_invites.iter().position(|id| *id == invite_id) {
+                                    team.member_invites.remove(pos);
+                                }
+                            },
+                        }
+                        // Add to new role's list
+                        match new_role {
+                            TeamRole::Admin => {
+                                if !team.admin_invites.contains(&invite_id) {
+                                    team.admin_invites.push(invite_id.clone());
+                                }
+                                if !team.member_invites.contains(&invite_id) {
+                                    team.member_invites.push(invite_id.clone());
+                                }
+                            },
+                            TeamRole::Member => {
+                                if !team.member_invites.contains(&invite_id) {
+                                    team.member_invites.push(invite_id.clone());
+                                }
+                            },
+                        }
+                    }
+                });
+                invite.role = new_role;
+            }
+        }
+
+        // Update other fields if provided
+        if let Some(active_from) = update_req.active_from {
+            invite.active_from = active_from;
+        }
+
+        if let Some(expires_at) = update_req.expires_at {
+            invite.expires_at = expires_at;
+        }
+        if let Some(note) = update_req.note {
+            invite.note = note;
+        }
+
+        invite.last_modified_at = ic_cdk::api::time();
+
+        if let Some(external_id) = update_req.external_id.clone() {
+            let old_external_id = invite.external_id.clone();
+            let new_external_id = Some(ExternalID(external_id.clone()));
+            invite.external_id = new_external_id.clone();
+            update_external_id_mapping(
+                old_external_id,
+                new_external_id,
+                Some(invite.id.to_string())
+            );
+        }
+        if let Some(external_payload) = update_req.external_payload.clone() {
+            invite.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        // Update state
+        INVITES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(invite.id.clone(), invite.clone());
+        });
+
+        // Fire webhook if we have active ones - create snapshot with team data
+        if !active_webhooks.is_empty() {
+            let after_snap = TeamInviteWebhookData {
+                team: TEAMS_BY_ID_HASHTABLE.with(|store| 
+                    store.borrow().get(&invite.team_id).cloned()
+                ),
+                team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
+                    store.borrow().get(&invite_id).cloned()
+                ),
+            };
+            fire_team_invite_webhook(
+                WebhookEventLabel::TeamInviteUpdated,
+                active_webhooks,
+                Some(before_snap),
+                Some(after_snap),
+                Some("Invite updated".to_string())
+            );
+        }
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Team Invite {}", 
+                requester_api_key.user_id,
+                invite_id.0
+            ).to_string()
+        ));
+
+        create_response(
+            StatusCode::OK,
+            UpdateTeam_InviteResponse::ok(&invite).encode()
+        )
+    }
+    
+
     pub async fn delete_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {

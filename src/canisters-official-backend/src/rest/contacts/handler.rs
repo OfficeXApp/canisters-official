@@ -3,12 +3,13 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_unique_id}, webhooks::organization::{fire_organization_webhook, get_active_organization_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactResponse, UpsertContactRequestBody}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_unique_id}, webhooks::organization::{fire_organization_webhook, get_active_organization_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
         types::Contact,
     };
+    use url::Url;
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
@@ -24,6 +25,7 @@ pub mod contacts_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+        
 
         // Only owner can access contact.private_note
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
@@ -67,10 +69,10 @@ pub mod contacts_handlers {
                 //         contact.id
                 //     ).to_string())
                 // );
-                let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
+                let cast_fe_contact = contact.clone().cast_fe(&requester_api_key.user_id);
                 create_response(
                     StatusCode::OK,
-                    GetContactResponse::ok(&redacted_contact).encode()
+                    GetContactResponse::ok(&cast_fe_contact).encode()
                 )
             },
             None => create_response(
@@ -86,6 +88,7 @@ pub mod contacts_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+        
     
         // Only owner can access webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
@@ -254,9 +257,9 @@ pub mod contacts_handlers {
     
         // Create response
         let response_data = ListContactsResponseData {
-            // filtered, redacted contacts
+            // filtered, cast_fe contacts
             items: filtered_contacts.clone().into_iter().map(|contact| {
-                contact.redacted(&requester_api_key.user_id)
+                contact.cast_fe(&requester_api_key.user_id)
             }).collect(),
             page_size: filtered_contacts.len(),
             total: total_count,
@@ -277,12 +280,13 @@ pub mod contacts_handlers {
         )
     }
 
-    pub async fn upsert_contact_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_contact_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+        
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
@@ -291,204 +295,225 @@ pub mod contacts_handlers {
 
         // Parse request body
         let body: &[u8] = request.body();
+        let create_req = serde_json::from_slice::<CreateContactRequestBody>(body).unwrap();
 
-        if let Ok(req) = serde_json::from_slice::<UpsertContactRequestBody>(body) {
-
-            if let Err(validation_error) = req.validate_body() {
-                return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(
-                        400, 
-                        format!("Validation error: {} - {}", validation_error.field, validation_error.message)
-                    ).encode()
-                );
-            }
-
-            match req {
-                UpsertContactRequestBody::Update(update_req) => {
-
-                    let contact_id = update_req.id;
-                    
-                    // Get existing contact
-                    let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
-                        Some(contact) => contact,
-                        None => return create_response(
-                            StatusCode::NOT_FOUND,
-                            ErrorResponse::not_found().encode()
-                        ),
-                    };
-
-                    let old_external_id = contact.external_id.clone();
-                    let old_internal_id = Some(contact.id.clone().to_string());
-
-                    // Check update permission if not owner
-                    if !is_owner {
-                        let table_permissions = check_system_permissions(
-                            SystemResourceID::Table(SystemTableEnum::Contacts),
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(contact_id.to_string()));
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Update) && !table_permissions.contains(&SystemPermissionType::Update) {
-                            return create_auth_error_response();
-                        }
-                    }
-
-                    let prestate = snapshot_prestate();
-
-                    // Update fields - ignoring alt_index and event as they cannot be modified
-                    if let Some(name) = update_req.name {
-                        contact.name = name;
-                    }
-                    if let Some(public_note) = update_req.public_note {
-                        contact.public_note = public_note;
-                    }
-                    if let Some(private_note) = update_req.private_note {
-                        if is_owner {
-                            contact.private_note = Some(private_note);
-                        }
-                    }
-                    if let Some(email) = update_req.email {
-                        contact.email = Some(email);
-                    }
-                    if let Some(webhook_url) = update_req.webhook_url {
-                        contact.webhook_url = Some(webhook_url);
-                    }
-                    if let Some(evm_public_address) = update_req.evm_public_address {
-                        contact.evm_public_address = evm_public_address;
-                    }
-                    if let Some(icp_principal) = update_req.icp_principal {
-                        contact.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
-                    }
-                    if let Some(seed_phrase) = update_req.seed_phrase {
-                        contact.seed_phrase = Some(seed_phrase);
-                    }
-
-                    if let Some(external_id) = update_req.external_id.clone() {
-                        contact.external_id = Some(ExternalID(external_id));
-                    }
-                    if let Some(external_payload) = update_req.external_payload.clone() {
-                        contact.external_payload = Some(ExternalPayload(external_payload));
-                    }
-
-                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
-                    });
-
-                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
-                    });
-
-                    update_external_id_mapping(
-                        old_external_id,
-                        Some(ExternalID(update_req.external_payload.unwrap_or("".to_string()))),
-                        old_internal_id
-                    );
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Update Contact {}", 
-                            requester_api_key.user_id,
-                            contact.id
-                        ).to_string())
-                    );
-                    let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
-
-                    create_response(
-                        StatusCode::OK,
-                        UpdateContactResponse::ok(&redacted_contact).encode()
-                    )
-                },
-                UpsertContactRequestBody::Create(create_req) => {
-
-                    // Check create permission if not owner
-                    if !is_owner {
-                        let resource_id = SystemResourceID::Table(SystemTableEnum::Contacts);
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        if !permissions.contains(&SystemPermissionType::Create) {
-                            return create_auth_error_response();
-                        }
-                    }
-
-                    let prestate = snapshot_prestate();
-
-                    // Create new webhook
-                    let contact_id = format_user_id(&create_req.icp_principal.clone());
-                    let contact = Contact {
-                        id: contact_id.clone(),
-                        name: create_req.name,
-                        email: create_req.email,
-                        webhook_url: create_req.webhook_url,
-                        public_note: create_req.public_note.unwrap_or_default(),
-                        private_note: Some(create_req.private_note.unwrap_or_default()),
-                        evm_public_address: create_req.evm_public_address.unwrap_or_default(),
-                        icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
-                        seed_phrase: Some(create_req.seed_phrase.unwrap_or_default()),
-                        teams: [].to_vec(),
-                        tags: vec![],
-                        past_user_ids: [].to_vec(),
-                        external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
-                        external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
-                        from_placeholder_user_id: create_req.is_placeholder.and_then(|is_placeholder| {
-                            if is_placeholder {
-                                Some(contact_id.clone())
-                            } else {
-                                None
-                            }
-                        }),
-                        redeem_token: create_req.is_placeholder.and_then(|is_placeholder| {
-                            if is_placeholder {
-                                Some(generate_unique_id(IDPrefix::RedeemToken, ""))
-                            } else {
-                                None
-                            }
-                        }),
-                    };
-
-                    CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact_id.clone(), contact.clone());
-                    });
-
-                    CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-                        store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
-                    });
-
-                    CONTACTS_BY_TIME_LIST.with(|store| {
-                        store.borrow_mut().push(contact_id.clone());
-                    });
-
-                    update_external_id_mapping(None, contact.external_id.clone(), Some(contact_id.to_string()));
-
-                    snapshot_poststate(prestate, Some(
-                        format!(
-                            "{}: Create Contact {}", 
-                            requester_api_key.user_id,
-                            contact.id
-                        ).to_string())
-                    );
-
-                    let redacted_contact = contact.clone().redacted(&requester_api_key.user_id);
-
-                    create_response(
-                        StatusCode::OK,
-                        CreateContactResponse::ok(&redacted_contact).encode()
-                    )
-                }
-            }
-        } else {
-            create_response(
+        if let Err(validation_error) = create_req.validate_body() {
+            return create_response(
                 StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            )
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
         }
+        
+        // Check create permission if not owner
+        if !is_owner {
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Contacts);
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Create) {
+                return create_auth_error_response();
+            }
+        }
+
+        let prestate = snapshot_prestate();
+
+        // Create new webhook
+        let contact_id = format_user_id(&create_req.icp_principal.clone());
+        let contact = Contact {
+            id: contact_id.clone(),
+            name: create_req.name,
+            email: create_req.email,
+            avatar: create_req.avatar,
+            notifications_url: create_req.notifications_url,
+            public_note: create_req.public_note,
+            private_note: Some(create_req.private_note.unwrap_or_default()),
+            evm_public_address: create_req.evm_public_address.unwrap_or_default(),
+            icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
+            seed_phrase: Some(create_req.seed_phrase.unwrap_or_default()),
+            teams: [].to_vec(),
+            tags: vec![],
+            past_user_ids: [].to_vec(),
+            external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
+            external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+            from_placeholder_user_id: create_req.is_placeholder.and_then(|is_placeholder| {
+                if is_placeholder {
+                    Some(contact_id.clone())
+                } else {
+                    None
+                }
+            }),
+            redeem_token: create_req.is_placeholder.and_then(|is_placeholder| {
+                if is_placeholder {
+                    Some(generate_unique_id(IDPrefix::RedeemToken, ""))
+                } else {
+                    None
+                }
+            }),
+            created_at: ic_cdk::api::time() / 1_000_000,
+            last_online_ms: 0,
+        };
+
+        CONTACTS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(contact_id.clone(), contact.clone());
+        });
+
+        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
+        });
+
+        CONTACTS_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().push(contact_id.clone());
+        });
+
+        update_external_id_mapping(None, contact.external_id.clone(), Some(contact_id.to_string()));
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Create Contact {}", 
+                requester_api_key.user_id,
+                contact.id
+            ).to_string())
+        );
+
+        let cast_fe_contact = contact.clone().cast_fe(&requester_api_key.user_id);
+
+        create_response(
+            StatusCode::OK,
+            CreateContactResponse::ok(&cast_fe_contact).encode()
+        )
+
+    }
+
+    pub async fn update_contact_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+        
+
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        if !is_owner {
+            return create_auth_error_response();
+        }
+
+        // Parse request body
+        let body: &[u8] = request.body();
+        let update_req = serde_json::from_slice::<UpdateContactRequestBody>(body).unwrap();
+
+        if let Err(validation_error) = update_req.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(
+                    400, 
+                    format!("Validation error: {} - {}", validation_error.field, validation_error.message)
+                ).encode()
+            );
+        }
+
+        let contact_id = update_req.id;
+                    
+        // Get existing contact
+        let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
+            Some(contact) => contact,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::not_found().encode()
+            ),
+        };
+
+        let old_external_id = contact.external_id.clone();
+        let old_internal_id = Some(contact.id.clone().to_string());
+
+        // Check update permission if not owner
+        if !is_owner {
+            let table_permissions = check_system_permissions(
+                SystemResourceID::Table(SystemTableEnum::Contacts),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(contact_id.to_string()));
+            let permissions = check_system_permissions(
+                resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
+                return create_auth_error_response();
+            }
+        }
+
+        let prestate = snapshot_prestate();
+
+        // Update fields - ignoring alt_index and event as they cannot be modified
+        if let Some(name) = update_req.name {
+            contact.name = name;
+        }
+        if let Some(public_note) = update_req.public_note {
+            contact.public_note = Some(public_note);
+        }
+        if let Some(private_note) = update_req.private_note {
+            if is_owner {
+                contact.private_note = Some(private_note);
+            }
+        }
+        if let Some(email) = update_req.email {
+            contact.email = Some(email);
+        }
+        if let Some(avatar) = update_req.avatar {
+            contact.avatar = Some(avatar);
+        }
+        if let Some(notifications_url) = update_req.notifications_url {
+            contact.notifications_url = Some(notifications_url);
+        }
+        if let Some(evm_public_address) = update_req.evm_public_address {
+            contact.evm_public_address = evm_public_address;
+        }
+        if let Some(icp_principal) = update_req.icp_principal {
+            contact.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
+        }
+        if let Some(seed_phrase) = update_req.seed_phrase {
+            contact.seed_phrase = Some(seed_phrase);
+        }
+
+        if let Some(external_id) = update_req.external_id.clone() {
+            contact.external_id = Some(ExternalID(external_id));
+        }
+        if let Some(external_payload) = update_req.external_payload.clone() {
+            contact.external_payload = Some(ExternalPayload(external_payload));
+        }
+
+        CONTACTS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(contact_id.clone(), contact.clone());
+        });
+
+        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(contact.icp_principal.clone(), contact_id.clone());
+        });
+
+        update_external_id_mapping(
+            old_external_id,
+            Some(ExternalID(update_req.external_payload.unwrap_or("".to_string()))),
+            old_internal_id
+        );
+
+        snapshot_poststate(prestate, Some(
+            format!(
+                "{}: Update Contact {}", 
+                requester_api_key.user_id,
+                contact.id
+            ).to_string())
+        );
+        let cast_fe_contact = contact.clone().cast_fe(&requester_api_key.user_id);
+
+        create_response(
+            StatusCode::OK,
+            UpdateContactResponse::ok(&cast_fe_contact).encode()
+        )
 
     }
 
@@ -498,6 +523,7 @@ pub mod contacts_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+        
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
@@ -609,6 +635,7 @@ pub mod contacts_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+        
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
 
@@ -688,11 +715,11 @@ pub mod contacts_handlers {
                     ).to_string())
                 );
 
-                let redacted_contact = current_contact.clone().redacted(&requester_api_key.user_id);
+                let cast_fe_contact = current_contact.clone().cast_fe(&requester_api_key.user_id);
 
                 create_response(
                     StatusCode::OK,
-                    UpdateContactResponse::ok(&redacted_contact).encode()
+                    UpdateContactResponse::ok(&cast_fe_contact).encode()
                 )
             },
             Err(err) => {

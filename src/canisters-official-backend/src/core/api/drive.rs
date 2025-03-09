@@ -269,7 +269,7 @@ pub mod drive {
             full_file_path: DriveFullFilePath(full_file_path.clone()),
             tags: Vec::new(),
             created_by: user_id.clone(),
-            created_date_ms: ic_cdk::api::time() / 1_000_000,
+            created_at: ic_cdk::api::time() / 1_000_000,
             disk_id: disk_id.clone(),
             disk_type: disk.disk_type,
             file_size,
@@ -982,7 +982,7 @@ pub mod drive {
         new_file_metadata.file_version = 1;
         new_file_metadata.prior_version = None;
         new_file_metadata.next_version = None;
-        new_file_metadata.created_date_ms = ic_cdk::api::time() / 1_000_000;
+        new_file_metadata.created_at = ic_cdk::api::time() / 1_000_000;
         new_file_metadata.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
         new_file_metadata.raw_url = format_file_asset_path(new_file_uuid.clone(), new_file_metadata.extension.clone());
 
@@ -1035,7 +1035,7 @@ pub mod drive {
         new_folder_metadata.full_folder_path = DriveFullFilePath(final_path.clone());
         new_folder_metadata.subfolder_uuids = Vec::new(); // Will be populated while copying subfolders
         new_folder_metadata.file_uuids = Vec::new(); // Will be populated while copying files
-        new_folder_metadata.created_date_ms = ic_cdk::api::time() / 1_000_000;
+        new_folder_metadata.created_at = ic_cdk::api::time() / 1_000_000;
         new_folder_metadata.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
     
         // Update metadata maps

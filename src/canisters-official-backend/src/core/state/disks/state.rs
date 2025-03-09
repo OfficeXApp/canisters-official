@@ -25,21 +25,23 @@ pub mod state {
             tags: vec![],
             external_id: Some(ExternalID(ic_cdk::api::id().to_text())),
             external_payload: None,
+            created_at: ic_cdk::api::time() / 1_000_000,
         };
-        let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, "");
-        let default_browsercache_disk = Disk {
-            id: DiskID(browsercache_disk_id.clone()),
-            name: "Ephemeral Browser Storage (Default)".to_string(),
-            disk_type: DiskTypeEnum::BrowserCache,
-            private_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
-            public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
-            auth_json: None,
-            tags: vec![],
-            external_id: Some(ExternalID(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text()))),
-            external_payload: None,
-        };
+        // let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, "");
+        // let default_browsercache_disk = Disk {
+        //     id: DiskID(browsercache_disk_id.clone()),
+        //     name: "Ephemeral Browser Storage (Default)".to_string(),
+        //     disk_type: DiskTypeEnum::BrowserCache,
+        //     private_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
+        //     public_note: Some("Offline web browser cache. Do not expect persistence in case browser history cleared.".to_string()),
+        //     auth_json: None,
+        //     tags: vec![],
+        //     external_id: Some(ExternalID(format!("{}_DEFAULT_BROWSERCACHE_DISK_ID",ic_cdk::api::id().to_text()))),
+        //     external_payload: None,
+        //     created_at: ic_cdk::api::time() / 1_000_000,
+        // };
 
-        let default_disks = vec![default_canister_disk, default_browsercache_disk];
+        let default_disks = vec![default_canister_disk];
 
         for disk in default_disks {
             DISKS_BY_ID_HASHTABLE.with(|map| {
@@ -77,7 +79,7 @@ pub mod state {
                 full_folder_path: root_path.clone(),
                 tags: Vec::new(),
                 created_by: owner_id.clone(),
-                created_date_ms: ic_cdk::api::time(),
+                created_at: ic_cdk::api::time(),
                 disk_id: disk_id.clone(),
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: owner_id.clone(),

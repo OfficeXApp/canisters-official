@@ -81,7 +81,6 @@ pub struct ListTeamInvitesResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamInviteRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub team_id: String,
     pub invitee_id: Option<String>,
     pub role: TeamRole,
@@ -123,7 +122,6 @@ impl CreateTeamInviteRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateTeamInviteRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: TeamInviteID,
     pub role: Option<TeamRole>,
     pub active_from: Option<u64>,
@@ -157,21 +155,6 @@ impl UpdateTeamInviteRequestBody {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertTeamInviteRequestBody {
-    Create(CreateTeamInviteRequestBody),
-    Update(UpdateTeamInviteRequestBody),
-}
-
-impl UpsertTeamInviteRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertTeamInviteRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertTeamInviteRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
 
 
 pub type GetTeam_InviteResponse<'a> = ApiResponse<'a, Team_Invite>;

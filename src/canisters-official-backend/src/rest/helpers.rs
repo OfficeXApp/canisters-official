@@ -2,7 +2,9 @@
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use serde_json::json;
 use std::borrow::Cow;
-use url::form_urlencoded;
+use url::{form_urlencoded, Url};
+
+use crate::core::{state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE, types::UserID};
 
 pub fn create_response(status_code: StatusCode, body: String) -> HttpResponse<'static> {
     let headers = vec![
@@ -48,4 +50,13 @@ pub fn not_found_response() -> HttpResponse<'static> {
 /// Use `url::form_urlencoded` to parse query string into key-value pairs.
 pub fn parse_query_string(query: &str) -> std::collections::HashMap<String, String> {
     form_urlencoded::parse(query.as_bytes()).into_owned().collect()
+}
+
+pub fn update_last_online_at(userID: &UserID) {
+    // Update the last online time for the user if theres a contact
+    CONTACTS_BY_ID_HASHTABLE.with(|map| {
+        if let Some(contact) = map.borrow_mut().get_mut(userID) {
+            contact.last_online_ms = ic_cdk::api::time() / 1_000_000;
+        }
+    });
 }

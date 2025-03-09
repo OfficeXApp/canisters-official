@@ -6,7 +6,8 @@ use crate::rest::types::RouteHandler;
 
 pub const TEAM_INVITES_GET_PATH: &str =     genroute!("/teams/invites/get/{invite_id}");
 pub const TEAM_INVITES_LIST_PATH: &str =    genroute!("/teams/invites/list");
-pub const TEAM_INVITES_UPSERT_PATH: &str =  genroute!("/teams/invites/upsert");
+pub const TEAM_INVITES_CREATE_PATH: &str =  genroute!("/teams/invites/create");
+pub const TEAM_INVITES_UPDATE_PATH: &str =  genroute!("/teams/invites/update");
 pub const TEAM_INVITES_DELETE_PATH: &str =  genroute!("/teams/invites/delete");
 pub const TEAM_INVITES_REDEEM_PATH: &str =  genroute!("/teams/invites/redeem");
 
@@ -26,8 +27,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            TEAM_INVITES_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::upsert_team_invite_handler(req, params)),
+            TEAM_INVITES_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::create_team_invite_handler(req, params)),
+        ),
+        (
+            "POST",
+            TEAM_INVITES_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::team_invites::handler::team_invites_handlers::update_team_invite_handler(req, params)),
         ),
         (
             "POST",

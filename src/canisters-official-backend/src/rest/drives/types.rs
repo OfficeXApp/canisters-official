@@ -74,26 +74,10 @@ pub struct ListDrivesResponseData {
     pub cursor_down: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertDriveRequestBody {
-    Create(CreateDriveRequestBody),
-    Update(UpdateDriveRequestBody),
-}
-
-impl UpsertDriveRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertDriveRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertDriveRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateDriveRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub icp_principal: Option<String>,
     pub public_note: Option<String>,
@@ -159,7 +143,6 @@ impl CreateDriveRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateDriveRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

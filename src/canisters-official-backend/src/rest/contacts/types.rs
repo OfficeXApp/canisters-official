@@ -2,7 +2,77 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{contacts::types::Contact, team_invites::types::TeamInviteeID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, redact_team_previews}, team_invites::types::{TeamInviteID, TeamInviteeID}, teams::types::TeamID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContactFE {
+    #[serde(flatten)] // this lets us "extend" the Contact struct
+    pub contact: Contact,
+    pub team_previews: Vec<ContactTeamInvitePreview>,
+    pub permission_previews: Vec<SystemPermissionType>,
+}
+impl ContactFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let is_owned = *user_id == self.contact.id;
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Contacts),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.contact.id.clone().to_string()));
+        let permissions = check_system_permissions(
+            resource_id,
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+            redacted.contact.seed_phrase = None;
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                redacted.contact.redeem_token = None;
+                redacted.contact.private_note = None;
+
+                // 3rd most sensitive
+                if !is_owned {
+                    redacted.contact.notifications_url = None;
+                    redacted.contact.from_placeholder_user_id = None;
+                }
+            }
+        }
+        // Filter tags
+        redacted.contact.tags = match is_owner {
+            true => redacted.contact.tags,
+            false => redacted.contact.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        // Filter team previews
+        let redacted_team_previews: Vec<ContactTeamInvitePreview> = redacted.team_previews.iter()
+            .filter_map(|team_preview| redact_team_previews(team_preview.clone(), user_id.clone()))
+            .collect();
+        redacted.team_previews = redacted_team_previews;
+        // this code is kinda redundant, but it's here for clarity
+        redacted.permission_previews = redacted.permission_previews;
+            
+        redacted
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContactTeamInvitePreview {
+    pub team_id: TeamID,
+    pub invite_id: TeamInviteID,
+    pub is_admin: bool,
+    pub team_name: String,
+    pub team_avatar: Option<String>,
+}
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,42 +135,26 @@ impl ListContactsRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListContactsResponseData {
-    pub items: Vec<Contact>,
+    pub items: Vec<ContactFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
 }
 
-pub type GetContactResponse<'a> = ApiResponse<'a, Contact>;
+pub type GetContactResponse<'a> = ApiResponse<'a, ContactFE>;
 
 pub type ListContactsResponse<'a> = ApiResponse<'a, ListContactsResponseData>;
 
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertContactRequestBody {
-    Create(CreateContactRequestBody),
-    Update(UpdateContactRequestBody),
-}
-
-impl UpsertContactRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertContactRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertContactRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateContactRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub icp_principal: String,
+    pub avatar: Option<String>,
     pub email: Option<String>,
-    pub webhook_url: Option<String>,
+    pub notifications_url: Option<String>,
     pub evm_public_address: Option<String>,
     pub seed_phrase: Option<String>,
     pub public_note: Option<String>,
@@ -139,9 +193,14 @@ impl CreateContactRequestBody {
             validate_email(email)?;
         }
 
-        // Validate webhook_url if provided
-        if let Some(webhook_url) = &self.webhook_url {
-            validate_url(webhook_url, "webhook_url")?;
+        // Validate avatar if provided
+        if let Some(avatar) = &self.avatar {
+            validate_url(avatar, "avatar")?;
+        }
+
+        // Validate notifications_url if provided
+        if let Some(notifications_url) = &self.notifications_url {
+            validate_url(notifications_url, "notifications_url")?;
         }
 
         // Validate EVM address if provided
@@ -223,14 +282,15 @@ impl CreateContactRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateContactRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: UserID,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub webhook_url: Option<String>,
+    pub notifications_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -282,9 +342,14 @@ impl UpdateContactRequestBody {
             validate_email(email)?;
         }
 
-        // Validate webhook_url if provided
-        if let Some(webhook_url) = &self.webhook_url {
-            validate_url(webhook_url, "webhook_url")?;
+        // Validate avatar if provided
+        if let Some(avatar) = &self.avatar {
+            validate_url(avatar, "avatar")?;
+        }
+
+        // Validate notifications_url if provided
+        if let Some(notifications_url) = &self.notifications_url {
+            validate_url(notifications_url, "notifications_url")?;
         }
 
         // Validate EVM address if provided
@@ -407,7 +472,7 @@ impl UpdateContactRequestBody {
 }
 
 
-pub type CreateContactResponse<'a> = ApiResponse<'a, Contact>;
+pub type CreateContactResponse<'a> = ApiResponse<'a, ContactFE>;
 
 
 
@@ -417,7 +482,7 @@ pub struct UpdateContactRequest {
     pub completed: Option<bool>,
 }
 
-pub type UpdateContactResponse<'a> = ApiResponse<'a, Contact>;
+pub type UpdateContactResponse<'a> = ApiResponse<'a, ContactFE>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteContactRequest {
