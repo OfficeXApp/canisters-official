@@ -826,7 +826,7 @@ pub mod drives_handlers {
         // Get the necessary drive data
         let drive_id = DRIVE_ID.with(|id| id.clone());
         let canister_id = CANISTER_ID.with(|id| id.0.clone());
-        let url_endpoint = URL_ENDPOINT.with(|url| url.borrow().0.clone());
+        let endpoint_url = URL_ENDPOINT.with(|url| url.borrow().0.clone());
         let spawn_note = SPAWN_NOTE.with(|note| note.borrow().clone());
         
         // Get the owner's default admin API key
@@ -846,12 +846,12 @@ pub mod drives_handlers {
         });
     
         // Construct the admin login password
-        let admin_login_password = format!("{}:{}@{}", drive_id, admin_api_key, url_endpoint);
+        let admin_login_password = format!("{}:{}@{}", drive_id, admin_api_key, endpoint_url);
     
         // Create the response data
         let response_data = RedeemOrgResponseData {
             drive_id,
-            endpoint: url_endpoint,
+            endpoint_url: endpoint_url,
             api_key: admin_api_key,
             note: spawn_note,
             admin_login_password,

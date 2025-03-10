@@ -24,7 +24,7 @@ pub struct Team {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub drive_id: DriveID,
-    pub url_endpoint: DriveRESTUrlEndpoint,
+    pub endpoint_url: DriveRESTUrlEndpoint,
     pub tags: Vec<TagStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,

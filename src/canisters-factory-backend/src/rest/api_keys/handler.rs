@@ -377,7 +377,7 @@ pub mod apikeys_handlers {
             canister_id: CANISTER_ID.with(|id| id.clone()),
             version: VERSION.with(|v| v.borrow().clone()),
             owner_id: OWNER_ID.with(|id| id.borrow().clone()),
-            url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
+            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
             global_uuid_nonce: GLOBAL_UUID_NONCE.with(|n| n.get()),
             
             // API keys state

@@ -476,7 +476,7 @@ pub mod giftcards_handlers {
         }
     
         // Get the giftcard to be redeemed
-        let giftcard_id = redeem_request.id.clone();
+        let giftcard_id = redeem_request.giftcard_id.clone();
         let giftcard = match GIFTCARD_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
             Some(v) => v,
             None => {

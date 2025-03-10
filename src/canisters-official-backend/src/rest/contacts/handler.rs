@@ -347,7 +347,7 @@ pub mod contacts_handlers {
                     None
                 }
             }),
-            redeem_token: create_req.is_placeholder.and_then(|is_placeholder| {
+            redeem_code: create_req.is_placeholder.and_then(|is_placeholder| {
                 if is_placeholder {
                     Some(generate_unique_id(IDPrefix::RedeemToken, ""))
                 } else {
@@ -664,7 +664,7 @@ pub mod contacts_handlers {
 
         let current_user_id = UserID(redeem_request.current_user_id.clone());
         let new_user_id = UserID(redeem_request.new_user_id.clone());
-        let redeem_token = redeem_request.redeem_token.clone();
+        let redeem_code = redeem_request.redeem_code.clone();
 
         // Check for existence of current user contact and redeem token match
         let current_contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&current_user_id).cloned()) {
@@ -675,7 +675,7 @@ pub mod contacts_handlers {
             ),
         };
         // throw error if redeem token does not match
-        if current_contact.redeem_token != Some(redeem_token.clone()) {
+        if current_contact.redeem_code != Some(redeem_code.clone()) {
             return create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, "Redeem token does not match".to_string()).encode()
@@ -688,7 +688,7 @@ pub mod contacts_handlers {
                 // Update the redeem token to None
                 CONTACTS_BY_ID_HASHTABLE.with(|store| {
                     if let Some(contact) = store.borrow_mut().get_mut(&current_user_id) {
-                        contact.redeem_token = None;
+                        contact.redeem_code = None;
                     }
                 });
 

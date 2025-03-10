@@ -63,7 +63,7 @@ pub fn fire_state_diff_webhooks(
                         diff_backward: backward_diff.clone(),
                         notes: notes.clone(),
                         drive_id: DRIVE_ID.with(|id| id.clone()),
-                        url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
+                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
                         checksum_forward: forward_checksum.clone(),
                         checksum_backward: backward_checksum.clone(),
                     }

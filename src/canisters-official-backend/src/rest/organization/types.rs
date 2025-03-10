@@ -171,7 +171,6 @@ pub struct ReindexDriveResponseData {
 pub type ReindexDriveResponse<'a> = ApiResponse<'a, ReindexDriveResponseData>;
 
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExternalIDsDriveRequestBody {
     pub external_ids: Vec<ExternalID>,
@@ -313,7 +312,7 @@ impl RedeemOrgRequestBody {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedeemOrgResponseData {
     pub drive_id: DriveID, // spawned drive id
-    pub endpoint: String, // spawned drive url endpoint
+    pub endpoint_url: String, // spawned drive url endpoint
     pub api_key: String, // admin api key for the spawned drive
     pub note: String, // note about the spawned drive, particularly info about the factory
     pub admin_login_password: String, // admin login password for the spawned drive

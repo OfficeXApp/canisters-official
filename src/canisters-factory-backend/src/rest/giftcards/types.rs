@@ -230,14 +230,14 @@ pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedeemGiftcardData {
-    pub id: GiftcardID,
+    pub giftcard_id: GiftcardID,
     pub owner_icp_principal: String,
     pub organization_name: Option<String>
 }
 impl RedeemGiftcardData {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate giftcard_id format
-        if !self.id.0.starts_with(IDPrefix::Giftcard.as_str()) {
+        if !self.giftcard_id.0.starts_with(IDPrefix::Giftcard.as_str()) {
             return Err(ValidationError {
                 field: "id".to_string(),
                 message: format!("Giftcard ID must start with '{}'", IDPrefix::Giftcard.as_str()),

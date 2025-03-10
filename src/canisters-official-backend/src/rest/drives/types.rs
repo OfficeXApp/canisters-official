@@ -125,7 +125,7 @@ pub struct CreateDriveRequestBody {
     pub icp_principal: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub url_endpoint: Option<String>,
+    pub endpoint_url: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -159,11 +159,11 @@ impl CreateDriveRequestBody {
             }
         }
 
-        // Validate url_endpoint if provided
-        if let Some(url_endpoint) = &self.url_endpoint {
-            if url_endpoint.len() > 4096 {
+        // Validate endpoint_url if provided
+        if let Some(endpoint_url) = &self.endpoint_url {
+            if endpoint_url.len() > 4096 {
                 return Err(ValidationError {
-                    field: "url_endpoint".to_string(),
+                    field: "endpoint_url".to_string(),
                     message: "URL endpoint must be 4,096 characters or less".to_string(),
                 });
             }
@@ -196,7 +196,7 @@ pub struct UpdateDriveRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icp_principal: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub url_endpoint: Option<String>,
+    pub endpoint_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -237,11 +237,11 @@ impl UpdateDriveRequestBody {
             validate_icp_principal(icp_principal)?;
         }
 
-        // Validate url_endpoint if provided
-        if let Some(url_endpoint) = &self.url_endpoint {
-            if url_endpoint.len() > 4096 {
+        // Validate endpoint_url if provided
+        if let Some(endpoint_url) = &self.endpoint_url {
+            if endpoint_url.len() > 4096 {
                 return Err(ValidationError {
-                    field: "url_endpoint".to_string(),
+                    field: "endpoint_url".to_string(),
                     message: "URL endpoint must be 4,096 characters or less".to_string(),
                 });
             }
