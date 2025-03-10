@@ -1,11 +1,54 @@
 // src/rest/drives/types.rs
 
 use serde::{Deserialize, Serialize};
+use crate::core::api::permissions::system::check_system_permissions;
+use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
+use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
+use crate::core::state::tags::types::redact_tag;
 use crate::core::types::{ICPPrincipalString, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
 use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DriveFE {
+    #[serde(flatten)] 
+    pub drive: Drive,
+    pub permission_previews: Vec<SystemPermissionType>, 
+}
+
+impl DriveFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                redacted.drive.private_note = None;
+            }
+        }
+        // Filter tags
+        redacted.drive.tags = match is_owner {
+            true => redacted.drive.tags,
+            false => redacted.drive.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
+
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListDrivesRequestBody {
@@ -67,7 +110,7 @@ impl ListDrivesRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListDrivesResponseData {
-    pub items: Vec<Drive>,
+    pub items: Vec<DriveFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -218,10 +261,10 @@ impl UpdateDriveRequestBody {
     }
 }
 
-pub type GetDriveResponse<'a> = ApiResponse<'a, Drive>;
+pub type GetDriveResponse<'a> = ApiResponse<'a, DriveFE>;
 pub type ListDrivesResponse<'a> = ApiResponse<'a, ListDrivesResponseData>;
-pub type CreateDriveResponse<'a> = ApiResponse<'a, Drive>;
-pub type UpdateDriveResponse<'a> = ApiResponse<'a, Drive>;
+pub type CreateDriveResponse<'a> = ApiResponse<'a, DriveFE>;
+pub type UpdateDriveResponse<'a> = ApiResponse<'a, DriveFE>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteDriveRequest {

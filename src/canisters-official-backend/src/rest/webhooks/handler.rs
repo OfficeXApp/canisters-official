@@ -61,7 +61,7 @@ pub mod webhooks_handlers {
         match webhook {
             Some(hook) => create_response(
                 StatusCode::OK,
-                GetWebhookResponse::ok(&hook).encode()
+                GetWebhookResponse::ok(&hook.cast_fe(&requester_api_key.user_id)).encode()
             ),
             None => create_response(
                 StatusCode::NOT_FOUND, 
@@ -236,7 +236,9 @@ pub mod webhooks_handlers {
     
         // Create response
         let response_data = ListWebhooksResponseData {
-            items: filtered_webhooks.clone(),
+            items: filtered_webhooks.clone().into_iter().map(|webhook| {
+                webhook.cast_fe(&requester_api_key.user_id)
+            }).collect(),
             page_size: filtered_webhooks.len(),
             total: total_count,
             cursor_up,
@@ -297,7 +299,8 @@ pub mod webhooks_handlers {
             url: create_req.url,
             event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
             signature: create_req.signature.unwrap_or_default(),
-            description: create_req.description.unwrap_or_default(),
+            public_note: create_req.public_note,
+            private_note: create_req.private_note,
             active: true,
             filters: create_req.filters.unwrap_or_default(),
             tags: vec![],
@@ -337,7 +340,7 @@ pub mod webhooks_handlers {
 
         create_response(
             StatusCode::OK,
-            CreateWebhookResponse::ok(&webhook).encode()
+            CreateWebhookResponse::ok(&webhook.cast_fe(&requester_api_key.user_id)).encode()
         )
 
     }
@@ -399,8 +402,11 @@ pub mod webhooks_handlers {
         if let Some(signature) = update_req.signature {
             webhook.signature = signature;
         }
-        if let Some(description) = update_req.description {
-            webhook.description = description;
+        if let Some(public_note) = update_req.public_note {
+            webhook.public_note = Some(public_note);
+        }
+        if let Some(private_note) = update_req.private_note {
+            webhook.private_note = Some(private_note);
         }
         if let Some(active) = update_req.active {
             webhook.active = active;
@@ -438,7 +444,7 @@ pub mod webhooks_handlers {
 
         create_response(
             StatusCode::OK,
-            UpdateWebhookResponse::ok(&webhook).encode()
+            UpdateWebhookResponse::ok(&webhook.cast_fe(&requester_api_key.user_id)).encode()
         )
 
     }

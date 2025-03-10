@@ -112,7 +112,7 @@ pub mod tags_handlers {
                 }
                 create_response(
                     StatusCode::OK,
-                    GetTagResponse::ok(&tag).encode()
+                    GetTagResponse::ok(&tag.cast_fe(&requester_api_key.user_id)).encode()
                 )
             },
             None => create_response(
@@ -304,7 +304,9 @@ pub mod tags_handlers {
         create_response(
             StatusCode::OK,
             ListTagsResponse::ok(&ListTagsResponseData {
-                items: paginated_tags,
+                items: paginated_tags.into_iter().map(|tag| {
+                    tag.cast_fe(&requester_api_key.user_id)
+                }).collect(),
                 page_size: page_size,
                 total: total_filtered_count,
                 cursor_up,
@@ -387,7 +389,8 @@ pub mod tags_handlers {
         let tag = Tag {
             id: tag_id.clone(),
             value: tag_value.clone(),
-            description: create_req.description,
+            public_note: create_req.public_note,
+            private_note: create_req.private_note,
             color,
             created_by: requester_api_key.user_id.clone(),
             created_at: current_time,
@@ -424,7 +427,7 @@ pub mod tags_handlers {
 
         create_response(
             StatusCode::OK,
-            CreateTagResponse::ok(&tag).encode()
+            CreateTagResponse::ok(&tag.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 
@@ -483,8 +486,12 @@ pub mod tags_handlers {
         let prestate = snapshot_prestate();
 
         
-        if let Some(description) = update_req.description {
-            tag.description = Some(description);
+        if let Some(public_note) = update_req.public_note {
+            tag.public_note = Some(public_note);
+        }
+        
+        if let Some(private_note) = update_req.private_note {
+            tag.private_note = Some(private_note);
         }
         
         if let Some(color_str) = update_req.color {
@@ -554,7 +561,7 @@ pub mod tags_handlers {
 
         create_response(
             StatusCode::OK,
-            UpdateTagResponse::ok(&tag).encode()
+            UpdateTagResponse::ok(&tag.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 
@@ -708,9 +715,19 @@ pub mod tags_handlers {
         let prestate = snapshot_prestate();
 
         // Get the tag value
-        let tag_value = TAGS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&tag_id).map(|tag| tag.value.clone())
-        }).unwrap();
+        // let tag = TAGS_BY_ID_HASHTABLE.with(|store| {
+        //     store.borrow().get(&tag_id).map(|tag| tag.clone())
+        // }).unwrap();
+
+        // check if tag exists, throw bad request if not
+        let tag = match TAGS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&tag_id).cloned()) {
+            Some(tag) => tag,
+            None => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Tag with ID {} not found", tag_id.0)).encode()
+            ),
+        };
+        let tag_value = tag.value.clone();
 
 
         // Check update permission on the resource
@@ -790,13 +807,15 @@ pub mod tags_handlers {
                         resource_id.get_id_string()
                     ).to_string())
                 );
+
+                
                 
                 create_response(
                     StatusCode::OK,
                     TagResourceResponse::ok(&TagOperationResponse {
                         success: true,
                         message: Some(format!("Successfully {}ed tag", if tag_request.add { "add" } else { "remov" })),
-                        tag: TAGS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&tag_id).cloned()),
+                        tag: Some(tag.cast_fe(&requester_api_key.user_id)),
                     }).encode()
                 )
             },

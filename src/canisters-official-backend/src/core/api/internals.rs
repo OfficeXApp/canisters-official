@@ -26,7 +26,7 @@ pub mod drive_internals {
     }
     
 
-    pub fn ensure_root_folder(disk_id: &DiskID, user_id: &UserID, canister_id: String,) -> FolderID {
+    pub fn ensure_root_folder(disk_id: &DiskID, disk_type: &DiskTypeEnum,user_id: &UserID, canister_id: String,) -> FolderID {
         let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
         let canister_icp_principal_string = if canister_id.is_empty() {
             ic_cdk::api::id().to_text()
@@ -49,6 +49,7 @@ pub mod drive_internals {
                 created_by: user_id.clone(),
                 created_at: ic_cdk::api::time(),
                 disk_id: disk_id.clone(),
+                disk_type: disk_type.clone(),
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: user_id.clone(),
                 deleted: false,
@@ -80,6 +81,7 @@ pub mod drive_internals {
                 created_by: user_id.clone(),
                 created_at: ic_cdk::api::time(),
                 disk_id: disk_id.clone(),
+                disk_type: disk_type.clone(),
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: user_id.clone(),
                 deleted: false,
@@ -168,6 +170,7 @@ pub mod drive_internals {
     pub fn ensure_folder_structure(
         folder_path: &str,
         disk_id: DiskID,
+        disk_type: DiskTypeEnum,
         user_id: UserID,
         canister_id: String,
         has_sovereign_permissions: bool,
@@ -183,7 +186,7 @@ pub mod drive_internals {
             canister_id.clone()
         };
 
-        let mut parent_uuid = ensure_root_folder(&disk_id, &user_id, canister_icp_principal_string.clone());
+        let mut parent_uuid = ensure_root_folder(&disk_id, &disk_type, &user_id, canister_icp_principal_string.clone());
 
         for part in path_parts[1].split('/').filter(|&p| !p.is_empty()) {
             current_path = format!("{}{}/", current_path.clone(), part);
@@ -202,6 +205,7 @@ pub mod drive_internals {
                     created_by: user_id.clone(),
                     created_at: ic_cdk::api::time(),
                     disk_id: disk_id.clone(),
+                    disk_type: disk_type.clone(),
                     last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                     last_updated_by: user_id.clone(),
                     deleted: false,
@@ -429,6 +433,7 @@ pub mod drive_internals {
         folder_id: Option<FolderID>, 
         folder_path: Option<DriveFullFilePath>,
         disk_id: DiskID,
+        disk_type: DiskTypeEnum,
         user_id: UserID,
         canister_id: String,
     ) -> Result<FolderRecord, String> {
@@ -446,6 +451,7 @@ pub mod drive_internals {
                 let new_folder_uuid = ensure_folder_structure(
                     &path.to_string(),
                     disk_id,
+                    disk_type,
                     user_id,
                     canister_id,
                     false,

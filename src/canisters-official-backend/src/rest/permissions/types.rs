@@ -1,9 +1,89 @@
 // src/rest/permissions/types.rs
 use serde::{Deserialize, Serialize};
+use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::permissions::types::*;
+use crate::core::state::tags::types::redact_tag;
+use crate::core::types::UserID;
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::core::state::permissions::types::PermissionMetadata;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
+
+
+
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemPermissionFE {
+    #[serde(flatten)] 
+    pub system_permission: SystemPermission,
+    pub permission_previews: Vec<SystemPermissionType>, 
+}
+
+impl SystemPermissionFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                // redacted.system_permission.private_note = None;
+            }
+        }
+        // Filter tags
+        redacted.system_permission.tags = match is_owner {
+            true => redacted.system_permission.tags,
+            false => redacted.system_permission.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryPermissionFE {
+    #[serde(flatten)] 
+    pub directory_permission: DirectoryPermission,
+    pub permission_previews: Vec<SystemPermissionType>, 
+}
+
+impl DirectoryPermissionFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                // redacted.system_permission.private_note = None;
+            }
+        }
+        // Filter tags
+        redacted.directory_permission.tags = match is_owner {
+            true => redacted.directory_permission.tags,
+            false => redacted.directory_permission.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
+
 
 // Response type included in FileRecord/FolderRecord
 #[derive(Debug, Clone, Serialize)]
@@ -69,7 +149,7 @@ impl CreateDirectoryPermissionsRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateDirectoryPermissionsResponseData {
-    pub permission: DirectoryPermission,
+    pub permission: DirectoryPermissionFE,
 }
 
 
@@ -133,7 +213,7 @@ impl UpdateDirectoryPermissionsRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateDirectoryPermissionsResponseData {
-    pub permission: DirectoryPermission,
+    pub permission: DirectoryPermissionFE,
 }
 
 
@@ -204,14 +284,14 @@ impl RedeemPermissionRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RedeemPermissionResponseData {
-    pub permission: DirectoryPermission,
+    pub permission: DirectoryPermissionFE,
 }
 
 pub type RedeemPermissionResponse<'a> = ApiResponse<'a, RedeemPermissionResponseData>;
 
 
 // Response type aliases using ApiResponse
-pub type GetPermissionResponse<'a> = ApiResponse<'a, DirectoryPermission>;
+pub type GetPermissionResponse<'a> = ApiResponse<'a, DirectoryPermissionFE>;
 pub type CreatePermissionsResponse<'a> = ApiResponse<'a, CreateDirectoryPermissionsResponseData>;
 pub type DeletePermissionResponse<'a> = ApiResponse<'a, DeletePermissionResponseData>;
 pub type CheckPermissionResponse<'a> = ApiResponse<'a, CheckPermissionResult>;
@@ -285,7 +365,7 @@ impl CreateSystemPermissionsRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateSystemPermissionsResponseData {
-    pub permission: SystemPermission,
+    pub permission: SystemPermissionFE,
 }
 
 
@@ -345,7 +425,7 @@ impl UpdateSystemPermissionsRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateSystemPermissionsResponseData {
-    pub permission: SystemPermission,
+    pub permission: SystemPermissionFE,
 }
 
 
@@ -414,11 +494,11 @@ impl RedeemSystemPermissionRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RedeemSystemPermissionResponseData {
-    pub permission: SystemPermission,
+    pub permission: SystemPermissionFE,
 }
 
 // Response type aliases
-pub type GetSystemPermissionResponse<'a> = ApiResponse<'a, SystemPermission>;
+pub type GetSystemPermissionResponse<'a> = ApiResponse<'a, SystemPermissionFE>;
 pub type CreateSystemPermissionsResponse<'a> = ApiResponse<'a, CreateSystemPermissionsResponseData>;
 pub type DeleteSystemPermissionResponse<'a> = ApiResponse<'a, DeleteSystemPermissionResponseData>;
 pub type CheckSystemPermissionResponse<'a> = ApiResponse<'a, CheckSystemPermissionResult>;

@@ -138,6 +138,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                         value: ApiKeyValue(format!("signature_auth_{}", computed_principal)),
                         user_id: format_user_id(&computed_principal.clone()),
                         name: format!("Signature Authenticated User {}", computed_principal),
+                        private_note: None,
                         created_at: now,
                         expires_at: -1,
                         is_revoked: false,

@@ -1,9 +1,57 @@
 // src/rest/teams/types.rs
 use serde::{Deserialize, Serialize};
 use crate::{core::{
-    state::teams::types::{Team, TeamID},
-    types::UserID
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::redact_tag, team_invites::types::TeamInviteID, teams::{state::state::is_team_admin, types::{Team, TeamID}}}, types::UserID
 }, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamFE {
+    #[serde(flatten)] // this lets us "extend" the Contact struct
+    pub team: Team,
+    pub member_previews: Vec<TeamMemberPreview>,
+    pub permission_previews: Vec<SystemPermissionType>,
+}
+
+impl TeamFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+        let is_team_admin = is_team_admin(user_id, &self.team.id);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions && !is_team_admin {
+                redacted.team.url_endpoint = DriveRESTUrlEndpoint("".to_string());
+                redacted.team.private_note = None;
+            }
+        }
+        // Filter tags
+        redacted.team.tags = match is_owner {
+            true => redacted.team.tags,
+            false => redacted.team.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamMemberPreview {
+    pub user_id: UserID,
+    pub name: String,
+    pub avatar: Option<String>,
+    pub team_id: TeamID,
+    pub is_admin: bool,
+    pub invite_id: TeamInviteID,
+}
 
 
 #[derive(Debug, Clone, Deserialize)]
@@ -66,7 +114,7 @@ impl ListTeamsRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListTeamsResponseData {
-    pub items: Vec<Team>,
+    pub items: Vec<TeamFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -223,9 +271,9 @@ pub struct ValidateTeamResponseData {
 }
 
 
-pub type GetTeamResponse<'a> = ApiResponse<'a, Team>;
-pub type CreateTeamResponse<'a> = ApiResponse<'a, Team>;
-pub type UpdateTeamResponse<'a> = ApiResponse<'a, Team>;
+pub type GetTeamResponse<'a> = ApiResponse<'a, TeamFE>;
+pub type CreateTeamResponse<'a> = ApiResponse<'a, TeamFE>;
+pub type UpdateTeamResponse<'a> = ApiResponse<'a, TeamFE>;
 pub type DeleteTeamResponse<'a> = ApiResponse<'a, DeletedTeamData>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 pub type ValidateTeamResponse<'a> = ApiResponse<'a, ValidateTeamResponseData>;

@@ -59,7 +59,7 @@ pub mod drives_handlers {
                 }
                 create_response(
                     StatusCode::OK,
-                    GetDriveResponse::ok(&drive).encode()
+                    GetDriveResponse::ok(&drive.cast_fe(&requester_api_key.user_id)).encode()
                 )
             },
             None => create_response(
@@ -238,7 +238,9 @@ pub mod drives_handlers {
 
         // Create response
         let response_data = ListDrivesResponseData {
-            items: filtered_drives.clone(),
+            items: filtered_drives.clone().into_iter().map(|drive| {
+                drive.cast_fe(&requester_api_key.user_id)
+            }).collect(),
             page_size: filtered_drives.len(),
             total: total_count,
             cursor_up,
@@ -333,7 +335,7 @@ pub mod drives_handlers {
 
         create_response(
             StatusCode::OK,
-            CreateDriveResponse::ok(&drive).encode()
+            CreateDriveResponse::ok(&drive.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 
@@ -436,7 +438,7 @@ pub mod drives_handlers {
 
         create_response(
             StatusCode::OK,
-            UpdateDriveResponse::ok(&drive).encode()
+            UpdateDriveResponse::ok(&drive.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 

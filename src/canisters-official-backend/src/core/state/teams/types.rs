@@ -1,11 +1,11 @@
 // src/core/state/teams/types.rs
 use serde::{Serialize, Deserialize};
 use std::fmt;
-use crate::core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::TeamInviteID}, types::UserID
-};
+use crate::{core::{
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::{TeamInviteID, TeamInviteeID}}, types::UserID
+}, rest::teams::types::{TeamFE, TeamMemberPreview}};
 use serde_diff::{SerdeDiff};
-
+use std::iter::Iterator;
 use super::state::state::is_team_admin;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -29,44 +29,90 @@ pub struct Team {
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }
-impl Team {
-    pub fn redacted(&self, user_id: &UserID) -> Self {
-        let mut redacted = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+impl Team {
+
+    pub fn cast_fe(&self, user_id: &UserID) -> TeamFE {
+        let team = self.clone();
+        // Collect team invites for this user
+        let mut member_previews = Vec::new();
+        
+        for invite_id in &team.member_invites {
+            // Get the invite data
+            let invite_opt = crate::core::state::team_invites::state::state::INVITES_BY_ID_HASHTABLE
+                .with(|invites| invites.borrow().get(invite_id).cloned());
+            
+            if let Some(invite) = invite_opt {
+                // Check if user is an admin
+                let is_admin = is_team_admin(&user_id.clone(), &team.id);
+
+                // query the contacts hashtable by invitee_id to get the name and avatar
+                // we have to check that TeamInviteeID::User matches
+                let invitee_name = match invite.invitee_id.clone() {
+                    TeamInviteeID::User(user_id) => {
+                        // query the contacts hashtable by user_id to get the name
+                        let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                        if let Some(contact) = contact_opt {
+                            contact.name
+                        } else {
+                            "".to_string()
+                        }
+                    },
+                    _ => "".to_string()
+                };
+                let invitee_avatar = match invite.invitee_id.clone() {
+                    TeamInviteeID::User(user_id) => {
+                        // query the contacts hashtable by user_id to get the avatar
+                        let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                        if let Some(contact) = contact_opt {
+                            contact.avatar
+                        } else {
+                            None
+                        }
+                    },
+                    _ => None
+                };
+                
+                member_previews.push(TeamMemberPreview {
+                    user_id: UserID(invite.invitee_id.to_string()),
+                    name: invitee_name,
+                    avatar: invitee_avatar,
+                    is_admin,
+                    team_id: team.id.clone(),
+                    invite_id: invite.id.clone(),
+                });
+            }
+        }
+        
+        
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::Team(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
         let table_permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Teams),
             PermissionGranteeID::User(user_id.clone())
         );
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
-        let permissions = check_system_permissions(
-            resource_id,
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
-        let is_team_admin = is_team_admin(user_id, &self.id);
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
 
-        // Most sensitive
-        if !is_owner {
-
-            // 2nd most sensitive
-            if !has_edit_permissions && !is_team_admin {
-                redacted.admin_invites = vec![];
-                redacted.member_invites = vec![];
-                redacted.private_note = None;
-            }
-        }
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
-            .collect()
-        };
-        
-        redacted
+        TeamFE {
+            team,
+            member_previews,
+            permission_previews
+        }.redacted(user_id)
     }
+
+    
 }
+
 
 // Implement Display for TeamID
 impl fmt::Display for TeamID {

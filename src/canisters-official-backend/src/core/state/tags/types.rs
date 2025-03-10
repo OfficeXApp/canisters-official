@@ -16,7 +16,7 @@ use crate::{core::{
         teams::types::TeamID,
         webhooks::types::WebhookID
     }, types::{IDPrefix, UserID}
-}, rest::contacts::types::ContactTeamInvitePreview};
+}, rest::{contacts::types::ContactTeamInvitePreview, tags::types::TagFE}};
 
 use super::state::TAGS_BY_VALUE_HASHTABLE;
 
@@ -56,7 +56,8 @@ impl fmt::Display for HexColorString {
 pub struct Tag {
     pub id: TagID,
     pub value: TagStringValue,
-    pub description: Option<String>,
+    pub public_note: Option<String>,
+    pub private_note: Option<String>,
     pub color: HexColorString,
     pub created_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub created_at: u64,
@@ -68,31 +69,33 @@ pub struct Tag {
 }
 
 impl Tag {
-    pub fn redacted(&self, user_id: &UserID) -> Self {
-        let mut redacted = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        // let table_permissions = check_system_permissions(
-        //     SystemResourceID::Table(SystemTableEnum::Tags),
-        //     PermissionGranteeID::User(user_id.clone())
-        // );
-        // let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
-        // let permissions = check_system_permissions(
-        //     resource_id,
-        //     PermissionGranteeID::User(user_id.clone())
-        // );
-        // let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
-
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
-            .collect()
-        };
+    pub fn cast_fe(&self, user_id: &UserID) -> TagFE {
+        let tag = self.clone();
         
-        redacted
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::Tag(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Tags),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+        TagFE {
+            tag,
+            permission_previews
+        }.redacted(user_id)
     }
+
+    
 }
 
 

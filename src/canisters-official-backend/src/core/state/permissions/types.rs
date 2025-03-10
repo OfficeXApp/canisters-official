@@ -5,11 +5,10 @@ use std::collections::HashSet;
 use serde_diff::{SerdeDiff};
 
 use crate::{core::{
-    state::{
+    api::permissions::system::check_system_permissions, state::{
         directory::types::DriveFullFilePath, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, tags::types::{redact_tag, TagStringValue}, teams::types::TeamID
-    },
-    types::UserID,
-}, rest::directory::types::DirectoryResourceID};
+    }, types::UserID
+}, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct DirectoryPermissionID(pub String);
@@ -79,20 +78,35 @@ pub struct DirectoryPermission {
 }
 
 impl DirectoryPermission {
-    pub fn redacted(&self, user_id: &UserID) -> Self {
-        let mut redacted = self.clone();
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
-            .collect()
-        };
+
+    pub fn cast_fe(&self, user_id: &UserID) -> DirectoryPermissionFE {
+        let directory_permission = self.clone();
         
-        redacted
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::Permission(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Permissions),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+        DirectoryPermissionFE {
+            directory_permission,
+            permission_previews
+        }.redacted(user_id)
     }
+
+    
 }
+
 
 
 
@@ -206,20 +220,35 @@ pub struct SystemPermission {
     pub external_payload: Option<ExternalPayload>,
 }
 
+
 impl SystemPermission {
-    pub fn redacted(&self, user_id: &UserID) -> Self {
-        let mut redacted = self.clone();
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
-            .collect()
-        };
+
+    pub fn cast_fe(&self, user_id: &UserID) -> SystemPermissionFE {
+        let system_permission = self.clone();
         
-        redacted
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::Permission(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Permissions),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+        SystemPermissionFE {
+            system_permission,
+            permission_previews
+        }.redacted(user_id)
     }
+
+    
 }
 
 

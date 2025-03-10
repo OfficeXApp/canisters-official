@@ -152,7 +152,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     
 
                     let get_file_response = GetFileResponse {
-                        file,
+                        file: file.cast_fe(&user_id).await,
                         permissions: your_permissions,
                         requester_id: user_id,
                     };
@@ -237,7 +237,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     });    
                     
                     let get_folder_response = GetFolderResponse {
-                        folder: folder.clone(),
+                        folder: folder.clone().cast_fe(&user_id).await,
                         permissions: your_permissions,
                         requester_id: user_id.clone(),
                     };
@@ -415,7 +415,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             );
 
                             Ok(DirectoryActionResult::CreateFile(CreateFileResponse {
-                                file: file_metadata,
+                                file: file_metadata.redact_only(&user_id),
                                 upload: upload_response,
                                 notes: "File created successfully".to_string(),
                             }))
@@ -535,7 +535,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some("Subfolder created".to_string()),
                             );
 
-                            Ok(DirectoryActionResult::CreateFolder(folder))
+                            Ok(DirectoryActionResult::CreateFolder(folder.redact_only(&user_id)))
                         },
                         Err(e) => match e.as_str() {
                             "Folder already exists" => Err(DirectoryActionErrorInfo {
@@ -705,7 +705,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_file),
                                 Some("Subfile updated".to_string()),
                             );
-                            Ok(DirectoryActionResult::UpdateFile(updated_file))
+                            Ok(DirectoryActionResult::UpdateFile(updated_file.redact_only(&user_id)))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -869,7 +869,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_folder),
                                 Some("Subfolder updated".to_string()),
                             );
-                            Ok(DirectoryActionResult::UpdateFolder(updated_folder))
+                            Ok(DirectoryActionResult::UpdateFolder(updated_folder.redact_only(&user_id)))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1142,6 +1142,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         });
                     }
 
+
                     // Get source file ID
                     let file_id = if let Some(id) = action.target.resource_id {
                         match id {
@@ -1195,12 +1196,14 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             message: "You don't have permission to view this file".to_string(),
                         });
                     }
+
         
                     // Get destination folder metadata
                     let destination_folder = match get_destination_folder(
                         payload.destination_folder_id.clone(),
                         payload.destination_folder_path.clone(),
                         source_file.disk_id.clone(),
+                        source_file.disk_type.clone(),
                         user_id.clone(),
                         source_file.canister_id.0.0.clone(),
                     ) {
@@ -1248,7 +1251,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_file),
                                 Some("Copy File".to_string()),
                             );
-                            Ok(DirectoryActionResult::CopyFile(file))
+                            Ok(DirectoryActionResult::CopyFile(file.redact_only(&user_id)))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1334,6 +1337,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.destination_folder_id.clone(),
                         payload.destination_folder_path.clone(),
                         source_folder.disk_id.clone(),
+                        source_folder.disk_type.clone(),
                         user_id.clone(),
                         source_folder.canister_id.0.0.clone(),
                     ) {
@@ -1382,7 +1386,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_folder),
                                 Some("Copy Folder".to_string()),
                             );
-                            Ok(DirectoryActionResult::CopyFolder(folder))
+                            Ok(DirectoryActionResult::CopyFolder(folder.redact_only(&user_id)))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1480,6 +1484,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.destination_folder_id,
                         payload.destination_folder_path,
                         file.disk_id,
+                        file.disk_type,
                         user_id.clone(),
                         file.canister_id.0.0.clone()
                     ) {
@@ -1527,7 +1532,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_file),
                                 Some("Moved File".to_string()),
                             );
-                            Ok(DirectoryActionResult::MoveFile(file))
+                            Ok(DirectoryActionResult::MoveFile(file.redact_only(&user_id)))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1630,6 +1635,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.destination_folder_id,
                         payload.destination_folder_path,
                         folder.disk_id,
+                        folder.disk_type,
                         user_id.clone(),
                         folder.canister_id.0.0.clone()
                     ) {
@@ -1677,7 +1683,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_folder),
                                 Some("Move Folder".to_string()),
                             );
-                            Ok(DirectoryActionResult::MoveFolder(folder))
+                            Ok(DirectoryActionResult::MoveFolder(folder.redact_only(&user_id)))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,

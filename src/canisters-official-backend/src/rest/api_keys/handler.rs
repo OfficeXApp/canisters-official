@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyHidden, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_unique_id}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyFE, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -66,7 +66,7 @@ pub mod apikeys_handlers {
                 //         requested_id
                 //     ).to_string())
                 // );
-                let redacted_key = key.clone().redacted(&requester_api_key.user_id);
+                let redacted_key = key.cast_fe(&requester_api_key.user_id);
                 create_response(
                     StatusCode::OK,
                     GetApiKeyResponse::ok(&redacted_key).encode()
@@ -121,11 +121,11 @@ pub mod apikeys_handlers {
         match api_key_ids {
             Some(ids) => {
                 // Get full API key details for each ID and convert to hidden version
-                let api_keys: Vec<ApiKeyHidden> = APIKEYS_BY_ID_HASHTABLE.with(|store| {
+                let api_keys: Vec<ApiKeyFE> = APIKEYS_BY_ID_HASHTABLE.with(|store| {
                     let store = store.borrow();
                     ids.iter()
                         .filter_map(|id| store.get(id))
-                        .map(|key| ApiKeyHidden::from(key.clone()))
+                        .map(|key| key.clone().cast_fe(&requester_api_key.user_id))
                         .collect()
                 });
                 let redacted_api_keys = api_keys.clone().iter().map(|key| key.redacted(&requester_api_key.user_id)).collect();
@@ -197,6 +197,7 @@ pub mod apikeys_handlers {
             value: ApiKeyValue(generate_api_key()),
             user_id: key_user_id, 
             name: create_req.name,
+            private_note: create_req.private_note,
             created_at: ic_cdk::api::time(),
             expires_at: create_req.expires_at.unwrap_or(-1),
             is_revoked: false,
@@ -239,7 +240,7 @@ pub mod apikeys_handlers {
             ).to_string())
         );
 
-        let redacted_key = new_api_key.clone().redacted(&requester_api_key.user_id);
+        let redacted_key = new_api_key.clone().cast_fe(&requester_api_key.user_id);
 
         create_response(
             StatusCode::OK,
@@ -345,7 +346,7 @@ pub mod apikeys_handlers {
                         api_key.id
                     ).to_string())
                 );
-                let redacted_key = key.clone().redacted(&requester_api_key.user_id);
+                let redacted_key = key.clone().cast_fe(&requester_api_key.user_id);
                 create_response(
                     StatusCode::OK,
                     UpdateApiKeyResponse::ok(&redacted_key).encode()

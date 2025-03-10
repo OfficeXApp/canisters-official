@@ -2,7 +2,7 @@
 // src/core/state/api_keys/types.rs
 use serde_diff::{Diff, SerdeDiff};
 use serde::{Deserialize, Serialize};
-use crate::core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::UserID};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::UserID}, rest::api_keys::types::ApiKeyFE};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -26,6 +26,7 @@ pub struct ApiKey {
     pub value: ApiKeyValue,
     pub user_id: UserID,
     pub name: String,
+    pub private_note: Option<String>,
     pub created_at: u64, 
     pub expires_at: i64, 
     pub is_revoked: bool,
@@ -36,32 +37,33 @@ pub struct ApiKey {
 
 
 impl ApiKey {
-    pub fn redacted(&self, user_id: &UserID) -> Self {
-        let mut redacted = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        // let is_owned = *user_id == self.user_id;
-        // let table_permissions = check_system_permissions(
-        //     SystemResourceID::Table(SystemTableEnum::Api_Keys),
-        //     PermissionGranteeID::User(user_id.clone())
-        // );
-        // let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
-        // let permissions = check_system_permissions(
-        //     resource_id,
-        //     PermissionGranteeID::User(user_id.clone())
-        // );
-        // let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
-
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
-            .collect()
-        };
+    pub fn cast_fe(&self, user_id: &UserID) -> ApiKeyFE {
+        let apiKey = self.clone();
         
-        redacted
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::ApiKey(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Api_Keys),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+        ApiKeyFE {
+            apiKey,
+            permission_previews
+        }.redacted(user_id)
     }
+
+    
 }
 
 

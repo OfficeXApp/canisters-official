@@ -81,6 +81,7 @@ pub mod state {
                 created_by: owner_id.clone(),
                 created_at: ic_cdk::api::time(),
                 disk_id: disk_id.clone(),
+                disk_type: DiskTypeEnum::IcpCanister,
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: owner_id.clone(),
                 deleted: false,
