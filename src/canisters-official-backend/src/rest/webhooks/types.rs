@@ -3,8 +3,10 @@
 use serde::{Deserialize, Serialize};
 use crate::core::api::uuid::ShareTrackHash;
 use crate::core::state::directory::types::{FileRecord, FolderRecord, ShareTrackID, ShareTrackResourceID};
+use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChecksum, DriveStateDiffID, DriveStateDiffImplementationType, StateDiffRecord, DriveStateDiffString};
-use crate::core::state::tags::types::{Tag, TagID, TagResourceID, TagStringValue};
+use crate::core::state::permissions::types::SystemPermissionType;
+use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID, TagStringValue};
 use crate::core::state::team_invites::types::Team_Invite;
 use crate::core::state::teams::types::Team;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
@@ -12,6 +14,44 @@ use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::UserID;
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookFE {
+    #[serde(flatten)] 
+    pub webhook: Webhook,
+    pub permission_previews: Vec<SystemPermissionType>, 
+}
+
+impl WebhookFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                redacted.webhook.private_note = None;
+                redacted.webhook.signature = "".to_string();
+            }
+        }
+        // Filter tags
+        redacted.webhook.tags = match is_owner {
+            true => redacted.webhook.tags,
+            false => redacted.webhook.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 
 
@@ -79,7 +119,7 @@ impl ListWebhooksRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListWebhooksResponseData {
-    pub items: Vec<Webhook>,
+    pub items: Vec<WebhookFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -94,7 +134,8 @@ pub struct CreateWebhookRequestBody {
     pub url: String,
     pub event: String,
     pub signature: Option<String>,
-    pub description: Option<String>,
+    pub public_note: Option<String>,
+    pub private_note: Option<String>,
     pub filters: Option<String>, // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -116,8 +157,11 @@ impl CreateWebhookRequestBody {
         }
 
         // Validate description if provided
-        if let Some(description) = &self.description {
-            validate_description(description, "description")?;
+        if let Some(public_note) = &self.public_note {
+            validate_description(public_note, "public_note")?;
+        }
+        if let Some(private_note) = &self.private_note {
+            validate_description(private_note, "private_note")?;
         }
 
         // Validate filters if provided
@@ -153,7 +197,9 @@ pub struct UpdateWebhookRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    pub public_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active: Option<bool>,   
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -179,8 +225,11 @@ impl UpdateWebhookRequestBody {
         }
         
         // Validate description if provided
-        if let Some(description) = &self.description {
-            validate_description(description, "description")?;
+        if let Some(public_note) = &self.public_note {
+            validate_description(public_note, "public_note")?;
+        }
+        if let Some(private_note) = &self.private_note {
+            validate_description(private_note, "private_note")?;
         }
         
         // Validate filters if provided
@@ -228,10 +277,10 @@ pub struct DeletedWebhookData {
 }
 
 
-pub type GetWebhookResponse<'a> = ApiResponse<'a, Webhook>;
+pub type GetWebhookResponse<'a> = ApiResponse<'a, WebhookFE>;
 pub type ListWebhooksResponse<'a> = ApiResponse<'a, ListWebhooksResponseData>;
-pub type CreateWebhookResponse<'a> = ApiResponse<'a, Webhook>;
-pub type UpdateWebhookResponse<'a> = ApiResponse<'a, Webhook>;
+pub type CreateWebhookResponse<'a> = ApiResponse<'a, WebhookFE>;
+pub type UpdateWebhookResponse<'a> = ApiResponse<'a, WebhookFE>;
 pub type DeleteWebhookResponse<'a> = ApiResponse<'a, DeletedWebhookData>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 

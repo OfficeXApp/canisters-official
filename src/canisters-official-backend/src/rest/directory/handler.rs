@@ -50,7 +50,7 @@ pub mod directorys_handlers {
             );
         }
     
-        match fetch_files_at_folder_path(list_request, requester_api_key.user_id.clone()) {
+        match fetch_files_at_folder_path(list_request, requester_api_key.user_id.clone()).await {
             Ok(response) => create_response(
                 StatusCode::OK,
                 serde_json::to_vec(&response).expect("Failed to serialize response")

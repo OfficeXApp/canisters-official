@@ -123,7 +123,8 @@ pub fn add_tag_to_resource(resource_id: &TagResourceID, tag_value: &TagStringVal
         let tag = Tag {
             id: tag_id.clone(),
             value: tag_value.clone(),
-            description: None,
+            public_note: None,
+            private_note: None,
             color: HexColorString("#FFFFFF".to_string()),
             created_at: ic_cdk::api::time() / 1_000_000,
             last_updated_at: ic_cdk::api::time() / 1_000_000,

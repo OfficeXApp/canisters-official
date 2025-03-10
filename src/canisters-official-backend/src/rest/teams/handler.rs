@@ -47,7 +47,7 @@ pub mod teams_handlers {
         match team {
             Some(team) => create_response(
                 StatusCode::OK,
-                GetTeamResponse::ok(&team).encode()
+                GetTeamResponse::ok(&team.cast_fe(&requester_api_key.user_id)).encode()
             ),
             None => create_response(
                 StatusCode::NOT_FOUND,
@@ -107,7 +107,9 @@ pub mod teams_handlers {
         });
 
         let response_data = ListTeamsResponseData {
-            items: teams.clone(),
+            items: teams.clone().into_iter().map(|team| {
+                team.cast_fe(&requester_api_key.user_id)
+            }).collect(),
             page_size: 50, // Using the default page size
             total: teams.len(),
             cursor_up: None,
@@ -205,7 +207,7 @@ pub mod teams_handlers {
 
         create_response(
             StatusCode::OK,
-            CreateTeamResponse::ok(&new_team).encode()
+            CreateTeamResponse::ok(&new_team.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 
@@ -308,7 +310,7 @@ pub mod teams_handlers {
 
         create_response(
             StatusCode::OK,
-            UpdateTeamResponse::ok(&team).encode()
+            UpdateTeamResponse::ok(&team.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 

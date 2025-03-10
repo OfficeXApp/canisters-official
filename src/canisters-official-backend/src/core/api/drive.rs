@@ -8,14 +8,14 @@ pub mod drive {
             state::{
                 directory::{
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
-                    types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}
+                    types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::update_external_id_mapping, types::{ExternalID, ExternalPayload}},
             }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
-        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, GetFileResponse, GetFolderResponse, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, GetFileResponse, GetFolderResponse, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
-    pub fn fetch_files_at_folder_path(config: ListDirectoryRequest, user_id: UserID) -> Result<DirectoryListResponse, DirectoryError> {
+    pub async fn fetch_files_at_folder_path(config: ListDirectoryRequest, user_id: UserID) -> Result<DirectoryListResponse, DirectoryError> {
         let ListDirectoryRequest { 
             folder_id, 
             path, 
@@ -94,7 +94,7 @@ pub mod drive {
         for folder in folders {
             let resource_id = DirectoryResourceID::Folder(folder.id.clone());
             let your_permissions = preview_directory_permissions(&resource_id, &user_id);
-            let folder_response = GetFolderResponse {
+            let folder_response = ListGetFolderResponse {
                 folder,
                 permissions: your_permissions,
                 requester_id: user_id.clone(),
@@ -105,7 +105,7 @@ pub mod drive {
         for file in files {
             let resource_id = DirectoryResourceID::File(file.id.clone());
             let your_permissions = preview_directory_permissions(&resource_id, &user_id);
-            let file_response = GetFileResponse {
+            let file_response = ListGetFileResponse {
                 file,
                 permissions: your_permissions,
                 requester_id: user_id.clone(),
@@ -153,6 +153,13 @@ pub mod drive {
             }
         }
 
+        // check for disk and return error if not found
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow()
+                .get(&disk_id)
+                .cloned()
+        }).ok_or_else(|| "Disk not found".to_string())?;
+
         // Get the disk and if it's not found, return an error
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
@@ -179,6 +186,7 @@ pub mod drive {
         let folder_uuid = ensure_folder_structure(
             &folder_path, 
             disk_id.clone(), 
+            disk.disk_type,
             user_id.clone(), 
             canister_icp_principal_string.clone(),
             false,
@@ -271,7 +279,7 @@ pub mod drive {
             created_by: user_id.clone(),
             created_at: ic_cdk::api::time() / 1_000_000,
             disk_id: disk_id.clone(),
-            disk_type: disk.disk_type,
+            disk_type: disk.disk_type.clone(),
             file_size,
             raw_url: format_file_asset_path(new_file_uuid.clone(), extension),
             last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
@@ -403,6 +411,12 @@ pub mod drive {
             canister_id.clone()
         };
 
+        // Check if disk exists and return error if not found
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+            map.borrow()
+                .get(&disk_id)
+                .cloned()
+        }).ok_or_else(|| "Disk not found".to_string())?;
         
     
         // Check if folder already exists
@@ -461,6 +475,7 @@ pub mod drive {
         let new_folder_uuid = ensure_folder_structure(
             &sanitized_path,
             disk_id,
+            disk.disk_type,
             user_id.clone(),
             canister_icp_principal_string,
             has_sovereign_permissions.unwrap_or(false),
@@ -1252,6 +1267,7 @@ pub mod drive {
                     let new_folder_uuid = ensure_folder_structure(
                         &restore_path.to_string(),
                         folder.disk_id.clone(),
+                        folder.disk_type.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
                         folder.has_sovereign_permissions.clone(),
@@ -1274,6 +1290,7 @@ pub mod drive {
                     let new_folder_uuid = ensure_folder_structure(
                         &path.to_string(),
                         folder.disk_id.clone(),
+                        folder.disk_type.clone(),
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
                         folder.has_sovereign_permissions.clone(),
@@ -1359,6 +1376,7 @@ pub mod drive {
                     let new_folder_uuid = ensure_folder_structure(
                         &restore_path.to_string(),
                         file.disk_id.clone(),
+                        file.disk_type.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
                         file.has_sovereign_permissions.clone(),
@@ -1381,6 +1399,7 @@ pub mod drive {
                     let new_folder_uuid = ensure_folder_structure(
                         &path.to_string(),
                         file.disk_id.clone(),
+                        file.disk_type.clone(),
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
                         file.has_sovereign_permissions.clone(),

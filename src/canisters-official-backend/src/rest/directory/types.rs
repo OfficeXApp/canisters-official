@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType}, tags::types::TagStringValue}, types::IDPrefix}, rest::webhooks::types::SortDirection, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::types::{redact_tag, TagStringValue}}, types::IDPrefix}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -10,6 +10,83 @@ use crate::core::{
 use serde::de;
 use serde_json::Value;
 use serde_diff::{SerdeDiff};
+
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileRecordFE {
+    #[serde(flatten)] 
+    pub file: FileRecord,
+    pub permission_previews: Vec<DirectoryPermissionType>, 
+}
+
+impl FileRecordFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&DirectoryPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                // redact fields
+            }
+        }
+        // Filter tags
+        redacted.file.tags = match is_owner {
+            true => redacted.file.tags,
+            false => redacted.file.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderRecordFE {
+    #[serde(flatten)] 
+    pub folder: FolderRecord,
+    pub permission_previews: Vec<DirectoryPermissionType>, 
+}
+
+impl FolderRecordFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&DirectoryPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                // redact fields
+            }
+        }
+        // Filter tags
+        redacted.folder.tags = match is_owner {
+            true => redacted.folder.tags,
+            false => redacted.folder.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
+
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchDirectoryRequest {
@@ -100,8 +177,8 @@ impl ListDirectoryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryListResponse {
-    pub folders: Vec<GetFolderResponse>,
-    pub files: Vec<GetFileResponse>,
+    pub folders: Vec<ListGetFolderResponse>,
+    pub files: Vec<ListGetFileResponse>,
     pub total_files: usize,
     pub total_folders: usize,
     pub cursor: Option<String>,
@@ -1073,7 +1150,7 @@ pub enum DirectoryActionResult {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetFileResponse {
+pub struct ListGetFileResponse {
     pub file: FileRecord,
     pub permissions: Vec<DirectoryResourcePermissionFE>,
     pub requester_id: UserID,
@@ -1081,8 +1158,23 @@ pub struct GetFileResponse {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetFolderResponse {
+pub struct ListGetFolderResponse {
     pub folder: FolderRecord,
+    pub permissions: Vec<DirectoryResourcePermissionFE>,
+    pub requester_id: UserID,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetFileResponse {
+    pub file: FileRecordFE,
+    pub permissions: Vec<DirectoryResourcePermissionFE>,
+    pub requester_id: UserID,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetFolderResponse {
+    pub folder: FolderRecordFE,
     pub permissions: Vec<DirectoryResourcePermissionFE>,
     pub requester_id: UserID,
 }

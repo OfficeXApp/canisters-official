@@ -327,7 +327,7 @@ pub mod permissions_handlers {
         create_response(
             StatusCode::OK,
             serde_json::to_vec(&CreateDirectoryPermissionsResponseData {
-                permission: new_permission,
+                permission: new_permission.cast_fe(&requester_api_key.user_id.clone()),
             }).expect("Failed to serialize response")
         )
         
@@ -480,7 +480,7 @@ pub mod permissions_handlers {
         create_response(
             StatusCode::OK,
             serde_json::to_vec(&UpdateDirectoryPermissionsResponseData {
-                permission: existing_permission,
+                permission: existing_permission.cast_fe(&requester_api_key.user_id.clone()),
             }).expect("Failed to serialize response")
         )
         
@@ -709,7 +709,7 @@ pub mod permissions_handlers {
         create_response(
             StatusCode::OK,
             serde_json::to_vec(&RedeemPermissionResponseData {
-                permission,
+                permission: permission.cast_fe(&requester_api_key.user_id.clone())
             }).expect("Failed to serialize response")
         )
     }
@@ -911,7 +911,7 @@ pub mod permissions_handlers {
         create_response(
             StatusCode::OK,
             serde_json::to_vec(&CreateSystemPermissionsResponseData {
-                permission: new_permission,
+                permission: new_permission.cast_fe(&requester_api_key.user_id.clone()),
             }).expect("Failed to serialize response")
         )
         
@@ -1053,7 +1053,7 @@ pub mod permissions_handlers {
         create_response(
             StatusCode::OK,
             serde_json::to_vec(&UpdateSystemPermissionsResponseData {
-                permission: existing_permission,
+                permission: existing_permission.cast_fe(&requester_api_key.user_id.clone()),
             }).expect("Failed to serialize response")
         )
     
@@ -1402,7 +1402,7 @@ pub mod permissions_handlers {
         create_response(
             StatusCode::OK,
             serde_json::to_vec(&RedeemSystemPermissionResponseData {
-                permission,
+                permission: permission.cast_fe(&requester_api_key.user_id.clone()),
             }).expect("Failed to serialize response")
         )
     }

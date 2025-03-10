@@ -3,9 +3,46 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::state::disks::types::{Disk, DiskID, DiskTypeEnum},
+    core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::redact_tag}, types::UserID},
     rest::{types::{validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
 };
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskFE {
+    #[serde(flatten)] 
+    pub disk: Disk,
+    pub permission_previews: Vec<SystemPermissionType>, 
+}
+
+impl DiskFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                redacted.disk.auth_json = None;
+                redacted.disk.private_note = None;
+            }
+        }
+        // Filter tags
+        redacted.disk.tags = match is_owner {
+            true => redacted.disk.tags,
+            false => redacted.disk.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
 
 
 
@@ -69,7 +106,7 @@ impl ListDisksRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListDisksResponseData {
-    pub items: Vec<Disk>,
+    pub items: Vec<DiskFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -234,9 +271,9 @@ pub struct DeletedDiskData {
     pub deleted: bool,
 }
 
-pub type GetDiskResponse<'a> = ApiResponse<'a, Disk>;
+pub type GetDiskResponse<'a> = ApiResponse<'a, DiskFE>;
 pub type DeleteDiskResponse<'a> = ApiResponse<'a, DeletedDiskData>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 pub type ListDisksResponse<'a> = ApiResponse<'a, ListDisksResponseData>;
-pub type CreateDiskResponse<'a> = ApiResponse<'a, Disk>;
-pub type UpdateDiskResponse<'a> = ApiResponse<'a, Disk>;
+pub type CreateDiskResponse<'a> = ApiResponse<'a, DiskFE>;
+pub type UpdateDiskResponse<'a> = ApiResponse<'a, DiskFE>;

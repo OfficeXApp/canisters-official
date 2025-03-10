@@ -19,16 +19,7 @@ impl ContactFE {
 
         let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
         let is_owned = *user_id == self.contact.id;
-        let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Contacts),
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.contact.id.clone().to_string()));
-        let permissions = check_system_permissions(
-            resource_id,
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
 
         // Most sensitive
         if !is_owner {

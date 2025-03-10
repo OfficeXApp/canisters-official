@@ -1,63 +1,49 @@
 // src/rest/api_keys/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::{core::{api::permissions::system::check_system_permissions, state::{api_keys::types::{ApiKey, ApiKeyID}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::{IDPrefix, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::{IDPrefix, UserID}}, rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ApiKeyHidden {
-    pub id: ApiKeyID,
-    pub user_id: UserID,
-    pub name: String,
-    pub created_at: u64,
-    pub expires_at: i64,
-    pub is_revoked: bool,
-    pub tags: Vec<TagStringValue>,
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyFE {
+    #[serde(flatten)] 
+    pub apiKey: ApiKey,
+    pub permission_previews: Vec<SystemPermissionType>, 
 }
 
-impl From<ApiKey> for ApiKeyHidden {
-    fn from(key: ApiKey) -> Self {
-        Self {
-            id: key.id,
-            user_id: key.user_id,
-            name: key.name,
-            created_at: key.created_at,
-            expires_at: key.expires_at,
-            is_revoked: key.is_revoked,
-            tags: key.tags,
-        }
-    }
-}
-
-
-impl ApiKeyHidden {
+impl ApiKeyFE {
     pub fn redacted(&self, user_id: &UserID) -> Self {
         let mut redacted = self.clone();
 
         let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        let is_owned = *user_id != self.user_id;
-        let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Tags),
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
-        let permissions = check_system_permissions(
-            resource_id,
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
 
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                redacted.apiKey.private_note = None;
+            }
+        }
         // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
+        redacted.apiKey.tags = match is_owner {
+            true => redacted.apiKey.tags,
+            false => redacted.apiKey.tags.iter()
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
         
         redacted
     }
-}
 
+    pub fn to_hidden(&self) -> Self {
+        let mut api_key = self.clone();
+        api_key.apiKey.value = ApiKeyValue("".to_string());
+        api_key
+    }
+}
 
 
 
@@ -67,6 +53,8 @@ impl ApiKeyHidden {
 pub struct CreateApiKeyRequestBody {
     pub name: String,
     pub user_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,6 +70,14 @@ impl CreateApiKeyRequestBody {
         // Validate user_id if provided (must be a valid ICP principal with prefix)
         if let Some(user_id) = &self.user_id {
             validate_user_id(user_id)?;
+        }
+
+        // validate name
+        validate_description(&self.name, "name")?;
+
+        // validate private note
+        if let Some(private_note) = &self.private_note {
+            validate_description(private_note, "private_note")?;
         }
 
         // Validate external_id if provided
@@ -107,7 +103,7 @@ impl CreateApiKeyRequestBody {
         Ok(())
     }
 }
-pub type CreateApiKeyResponse<'a> = ApiResponse<'a, ApiKey>;
+pub type CreateApiKeyResponse<'a> = ApiResponse<'a, ApiKeyFE>;
 
 
 
@@ -146,6 +142,8 @@ pub struct UpdateApiKeyRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_revoked: Option<bool>,
@@ -171,6 +169,11 @@ impl UpdateApiKeyRequestBody {
         // Validate name if provided
         if let Some(name) = &self.name {
             validate_id_string(name, "name")?;
+        }
+
+        // validate private note
+        if let Some(private_note) = &self.private_note {
+            validate_description(private_note, "private_note")?;
         }
 
         // Validate external_id if provided
@@ -199,7 +202,7 @@ impl UpdateApiKeyRequestBody {
 
 
 
-pub type UpdateApiKeyResponse<'a> = ApiResponse<'a, ApiKey>;
-pub type ListApiKeysResponse<'a> = ApiResponse<'a, Vec<ApiKeyHidden>>;
-pub type GetApiKeyResponse<'a> = ApiResponse<'a, ApiKey>;
+pub type UpdateApiKeyResponse<'a> = ApiResponse<'a, ApiKeyFE>;
+pub type ListApiKeysResponse<'a> = ApiResponse<'a, Vec<ApiKeyFE>>;
+pub type GetApiKeyResponse<'a> = ApiResponse<'a, ApiKeyFE>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;

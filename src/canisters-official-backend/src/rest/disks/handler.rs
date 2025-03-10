@@ -52,13 +52,9 @@ pub mod disks_handlers {
 
         match disk {
             Some(mut disk) => {
-                if !is_owner {
-                    disk.private_note = None;
-                    disk.auth_json = None;
-                }
                 create_response(
                     StatusCode::OK,
-                    GetDiskResponse::ok(&disk).encode()
+                    GetDiskResponse::ok(&disk.cast_fe(&requester_api_key.user_id)).encode()
                 )
             },
             None => create_response(
@@ -239,7 +235,9 @@ pub mod disks_handlers {
         create_response(
             StatusCode::OK,
             ListDisksResponse::ok(&ListDisksResponseData {
-                items: filtered_disks.clone(),
+                items: filtered_disks.clone().into_iter().map(|disk| {
+                    disk.cast_fe(&requester_api_key.user_id)
+                }).collect(),
                 page_size: filtered_disks.len(),
                 total: total_count,
                 cursor_up,
@@ -340,7 +338,7 @@ pub mod disks_handlers {
 
         create_response(
             StatusCode::OK,
-            CreateDiskResponse::ok(&disk).encode()
+            CreateDiskResponse::ok(&disk.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 
@@ -444,7 +442,7 @@ pub mod disks_handlers {
 
         create_response(
             StatusCode::OK,
-            UpdateDiskResponse::ok(&disk).encode()
+            UpdateDiskResponse::ok(&disk.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 

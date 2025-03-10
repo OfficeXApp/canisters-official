@@ -1,9 +1,53 @@
 // src/rest/tags/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::core::state::tags::types::{Tag, TagID, TagResourceID};
+use crate::core::api::permissions::system::check_system_permissions;
+use crate::core::state::drives::state::state::OWNER_ID;
+use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
+use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID};
+use crate::core::types::UserID;
 use crate::rest::webhooks::types::SortDirection;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TagFE {
+    #[serde(flatten)] 
+    pub tag: Tag,
+    pub permission_previews: Vec<SystemPermissionType>, 
+}
+
+impl TagFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+
+        // Most sensitive
+        if !is_owner {
+
+            // we redact the tag value for non-owners as it may leak sensitive info about the organization
+            redacted.tag.resources = vec![];
+
+            // 2nd most sensitive
+            if !has_edit_permissions {
+                redacted.tag.private_note = None;
+            }
+        }
+        // Filter tags
+        redacted.tag.tags = match is_owner {
+            true => redacted.tag.tags,
+            false => redacted.tag.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
+
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -73,7 +117,7 @@ pub struct ListTagsRequestBodyFilters {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListTagsResponseData {
-    pub items: Vec<Tag>,
+    pub items: Vec<TagFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -85,7 +129,8 @@ pub struct ListTagsResponseData {
 #[serde(deny_unknown_fields)]
 pub struct CreateTagRequestBody {
     pub value: String,
-    pub description: Option<String>,
+    pub public_note: Option<String>,
+    pub private_note: Option<String>,
     pub color: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -96,8 +141,11 @@ impl CreateTagRequestBody {
         validate_id_string(&self.value, "value")?;
 
         // Validate description if provided
-        if let Some(description) = &self.description {
-            validate_description(description, "description")?;
+        if let Some(public_note) = &self.public_note {
+            validate_description(public_note, "public_note")?;
+        }
+        if let Some(private_note) = &self.private_note {
+            validate_description(private_note, "private_note")?;
         }
 
         // Validate color if provided
@@ -140,7 +188,9 @@ pub struct UpdateTagRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    pub public_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -159,8 +209,11 @@ impl UpdateTagRequestBody {
         }
 
         // Validate description if provided
-        if let Some(description) = &self.description {
-            validate_description(description, "description")?;
+        if let Some(public_note) = &self.public_note {
+            validate_description(public_note, "public_note")?;
+        }
+        if let Some(private_note) = &self.private_note {
+            validate_description(private_note, "private_note")?;
         }
 
         // Validate color if provided
@@ -237,7 +290,7 @@ impl TagResourceRequest {
 pub struct TagOperationResponse {
     pub success: bool,
     pub message: Option<String>,
-    pub tag: Option<Tag>,
+    pub tag: Option<TagFE>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -301,11 +354,11 @@ pub struct GetTagResourcesResponseData {
     pub cursor_down: Option<String>,
 }
 
-pub type GetTagResponse<'a> = ApiResponse<'a, Tag>;
+pub type GetTagResponse<'a> = ApiResponse<'a, TagFE>;
 pub type DeleteTagResponse<'a> = ApiResponse<'a, DeletedTagData>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 pub type ListTagsResponse<'a> = ApiResponse<'a, ListTagsResponseData>;
-pub type CreateTagResponse<'a> = ApiResponse<'a, Tag>;
-pub type UpdateTagResponse<'a> = ApiResponse<'a, Tag>;
+pub type CreateTagResponse<'a> = ApiResponse<'a, TagFE>;
+pub type UpdateTagResponse<'a> = ApiResponse<'a, TagFE>;
 pub type TagResourceResponse<'a> = ApiResponse<'a, TagOperationResponse>;
 pub type GetTagResourcesResponse<'a> = ApiResponse<'a, GetTagResourcesResponseData>;
