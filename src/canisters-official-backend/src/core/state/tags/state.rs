@@ -5,13 +5,13 @@ use std::collections::HashMap;
 
 use crate::{
     core::{
-        api::{types::DirectoryIDError, uuid::generate_unique_id},
+        api::{types::DirectoryIDError, uuid::generate_uuidv4},
         state::{
             api_keys::{state::state::APIKEYS_BY_ID_HASHTABLE, types::ApiKeyID}, contacts::{state::state::CONTACTS_BY_ID_HASHTABLE, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::DiskID}, drives::{state::state::DRIVES_BY_ID_HASHTABLE, types::DriveID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionID, SystemPermissionID}}, tags::types::{TagResourceID, TagStringValue}, team_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::TeamInviteID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::{state::state::WEBHOOKS_BY_ID_HASHTABLE, types::WebhookID}
         },
         types::{IDPrefix, UserID}
     },
-    debug_log
+    debug_log, rest::types::ValidationError
 };
 
 use super::types::{HexColorString, Tag, TagID};
@@ -22,6 +22,56 @@ thread_local! {
     pub(crate) static TAGS_BY_VALUE_HASHTABLE: RefCell<HashMap<TagStringValue, TagID>> = RefCell::new(HashMap::new());
     pub(crate) static TAGS_BY_TIME_LIST: RefCell<Vec<TagID>> = RefCell::new(Vec::new());
 }
+
+
+pub fn validate_uuid4_string_with_prefix(prefix_uuid_string: &str, prefix: IDPrefix) -> Result<(), ValidationError> {
+    let parts: Vec<&str> = prefix_uuid_string.split('_').collect();
+    // check prefix portion
+    if parts.len() != 2 || parts[0] != prefix.as_str().replace("_", "") {
+        return Err(ValidationError {
+            field: "uuid".to_string(),
+            message: format!("String must be formatted as {}_uuid", prefix.as_str()),
+        });
+    }
+    // check uuid portion
+    if parts.len() != 2 {
+        return Err(ValidationError {
+            field: "uuid".to_string(),
+            message: "String must be formatted as prefix_uuid".to_string(),
+        });
+    }
+
+    let uuid_str = parts[1];
+
+    // Basic UUID v4 validation without external library
+    let is_valid_uuid_v4 = uuid_str.len() == 36
+        && uuid_str.chars().enumerate().all(|(i, c)| match i {
+            8 | 13 | 18 | 23 => c == '-',
+            14 => c == '4', // UUID version 4
+            19 => matches!(c, '8' | '9' | 'a' | 'b'), // UUID variant
+            _ => c.is_ascii_hexdigit(),
+        });
+
+    if !is_valid_uuid_v4 {
+        return Err(ValidationError {
+            field: "uuid".to_string(),
+            message: "Invalid UUID v4 format".to_string(),
+        });
+    }
+
+    // Check if UUID has already been claimed
+    crate::core::state::drives::state::state::UUID_CLAIMED.with(|claimed| {
+        if claimed.borrow().contains_key(uuid_str) {
+            Err(ValidationError {
+                field: "uuid".to_string(),
+                message: "UUID has already been claimed".to_string(),
+            })
+        } else {
+            Ok(())
+        }
+    })
+}
+
 
 /// Validates a tag string to ensure it meets requirements
 pub fn validate_tag_value(tag_value: &str) -> Result<TagStringValue, String> {
@@ -119,7 +169,7 @@ pub fn add_tag_to_resource(resource_id: &TagResourceID, tag_value: &TagStringVal
             None
         }
     }).unwrap_or_else(|| {
-        let tag_id = TagID(generate_unique_id(IDPrefix::TagID, ""));
+        let tag_id = TagID(generate_uuidv4(IDPrefix::TagID));
         let tag = Tag {
             id: tag_id.clone(),
             value: tag_value.clone(),

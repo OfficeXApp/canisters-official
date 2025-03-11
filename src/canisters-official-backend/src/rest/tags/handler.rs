@@ -6,7 +6,7 @@ pub mod tags_handlers {
             api::{
                 permissions::system::{check_system_permissions, check_system_resource_permissions_tags}, 
                 replay::diff::{snapshot_poststate, snapshot_prestate}, 
-                uuid::generate_unique_id, webhooks::tags::{fire_tag_webhook, get_active_tag_webhooks}
+                uuid::generate_uuidv4, webhooks::tags::{fire_tag_webhook, get_active_tag_webhooks}
             },
             state::{
                 drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, 
@@ -384,7 +384,12 @@ pub mod tags_handlers {
 
         
         // Create new tag
-        let tag_id = TagID(generate_unique_id(IDPrefix::TagID, ""));
+
+        let tag_id = match create_req.id {
+            Some(id) => TagID(id.to_string()),
+            None => TagID(generate_uuidv4(IDPrefix::TagID)),
+        };
+
         let current_time = ic_cdk::api::time() / 1_000_000;
         let tag = Tag {
             id: tag_id.clone(),

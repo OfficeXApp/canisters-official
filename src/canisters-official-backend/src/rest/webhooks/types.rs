@@ -6,12 +6,13 @@ use crate::core::state::directory::types::{FileRecord, FolderRecord, ShareTrackI
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChecksum, DriveStateDiffID, DriveStateDiffImplementationType, StateDiffRecord, DriveStateDiffString};
 use crate::core::state::permissions::types::SystemPermissionType;
+use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID, TagStringValue};
 use crate::core::state::team_invites::types::Team_Invite;
 use crate::core::state::teams::types::Team;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
-use crate::core::types::UserID;
+use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
@@ -130,6 +131,7 @@ pub struct ListWebhooksResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateWebhookRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub alt_index: String,
     pub url: String,
     pub event: String,
@@ -142,6 +144,11 @@ pub struct CreateWebhookRequestBody {
 }
 impl CreateWebhookRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Webhook)?;
+        }
+        
         // Validate alt_index
         validate_id_string(&self.alt_index, "alt_index")?;
 

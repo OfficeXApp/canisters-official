@@ -3,7 +3,7 @@
 pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use crate::{core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID}, types::{IDPrefix, UserID}}, debug_log};
+    use crate::{core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID}, types::{IDPrefix, UserID}}, debug_log};
 
     thread_local! {
         // users pass in api key value, we O(1) lookup the api key id + O(1) lookup the api key
@@ -48,7 +48,7 @@ pub mod state {
         debug_log!("Initializing default admin api key...");
 
         let default_key = ApiKey {
-            id: ApiKeyID(generate_unique_id(IDPrefix::ApiKey, "")),
+            id: ApiKeyID(generate_uuidv4(IDPrefix::ApiKey)),
             value: ApiKeyValue(generate_api_key()),
             user_id: OWNER_ID.with(|id| id.borrow().clone()),
             name: "Default Admin Key".to_string(),

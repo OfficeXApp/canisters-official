@@ -1,6 +1,6 @@
 // src/core/api/webhooks/diffs.rs
 
-use crate::{core::{api::{replay::diff::{apply_entire_state, apply_state_diff, update_checksum_for_state_diff}, uuid::generate_unique_id}, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffString, StateChecksum, StateDiffRecord}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::DriveStateDiffWebhookData};
+use crate::{core::{api::{replay::diff::{apply_entire_state, apply_state_diff, update_checksum_for_state_diff}, uuid::generate_uuidv4}, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffString, StateChecksum, StateDiffRecord}}, team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::DriveStateDiffWebhookData};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -40,7 +40,7 @@ pub fn fire_state_diff_webhooks(
     backward_checksum: StateChecksum,
     notes: Option<String>
 ) {
-    let drive_state_diff_id = DriveStateDiffID(generate_unique_id(IDPrefix::DriveStateDiffID, ""));
+    let drive_state_diff_id = DriveStateDiffID(generate_uuidv4(IDPrefix::DriveStateDiffID));
     let timestamp_ns = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
     let webhooks = get_active_state_diff_webhooks();
     

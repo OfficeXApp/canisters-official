@@ -3,7 +3,7 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{api::uuid::generate_unique_id, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderRecord, FolderID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::{state::state::{CANISTER_ID, OWNER_ID}, types::ExternalID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
+    use crate::{core::{api::uuid::generate_uuidv4, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderRecord, FolderID}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::{state::state::{CANISTER_ID, OWNER_ID}, types::ExternalID}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
     
     thread_local! {
         pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
@@ -14,7 +14,7 @@ pub mod state {
 
         debug_log!("Initializing default admin api key...");
 
-        let current_canister_disk_id = generate_unique_id(IDPrefix::Disk, "");
+        let current_canister_disk_id = generate_uuidv4(IDPrefix::Disk);
         let default_canister_disk = Disk {
             id: DiskID(current_canister_disk_id.clone()),
             name: "Self Canister Storage (Default)".to_string(),
@@ -27,7 +27,7 @@ pub mod state {
             external_payload: None,
             created_at: ic_cdk::api::time() / 1_000_000,
         };
-        // let browsercache_disk_id = generate_unique_id(IDPrefix::Disk, "");
+        // let browsercache_disk_id = generate_uuidv4(IDPrefix::Disk, "");
         // let default_browsercache_disk = Disk {
         //     id: DiskID(browsercache_disk_id.clone()),
         //     name: "Ephemeral Browser Storage (Default)".to_string(),
@@ -69,7 +69,7 @@ pub mod state {
         
         // Only create if root folder doesn't exist
         if !full_folder_path_to_uuid.contains_key(&root_path) {
-            let root_folder_uuid = generate_unique_id(IDPrefix::Folder, "");
+            let root_folder_uuid = generate_uuidv4(IDPrefix::Folder);
             let root_folder = FolderRecord {
                 id: FolderID(root_folder_uuid.clone()),
                 name: String::new(),

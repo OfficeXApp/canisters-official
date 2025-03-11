@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use crate::core::api::permissions::system::check_system_permissions;
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
+use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID};
-use crate::core::types::UserID;
+use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::webhooks::types::SortDirection;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
@@ -128,6 +129,7 @@ pub struct ListTagsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTagRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub value: String,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
@@ -137,6 +139,11 @@ pub struct CreateTagRequestBody {
 }
 impl CreateTagRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::TagID)?;
+        }
+        
         // Validate tag value (up to 256 chars)
         validate_id_string(&self.value, "value")?;
 

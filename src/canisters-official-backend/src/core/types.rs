@@ -35,6 +35,15 @@ impl fmt::Display for PublicKeyEVM {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub struct ClientSuggestedUUID(pub String);
+
+impl fmt::Display for ClientSuggestedUUID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct UserID(pub String);
 
 impl fmt::Display for UserID {
@@ -63,7 +72,7 @@ pub enum IDPrefix {
     ApiKey,
     Disk,
     Team,
-    Invite,
+    TeamInvite,
     Webhook,
     User,
     SystemPermission,
@@ -86,7 +95,7 @@ impl IDPrefix {
             IDPrefix::ApiKey => "ApiKeyID_",
             IDPrefix::Disk => "DiskID_",
             IDPrefix::Team => "TeamID_",
-            IDPrefix::Invite => "InviteID_",
+            IDPrefix::TeamInvite => "TeamInviteID_",
             IDPrefix::SystemPermission => "SystemPermissionID_",
             IDPrefix::DirectoryPermission => "DirectoryPermissionID_",
             IDPrefix::PlaceholderPermissionGrantee => "PlaceholderPermissionGranteeID_",

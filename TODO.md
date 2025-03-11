@@ -7,6 +7,7 @@
 
 ## Urgent Next
 
+- [🔵] Migrate to allowing client uuids for true p2p offline compatibility (however we should add validation of userids, including preventing duplicates with our own internal mappings to check if uuid already taken)
 - [ ] Write all the redux-offline states and actions for webapp
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
 

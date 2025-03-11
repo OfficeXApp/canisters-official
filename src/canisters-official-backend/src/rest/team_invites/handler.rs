@@ -3,7 +3,7 @@
 
 pub mod team_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeamInviteRequestBody, CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeamInviteRequestBody, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeamInviteRequestBody, CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeamInviteRequestBody, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
         
     };
     use crate::core::state::team_invites::{
@@ -229,7 +229,12 @@ pub mod team_invites_handlers {
         let prestate = snapshot_prestate();
 
         // Create new invite
-        let invite_id = TeamInviteID(generate_unique_id(IDPrefix::Invite, ""));
+
+        let invite_id = match create_req.id {
+            Some(id) => TeamInviteID(id.to_string()),
+            None => TeamInviteID(generate_uuidv4(IDPrefix::TeamInvite)),
+        };
+
         let now = ic_cdk::api::time();
 
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
@@ -238,7 +243,7 @@ pub mod team_invites_handlers {
         } else {
             // Create a new deferred link ID for sharing
             TeamInviteeID::PlaceholderTeamInvitee(PlaceholderTeamInviteeID(
-                generate_unique_id(IDPrefix::PlaceholderTeamInviteeID, "")
+                generate_uuidv4(IDPrefix::PlaceholderTeamInviteeID)
             ))
         };
 

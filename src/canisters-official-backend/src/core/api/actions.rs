@@ -382,6 +382,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     // Create file using the drive API
                     match create_file(
+                        payload.id,
                         full_file_path,
                         payload.disk_id,
                         user_id.clone(),
@@ -505,6 +506,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     // Create folder using the drive API
                     match create_folder(
+                        payload.id,
                         full_folder_path,
                         payload.disk_id,
                         user_id.clone(),
@@ -1232,7 +1234,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
         
                     // Perform the copy operation
-                    match copy_file(&file_id, &destination_folder, payload.file_conflict_resolution) {
+                    match copy_file(&file_id, &destination_folder, payload.file_conflict_resolution, payload.new_copy_id) {
                         Ok(file) => {
                             let after_snap_file = DirectoryWebhookData::File(FileWebhookData {
                                 file: Some(file.clone()),
@@ -1367,7 +1369,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
         
                     // Perform the copy operation
-                    match copy_folder(&folder_id, &destination_folder, payload.file_conflict_resolution) {
+                    match copy_folder(&folder_id, &destination_folder, payload.file_conflict_resolution, payload.new_copy_id) {
                         Ok(folder) => {
                             let after_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
                                 folder: Some(folder.clone()),

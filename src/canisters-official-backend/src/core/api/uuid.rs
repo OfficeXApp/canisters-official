@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::{core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, GLOBAL_UUID_NONCE}, types::{DriveID, DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}}, debug_log};
+use crate::{core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, UUID_CLAIMED}, types::{DriveID, DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}}, debug_log};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
@@ -15,28 +15,44 @@ pub fn format_drive_id(principal_string: &str) -> DriveID {
     DriveID(format!("{}{}", IDPrefix::Drive.as_str(), principal_string))
 }
 
-pub fn generate_unique_id(prefix: IDPrefix, suffix: &str) -> String {
-    let drive_id = ic_cdk::api::id().to_string();          // Canister's unique ID
-    let current_time = ic_cdk::api::time();                   // Nanoseconds timestamp
-    let caller = ic_cdk::api::caller().to_string();           // Principal of the caller
-    
-    // Increment the counter for every call
-    GLOBAL_UUID_NONCE.with(|counter| {
-        let current_counter = counter.get();
-        counter.set(current_counter + 1);
+pub fn generate_uuidv4(prefix: IDPrefix) -> String {
+    let canister_id = ic_cdk::api::id().to_string();
+    let current_time = ic_cdk::api::time();
 
-        // Create a unique string by combining deterministic inputs
-        let input_string = format!("{}-{}-{}-{}", drive_id, current_time, caller, current_counter);
+    let entropy_input = format!("{}-{}", canister_id, current_time);
+    let mut hasher = Sha256::new();
+    hasher.update(entropy_input.as_bytes());
+    let mut hash_bytes = hasher.finalize();
 
-        // Use SHA256 to hash the input string and produce a compact, unique identifier
-        let mut hasher = Sha256::new();
-        hasher.update(input_string);
-        format!("{}{:x}{}", prefix.as_str(), hasher.finalize(), suffix)
-    })
+    // Take the first 16 bytes (128 bits) of the hash
+    let mut uuid_bytes = [0u8; 16];
+    uuid_bytes.copy_from_slice(&hash_bytes[..16]);
+
+    // Set UUID version to 4
+    hash_bytes[6] = (hash_bytes[6] & 0x0f) | 0x40;
+    // Set UUID variant bits to "10xx"
+    hash_bytes[8] = (hash_bytes[8] & 0x3f) | 0x80;
+
+    // Format bytes into UUID string format
+    let pseudo_uuid = format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        hash_bytes[0], hash_bytes[1], hash_bytes[2], hash_bytes[3],
+        hash_bytes[4], hash_bytes[5],
+        hash_bytes[6], hash_bytes[7],
+        hash_bytes[8], hash_bytes[9],
+        hash_bytes[10], hash_bytes[11], hash_bytes[12], hash_bytes[13], hash_bytes[14], hash_bytes[15]
+    );
+    let pseudo_prefix_id = format!("{}{}", prefix.as_str(), pseudo_uuid);
+
+    UUID_CLAIMED.with(|claimed| {
+        claimed.borrow_mut().insert(pseudo_prefix_id.clone(), true);
+    });
+
+    pseudo_prefix_id
 }
 
 pub fn generate_api_key() -> String {
-    let input = generate_unique_id(IDPrefix::ApiKey, "");
+    let input = generate_uuidv4(IDPrefix::ApiKey);
     let salt = ic_cdk::api::time();
     let combined = format!("{}{}", input, salt);
     
@@ -84,7 +100,7 @@ struct ShareTrackHashData {
 /// which can be safely appended to URL parameters
 pub fn generate_share_track_hash(user_id: &UserID) -> (ShareTrackID, ShareTrackHash) {
     // Generate a unique ID for this share track
-    let share_track_id = generate_unique_id(IDPrefix::ShareTrackID, "");
+    let share_track_id = generate_uuidv4(IDPrefix::ShareTrackID);
     
     // Create the hash data object
     let hash_data = ShareTrackHashData {

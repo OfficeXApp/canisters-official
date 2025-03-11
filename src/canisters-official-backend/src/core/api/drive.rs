@@ -3,7 +3,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::generate_unique_id
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::generate_uuidv4
             },
             state::{
                 directory::{
@@ -11,7 +11,7 @@ pub mod drive {
                     types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}
                 },
                 disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::update_external_id_mapping, types::{ExternalID, ExternalPayload}},
-            }, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
+            }, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
         }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, GetFileResponse, GetFolderResponse, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
@@ -123,6 +123,7 @@ pub mod drive {
     }
 
     pub fn create_file(
+        id: Option<ClientSuggestedUUID>,
         file_path: String,
         disk_id: DiskID,
         user_id: UserID,
@@ -168,7 +169,11 @@ pub mod drive {
         }).ok_or_else(|| "Disk not found".to_string())?;
         
         let full_file_path = final_path;
-        let new_file_uuid = FileID(generate_unique_id(IDPrefix::File, ""));
+        
+        let new_file_uuid = match id {
+            Some(id) => FileID(id.to_string()),
+            None => FileID(generate_uuidv4(IDPrefix::File)),
+        };
 
         ic_cdk::println!(
             "Checking full path: {} -> {}",
@@ -190,6 +195,7 @@ pub mod drive {
             user_id.clone(), 
             canister_icp_principal_string.clone(),
             false,
+            None,
             None,
             None
         );
@@ -371,6 +377,7 @@ pub mod drive {
     }
 
     pub fn create_folder(
+        id: Option<ClientSuggestedUUID>,
         full_folder_path: DriveFullFilePath,
         disk_id: DiskID,
         user_id: UserID,
@@ -481,6 +488,7 @@ pub mod drive {
             has_sovereign_permissions.unwrap_or(false),
             external_id.clone(),
             external_payload,
+            id
         );
         update_external_id_mapping(
             None,
@@ -928,6 +936,7 @@ pub mod drive {
         file_id: &FileID,
         destination_folder: &FolderRecord,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
+        new_copy_id: Option<ClientSuggestedUUID>,
     ) -> Result<FileRecord, String> {
         // Get source file metadata
         let source_file = file_uuid_to_metadata
@@ -958,7 +967,12 @@ pub mod drive {
         }
 
         // Generate new UUID for the copy
-        let new_file_uuid = FileID(generate_unique_id(IDPrefix::File, ""));
+
+        let new_file_uuid = match new_copy_id {
+            Some(id) => FileID(id.to_string()),
+            None => FileID(generate_uuidv4(IDPrefix::File)),
+        };
+
 
         // If this is an S3 or Storj bucket, perform copy operation
         if source_file.disk_type == DiskTypeEnum::AwsBucket || 
@@ -1020,6 +1034,7 @@ pub mod drive {
         folder_id: &FolderID,
         destination_folder: &FolderRecord,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
+        new_copy_id: Option<ClientSuggestedUUID>,
     ) -> Result<FolderRecord, String> {
         // Get source folder metadata
         let source_folder = folder_uuid_to_metadata
@@ -1040,7 +1055,10 @@ pub mod drive {
         );
     
         // Generate new UUID for the copy
-        let new_folder_uuid = FolderID(generate_unique_id(IDPrefix::Folder, ""));
+        let new_folder_uuid = match new_copy_id {
+            Some(id) => FolderID(id.to_string()),
+            None => FolderID(generate_uuidv4(IDPrefix::Folder)),
+        };
     
         // Create new metadata for the copy
         let mut new_folder_metadata = source_folder.clone();
@@ -1067,7 +1085,7 @@ pub mod drive {
     
         // Recursively copy all subfolders
         for subfolder_id in &source_folder.subfolder_uuids {
-            if let Ok(copied_subfolder) = copy_folder(subfolder_id, &new_folder_metadata, file_conflict_resolution.clone()) {
+            if let Ok(copied_subfolder) = copy_folder(subfolder_id, &new_folder_metadata, file_conflict_resolution.clone(), None) {
                 folder_uuid_to_metadata.with_mut(|map| {
                     if let Some(folder) = map.get_mut(&new_folder_uuid) {
                         folder.subfolder_uuids.push(copied_subfolder.id.clone());
@@ -1078,7 +1096,7 @@ pub mod drive {
     
         // Copy all files in the folder
         for file_id in &source_folder.file_uuids {
-            if let Ok(copied_file) = copy_file(file_id, &new_folder_metadata, file_conflict_resolution.clone()) {
+            if let Ok(copied_file) = copy_file(file_id, &new_folder_metadata, file_conflict_resolution.clone(), None) {
                 folder_uuid_to_metadata.with_mut(|map| {
                     if let Some(folder) = map.get_mut(&new_folder_uuid) {
                         folder.file_uuids.push(copied_file.id.clone());
@@ -1272,6 +1290,7 @@ pub mod drive {
                         folder.canister_id.0.0.clone(),
                         folder.has_sovereign_permissions.clone(),
                         None,
+                        None,
                         None
                     );
                     
@@ -1294,6 +1313,7 @@ pub mod drive {
                         folder.created_by.clone(),
                         folder.canister_id.0.0.clone(),
                         folder.has_sovereign_permissions.clone(),
+                        None,
                         None,
                         None
                     );
@@ -1381,6 +1401,7 @@ pub mod drive {
                         file.canister_id.0.0.clone(),
                         file.has_sovereign_permissions.clone(),
                         None,
+                        None,
                         None
                     );
                     
@@ -1403,6 +1424,7 @@ pub mod drive {
                         file.created_by.clone(),
                         file.canister_id.0.0.clone(),
                         file.has_sovereign_permissions.clone(),
+                        None,
                         None,
                         None
                     );

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::redact_tag}, types::UserID},
+    core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}}, types::{ClientSuggestedUUID, IDPrefix, UserID}},
     rest::{types::{validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
 };
 
@@ -116,6 +116,7 @@ pub struct ListDisksResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateDiskRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub disk_type: DiskTypeEnum,
     pub public_note: Option<String>,
@@ -126,6 +127,11 @@ pub struct CreateDiskRequestBody {
 }
 impl CreateDiskRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Disk)?;
+        }
+        
         // Validate name (up to 256 chars)
         validate_id_string(&self.name, "name")?;
 
