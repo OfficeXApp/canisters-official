@@ -298,8 +298,8 @@ pub mod drives_handlers {
             public_note: Some(create_req.public_note.unwrap_or_default()),
             private_note: Some(create_req.private_note.unwrap_or_default()),
             icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal.unwrap_or_default())),
-            url_endpoint: DriveRESTUrlEndpoint(
-                create_req.url_endpoint
+            endpoint_url: DriveRESTUrlEndpoint(
+                create_req.endpoint_url
                     .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
                     .trim_end_matches('/')
                     .to_string()
@@ -405,8 +405,8 @@ pub mod drives_handlers {
         if let Some(icp_principal) = update_req.icp_principal {
             drive.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
         }
-        if let Some(url_endpoint) = update_req.url_endpoint {
-            drive.url_endpoint = DriveRESTUrlEndpoint(url_endpoint.trim_end_matches('/')
+        if let Some(endpoint_url) = update_req.endpoint_url {
+            drive.endpoint_url = DriveRESTUrlEndpoint(endpoint_url.trim_end_matches('/')
             .to_string());
         }
 

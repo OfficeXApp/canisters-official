@@ -27,7 +27,7 @@ impl TeamFE {
 
             // 2nd most sensitive
             if !has_edit_permissions && !is_team_admin {
-                redacted.team.url_endpoint = DriveRESTUrlEndpoint("".to_string());
+                redacted.team.endpoint_url = DriveRESTUrlEndpoint("".to_string());
                 redacted.team.private_note = None;
             }
         }
@@ -129,7 +129,7 @@ pub struct CreateTeamRequestBody {
     pub avatar: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub url_endpoint: Option<String>,
+    pub endpoint_url: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -153,9 +153,9 @@ impl CreateTeamRequestBody {
             validate_url(avatar, "avatar")?;
         }
 
-        // Validate url_endpoint if provided
-        if let Some(url_endpoint) = &self.url_endpoint {
-            validate_url_endpoint(url_endpoint, "url_endpoint")?;
+        // Validate endpoint_url if provided
+        if let Some(endpoint_url) = &self.endpoint_url {
+            validate_url_endpoint(endpoint_url, "endpoint_url")?;
         }
 
         // Validate external_id if provided
@@ -179,7 +179,7 @@ pub struct UpdateTeamRequestBody {
     pub avatar: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub url_endpoint: Option<String>,
+    pub endpoint_url: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -208,9 +208,9 @@ impl UpdateTeamRequestBody {
             validate_url(avatar, "avatar")?;
         }
 
-        // Validate url_endpoint if provided
-        if let Some(url_endpoint) = &self.url_endpoint {
-            validate_url_endpoint(url_endpoint, "url_endpoint")?;
+        // Validate endpoint_url if provided
+        if let Some(endpoint_url) = &self.endpoint_url {
+            validate_url_endpoint(endpoint_url, "endpoint_url")?;
         }
 
         // Validate external_id if provided

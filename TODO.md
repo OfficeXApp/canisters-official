@@ -7,16 +7,8 @@
 
 ## Urgent Next
 
-- [ ] Refactor upsert to seperate out into /create and /edit for simplicity (upsert was a mistake)
-- [ ] Augment the contact cast_fe with permissions array for that requester user
-- [ ] For every route, apply cast_fe & redaction (as we go along, use Contacts as reference)
-- [ ] Audit types for file/folders, some missing disk_enum, canister_id maybe replace with endpoint_url, etc
-- [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)
-- [x] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
-- [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
 - [ ] Write all the redux-offline states and actions for webapp
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
-- [ ] Consider whether we change userID to user_id for consistent rest api spec (and force JS/other languages to comply too)
 
 ## Awkward Urgent
 
@@ -31,6 +23,7 @@
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
 - [ ] Consider how to obfuscate ancestor folders in url route (eg. show folder_uuid in the url instead of full path)
+- [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)
 
 ## Priority Backlog
 
@@ -124,3 +117,11 @@
 - [x] Write code for self factory spawn new organizations
 - [x] Setup factory to spawn Drive canisters with owner set
 - [x] Add redaction to all route types
+- [x] Refactor upsert to seperate out into /create and /edit for simplicity (upsert was a mistake)
+- [x] Augment the contact cast_fe with permissions array for that requester user
+- [x] For every route, apply cast_fe & redaction (as we go along, use Contacts as reference)
+- [x] Audit types for file/folders, some missing disk_enum, canister_id maybe replace with endpoint_url, etc
+- [x] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
+- [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
+- [x] Audit REST API to ensure all snake case variables consistency
+- [x] Consider whether we change userID to user_id for consistent rest api spec (and force JS/other languages to comply too)

@@ -17,22 +17,32 @@ pub fn format_drive_id(principal_string: &str) -> DriveID {
 
 
 pub fn generate_unique_id(prefix: IDPrefix, suffix: &str) -> String {
-    let drive_id = ic_cdk::api::id().to_string();          // Canister's unique ID
-    let current_time = ic_cdk::api::time();                   // Nanoseconds timestamp
-    let caller = ic_cdk::api::caller().to_string();           // Principal of the caller
+    use tiny_keccak::{Hasher, Keccak};
     
-    // Increment the counter for every call
+    let drive_id = ic_cdk::api::id().to_string();
+    let current_time = ic_cdk::api::time();
+    
     GLOBAL_UUID_NONCE.with(|counter| {
         let current_counter = counter.get();
         counter.set(current_counter + 1);
-
-        // Create a unique string by combining deterministic inputs
-        let input_string = format!("{}-{}-{}-{}", drive_id, current_time, caller, current_counter);
-
-        // Use SHA256 to hash the input string and produce a compact, unique identifier
-        let mut hasher = Sha256::new();
-        hasher.update(input_string);
-        format!("{}{:x}{}", prefix.as_str(), hasher.finalize(), suffix)
+        
+        // Create input string with our entropy sources (removed caller)
+        let input_string = format!("{}-{}-{}", drive_id, current_time, current_counter);
+        
+        // Use Keccak-256 (from tiny-keccak crate you already have)
+        let mut keccak = Keccak::v256();
+        let mut hash = [0u8; 32];
+        keccak.update(input_string.as_bytes());
+        keccak.finalize(&mut hash);
+        
+        // Take only first 10 bytes (20 hex chars) for an even shorter ID
+        let shortened = &hash[0..10];
+        
+        // Convert to hex
+        let hex_id = hex::encode(shortened);
+        
+        // Format the ID with prefix and suffix
+        format!("{}{}{}", prefix.as_str(), hex_id, suffix)
     })
 }
 

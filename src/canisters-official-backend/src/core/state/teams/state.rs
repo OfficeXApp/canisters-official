@@ -68,12 +68,12 @@ pub mod state {
         
         if let Some(team) = team_opt {
             // If it's our own drive's team, use local validation
-            if team.url_endpoint == URL_ENDPOINT.with(|url| url.borrow().clone()) {
+            if team.endpoint_url == URL_ENDPOINT.with(|url| url.borrow().clone()) {
                 return is_user_on_local_team(user_id, &team);
             }
     
             // It's an external team, make HTTP call to their validate endpoint
-            let validation_url = format!("{}/teams/validate", team.url_endpoint.0.trim_end_matches('/'));
+            let validation_url = format!("{}/teams/validate", team.endpoint_url.0.trim_end_matches('/'));
             
             let validation_body = json!({
                 "team_id": team_id.0,

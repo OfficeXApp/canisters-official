@@ -132,7 +132,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         resource_name: file.name.clone(),
                         drive_id: DRIVE_ID.with(|id| id.clone()),
                         timestamp_ms: ic_cdk::api::time() / 1_000_000,
-                        url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
+                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
                         metadata: None
                     };
                     fire_directory_webhook(
@@ -283,7 +283,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         resource_name: folder.name.clone(),
                         drive_id: DRIVE_ID.with(|id| id.clone()),
                         timestamp_ms: ic_cdk::api::time() / 1_000_000,
-                        url_endpoint: URL_ENDPOINT.with(|url| url.borrow().clone()),
+                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
                         metadata: None
                     };
                     fire_directory_webhook(

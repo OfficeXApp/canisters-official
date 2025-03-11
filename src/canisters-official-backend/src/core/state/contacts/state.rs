@@ -40,7 +40,7 @@ pub mod state {
             external_id: None,
             external_payload: None,
             from_placeholder_user_id: None,
-            redeem_token: None,
+            redeem_code: None,
             created_at: ic_cdk::api::time() / 1_000_000,
             last_online_ms: 0,
         };

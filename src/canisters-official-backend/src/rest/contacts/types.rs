@@ -27,7 +27,7 @@ impl ContactFE {
 
             // 2nd most sensitive
             if !has_edit_permissions {
-                redacted.contact.redeem_token = None;
+                redacted.contact.redeem_code = None;
                 redacted.contact.private_note = None;
 
                 // 3rd most sensitive
@@ -506,7 +506,7 @@ pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 pub struct RedeemContactRequestBody {
     pub current_user_id: String,
     pub new_user_id: String,
-    pub redeem_token: String,
+    pub redeem_code: String,
 }
 
 impl RedeemContactRequestBody {
