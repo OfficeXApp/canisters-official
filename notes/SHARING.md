@@ -88,7 +88,7 @@ Since we wont track any share data in the hashtables, we must embed the necessar
 
 ```js
 // in practice, use the function generate_share_track_hash and decode_share_track_hash
-const shareTrackID = generate_unique_id(IDPrefix::ShareTrackID, "");
+const shareTrackID = generate_uuidv4(IDPrefix::ShareTrackID);
 const shareTrackHash = btoa({
   id: shareTrackID,
   from_user: UserID,

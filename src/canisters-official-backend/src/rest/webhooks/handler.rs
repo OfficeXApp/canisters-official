@@ -6,7 +6,7 @@ pub mod webhooks_handlers {
 
     use crate::{
         core::{
-            api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id},
+            api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4},
             state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
             }}, types::IDPrefix
@@ -273,10 +273,12 @@ pub mod webhooks_handlers {
         }
 
         // Create new webhook
-        let webhook_id = WebhookID(generate_unique_id(IDPrefix::Webhook, ""));
         let alt_index = WebhookAltIndexID(create_req.alt_index);
 
-
+        let webhook_id = match create_req.id {
+            Some(id) => WebhookID(id.to_string()),
+            None => WebhookID(generate_uuidv4(IDPrefix::Webhook)),
+        };
 
         if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);

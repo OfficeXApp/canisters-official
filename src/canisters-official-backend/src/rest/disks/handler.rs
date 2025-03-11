@@ -3,7 +3,7 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_unique_id}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskRequestBody, CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskRequestBody, UpdateDiskResponse}, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskRequestBody, CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskRequestBody, UpdateDiskResponse}, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -292,8 +292,10 @@ pub mod disks_handlers {
 
         
         // Create new disk
-        let disk_type_suffix = format!("__DiskType_{}", create_req.disk_type);
-        let disk_id = DiskID(generate_unique_id(IDPrefix::Disk, ""));
+        let disk_id = match create_req.id {
+            Some(id) => DiskID(id.to_string()),
+            None => DiskID(generate_uuidv4(IDPrefix::Disk)),
+        };
         let new_external_id = Some(ExternalID(create_req.external_id.unwrap_or("".to_string())));
         let disk = Disk {
             id: disk_id.clone(),

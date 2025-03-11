@@ -3,7 +3,7 @@
 
 pub mod templates_handlers {
     use crate::{
-        core::{api::uuid::generate_unique_id, state::templates::{state::state::TEMPLATE_ITEMS, types::TemplateID}, types::IDPrefix}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
+        core::{api::uuid::generate_uuidv4, state::templates::{state::state::TEMPLATE_ITEMS, types::TemplateID}, types::IDPrefix}, debug_log, rest::templates::types::{CreateTemplateRequest, CreateTemplateResponse, DeleteTemplateRequest, DeleteTemplateResponse, DeletedTemplateData, ErrorResponse, GetTemplateResponse, ListTemplatesResponse, UpdateTemplateRequest, UpdateTemplateResponse}
         
     };
     use crate::core::state::templates::{
@@ -72,7 +72,7 @@ pub mod templates_handlers {
     pub async fn create_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(request.body());
 
-        let id = TemplateID(generate_unique_id(IDPrefix::Disk, ""));
+        let id = TemplateID(generate_uuidv4(IDPrefix::Disk));
 
         let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let template_item = TemplateItem {
@@ -92,7 +92,7 @@ pub mod templates_handlers {
     pub async fn update_template_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let req_body: CreateTemplateRequest = json_decode(request.body());
 
-        let id = TemplateID(generate_unique_id(IDPrefix::Disk, ""));
+        let id = TemplateID(generate_uuidv4(IDPrefix::Disk));
 
         let template_item = TEMPLATE_ITEMS.with_borrow_mut(|items| {
             let template_item = TemplateItem {

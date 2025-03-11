@@ -2,12 +2,12 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_unique_id}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, giftcards::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, giftcards::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
-    use crate::{core::state::giftcards::{state::state::{GLOBAL_UUID_NONCE, CANISTER_ID, VERSION, URL_ENDPOINT, DEPLOYMENTS_BY_GIFTCARD_ID, HISTORICAL_GIFTCARDS, DRIVE_TO_GIFTCARD_HASHTABLE, USER_TO_GIFTCARDS_HASHTABLE, GIFTCARD_BY_ID}, types::{DriveID}}};
+    use crate::{core::state::giftcards::{state::state::{CANISTER_ID, VERSION, URL_ENDPOINT, DEPLOYMENTS_BY_GIFTCARD_ID, HISTORICAL_GIFTCARDS, DRIVE_TO_GIFTCARD_HASHTABLE, USER_TO_GIFTCARDS_HASHTABLE, GIFTCARD_BY_ID}, types::{DriveID}}};
 
     #[derive(Deserialize, Default)]
     struct ListQueryParams {
@@ -164,7 +164,7 @@ pub mod apikeys_handlers {
             
                     // Generate new API key with proper user_id
                     let new_api_key = ApiKey {
-                        id: ApiKeyID(generate_unique_id(IDPrefix::ApiKey, "")),
+                        id: ApiKeyID(generate_uuidv4(IDPrefix::ApiKey)),
                         value: ApiKeyValue(generate_api_key()),
                         user_id: key_user_id, 
                         name: create_req.name,
@@ -378,7 +378,6 @@ pub mod apikeys_handlers {
             version: VERSION.with(|v| v.borrow().clone()),
             owner_id: OWNER_ID.with(|id| id.borrow().clone()),
             endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
-            global_uuid_nonce: GLOBAL_UUID_NONCE.with(|n| n.get()),
             
             // API keys state
             apikeys_by_value: APIKEYS_BY_VALUE_HASHTABLE.with(|store| store.borrow().clone()),

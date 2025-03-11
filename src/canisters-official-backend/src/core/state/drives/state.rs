@@ -8,7 +8,7 @@ pub mod state {
     use crate::core::api::helpers::get_appropriate_url_endpoint;
     use crate::core::api::replay::diff::update_checksum_for_state_diff;
     use crate::core::api::uuid::format_drive_id;
-    use crate::core::api::uuid::generate_unique_id;
+    use crate::core::api::uuid::generate_uuidv4;
     use crate::core::state::drives::types::Drive;
     use crate::core::state::drives::types::DriveID;
     use crate::core::state::drives::types::DriveRESTUrlEndpoint;
@@ -29,7 +29,6 @@ pub mod state {
         // self info - immutable
         pub(crate) static DRIVE_ID: DriveID = format_drive_id(&ic_cdk::api::id().to_text());
         pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
-        pub(crate) static GLOBAL_UUID_NONCE: Cell<u64> = Cell::new(0);
         pub(crate) static VERSION: RefCell<String> = RefCell::new("OfficeX.Beta.0.0.1".to_string());
         pub(crate) static DRIVE_STATE_CHECKSUM: RefCell<StateChecksum> = RefCell::new(StateChecksum("genesis".to_string()));
         pub(crate) static DRIVE_STATE_TIMESTAMP_NS: Cell<u64> = Cell::new(ic_cdk::api::time());
@@ -42,6 +41,7 @@ pub mod state {
         pub(crate) static DRIVES_BY_TIME_LIST: RefCell<Vec<DriveID>> = RefCell::new(Vec::new());
         // external id tracking
         pub(crate) static EXTERNAL_ID_MAPPINGS: RefCell<HashMap<ExternalID, Vec<String>>> = RefCell::new(HashMap::new());
+        pub(crate) static UUID_CLAIMED: RefCell<HashMap<String, bool>> = RefCell::new(HashMap::new()); // tracks client generated uuids to prevent collisions
         // factory spawn tracking
         pub(crate) static RECENT_DEPLOYMENTS: RefCell<Vec<FactorySpawnHistoryRecord>> = RefCell::new(Vec::new());
         pub(crate) static SPAWN_NOTE: RefCell<String> = RefCell::new("".to_string());

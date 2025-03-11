@@ -178,7 +178,6 @@ pub struct StateSnapshot {
     pub version: String,
     pub owner_id: UserID,
     pub endpoint_url: DriveRESTUrlEndpoint,
-    pub global_uuid_nonce: u64,
     
     // API keys state
     pub apikeys_by_value: HashMap<ApiKeyValue, ApiKeyID>,

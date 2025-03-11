@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::types::{redact_tag, TagStringValue}}, types::IDPrefix}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -745,6 +745,7 @@ impl GetFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFilePayload {
+    pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub extension: String,
     pub tags: Vec<TagStringValue>,
@@ -759,6 +760,12 @@ pub struct CreateFilePayload {
 }
 impl CreateFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::File)?;
+        }
+        
         // Validate name
         validate_id_string(&self.name, "name")?;
         
@@ -803,6 +810,7 @@ impl CreateFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFolderPayload {
+    pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub tags: Vec<TagStringValue>,
     pub disk_id: DiskID,
@@ -814,6 +822,12 @@ pub struct CreateFolderPayload {
 }
 impl CreateFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Folder)?;
+        }
+
         // Validate name
         validate_id_string(&self.name, "name")?;
         
@@ -966,9 +980,15 @@ pub struct CopyFilePayload {
     pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub new_copy_id: Option<ClientSuggestedUUID>,
 }
 impl CopyFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.new_copy_id.is_some() {
+            validate_uuid4_string_with_prefix(&self.new_copy_id.as_ref().unwrap().to_string(), IDPrefix::File)?;
+        }
+
         // Validate destination_folder_id if provided
         if let Some(folder_id) = &self.destination_folder_id {
             validate_id_string(&folder_id.0, "destination_folder_id")?;
@@ -1002,9 +1022,15 @@ pub struct CopyFolderPayload {
     pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
+    pub new_copy_id: Option<ClientSuggestedUUID>,
 }
 impl CopyFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.new_copy_id.is_some() {
+            validate_uuid4_string_with_prefix(&self.new_copy_id.as_ref().unwrap().to_string(), IDPrefix::Folder)?;
+        }
+
         // Validate destination_folder_id if provided
         if let Some(folder_id) = &self.destination_folder_id {
             validate_id_string(&folder_id.0, "destination_folder_id")?;

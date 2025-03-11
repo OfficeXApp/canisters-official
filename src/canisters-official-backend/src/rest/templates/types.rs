@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::state::templates::types::{TemplateID, TemplateItem};
+use crate::core::{state::templates::types::{TemplateID, TemplateItem}, types::ClientSuggestedUUID};
 
 #[derive(Debug, Clone, Serialize)]
 pub enum TemplateResponse<'a, T = ()> {
@@ -43,6 +43,7 @@ pub type ListTemplatesResponse<'a> = TemplateResponse<'a, Vec<TemplateItem>>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateTemplateRequest {
+    pub id: Option<ClientSuggestedUUID>,
     pub title: String,
 }
 

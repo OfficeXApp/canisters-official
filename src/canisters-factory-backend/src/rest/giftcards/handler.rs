@@ -14,7 +14,7 @@ pub mod giftcards_handlers {
     use crate::rest::giftcards::types::SpawnInitArgs;
     use crate::{
         core::{
-            api::uuid::{format_user_id, generate_unique_id}, 
+            api::uuid::{format_user_id, generate_uuidv4}, 
             state::giftcards::{
                     state::state::{HISTORICAL_GIFTCARDS, OWNER_ID, USER_TO_GIFTCARDS_HASHTABLE, GIFTCARD_BY_ID},
                     
@@ -286,7 +286,7 @@ pub mod giftcards_handlers {
                     // Create new giftcard
                     let current_time = ic_cdk::api::time();
                     let new_giftcard = Giftcard {
-                        id: GiftcardID(generate_unique_id(IDPrefix::Giftcard, "")),
+                        id: GiftcardID(generate_uuidv4(IDPrefix::Giftcard)),
                         usd_revenue_cents: create_req.usd_revenue_cents,
                         note: create_req.note,
                         gas_cycles_included: create_req.gas_cycles_included,

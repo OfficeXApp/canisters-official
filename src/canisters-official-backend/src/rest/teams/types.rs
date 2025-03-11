@@ -1,7 +1,7 @@
 // src/rest/teams/types.rs
 use serde::{Deserialize, Serialize};
 use crate::{core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::redact_tag, team_invites::types::TeamInviteID, teams::{state::state::is_team_admin, types::{Team, TeamID}}}, types::UserID
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}, team_invites::types::TeamInviteID, teams::{state::state::is_team_admin, types::{Team, TeamID}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}
 }, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
@@ -125,6 +125,7 @@ pub type ListTeamsResponse<'a> = ApiResponse<'a, ListTeamsResponseData>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub avatar: Option<String>,
     pub public_note: Option<String>,
@@ -135,6 +136,11 @@ pub struct CreateTeamRequestBody {
 }
 impl CreateTeamRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Team)?;
+        }
+        
         // Validate name (up to 256 chars)
         validate_id_string(&self.name, "name")?;
 

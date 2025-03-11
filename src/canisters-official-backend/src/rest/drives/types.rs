@@ -6,8 +6,9 @@ use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
 use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
+use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::redact_tag;
-use crate::core::types::{ICPPrincipalString, PublicKeyICP, UserID};
+use crate::core::types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
 use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
@@ -121,6 +122,7 @@ pub struct ListDrivesResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateDriveRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub icp_principal: Option<String>,
     pub public_note: Option<String>,
@@ -131,6 +133,11 @@ pub struct CreateDriveRequestBody {
 }
 impl CreateDriveRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Drive)?;
+        }
+        
         // Validate name (up to 256 chars)
         validate_id_string(&self.name, "name")?;
 

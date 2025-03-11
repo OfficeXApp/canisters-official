@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::state::team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{tags::state::validate_uuid4_string_with_prefix, team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 
@@ -81,6 +81,7 @@ pub struct ListTeamInvitesResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateTeamInviteRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub team_id: String,
     pub invitee_id: Option<String>,
     pub role: TeamRole,
@@ -93,6 +94,12 @@ pub struct CreateTeamInviteRequestBody {
 
 impl CreateTeamInviteRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::TeamInvite)?;
+        }
+        
         // Validate team_id
         validate_id_string(&self.team_id, "team_id")?;
         

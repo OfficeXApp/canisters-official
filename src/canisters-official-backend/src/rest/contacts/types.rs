@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, redact_team_previews}, team_invites::types::{TeamInviteID, TeamInviteeID}, teams::types::TeamID}, types::{IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, redact_team_previews}}, team_invites::types::{TeamInviteID, TeamInviteeID}, teams::types::TeamID}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 
@@ -141,6 +141,7 @@ pub type ListContactsResponse<'a> = ApiResponse<'a, ListContactsResponseData>;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateContactRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub icp_principal: String,
     pub avatar: Option<String>,
@@ -157,6 +158,11 @@ pub struct CreateContactRequestBody {
 
 impl CreateContactRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::User)?;
+        }
+        
         // Validate ICP principal
         if self.icp_principal.is_empty() {
             return Err(ValidationError {

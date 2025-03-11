@@ -2,8 +2,9 @@
 use serde::{Deserialize, Serialize};
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::permissions::types::*;
+use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::redact_tag;
-use crate::core::types::UserID;
+use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::core::state::permissions::types::PermissionMetadata;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
@@ -96,6 +97,7 @@ pub struct ResourcePermissionInfo {
 // Create Permissions
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateDirectoryPermissionsRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub resource_id: String,
     pub granted_to: Option<String>,
     pub permission_types: Vec<DirectoryPermissionType>,
@@ -110,6 +112,11 @@ pub struct CreateDirectoryPermissionsRequestBody {
 
 impl CreateDirectoryPermissionsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::DirectoryPermission)?;
+        }
+        
         // Validate resource_id
         validate_id_string(&self.resource_id, "resource_id")?;
         
@@ -316,6 +323,7 @@ impl GetSystemPermissionRequest {
 // Create System Permissions
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateSystemPermissionsRequestBody {
+    pub id: Option<ClientSuggestedUUID>,
     pub resource_id: String, // Can be "Table_drives" or "DiskID_123" etc
     pub granted_to: Option<String>,
     pub permission_types: Vec<SystemPermissionType>,
@@ -328,6 +336,12 @@ pub struct CreateSystemPermissionsRequestBody {
 }
 impl CreateSystemPermissionsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+
+        if self.id.is_some() {
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::SystemPermission)?;
+        }
+
         // Validate resource_id
         validate_id_string(&self.resource_id, "resource_id")?;
         
