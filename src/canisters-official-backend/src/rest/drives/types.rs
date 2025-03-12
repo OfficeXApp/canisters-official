@@ -124,7 +124,7 @@ pub struct ListDrivesResponseData {
 pub struct CreateDriveRequestBody {
     pub id: Option<ClientSuggestedUUID>,
     pub name: String,
-    pub icp_principal: Option<String>,
+    pub icp_principal: String,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub endpoint_url: Option<String>,
@@ -142,9 +142,7 @@ impl CreateDriveRequestBody {
         validate_id_string(&self.name, "name")?;
 
         // Validate ICP principal if provided
-        if let Some(icp_principal) = &self.icp_principal {
-            validate_icp_principal(icp_principal)?;
-        }
+        validate_icp_principal(&self.icp_principal)?;
 
         // Validate public_note if provided (up to 8192 chars for descriptions)
         if let Some(public_note) = &self.public_note {

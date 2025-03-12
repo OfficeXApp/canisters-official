@@ -60,12 +60,12 @@ impl WebhookAltIndexID {
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Webhook {
     pub id: WebhookID,
+    pub name: String,
     pub url: String,
     pub alt_index: WebhookAltIndexID,
     pub event: WebhookEventLabel,
     pub signature: String,
-    pub public_note: Option<String>,
-    pub private_note: Option<String>,
+    pub note: Option<String>,
     pub active: bool,
     pub filters: String,
     pub tags: Vec<TagStringValue>,

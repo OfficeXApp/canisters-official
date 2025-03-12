@@ -5,7 +5,7 @@ use crate::core::{
     state::teams::state::state::TEAMS_BY_ID_HASHTABLE,
     state::webhooks::state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE},
     state::teams::types::{TeamID, Team},
-    state::team_invites::types::Team_Invite,
+    state::team_invites::types::TeamInvite,
 };
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 

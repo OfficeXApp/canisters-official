@@ -293,16 +293,16 @@ pub mod webhooks_handlers {
         }
 
 
-        let prestate = snapshot_prestate();
-
+        let prestate: Option<crate::core::api::replay::diff::EntireState> = snapshot_prestate();
+        let event_name = WebhookEventLabel::from_str(&create_req.event).unwrap();
         let webhook = Webhook {
             id: webhook_id.clone(),
             alt_index: alt_index.clone(),
             url: create_req.url,
-            event: WebhookEventLabel::from_str(&create_req.event).unwrap(),
+            event: event_name.clone(),
             signature: create_req.signature.unwrap_or_default(),
-            public_note: create_req.public_note,
-            private_note: create_req.private_note,
+            name: create_req.name.unwrap_or(format!("{}@{}", event_name.clone().to_string(), alt_index.0.clone())),
+            note: create_req.note,
             active: true,
             filters: create_req.filters.unwrap_or_default(),
             tags: vec![],
@@ -404,11 +404,11 @@ pub mod webhooks_handlers {
         if let Some(signature) = update_req.signature {
             webhook.signature = signature;
         }
-        if let Some(public_note) = update_req.public_note {
-            webhook.public_note = Some(public_note);
+        if let Some(name) = update_req.name {
+            webhook.name = name;
         }
-        if let Some(private_note) = update_req.private_note {
-            webhook.private_note = Some(private_note);
+        if let Some(note) = update_req.note {
+            webhook.note = Some(note);
         }
         if let Some(active) = update_req.active {
             webhook.active = active;

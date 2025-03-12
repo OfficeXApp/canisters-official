@@ -8,7 +8,7 @@ use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChec
 use crate::core::state::permissions::types::SystemPermissionType;
 use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID, TagStringValue};
-use crate::core::state::team_invites::types::Team_Invite;
+use crate::core::state::team_invites::types::TeamInvite;
 use crate::core::state::teams::types::Team;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
@@ -37,7 +37,6 @@ impl WebhookFE {
 
             // 2nd most sensitive
             if !has_edit_permissions {
-                redacted.webhook.private_note = None;
                 redacted.webhook.signature = "".to_string();
             }
         }
@@ -136,8 +135,8 @@ pub struct CreateWebhookRequestBody {
     pub url: String,
     pub event: String,
     pub signature: Option<String>,
-    pub public_note: Option<String>,
-    pub private_note: Option<String>,
+    pub name: Option<String>,
+    pub note: Option<String>,
     pub filters: Option<String>, // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -158,17 +157,18 @@ impl CreateWebhookRequestBody {
         // Validate event
         validate_id_string(&self.event, "event")?;
 
+
+        if let Some(name) = &self.name {
+            validate_id_string(name, "name")?;
+        }
+
         // Validate signature if provided
         if let Some(signature) = &self.signature {
             validate_id_string(signature, "signature")?;
         }
 
-        // Validate description if provided
-        if let Some(public_note) = &self.public_note {
-            validate_description(public_note, "public_note")?;
-        }
-        if let Some(private_note) = &self.private_note {
-            validate_description(private_note, "private_note")?;
+        if let Some(note) = &self.note {
+            validate_description(note, "note")?;
         }
 
         // Validate filters if provided
@@ -204,9 +204,9 @@ pub struct UpdateWebhookRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub public_note: Option<String>,
+    pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub private_note: Option<String>,
+    pub note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active: Option<bool>,   
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -232,11 +232,11 @@ impl UpdateWebhookRequestBody {
         }
         
         // Validate description if provided
-        if let Some(public_note) = &self.public_note {
-            validate_description(public_note, "public_note")?;
+        if let Some(name) = &self.name {
+            validate_id_string(name, "name")?;
         }
-        if let Some(private_note) = &self.private_note {
-            validate_description(private_note, "private_note")?;
+        if let Some(note) = &self.note {
+            validate_description(note, "note")?;
         }
         
         // Validate filters if provided
@@ -341,7 +341,7 @@ pub enum WebhookResourceData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamInviteWebhookData {
     pub team: Option<Team>,
-    pub team_invite: Option<Team_Invite>,
+    pub team_invite: Option<TeamInvite>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

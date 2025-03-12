@@ -302,7 +302,7 @@ pub mod drives_handlers {
             name: create_req.name,
             public_note: Some(create_req.public_note.unwrap_or_default()),
             private_note: Some(create_req.private_note.unwrap_or_default()),
-            icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal.unwrap_or_default())),
+            icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
             endpoint_url: DriveRESTUrlEndpoint(
                 create_req.endpoint_url
                     .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
