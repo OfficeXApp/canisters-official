@@ -101,14 +101,14 @@ pub fn validate_color(color: &str) -> Result<HexColorString, String> {
         return Err("Color must be a 7-character hex string".to_string());
     }
 
-    // Check characters
-    if !color.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err("Color must be a 7-character hex string".to_string());
-    }
-
     // Check prefix
     if !color.starts_with('#') {
         return Err("Color must start with '#'".to_string());
+    }
+
+    // Check characters (excluding the # prefix)
+    if !color[1..].chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("Color must be a valid hex code".to_string());
     }
 
     Ok(HexColorString(color.to_uppercase()))

@@ -199,8 +199,6 @@ pub struct UpdateDriveRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub icp_principal: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
@@ -235,11 +233,6 @@ impl UpdateDriveRequestBody {
                     message: "Private note must be 8,192 characters or less".to_string(),
                 });
             }
-        }
-
-        // Validate ICP principal if provided
-        if let Some(icp_principal) = &self.icp_principal {
-            validate_icp_principal(icp_principal)?;
         }
 
         // Validate endpoint_url if provided
