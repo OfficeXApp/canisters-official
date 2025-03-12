@@ -322,7 +322,6 @@ pub mod contacts_handlers {
 
         let prestate = snapshot_prestate();
 
-        // Create new webhook
         let contact_id = format_user_id(&create_req.icp_principal.clone());
         let contact = Contact {
             id: contact_id.clone(),
@@ -472,12 +471,6 @@ pub mod contacts_handlers {
         }
         if let Some(evm_public_address) = update_req.evm_public_address {
             contact.evm_public_address = evm_public_address;
-        }
-        if let Some(icp_principal) = update_req.icp_principal {
-            contact.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
-        }
-        if let Some(seed_phrase) = update_req.seed_phrase {
-            contact.seed_phrase = Some(seed_phrase);
         }
 
         if let Some(external_id) = update_req.external_id.clone() {

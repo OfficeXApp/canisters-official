@@ -3,7 +3,7 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{state::{contacts::types::Contact, drives::state::state::OWNER_ID}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log};
+    use crate::{core::{state::{contacts::types::Contact, drives::state::state::OWNER_ID}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
     
     thread_local! {
         // default is to use the api key id to lookup the api key
@@ -17,22 +17,28 @@ pub mod state {
         pub(crate) static HISTORY_SUPERSWAP_USERID: RefCell<HashMap<UserID, UserID>> = RefCell::new(HashMap::new());
     }
 
-    pub fn init_default_owner_contact() {
+    pub fn init_default_owner_contact(name: Option<String>) {
         debug_log!("Initializing default owner contact...");
 
         let owner_id = OWNER_ID.with(|id| id.borrow().clone());
-        let default_icp_principal = ICPPrincipalString(PublicKeyICP("".to_string())); // Empty string as placeholder
+        // extract icp principal by removing the prefix IDPrefix::User
+        let owner_icp_principal = owner_id.to_icp_principal_string();
+
+        let default_name = match name {
+            Some(name) => name,
+            None => "Anonymous Owner".to_string(),
+        };
 
         let default_contact = Contact {
             id: owner_id.clone(),
-            name: "Anonymous Owner".to_string(),
+            name: default_name,
             avatar: None,
             email: None,
             notifications_url: None,
             public_note: Some("Default system owner".to_string()),
             private_note: None,
             evm_public_address: "".to_string(), // Empty string as placeholder
-            icp_principal: default_icp_principal.clone(),
+            icp_principal: owner_icp_principal.clone(),
             seed_phrase: None,
             teams: vec![],
             tags: vec![],
@@ -52,7 +58,7 @@ pub mod state {
         });
 
         CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|map| {
-            map.borrow_mut().insert(default_icp_principal, owner_id.clone());
+            map.borrow_mut().insert(owner_icp_principal, owner_id.clone());
         });
 
         CONTACTS_BY_TIME_LIST.with(|list| {

@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID};
+use crate::core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID};
 
 use super::directory::parse_permission_grantee_id;
 
@@ -82,6 +82,20 @@ fn check_system_resource_permissions(
     grantee_id: &PermissionGranteeID,
 ) -> HashSet<SystemPermissionType> {
     let mut permissions_set = HashSet::new();
+
+    // check if grantee_id is OWNER_ID, and if so then just return all permissions
+    if let PermissionGranteeID::User(user_id) = grantee_id {
+        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow());
+        if is_owner {
+            let mut owner_permissions = HashSet::new();
+            owner_permissions.insert(SystemPermissionType::Create);
+            owner_permissions.insert(SystemPermissionType::View);
+            owner_permissions.insert(SystemPermissionType::Edit);
+            owner_permissions.insert(SystemPermissionType::Delete);
+            owner_permissions.insert(SystemPermissionType::Invite);
+            return owner_permissions;
+        }
+    }
     
     // Get all permission IDs for this resource
     SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {

@@ -19,7 +19,8 @@ pub static LOCAL_DEV_MODE: bool = true;
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct InitArgs {
     pub owner: String, // Plain string for simplicity, really should be ICPPrincipalString
-    pub nickname: Option<String>,
+    pub title: Option<String>,
+    pub owner_name: Option<String>,
     pub note: Option<String>,
     pub spawn_redeem_code: Option<String>,
 }
@@ -70,7 +71,7 @@ fn initialize_canister(args: Option<InitArgs>) {
                 // Initialize the drive with all parameters
                 init_self_drive(
                     owner_id,
-                    init_args.nickname,
+                    init_args.title,
                     init_args.spawn_redeem_code,
                     init_args.note,
                 );
@@ -83,6 +84,10 @@ fn initialize_canister(args: Option<InitArgs>) {
                 crate::core::state::drives::state::state::SPAWN_REDEEM_CODE.with(|code| {
                     debug_log!("After init, spawn_redeem_code is: {}", code.borrow().0);
                 });
+
+                init_default_admin_apikey();
+                init_default_owner_contact(init_args.owner_name);
+                init_default_disks();
             },
             Err(validation_error) => {
                 // Log and trap (abort) on invalid ICP principal
@@ -97,9 +102,6 @@ fn initialize_canister(args: Option<InitArgs>) {
         ic_cdk::trap("Initialization failed: Owner principal is required");
     }
     
-    init_default_admin_apikey();
-    init_default_owner_contact();
-    init_default_disks();
 }
 
 #[post_upgrade]

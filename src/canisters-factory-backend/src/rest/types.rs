@@ -135,7 +135,6 @@ pub fn validate_user_id(user_id: &str) -> Result<(), ValidationError> {
     }
 }
 
-
 pub fn validate_drive_id(drive_id: &str) -> Result<(), ValidationError> {
     // Check basic string requirements first
     validate_id_string(drive_id, "drive_id")?;

@@ -509,6 +509,7 @@ pub mod giftcards_handlers {
         let deployed_canister = match deploy_drive_canister(
             redeem_request.owner_icp_principal.clone(),
             redeem_request.organization_name.clone(),
+            redeem_request.owner_name.clone(),
             redeem_code.clone(),
             Some(format!("giftcard {} was redeemed to spawn drive with {} cycles, owned by {}, on timestamp_ms {} {}", 
                 giftcard_id.0, giftcard.gas_cycles_included, owner_id.0, current_time, time_iso)),
@@ -596,6 +597,7 @@ pub mod giftcards_handlers {
     async fn deploy_drive_canister(
         owner_icp_principal: String, 
         title: Option<String>, 
+        owner_name: Option<String>,
         spawn_redeem_code: String,
         note: Option<String>,
         cycles: u64
@@ -641,6 +643,7 @@ pub mod giftcards_handlers {
                 let init_args = SpawnInitArgs {
                     owner: owner_icp_principal,
                     title,
+                    owner_name,
                     note,
                     spawn_redeem_code: Some(spawn_redeem_code),
                 };
