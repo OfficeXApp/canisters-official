@@ -1,7 +1,7 @@
 // src/core/api/webhooks/team_invites.rs
 
 use crate::core::{
-    state::{team_invites::types::Team_Invite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}},
+    state::{team_invites::types::TeamInvite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}},
     types::UserID,
 };
 use crate::rest::webhooks::types::{

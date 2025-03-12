@@ -7,8 +7,7 @@
 
 ## Urgent Next
 
-- [🔵] Migrate to allowing client uuids for true p2p offline compatibility (however we should add validation of userids, including preventing duplicates with our own internal mappings to check if uuid already taken)
-- [ ] Write all the redux-offline states and actions for webapp
+- [🔵] Write all the redux-offline states and actions for webapp
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
 
 ## Awkward Urgent
@@ -19,6 +18,7 @@
 
 ## Near Future
 
+- [ ] Add gas gift card system?
 - [ ] Test out webapp http server
 - [ ] Test out webapp torrenting
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
@@ -126,3 +126,4 @@
 - [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
 - [x] Audit REST API to ensure all snake case variables consistency
 - [x] Consider whether we change userID to user_id for consistent rest api spec (and force JS/other languages to comply too)
+- [x] Migrate to allowing client uuids for true p2p offline compatibility (however we should add validation of userids, including preventing duplicates with our own internal mappings to check if uuid already taken)

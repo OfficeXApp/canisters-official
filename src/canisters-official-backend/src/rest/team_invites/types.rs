@@ -2,9 +2,50 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{tags::state::validate_uuid4_string_with_prefix, team_invites::types::{ TeamInviteID, TeamRole, Team_Invite}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{drives::state::state::OWNER_ID, permissions::types::SystemPermissionType, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}, team_invites::types::{ TeamInviteID, TeamRole, TeamInvite}, teams::state::state::is_team_admin}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamInviteFE {
+    #[serde(flatten)] // this lets us "extend" the Contact struct
+    pub team_invite: TeamInvite,
+    pub team_name: String,
+    pub team_avatar: Option<String>,
+    pub invitee_name: String,
+    pub invitee_avatar: Option<String>,
+    pub permission_previews: Vec<SystemPermissionType>,
+}
+
+impl TeamInviteFE {
+    pub fn redacted(&self, user_id: &UserID) -> Self {
+        let mut redacted = self.clone();
+
+        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
+        let is_team_admin = is_team_admin(user_id, &self.team_invite.team_id);
+
+        // Most sensitive
+        if !is_owner {
+
+            // 2nd most sensitive
+            if !has_edit_permissions && !is_team_admin {
+                redacted.team_invite.from_placeholder_invitee = None;
+                redacted.team_invite.inviter_id = UserID("".to_string());
+            }
+        }
+        // Filter tags
+        redacted.team_invite.tags = match is_owner {
+            true => redacted.team_invite.tags,
+            false => redacted.team_invite.tags.iter()
+            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+            .collect()
+        };
+        
+        redacted
+    }
+}
 
 // Update CreateTeam_InviteRequest in rest/team_invites/types.rs
 #[derive(Debug, Clone, Deserialize)]
@@ -70,7 +111,7 @@ impl ListTeamInvitesRequestBody {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ListTeamInvitesResponseData {
-    pub items: Vec<Team_Invite>,
+    pub items: Vec<TeamInviteFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -164,12 +205,12 @@ impl UpdateTeamInviteRequestBody {
 
 
 
-pub type GetTeam_InviteResponse<'a> = ApiResponse<'a, Team_Invite>;
+pub type GetTeam_InviteResponse<'a> = ApiResponse<'a, TeamInviteFE>;
 
 pub type ListTeam_InvitesResponse<'a> = ApiResponse<'a, ListTeamInvitesResponseData>;
 
 
-pub type CreateTeam_InviteResponse<'a> = ApiResponse<'a, Team_Invite>;
+pub type CreateTeam_InviteResponse<'a> = ApiResponse<'a, TeamInviteFE>;
 
 
 
@@ -179,7 +220,7 @@ pub struct UpdateTeam_InviteRequest {
     pub completed: Option<bool>,
 }
 
-pub type UpdateTeam_InviteResponse<'a> = ApiResponse<'a, Team_Invite>;
+pub type UpdateTeam_InviteResponse<'a> = ApiResponse<'a, TeamInviteFE>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteTeam_InviteRequest {
@@ -225,5 +266,5 @@ impl RedeemTeamInviteRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RedeemTeamInviteResponseData {
-    pub invite: Team_Invite,
+    pub invite: TeamInviteFE,
 }

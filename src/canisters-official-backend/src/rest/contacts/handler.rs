@@ -348,7 +348,7 @@ pub mod contacts_handlers {
             }),
             redeem_code: create_req.is_placeholder.and_then(|is_placeholder| {
                 if is_placeholder {
-                    Some(generate_uuidv4(IDPrefix::RedeemToken))
+                    Some(generate_uuidv4(IDPrefix::RedeemCode))
                 } else {
                     None
                 }

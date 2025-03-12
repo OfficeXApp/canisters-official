@@ -7,7 +7,7 @@ pub mod team_invites_handlers {
         
     };
     use crate::core::state::team_invites::{
-        types::Team_Invite,
+        types::TeamInvite,
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -49,7 +49,7 @@ pub mod team_invites_handlers {
     
                 create_response(
                     StatusCode::OK,
-                    GetTeam_InviteResponse::ok(&invite).encode()
+                    GetTeam_InviteResponse::ok(&invite.cast_fe(&requester_api_key.user_id)).encode()
                 )
             },
             None => create_response(
@@ -153,7 +153,7 @@ pub mod team_invites_handlers {
             .collect::<Vec<_>>();
     
         let response_data = ListTeamInvitesResponseData {
-            items: items.clone(),
+            items: items.clone().into_iter().map(|invite| invite.cast_fe(&requester_api_key.user_id)).collect(),
             page_size: query.page_size,
             total: all_invites.len(),
             cursor_up: items.first().map(|i| i.id.0.clone()),
@@ -248,7 +248,7 @@ pub mod team_invites_handlers {
         };
 
 
-        let new_invite = Team_Invite {
+        let new_invite = TeamInvite {
             id: invite_id.clone(),
             team_id: team_id.clone(),
             inviter_id: requester_api_key.user_id.clone(),
@@ -323,7 +323,7 @@ pub mod team_invites_handlers {
 
         create_response(
             StatusCode::OK,
-            CreateTeam_InviteResponse::ok(&new_invite).encode()
+            CreateTeam_InviteResponse::ok(&new_invite.cast_fe(&requester_api_key.user_id)).encode()
         )
 
     }
@@ -497,7 +497,7 @@ pub mod team_invites_handlers {
 
         create_response(
             StatusCode::OK,
-            UpdateTeam_InviteResponse::ok(&invite).encode()
+            UpdateTeam_InviteResponse::ok(&invite.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
     
@@ -701,7 +701,7 @@ pub mod team_invites_handlers {
         create_response(
             StatusCode::OK,
             serde_json::to_vec(&RedeemTeamInviteResponseData {
-                invite,
+                invite: invite.cast_fe(&requester_api_key.user_id),
             }).expect("Failed to serialize response")
         )
     }

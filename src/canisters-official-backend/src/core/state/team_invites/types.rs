@@ -10,6 +10,7 @@ use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissi
 use crate::core::state::tags::types::{redact_tag, TagStringValue};
 use crate::core::state::teams::types::TeamID;
 use crate::core::types::{UserID};
+use crate::rest::team_invites::types::TeamInviteFE;
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -21,7 +22,7 @@ impl fmt::Display for TeamInviteID {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
-pub struct Team_Invite {
+pub struct TeamInvite {
     pub id: TeamInviteID,
     pub team_id: TeamID,
     pub inviter_id: UserID,
@@ -38,34 +39,70 @@ pub struct Team_Invite {
     pub external_payload: Option<ExternalPayload>,
 }
 
-impl Team_Invite {
-    pub fn redacted(&self, user_id: &UserID) -> Self {
-        let mut redacted = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-        // let is_owned = self.inviter_id == *user_id || self.invitee_id == TeamInviteeID::User(user_id.clone());
-        // let table_permissions = check_system_permissions(
-        //     SystemResourceID::Table(SystemTableEnum::Teams),
-        //     PermissionGranteeID::User(user_id.clone())
-        // );
-        // let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(self.id.clone().to_string()));
-        // let permissions = check_system_permissions(
-        //     resource_id,
-        //     PermissionGranteeID::User(user_id.clone())
-        // );
-        // let has_edit_permissions = permissions.contains(&SystemPermissionType::Edit) || table_permissions.contains(&SystemPermissionType::Edit);
+impl TeamInvite {
 
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
-            .collect()
-        };
+    pub fn cast_fe(&self, user_id: &UserID) -> TeamInviteFE {
+        let team_invite = self.clone();
+        // Collect team invites for this user
         
-        redacted
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::Team(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Teams),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+        let (team_name, team_avatar) = match crate::core::state::teams::state::state::TEAMS_BY_ID_HASHTABLE.with(|teams| teams.borrow().get(&team_invite.team_id).cloned()) {
+            Some(team) => {
+                let team_name = team.name;
+                let team_avatar = team.avatar;
+                (team_name, team_avatar)
+            },
+            None => {
+                let team_name = "".to_string();
+                let team_avatar = None;
+                (team_name, team_avatar)
+            }
+        };
+
+        let (invitee_name, invitee_avatar) = match team_invite.clone().invitee_id {
+            TeamInviteeID::User(user_id) => {
+                let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                    .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                if let Some(contact) = contact_opt {
+                    (contact.name, contact.avatar)
+                } else {
+                    ("".to_string(), None)
+                }
+            },
+            TeamInviteeID::PlaceholderTeamInvitee(placeholder_id) => {
+                ("".to_string(), None)
+            }
+        };
+
+        TeamInviteFE {
+            team_invite,
+            team_name,
+            team_avatar,
+            invitee_name,
+            invitee_avatar,
+            permission_previews
+        }.redacted(user_id)
     }
+
+    
 }
+
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, SerdeDiff)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

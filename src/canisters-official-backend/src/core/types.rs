@@ -83,7 +83,7 @@ pub enum IDPrefix {
     ShareTrackID,
     DriveStateDiffID,
     TagID,
-    RedeemToken,
+    RedeemCode,
 }
 
 impl IDPrefix {
@@ -106,7 +106,7 @@ impl IDPrefix {
             IDPrefix::ShareTrackID => "ShareTrackID_",
             IDPrefix::DriveStateDiffID => "DriveStateDiffID_",
             IDPrefix::TagID => "TagID_",
-            IDPrefix::RedeemToken => "RedeemTokenID_",
+            IDPrefix::RedeemCode => "RedeemTokenID_",
         }
     }
 }
