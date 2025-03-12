@@ -34,7 +34,6 @@ impl WebhookFE {
 
         // Most sensitive
         if !is_owner {
-
             // 2nd most sensitive
             if !has_edit_permissions {
                 redacted.webhook.signature = "".to_string();
@@ -137,6 +136,7 @@ pub struct CreateWebhookRequestBody {
     pub signature: Option<String>,
     pub name: Option<String>,
     pub note: Option<String>,
+    pub active: Option<bool>,
     pub filters: Option<String>, // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -149,7 +149,7 @@ impl CreateWebhookRequestBody {
         }
         
         // Validate alt_index
-        validate_id_string(&self.alt_index, "alt_index")?;
+        validate_short_string(&self.alt_index, "alt_index")?;
 
         // Validate URL
         validate_url_endpoint(&self.url, "url")?;

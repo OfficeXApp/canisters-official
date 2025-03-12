@@ -2,7 +2,7 @@
 // src/core/state/api_keys/types.rs
 use serde_diff::{Diff, SerdeDiff};
 use serde::{Deserialize, Serialize};
-use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::UserID}, rest::api_keys::types::ApiKeyFE};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::state::state::CONTACTS_BY_ID_HASHTABLE, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::UserID}, rest::api_keys::types::ApiKeyFE};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -27,7 +27,7 @@ pub struct ApiKey {
     pub user_id: UserID,
     pub name: String,
     pub private_note: Option<String>,
-    pub created_at: u64, 
+    pub created_at: u64,
     pub expires_at: i64, 
     pub is_revoked: bool,
     pub tags: Vec<TagStringValue>,
@@ -40,6 +40,14 @@ impl ApiKey {
 
     pub fn cast_fe(&self, user_id: &UserID) -> ApiKeyFE {
         let apiKey = self.clone();
+
+        // check CONTACTS_BY_ID_HASHTABLE for contact to get its name, otherwise return "Unknown"
+        let user_name = CONTACTS_BY_ID_HASHTABLE.with(|map| {
+            match map.borrow().get(&apiKey.user_id) {
+                Some(contact) => Some(contact.name.clone()),
+                None => None
+            }
+        }).unwrap_or("Unknown".to_string());
         
         // Get user's system permissions for this contact record
         let record_permissions = check_system_permissions(
@@ -59,6 +67,7 @@ impl ApiKey {
 
         ApiKeyFE {
             apiKey,
+            user_name: Some(user_name),
             permission_previews
         }.redacted(user_id)
     }

@@ -9,7 +9,8 @@ use crate::{core::{api::permissions::system::check_system_permissions, state::{a
 pub struct ApiKeyFE {
     #[serde(flatten)] 
     pub apiKey: ApiKey,
-    pub permission_previews: Vec<SystemPermissionType>, 
+    pub user_name: Option<String>,
+    pub permission_previews: Vec<SystemPermissionType>,
 }
 
 impl ApiKeyFE {
@@ -21,10 +22,13 @@ impl ApiKeyFE {
 
         // Most sensitive
         if !is_owner {
-
             // 2nd most sensitive
             if !has_edit_permissions {
                 redacted.apiKey.private_note = None;
+            }
+            // apiKey value is visible to its owner
+            if (user_id != &redacted.apiKey.user_id) {
+                redacted.apiKey.value = ApiKeyValue("".to_string());
             }
         }
         // Filter tags
@@ -34,14 +38,9 @@ impl ApiKeyFE {
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
+
         
         redacted
-    }
-
-    pub fn to_hidden(&self) -> Self {
-        let mut api_key = self.clone();
-        api_key.apiKey.value = ApiKeyValue("".to_string());
-        api_key
     }
 }
 
