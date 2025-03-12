@@ -3,7 +3,7 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskRequestBody, CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskRequestBody, UpdateDiskResponse}, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{disks::{state::state::{ensure_disk_root_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskRequestBody, CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskRequestBody, UpdateDiskResponse}, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -323,6 +323,7 @@ pub mod disks_handlers {
         DISKS_BY_TIME_LIST.with(|store| {
             store.borrow_mut().push(disk_id.clone());
         });
+        mark_claimed_uuid(&disk_id.clone().to_string());
 
         ensure_disk_root_folder(
             &disk_id,

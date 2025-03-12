@@ -10,7 +10,7 @@ use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::redact_tag;
 use crate::core::types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
-use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_short_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -139,7 +139,7 @@ impl CreateDriveRequestBody {
         }
         
         // Validate name (up to 256 chars)
-        validate_id_string(&self.name, "name")?;
+        validate_short_string(&self.name, "name")?;
 
         // Validate ICP principal if provided
         validate_icp_principal(&self.icp_principal)?;
@@ -214,7 +214,7 @@ impl UpdateDriveRequestBody {
 
         // Validate name if provided
         if let Some(name) = &self.name {
-            validate_id_string(name, "name")?;
+            validate_short_string(name, "name")?;
         }
 
         // Validate public_note if provided

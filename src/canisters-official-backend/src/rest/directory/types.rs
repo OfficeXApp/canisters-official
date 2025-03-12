@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -220,7 +220,7 @@ impl CompleteUploadRequest {
         validate_id_string(&self.file_id, "file_id")?;
         
         // Validate filename
-        validate_id_string(&self.filename, "filename")?;
+        validate_short_string(&self.filename, "filename")?;
         
         Ok(())
     }
@@ -767,7 +767,7 @@ impl CreateFilePayload {
         }
         
         // Validate name
-        validate_id_string(&self.name, "name")?;
+        validate_short_string(&self.name, "name")?;
         
         // Validate extension
         if self.extension.len() > 20 {
@@ -829,7 +829,7 @@ impl CreateFolderPayload {
         }
 
         // Validate name
-        validate_id_string(&self.name, "name")?;
+        validate_short_string(&self.name, "name")?;
         
         // Validate tags
         for tag in &self.tags {
@@ -872,7 +872,7 @@ impl UpdateFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate name if provided
         if let Some(name) = &self.name {
-            validate_id_string(name, "name")?;
+            validate_short_string(name, "name")?;
         }
         
         // Validate tags if provided
@@ -920,7 +920,7 @@ impl UpdateFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate name if provided
         if let Some(name) = &self.name {
-            validate_id_string(name, "name")?;
+            validate_short_string(name, "name")?;
         }
         
         // Validate tags if provided

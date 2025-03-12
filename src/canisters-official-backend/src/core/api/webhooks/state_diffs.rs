@@ -41,6 +41,7 @@ pub fn fire_state_diff_webhooks(
     notes: Option<String>
 ) {
     let drive_state_diff_id = DriveStateDiffID(generate_uuidv4(IDPrefix::DriveStateDiffID));
+    // we skip mark_claimed_uuid as that will be responsibility of the webhook, and we generaete this drive_state_diff_id on the fly anyways
     let timestamp_ns = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
     let webhooks = get_active_state_diff_webhooks();
     

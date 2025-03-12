@@ -6,7 +6,7 @@ pub mod tags_handlers {
             api::{
                 permissions::system::{check_system_permissions, check_system_resource_permissions_tags}, 
                 replay::diff::{snapshot_poststate, snapshot_prestate}, 
-                uuid::generate_uuidv4, webhooks::tags::{fire_tag_webhook, get_active_tag_webhooks}
+                uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::tags::{fire_tag_webhook, get_active_tag_webhooks}
             },
             state::{
                 drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, 
@@ -419,6 +419,7 @@ pub mod tags_handlers {
         TAGS_BY_TIME_LIST.with(|store| {
             store.borrow_mut().push(tag_id.clone());
         });
+        mark_claimed_uuid(&tag_id.clone().to_string());
 
         update_external_id_mapping(None, tag.external_id.clone(), Some(tag_id.clone().to_string()));
 

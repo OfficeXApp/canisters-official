@@ -105,6 +105,20 @@ pub fn validate_id_string(id: &str, field_name: &str) -> Result<(), ValidationEr
             message: format!("{} must be 256 characters or less", field_name),
         });
     }
+
+    
+    Ok(())
+}
+
+
+pub fn validate_short_string(id: &str, field_name: &str) -> Result<(), ValidationError> {
+    // Check max length only
+    if id.len() > 256 {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} must be 256 characters or less", field_name),
+        });
+    }
     
     Ok(())
 }

@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponseData}},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponseData}},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -209,9 +209,12 @@ pub mod permissions_handlers {
             }
         } else {
             // Create a new deferred link ID for sharing
-            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
+            let _placeholder_id = PlaceholderPermissionGranteeID(
                 generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
-            ))
+            );
+            let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
+            mark_claimed_uuid(&_placeholder_id.clone().to_string());
+            _placeholder_grantee
         };
     
         // 5. Check if resource exists
@@ -319,6 +322,8 @@ pub mod permissions_handlers {
             permissions_by_time.borrow_mut().push(permission_id.clone());
         });
 
+        mark_claimed_uuid(&permission_id.clone().to_string());
+
         snapshot_poststate(prestate, Some(
             format!(
                 "{}: Create Directory Permission {}", 
@@ -380,9 +385,12 @@ pub mod permissions_handlers {
             }
         } else {
             // Create a new deferred link ID for sharing
-            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
+            let _placeholder_id = PlaceholderPermissionGranteeID(
                 generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
-            ))
+            );
+            let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
+            mark_claimed_uuid(&_placeholder_id.clone().to_string());
+            _placeholder_grantee
         };
     
         // 5. Check if resource exists
@@ -830,9 +838,12 @@ pub mod permissions_handlers {
             }
         } else {
             // Create a new deferred link ID for sharing
-            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
+            let _placeholder_id = PlaceholderPermissionGranteeID(
                 generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
-            ))
+            );
+            let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
+            mark_claimed_uuid(&_placeholder_id.clone().to_string());
+            _placeholder_grantee
         };
     
         // 5. Check authorization
@@ -899,6 +910,8 @@ pub mod permissions_handlers {
         SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
             permissions_by_time.borrow_mut().push(permission_id.clone());
         });
+
+        mark_claimed_uuid(&permission_id.clone().to_string());
 
         update_external_id_mapping(
             None,
@@ -981,9 +994,12 @@ pub mod permissions_handlers {
             }
         } else {
             // Create a new deferred link ID for sharing
-            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(
+            let _placeholder_id = PlaceholderPermissionGranteeID(
                 generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
-            ))
+            );
+            let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
+            mark_claimed_uuid(&_placeholder_id.clone().to_string());
+            _placeholder_grantee
         };
     
         // 5. Check authorization

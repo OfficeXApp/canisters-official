@@ -8,7 +8,7 @@ use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::webhooks::types::SortDirection;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -145,7 +145,7 @@ impl CreateTagRequestBody {
         }
         
         // Validate tag value (up to 256 chars)
-        validate_id_string(&self.value, "value")?;
+        validate_short_string(&self.value, "value")?;
 
         // Validate description if provided
         if let Some(public_note) = &self.public_note {
@@ -212,7 +212,7 @@ impl UpdateTagRequestBody {
 
         // Validate tag value if provided
         if let Some(value) = &self.value {
-            validate_id_string(value, "value")?;
+            validate_short_string(value, "value")?;
         }
 
         // Validate description if provided
@@ -315,7 +315,7 @@ impl GetTagResourcesRequest {
         
         // Validate resource_type if provided
         if let Some(resource_type) = &self.resource_type {
-            validate_id_string(resource_type, "resource_type")?;
+            validate_short_string(resource_type, "resource_type")?;
         }
         
         // Validate page_size if provided
