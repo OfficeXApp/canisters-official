@@ -135,7 +135,7 @@ impl CreateDriveRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
-            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Drive)?;
+            validate_drive_id(&self.id.as_ref().unwrap().to_string())?;
         }
         
         // Validate name (up to 256 chars)

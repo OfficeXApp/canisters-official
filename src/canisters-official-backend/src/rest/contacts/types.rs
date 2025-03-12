@@ -160,7 +160,7 @@ impl CreateContactRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
-            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::User)?;
+            validate_user_id(&self.id.as_ref().unwrap().to_string())?;
         }
         
         // Validate ICP principal
@@ -295,10 +295,6 @@ pub struct UpdateContactRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evm_public_address: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub icp_principal: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub seed_phrase: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_payload: Option<String>,
@@ -354,105 +350,6 @@ impl UpdateContactRequestBody {
             validate_evm_address(evm_address)?;
         }
 
-        // Validate ICP principal if provided
-        if let Some(icp_principal) = &self.icp_principal {
-            if icp_principal.is_empty() {
-                return Err(ValidationError {
-                    field: "icp_principal".to_string(),
-                    message: "ICP principal cannot be empty".to_string(),
-                });
-            }
-
-            match candid::Principal::from_text(icp_principal) {
-                Ok(_) => {},
-                Err(_) => {
-                    return Err(ValidationError {
-                        field: "icp_principal".to_string(),
-                        message: "Invalid ICP principal format".to_string(),
-                    });
-                }
-            }
-        }
-
-        if let Some(seed_phrase) = &self.seed_phrase {
-            // If a seed phrase is provided, both ICP principal and EVM address must also be provided
-            if self.icp_principal.is_none() {
-                return Err(ValidationError {
-                    field: "icp_principal".to_string(),
-                    message: "When seed phrase is provided, ICP principal must also be provided".to_string(),
-                });
-            }
-
-            if self.evm_public_address.is_none() {
-                return Err(ValidationError {
-                    field: "evm_public_address".to_string(),
-                    message: "When seed phrase is provided, EVM address must also be provided".to_string(),
-                });
-            }
-
-            // Now validate the seed phrase generates the expected addresses
-            match seed_phrase_to_wallet_addresses(seed_phrase) {
-                Ok(addresses) => {
-                    // Verify ICP principal matches
-                    if let Some(icp_principal) = &self.icp_principal {
-                        if &addresses.icp_principal != icp_principal {
-                            return Err(ValidationError {
-                                field: "seed_phrase".to_string(),
-                                message: format!(
-                                    "Seed phrase generates ICP principal '{}' which doesn't match the provided principal '{}'",
-                                    addresses.icp_principal, icp_principal
-                                ),
-                            });
-                        }
-                    }
-
-                    // Verify EVM address matches
-                    if let Some(evm_address) = &self.evm_public_address {
-                        if &addresses.evm_public_address != evm_address {
-                            return Err(ValidationError {
-                                field: "seed_phrase".to_string(),
-                                message: format!(
-                                    "Seed phrase generates EVM address '{}' which doesn't match the provided address '{}'",
-                                    addresses.evm_public_address, evm_address
-                                ),
-                            });
-                        }
-                    }
-
-                    // Extract principal from UserID (removing the prefix)
-                    let user_prefix = IDPrefix::User.as_str();
-                    if self.id.0.starts_with(user_prefix) {
-                        let user_principal = &self.id.0[user_prefix.len()..];
-                        
-                        // Extract principal from the derived ICP principal
-                        // The derived ICP principal doesn't have the prefix, so we compare directly
-                        if addresses.icp_principal != user_principal {
-                            return Err(ValidationError {
-                                field: "seed_phrase".to_string(),
-                                message: format!(
-                                    "Seed phrase generates ICP principal '{}' which doesn't match the user ID principal '{}'",
-                                    addresses.icp_principal, user_principal
-                                ),
-                            });
-                        }
-                    } else {
-                        return Err(ValidationError {
-                            field: "id".to_string(),
-                            message: format!(
-                                "User ID '{}' doesn't start with the expected prefix '{}'",
-                                self.id.0, user_prefix
-                            ),
-                        });
-                    }
-                },
-                Err(err) => {
-                    return Err(ValidationError {
-                        field: "seed_phrase".to_string(),
-                        message: err.message,
-                    });
-                }
-            }
-        }
 
         // Validate external_id if provided
         if let Some(external_id) = &self.external_id {

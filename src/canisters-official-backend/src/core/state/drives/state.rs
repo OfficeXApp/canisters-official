@@ -50,7 +50,7 @@ pub mod state {
 
     pub fn init_self_drive(
         owner_id: UserID,
-        nickname: Option<String>,
+        title: Option<String>,
         spawn_redeem_code: Option<String>,
         note: Option<String>,
     ) {
@@ -84,7 +84,7 @@ pub mod state {
         });
         
         // Use provided nickname or default
-        let drive_name = nickname.unwrap_or_else(|| "Anonymous Org".to_string());
+        let drive_name = title.unwrap_or_else(|| "Anonymous Org".to_string());
         debug_log!("Initializing self drive with name: {}", drive_name);
         
         let self_drive = Drive {

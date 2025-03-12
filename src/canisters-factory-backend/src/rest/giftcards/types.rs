@@ -232,6 +232,7 @@ pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 pub struct RedeemGiftcardData {
     pub giftcard_id: GiftcardID,
     pub owner_icp_principal: String,
+    pub owner_name: Option<String>,
     pub organization_name: Option<String>
 }
 impl RedeemGiftcardData {
@@ -271,6 +272,21 @@ impl RedeemGiftcardData {
                 });
             }
         }
+        if let Some(owner_name) = &self.owner_name {
+            if owner_name.trim().is_empty() {
+                return Err(ValidationError {
+                    field: "owner_name".to_string(),
+                    message: "Org Name cannot be empty".to_string(),
+                });
+            }
+
+            if owner_name.len() > 64 {
+                return Err(ValidationError {
+                    field: "owner_name".to_string(),
+                    message: "Org Name must be 64 characters or less".to_string(),
+                });
+            }
+        }
 
         Ok(())
     }
@@ -291,6 +307,7 @@ pub type RedeemGiftcardResponse<'a> = ApiResponse<'a, RedeemGiftcardResult>;
 pub struct SpawnInitArgs {
     pub owner: String, // Plain string for simplicity, really should be ICPPrincipalString
     pub title: Option<String>,
+    pub owner_name: Option<String>,
     pub note: Option<String>,
     pub spawn_redeem_code: Option<String>,
 }
