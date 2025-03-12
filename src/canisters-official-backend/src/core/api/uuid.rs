@@ -43,12 +43,13 @@ pub fn generate_uuidv4(prefix: IDPrefix) -> String {
         hash_bytes[10], hash_bytes[11], hash_bytes[12], hash_bytes[13], hash_bytes[14], hash_bytes[15]
     );
     let pseudo_prefix_id = format!("{}{}", prefix.as_str(), pseudo_uuid);
-
-    UUID_CLAIMED.with(|claimed| {
-        claimed.borrow_mut().insert(pseudo_prefix_id.clone(), true);
-    });
-
     pseudo_prefix_id
+}
+
+pub fn mark_claimed_uuid(uuid: &str) {
+    UUID_CLAIMED.with(|claimed| {
+        claimed.borrow_mut().insert(uuid.clone().to_string(), true);
+    });
 }
 
 pub fn generate_api_key() -> String {
@@ -101,6 +102,7 @@ struct ShareTrackHashData {
 pub fn generate_share_track_hash(user_id: &UserID) -> (ShareTrackID, ShareTrackHash) {
     // Generate a unique ID for this share track
     let share_track_id = generate_uuidv4(IDPrefix::ShareTrackID);
+    // we wont mark_claimed_uuid cuz we expect multiple uses of the same id since its tracking aggregates. also can be responsibility of webhook / 3rd party analytics
     
     // Create the hash data object
     let hash_data = ShareTrackHashData {

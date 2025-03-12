@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::generate_uuidv4}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -245,6 +245,8 @@ pub mod drive_internals {
 
                 full_folder_path_to_uuid.insert(DriveFullFilePath(current_path.clone()), new_folder_uuid.clone());
                 folder_uuid_to_metadata.insert(new_folder_uuid.clone(), new_folder);
+
+                mark_claimed_uuid(&new_folder_uuid.clone().to_string());
 
                 // Update parent folder's subfolder_uuids
                 folder_uuid_to_metadata.with_mut(|map| {

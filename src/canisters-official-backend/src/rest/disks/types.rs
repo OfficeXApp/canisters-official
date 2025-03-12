@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}}, types::{ClientSuggestedUUID, IDPrefix, UserID}},
-    rest::{types::{validate_external_id, validate_external_payload, validate_id_string, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
+    rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
 };
 
 
@@ -133,7 +133,7 @@ impl CreateDiskRequestBody {
         }
         
         // Validate name (up to 256 chars)
-        validate_id_string(&self.name, "name")?;
+        validate_short_string(&self.name, "name")?;
 
         // Validate public_note if provided (up to 8192 chars for descriptions)
         if let Some(public_note) = &self.public_note {
@@ -202,7 +202,7 @@ impl UpdateDiskRequestBody {
 
         // Validate name if provided
         if let Some(name) = &self.name {
-            validate_id_string(name, "name")?;
+            validate_short_string(name, "name")?;
         }
 
         // Validate public_note if provided

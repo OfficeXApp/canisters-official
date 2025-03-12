@@ -3,7 +3,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::generate_uuidv4
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::{generate_uuidv4, mark_claimed_uuid}
             },
             state::{
                 directory::{
@@ -321,6 +321,8 @@ pub mod drive {
         file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata.clone());
         full_file_path_to_uuid.insert(DriveFullFilePath(full_file_path), new_file_uuid.clone());
     
+        mark_claimed_uuid(&new_file_uuid.clone().to_string());
+
         // Update parent folder's file_uuids
         update_folder_file_uuids(&folder_uuid, &new_file_uuid, true);
     

@@ -14,7 +14,7 @@ use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -106,11 +106,11 @@ impl ListWebhooksRequestBody {
 
         // Validate cursor strings if present
         if let Some(cursor) = &self.cursor_up {
-            validate_id_string(cursor, "cursor_up")?;
+            validate_short_string(cursor, "cursor_up")?;
         }
 
         if let Some(cursor) = &self.cursor_down {
-            validate_id_string(cursor, "cursor_down")?;
+            validate_short_string(cursor, "cursor_down")?;
         }
 
         Ok(())
@@ -155,16 +155,16 @@ impl CreateWebhookRequestBody {
         validate_url_endpoint(&self.url, "url")?;
 
         // Validate event
-        validate_id_string(&self.event, "event")?;
+        validate_short_string(&self.event, "event")?;
 
 
         if let Some(name) = &self.name {
-            validate_id_string(name, "name")?;
+            validate_short_string(name, "name")?;
         }
 
         // Validate signature if provided
         if let Some(signature) = &self.signature {
-            validate_id_string(signature, "signature")?;
+            validate_short_string(signature, "signature")?;
         }
 
         if let Some(note) = &self.note {
@@ -228,12 +228,12 @@ impl UpdateWebhookRequestBody {
         
         // Validate signature if provided
         if let Some(signature) = &self.signature {
-            validate_id_string(signature, "signature")?;
+            validate_short_string(signature, "signature")?;
         }
         
         // Validate description if provided
         if let Some(name) = &self.name {
-            validate_id_string(name, "name")?;
+            validate_short_string(name, "name")?;
         }
         if let Some(note) = &self.note {
             validate_description(note, "note")?;

@@ -6,7 +6,7 @@ pub mod webhooks_handlers {
 
     use crate::{
         core::{
-            api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4},
+            api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}},
             state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::{
                 state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
             }}, types::IDPrefix
@@ -332,6 +332,8 @@ pub mod webhooks_handlers {
             store.borrow_mut().push(webhook_id.clone());
         });
 
+        mark_claimed_uuid(&webhook_id.clone().to_string());
+        
         snapshot_poststate(prestate, Some(
             format!(
                 "{}: Create Webhook {}", 

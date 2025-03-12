@@ -6,7 +6,7 @@ use candid::Principal;
 use serde_diff::SerdeDiff;
 use std::{fmt, str::FromStr};
 
-use crate::core::types::IDPrefix;
+use crate::core::{state::drives::state::state::UUID_CLAIMED, types::IDPrefix};
 
 use super::auth::{seed_phrase_to_wallet_addresses, WalletAddresses};
 
@@ -105,9 +105,31 @@ pub fn validate_id_string(id: &str, field_name: &str) -> Result<(), ValidationEr
             message: format!("{} must be 256 characters or less", field_name),
         });
     }
+
+    // check that this id isnt already claimed
+    if UUID_CLAIMED.with(|claimed| claimed.borrow().contains_key(id)) {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} is already claimed", field_name),
+        });
+    }
     
     Ok(())
 }
+
+
+pub fn validate_short_string(id: &str, field_name: &str) -> Result<(), ValidationError> {
+    // Check max length only
+    if id.len() > 256 {
+        return Err(ValidationError {
+            field: field_name.to_string(),
+            message: format!("{} must be 256 characters or less", field_name),
+        });
+    }
+    
+    Ok(())
+}
+
 
 pub fn validate_user_id(user_id: &str) -> Result<(), ValidationError> {
     // Check basic string requirements first

@@ -75,7 +75,7 @@ pub enum IDPrefix {
     TeamInvite,
     Webhook,
     User,
-    SystemPermission,
+    SystemPermission, 
     DirectoryPermission,
     PlaceholderPermissionGrantee,
     DirectoryActionOutcome,

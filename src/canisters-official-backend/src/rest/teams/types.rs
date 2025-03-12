@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}, team_invites::types::TeamInviteID, teams::{state::state::is_team_admin, types::{Team, TeamID}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}
-}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_url, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_url, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 
@@ -142,7 +142,7 @@ impl CreateTeamRequestBody {
         }
         
         // Validate name (up to 256 chars)
-        validate_id_string(&self.name, "name")?;
+        validate_short_string(&self.name, "name")?;
 
         // Validate public_note if provided
         if let Some(public_note) = &self.public_note {
@@ -196,7 +196,7 @@ impl UpdateTeamRequestBody {
 
         // Validate name if provided
         if let Some(name) = &self.name {
-            validate_id_string(name, "name")?;
+            validate_short_string(name, "name")?;
         }
 
         // Validate public_note if provided
