@@ -4,6 +4,57 @@ use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use crate::{core::{api::permissions::system::check_system_permissions, state::{directory::types::{FileID, FolderID}, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::{IDPrefix, UserID}}, rest::webhooks::types::WebhookFE};
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+pub struct Webhook {
+    pub id: WebhookID,
+    pub name: String,
+    pub url: String,
+    pub alt_index: WebhookAltIndexID,
+    pub event: WebhookEventLabel,
+    pub signature: String,
+    pub note: Option<String>,
+    pub active: bool,
+    pub filters: String,
+    pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
+    pub created_at: u64,
+}
+
+impl Webhook {
+
+    pub fn cast_fe(&self, user_id: &UserID) -> WebhookFE {
+        let webhook = self.clone();
+        
+        // Get user's system permissions for this contact record
+        let record_permissions = check_system_permissions(
+            SystemResourceID::Record(SystemRecordIDEnum::Webhook(self.id.to_string())),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let table_permissions = check_system_permissions(
+            SystemResourceID::Table(SystemTableEnum::Webhooks),
+            PermissionGranteeID::User(user_id.clone())
+        );
+        let permission_previews: Vec<SystemPermissionType> = record_permissions
+        .into_iter()
+        .chain(table_permissions)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+        WebhookFE {
+            webhook,
+            permission_previews
+        }.redacted(user_id)
+    }
+
+    
+}
+
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct WebhookID(pub String);
 impl fmt::Display for WebhookID {
@@ -53,55 +104,6 @@ impl WebhookAltIndexID {
     pub fn superswap_user_slug() -> Self {
         WebhookAltIndexID(Self::SUPERSWAP_USER.to_string())
     }
-}
-
-
-
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
-pub struct Webhook {
-    pub id: WebhookID,
-    pub name: String,
-    pub url: String,
-    pub alt_index: WebhookAltIndexID,
-    pub event: WebhookEventLabel,
-    pub signature: String,
-    pub note: Option<String>,
-    pub active: bool,
-    pub filters: String,
-    pub tags: Vec<TagStringValue>,
-    pub external_id: Option<ExternalID>,
-    pub external_payload: Option<ExternalPayload>,
-    pub created_at: u64,
-}
-
-impl Webhook {
-
-    pub fn cast_fe(&self, user_id: &UserID) -> WebhookFE {
-        let webhook = self.clone();
-        
-        // Get user's system permissions for this contact record
-        let record_permissions = check_system_permissions(
-            SystemResourceID::Record(SystemRecordIDEnum::Webhook(self.id.to_string())),
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Webhooks),
-            PermissionGranteeID::User(user_id.clone())
-        );
-        let permission_previews: Vec<SystemPermissionType> = record_permissions
-        .into_iter()
-        .chain(table_permissions)
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-
-        WebhookFE {
-            webhook,
-            permission_previews
-        }.redacted(user_id)
-    }
-
-    
 }
 
 
