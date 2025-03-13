@@ -2,7 +2,7 @@
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use crate::{core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::{TeamInviteID, TeamInviteeID}}, types::UserID
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::{TeamInviteID, TeamInviteeID, TeamRole}}, types::UserID
 }, rest::teams::types::{TeamFE, TeamMemberPreview}};
 use serde_diff::{SerdeDiff};
 use std::iter::Iterator;
@@ -43,8 +43,7 @@ impl Team {
                 .with(|invites| invites.borrow().get(invite_id).cloned());
             
             if let Some(invite) = invite_opt {
-                // Check if user is an admin
-                let is_admin = is_team_admin(&user_id.clone(), &team.id);
+                
 
                 // query the contacts hashtable by invitee_id to get the name and avatar
                 // we have to check that TeamInviteeID::User matches
@@ -86,6 +85,10 @@ impl Team {
                         }
                     },
                     _ => 0
+                };
+                let is_admin = match invite.role {
+                    TeamRole::Admin => true,
+                    _ => false
                 };
                 
                 member_previews.push(TeamMemberPreview {
