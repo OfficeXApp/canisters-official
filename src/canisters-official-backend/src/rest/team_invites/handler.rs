@@ -255,7 +255,7 @@ pub mod team_invites_handlers {
             team_id: team_id.clone(),
             inviter_id: requester_api_key.user_id.clone(),
             invitee_id,
-            role: create_req.role,
+            role: create_req.role.unwrap_or(TeamRole::Member),
             note: create_req.note.unwrap_or("".to_string()),
             created_at: now,
             last_modified_at: now,
@@ -632,7 +632,7 @@ pub mod team_invites_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
         // Validate request
         if redeem_request.validate_body().is_err() {
             return create_response(
@@ -645,7 +645,7 @@ pub mod team_invites_handlers {
         let invite_id = TeamInviteID(redeem_request.invite_id);
     
         // Get existing invite
-        let mut invite = match INVITES_BY_ID_HASHTABLE.with(|store| {
+        let invite = match INVITES_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&invite_id).cloned()
         }) {
             Some(invite) => invite,
@@ -655,59 +655,123 @@ pub mod team_invites_handlers {
             ),
         };
     
-        // Check if inviter is actually a placeholder and not already redeemed
-        if !invite.invitee_id.to_string().starts_with(IDPrefix::PlaceholderTeamInviteeID.as_str()) {
-            return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invite is not a placeholder invite".to_string()).encode()
-            );
-        }
-    
-        if invite.from_placeholder_invitee.is_some() {
-            return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invite has already been redeemed".to_string()).encode()
-            );
-        }
-
         let prestate = snapshot_prestate();
     
         // Parse and validate the user_id
-        let new_invitee = TeamInviteeID::User(UserID(redeem_request.user_id));
+        let new_user_id = UserID(redeem_request.user_id);
+        let new_invitee = TeamInviteeID::User(new_user_id.clone());
     
-        // Store placeholder ID and update invite
-        invite.from_placeholder_invitee = Some(PlaceholderTeamInviteeID(invite.invitee_id.to_string().clone()));
-        invite.invitee_id = new_invitee;
-        invite.role = TeamRole::Member; // Default to Member role when redeeming
-        invite.last_modified_at = ic_cdk::api::time() / 1_000_000;
+        // Handle differently based on invitee_id type
+        if invite.invitee_id == TeamInviteeID::Public {
+            // For Public invites, create a new invite rather than modifying the original
+            let new_invite_id = TeamInviteID(generate_uuidv4(IDPrefix::TeamInvite));
+            let now = ic_cdk::api::time();
+            
+            // Create a new invite with duplicated fields but user-specific changes
+            let new_invite = TeamInvite {
+                id: new_invite_id.clone(),
+                team_id: invite.team_id.clone(),
+                inviter_id: invite.inviter_id.clone(),
+                invitee_id: new_invitee,
+                role: TeamRole::Member, // Default to Member role when redeeming
+                note: invite.note.clone(),
+                created_at: now,
+                last_modified_at: now,
+                active_from: invite.active_from,
+                expires_at: invite.expires_at,
+                from_placeholder_invitee: Some(invite.invitee_id.clone().to_string()),
+                tags: invite.tags.clone(),
+                external_id: invite.external_id.clone(),
+                external_payload: invite.external_payload.clone(),
+            };
     
-        // Update state
-        INVITES_BY_ID_HASHTABLE.with(|store| {
-            store.borrow_mut().insert(invite_id.clone(), invite.clone());
-        });
+            // Add the new invite to the invites store
+            INVITES_BY_ID_HASHTABLE.with(|store| {
+                store.borrow_mut().insert(new_invite_id.clone(), new_invite.clone());
+            });
     
-        // Update user's team invites list
-        USERS_INVITES_LIST_HASHTABLE.with(|store| {
-            let mut store = store.borrow_mut();
-            store.entry(invite.invitee_id.clone())
-                .or_insert_with(Vec::new)
-                .push(invite_id.clone());
-        });
-
-        snapshot_poststate(prestate, Some(
-            format!(
-                "{}: Redeem Team Invite {}", 
-                requester_api_key.user_id,
-                invite_id.clone()
-            ).to_string()
-        ));
+            // Update user's team invites list with the new invite
+            USERS_INVITES_LIST_HASHTABLE.with(|store| {
+                let mut store = store.borrow_mut();
+                store.entry(new_invite.invitee_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(new_invite_id.clone());
+            });
     
-        create_response(
-            StatusCode::OK,
-            serde_json::to_vec(&RedeemTeamInviteResponseData {
-                invite: invite.cast_fe(&requester_api_key.user_id),
-            }).expect("Failed to serialize response")
-        )
+            // Update team's member invites
+            TEAMS_BY_ID_HASHTABLE.with(|store| {
+                let mut store = store.borrow_mut();
+                if let Some(team) = store.get_mut(&invite.team_id) {
+                    team.member_invites.push(new_invite_id.clone());
+                }
+            });
+    
+            mark_claimed_uuid(&new_invite_id.0);
+    
+            snapshot_poststate(prestate, Some(
+                format!(
+                    "{}: Redeem Public Team Invite {} as {}",
+                    requester_api_key.user_id,
+                    invite_id.clone(),
+                    new_invite_id.clone()
+                ).to_string()
+            ));
+    
+            create_response(
+                StatusCode::OK,
+                serde_json::to_vec(&RedeemTeamInviteResponseData {
+                    invite: new_invite.cast_fe(&requester_api_key.user_id),
+                }).expect("Failed to serialize response")
+            )
+        } else if invite.invitee_id.to_string().starts_with(IDPrefix::PlaceholderTeamInviteeID.as_str()) {
+            // Handle original placeholder invitee case
+            if invite.from_placeholder_invitee.is_some() {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invite has already been redeemed".to_string()).encode()
+                );
+            }
+    
+            // Update existing invite for placeholder invitees
+            let mut updated_invite = invite.clone();
+            updated_invite.from_placeholder_invitee = Some(invite.invitee_id.clone().to_string());
+            updated_invite.invitee_id = new_invitee;
+            updated_invite.role = TeamRole::Member; // Default to Member role when redeeming
+            updated_invite.last_modified_at = ic_cdk::api::time();
+    
+            // Update state
+            INVITES_BY_ID_HASHTABLE.with(|store| {
+                store.borrow_mut().insert(invite_id.clone(), updated_invite.clone());
+            });
+    
+            // Update user's team invites list
+            USERS_INVITES_LIST_HASHTABLE.with(|store| {
+                let mut store = store.borrow_mut();
+                store.entry(updated_invite.invitee_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(invite_id.clone());
+            });
+    
+            snapshot_poststate(prestate, Some(
+                format!(
+                    "{}: Redeem Team Invite {}",
+                    requester_api_key.user_id,
+                    invite_id.clone()
+                ).to_string()
+            ));
+    
+            create_response(
+                StatusCode::OK,
+                serde_json::to_vec(&RedeemTeamInviteResponseData {
+                    invite: updated_invite.cast_fe(&requester_api_key.user_id),
+                }).expect("Failed to serialize response")
+            )
+        } else {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invite is not a public or placeholder invite".to_string()).encode()
+            );
+        }
     }
 
     fn json_decode<T>(value: &[u8]) -> T

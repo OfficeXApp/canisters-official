@@ -8,7 +8,7 @@ use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::webhooks::types::SortDirection;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -141,6 +141,7 @@ impl CreateTagRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::TagID)?;
         }
         

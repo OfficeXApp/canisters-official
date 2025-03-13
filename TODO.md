@@ -7,7 +7,9 @@
 
 ## Urgent Next
 
+- [🔵] Team Invite, allow the possibility of public invite by setting placeholder_id to constant string "PUBLIC". in which case when redeemed will create a new invite duplicating the settings of the public invite.
 - [🔵] Write all the redux-offline states and actions for webapp
+- [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
 
 ## Awkward Urgent
@@ -15,6 +17,7 @@
 - [ ] Fix validate_id_string which accepts an id prefix arg but does nothign with it, and the various implementations of validate_id_string pass in wrong prefix anyways. fix this ai slop!
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
+- [ ] Refactor rename "tags" to "labels" if we are going to call usertags a thing `Name@UserID_abc123`. or think of a better name for usertags (userlinks? userstrings? teamstring, teamtag, teamslug, userslug, userhandle, teamhandle)
 
 ## Near Future
 

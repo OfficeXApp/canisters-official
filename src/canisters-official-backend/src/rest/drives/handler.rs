@@ -408,9 +408,6 @@ pub mod drives_handlers {
         if let Some(private_note) = update_req.private_note {
             drive.private_note = Some(private_note);
         }
-        if let Some(icp_principal) = update_req.icp_principal {
-            drive.icp_principal = ICPPrincipalString(PublicKeyICP(icp_principal));
-        }
         if let Some(endpoint_url) = update_req.endpoint_url {
             drive.endpoint_url = DriveRESTUrlEndpoint(endpoint_url.trim_end_matches('/')
             .to_string());

@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -763,6 +763,7 @@ impl CreateFilePayload {
 
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::File)?;
         }
         
@@ -825,6 +826,7 @@ impl CreateFolderPayload {
 
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Folder)?;
         }
 
@@ -986,6 +988,7 @@ impl CopyFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.new_copy_id.is_some() {
+            validate_unclaimed_uuid(&self.new_copy_id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.new_copy_id.as_ref().unwrap().to_string(), IDPrefix::File)?;
         }
 
@@ -1028,6 +1031,7 @@ impl CopyFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.new_copy_id.is_some() {
+            validate_unclaimed_uuid(&self.new_copy_id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.new_copy_id.as_ref().unwrap().to_string(), IDPrefix::Folder)?;
         }
 

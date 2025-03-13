@@ -1,7 +1,7 @@
 // src/rest/api_keys/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::{core::{api::permissions::system::check_system_permissions, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
 
 
 
@@ -9,7 +9,8 @@ use crate::{core::{api::permissions::system::check_system_permissions, state::{a
 pub struct ApiKeyFE {
     #[serde(flatten)] 
     pub apiKey: ApiKey,
-    pub permission_previews: Vec<SystemPermissionType>, 
+    pub user_name: Option<String>,
+    pub permission_previews: Vec<SystemPermissionType>,
 }
 
 impl ApiKeyFE {
@@ -21,10 +22,13 @@ impl ApiKeyFE {
 
         // Most sensitive
         if !is_owner {
-
             // 2nd most sensitive
             if !has_edit_permissions {
                 redacted.apiKey.private_note = None;
+            }
+            // apiKey value is visible to its owner
+            if (user_id != &redacted.apiKey.user_id) {
+                redacted.apiKey.value = ApiKeyValue("".to_string());
             }
         }
         // Filter tags
@@ -34,14 +38,9 @@ impl ApiKeyFE {
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
+
         
         redacted
-    }
-
-    pub fn to_hidden(&self) -> Self {
-        let mut api_key = self.clone();
-        api_key.apiKey.value = ApiKeyValue("".to_string());
-        api_key
     }
 }
 
@@ -67,6 +66,7 @@ impl CreateApiKeyRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::ApiKey)?;
         }
 

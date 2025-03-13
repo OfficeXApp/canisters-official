@@ -2,7 +2,7 @@
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use crate::{core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::{TeamInviteID, TeamInviteeID}}, types::UserID
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::{TeamInviteID, TeamInviteeID, TeamRole}}, types::UserID
 }, rest::teams::types::{TeamFE, TeamMemberPreview}};
 use serde_diff::{SerdeDiff};
 use std::iter::Iterator;
@@ -43,8 +43,7 @@ impl Team {
                 .with(|invites| invites.borrow().get(invite_id).cloned());
             
             if let Some(invite) = invite_opt {
-                // Check if user is an admin
-                let is_admin = is_team_admin(&user_id.clone(), &team.id);
+                
 
                 // query the contacts hashtable by invitee_id to get the name and avatar
                 // we have to check that TeamInviteeID::User matches
@@ -74,11 +73,30 @@ impl Team {
                     },
                     _ => None
                 };
+                let invitee_last_online_ms = match invite.invitee_id.clone() {
+                    TeamInviteeID::User(user_id) => {
+                        // query the contacts hashtable by user_id to get the last_active
+                        let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                        if let Some(contact) = contact_opt {
+                            contact.last_online_ms
+                        } else {
+                            0
+                        }
+                    },
+                    _ => 0
+                };
+                let is_admin = match invite.role {
+                    TeamRole::Admin => true,
+                    _ => false
+                };
                 
                 member_previews.push(TeamMemberPreview {
                     user_id: UserID(invite.invitee_id.to_string()),
                     name: invitee_name,
                     avatar: invitee_avatar,
+                    note: Some(invite.note),
+                    last_online_ms: invitee_last_online_ms,
                     is_admin,
                     team_id: team.id.clone(),
                     invite_id: invite.id.clone(),

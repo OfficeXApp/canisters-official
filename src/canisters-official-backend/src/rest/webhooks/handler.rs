@@ -303,7 +303,7 @@ pub mod webhooks_handlers {
             signature: create_req.signature.unwrap_or_default(),
             name: create_req.name.unwrap_or(format!("{}@{}", event_name.clone().to_string(), alt_index.0.clone())),
             note: create_req.note,
-            active: true,
+            active: create_req.active.unwrap_or(true),
             filters: create_req.filters.unwrap_or_default(),
             tags: vec![],
             created_at: ic_cdk::api::time() / 1_000_000,

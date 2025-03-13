@@ -14,7 +14,7 @@ use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -34,7 +34,6 @@ impl WebhookFE {
 
         // Most sensitive
         if !is_owner {
-
             // 2nd most sensitive
             if !has_edit_permissions {
                 redacted.webhook.signature = "".to_string();
@@ -137,6 +136,7 @@ pub struct CreateWebhookRequestBody {
     pub signature: Option<String>,
     pub name: Option<String>,
     pub note: Option<String>,
+    pub active: Option<bool>,
     pub filters: Option<String>, // filters is unsafe string from clients, any operations relying on filters should be wrapped in error handler
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -145,11 +145,12 @@ impl CreateWebhookRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Webhook)?;
         }
         
         // Validate alt_index
-        validate_id_string(&self.alt_index, "alt_index")?;
+        validate_short_string(&self.alt_index, "alt_index")?;
 
         // Validate URL
         validate_url_endpoint(&self.url, "url")?;

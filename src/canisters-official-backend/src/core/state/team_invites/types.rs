@@ -33,7 +33,7 @@ pub struct TeamInvite {
     pub expires_at: i64,
     pub created_at: u64,
     pub last_modified_at: u64,
-    pub from_placeholder_invitee: Option<PlaceholderTeamInviteeID>,
+    pub from_placeholder_invitee: Option<String>,
     pub tags: Vec<TagStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
@@ -87,11 +87,33 @@ impl TeamInvite {
             },
             TeamInviteeID::PlaceholderTeamInvitee(placeholder_id) => {
                 ("".to_string(), None)
+            },
+            TeamInviteeID::Public => {
+                ("Public".to_string(), None)
             }
         };
 
+        let invitee_id = match &self.invitee_id {
+            TeamInviteeID::User(user_id) => user_id.to_string(),
+            TeamInviteeID::PlaceholderTeamInvitee(placeholder_id) => placeholder_id.to_string(),
+            TeamInviteeID::Public => "PUBLIC".to_string(),
+        };
+
         TeamInviteFE {
-            team_invite,
+            id: team_invite.id,
+            team_id: team_invite.team_id,
+            inviter_id: team_invite.inviter_id,
+            invitee_id,
+            role: team_invite.role,
+            note: team_invite.note,
+            active_from: team_invite.active_from,
+            expires_at: team_invite.expires_at,
+            created_at: team_invite.created_at,
+            last_modified_at: team_invite.last_modified_at,
+            from_placeholder_invitee: team_invite.from_placeholder_invitee,
+            tags: team_invite.tags,
+            external_id: team_invite.external_id,
+            external_payload: team_invite.external_payload,
             team_name,
             team_avatar,
             invitee_name,
@@ -125,12 +147,14 @@ impl fmt::Display for PlaceholderTeamInviteeID {
 pub enum TeamInviteeID {
     User(UserID),
     PlaceholderTeamInvitee(PlaceholderTeamInviteeID),
+    Public
 }
 impl fmt::Display for TeamInviteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TeamInviteeID::User(user_id) => write!(f, "{}", user_id),
             TeamInviteeID::PlaceholderTeamInvitee(placeholder_id) => write!(f, "{}", placeholder_id),
+            TeamInviteeID::Public => write!(f, "PUBLIC"),
         }
     }
 }
