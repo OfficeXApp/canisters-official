@@ -1,7 +1,7 @@
 // src/rest/api_keys/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::{core::{api::permissions::system::check_system_permissions, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
 
 
 
@@ -66,6 +66,7 @@ impl CreateApiKeyRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::ApiKey)?;
         }
 

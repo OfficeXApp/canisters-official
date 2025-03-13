@@ -88,6 +88,18 @@ pub struct ValidationError {
     pub message: String,
 }
 
+pub fn validate_unclaimed_uuid(id: &str) -> Result<(), ValidationError> {
+
+    // check that this id isnt already claimed
+    if UUID_CLAIMED.with(|claimed| claimed.borrow().contains_key(id)) {
+        return Err(ValidationError {
+            field: "id is not unique".to_string(),
+            message: format!("{} is already claimed", id),
+        });
+    }
+    
+    Ok(())
+}
 
 // Helper functions for ID validation
 pub fn validate_id_string(id: &str, field_name: &str) -> Result<(), ValidationError> {
@@ -106,16 +118,10 @@ pub fn validate_id_string(id: &str, field_name: &str) -> Result<(), ValidationEr
         });
     }
 
-    // check that this id isnt already claimed
-    if UUID_CLAIMED.with(|claimed| claimed.borrow().contains_key(id)) {
-        return Err(ValidationError {
-            field: field_name.to_string(),
-            message: format!("{} is already claimed", field_name),
-        });
-    }
-    
     Ok(())
 }
+
+
 
 
 pub fn validate_short_string(id: &str, field_name: &str) -> Result<(), ValidationError> {

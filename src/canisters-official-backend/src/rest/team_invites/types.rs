@@ -2,15 +2,29 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{drives::state::state::OWNER_ID, permissions::types::SystemPermissionType, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}, team_invites::types::{ TeamInviteID, TeamRole, TeamInvite}, teams::state::state::is_team_admin}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
-
-
+use crate::{core::{state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::SystemPermissionType, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}, team_invites::types::{ TeamInvite, TeamInviteID, TeamRole}, teams::{state::state::is_team_admin, types::TeamID}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamInviteFE {
-    #[serde(flatten)] // this lets us "extend" the Contact struct
-    pub team_invite: TeamInvite,
+    // Keep all fields from TeamInvite except invitee_id modified to String instead of enum label format
+    pub id: TeamInviteID,
+    pub team_id: TeamID,
+    pub inviter_id: UserID,
+    // Override with the flat string version
+    pub invitee_id: String,
+    pub role: TeamRole,
+    pub note: String,
+    pub active_from: u64,
+    pub expires_at: i64,
+    pub created_at: u64,
+    pub last_modified_at: u64,
+    pub from_placeholder_invitee: Option<String>,
+    pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
+    
+    // Additional FE-specific fields
     pub team_name: String,
     pub team_avatar: Option<String>,
     pub invitee_name: String,
@@ -24,21 +38,21 @@ impl TeamInviteFE {
 
         let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
         let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
-        let is_team_admin = is_team_admin(user_id, &self.team_invite.team_id);
+        let is_team_admin = is_team_admin(user_id, &self.team_id);
 
         // Most sensitive
         if !is_owner {
 
             // 2nd most sensitive
             if !has_edit_permissions && !is_team_admin {
-                redacted.team_invite.from_placeholder_invitee = None;
-                redacted.team_invite.inviter_id = UserID("".to_string());
+                redacted.from_placeholder_invitee = None;
+                redacted.inviter_id = UserID("".to_string());
             }
         }
         // Filter tags
-        redacted.team_invite.tags = match is_owner {
-            true => redacted.team_invite.tags,
-            false => redacted.team_invite.tags.iter()
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
@@ -125,7 +139,7 @@ pub struct CreateTeamInviteRequestBody {
     pub id: Option<ClientSuggestedUUID>,
     pub team_id: String,
     pub invitee_id: Option<String>,
-    pub role: TeamRole,
+    pub role: Option<TeamRole>,
     pub active_from: Option<u64>,
     pub expires_at: Option<i64>,
     pub note: Option<String>,
@@ -138,16 +152,23 @@ impl CreateTeamInviteRequestBody {
 
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::TeamInvite)?;
         }
         
         // Validate team_id
         validate_id_string(&self.team_id, "team_id")?;
         
-        // Validate invitee_id if present
-        if let Some(invitee_id) = &self.invitee_id {
-            validate_user_id(invitee_id)?;
+        // Validate invitee_id if present and not PUBLIC
+        match &self.invitee_id {
+            Some(invitee_id) => {
+                if invitee_id != "PUBLIC" {
+                    validate_user_id(invitee_id)?;
+                }
+            },
+            None => {}
         }
+
         
         // Validate note if present (description field)
         if let Some(note) = &self.note {

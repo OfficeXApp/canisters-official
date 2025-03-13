@@ -10,7 +10,7 @@ use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::redact_tag;
 use crate::core::types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
-use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_short_string, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_short_string, validate_unclaimed_uuid, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -135,6 +135,7 @@ impl CreateDriveRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_drive_id(&self.id.as_ref().unwrap().to_string())?;
         }
         

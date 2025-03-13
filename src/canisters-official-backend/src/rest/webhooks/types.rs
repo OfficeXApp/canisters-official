@@ -14,7 +14,7 @@ use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
 
 
 
@@ -145,6 +145,7 @@ impl CreateWebhookRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Webhook)?;
         }
         

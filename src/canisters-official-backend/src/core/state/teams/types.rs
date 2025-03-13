@@ -74,11 +74,26 @@ impl Team {
                     },
                     _ => None
                 };
+                let invitee_last_online_ms = match invite.invitee_id.clone() {
+                    TeamInviteeID::User(user_id) => {
+                        // query the contacts hashtable by user_id to get the last_active
+                        let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                        if let Some(contact) = contact_opt {
+                            contact.last_online_ms
+                        } else {
+                            0
+                        }
+                    },
+                    _ => 0
+                };
                 
                 member_previews.push(TeamMemberPreview {
                     user_id: UserID(invite.invitee_id.to_string()),
                     name: invitee_name,
                     avatar: invitee_avatar,
+                    note: Some(invite.note),
+                    last_online_ms: invitee_last_online_ms,
                     is_admin,
                     team_id: team.id.clone(),
                     invite_id: invite.id.clone(),

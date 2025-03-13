@@ -7,7 +7,7 @@ use crate::core::state::tags::types::redact_tag;
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::core::state::permissions::types::PermissionMetadata;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, ApiResponse, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, ApiResponse, ValidationError};
 
 
 
@@ -114,6 +114,7 @@ impl CreateDirectoryPermissionsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::DirectoryPermission)?;
         }
         
@@ -339,6 +340,7 @@ impl CreateSystemPermissionsRequestBody {
 
 
         if self.id.is_some() {
+            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::SystemPermission)?;
         }
 
