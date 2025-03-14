@@ -1,4 +1,4 @@
-// src/rest/team_invites/certs.rs
+// src/rest/groups/certs.rs
 
 
 #[derive(Debug, Clone)]
@@ -7,7 +7,7 @@ struct CertifiedHttpResponse<'a> {
     certification: HttpCertification,
 }
 
-use crate::rest::team_invites::route::TEAM_INVITES_LIST_PATH;
+use crate::rest::groups::route::GROUPS_LIST_PATH;
 
 
 use ic_http_certification::{
@@ -31,15 +31,15 @@ const NOT_FOUND_PATH: &str = "";
 
 
 lazy_static! {
-    pub static ref TEAM_INVITES_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(TEAM_INVITES_LIST_PATH);
+    pub static ref GROUPS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(GROUPS_LIST_PATH);
     static ref NOT_FOUND_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::wildcard(NOT_FOUND_PATH);
 
-    static ref TEAM_INVITES_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
+    static ref GROUPS_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
         .with_request_headers(vec![])
         .with_request_query_parameters(vec![])
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))
         .build();
-    static ref TEAM_INVITES_CEL_EXPR: String = TEAM_INVITES_CEL_EXPR_DEF.to_string();
+    static ref GROUPS_CEL_EXPR: String = GROUPS_CEL_EXPR_DEF.to_string();
 
     static ref NOT_FOUND_CEL_EXPR_DEF: DefaultResponseOnlyCelExpression<'static> = DefaultCelBuilder::response_only_certification()
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))

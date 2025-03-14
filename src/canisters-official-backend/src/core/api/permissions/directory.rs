@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, teams::{state::state::is_user_on_team, types::TeamID}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, groups::{state::state::is_user_on_group, types::GroupID}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
 
 
 // Check if a user can CRUD the permission record
@@ -33,8 +33,8 @@ pub fn can_user_access_directory_permission(
                 return true;
             }
         }
-        PermissionGranteeID::Team(team_id) => {
-            if is_user_in_team(user_id, team_id) {
+        PermissionGranteeID::Group(group_id) => {
+            if is_user_in_group(user_id, group_id) {
                 return true;
             }
         }
@@ -179,12 +179,12 @@ async fn check_directory_resource_permissions(
                     false
                 }
             },
-            PermissionGranteeID::Team(permission_team_id) => {
+            PermissionGranteeID::Group(permission_group_id) => {
                 if let PermissionGranteeID::User(request_user_id) = grantee_id {
-                    is_user_on_team(request_user_id, permission_team_id).await
+                    is_user_on_group(request_user_id, permission_group_id).await
                 }
-                else if let PermissionGranteeID::Team(request_team_id) = grantee_id {
-                    permission_team_id.0 == request_team_id.0
+                else if let PermissionGranteeID::Group(request_group_id) = grantee_id {
+                    permission_group_id.0 == request_group_id.0
                 }
                 else {
                     false
@@ -239,7 +239,7 @@ pub fn parse_permission_grantee_id(id_str: &str) -> Result<PermissionGranteeID, 
     if let Some(prefix_str) = id_str.splitn(2, '_').next() {
         match prefix_str {
             "UserID" => Ok(PermissionGranteeID::User(UserID(id_str.to_string()))),
-            "TeamID" => Ok(PermissionGranteeID::Team(TeamID(id_str.to_string()))),
+            "GroupID" => Ok(PermissionGranteeID::Group(GroupID(id_str.to_string()))),
             "PlaceholderPermissionGranteeID" => Ok(PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID(id_str.to_string()))),
             _ => Err(DirectoryIDError::InvalidPrefix),
         }
@@ -273,15 +273,15 @@ pub fn preview_directory_permissions(
                         let applies = match &permission_granted_to {
                             PermissionGranteeID::Public => true,
                             PermissionGranteeID::User(permission_user_id) => permission_user_id == user_id,
-                            PermissionGranteeID::Team(team_id) => is_user_in_team(user_id, team_id),
+                            PermissionGranteeID::Group(group_id) => is_user_in_group(user_id, group_id),
                             _ => false
                         };
 
                         if applies {
                             for grant_type in &permission.permission_types {
                                 resource_permissions.push(DirectoryResourcePermissionFE {
-                                    permission_id: permission_id.clone(),
-                                    grant_type: grant_type.clone(),
+                                    permission_id: permission_id.clone().to_string(),
+                                    grant_type: grant_type.clone().to_string()
                                 });
                             }
                         }

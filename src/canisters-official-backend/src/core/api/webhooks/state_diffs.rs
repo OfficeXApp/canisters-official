@@ -1,11 +1,11 @@
 // src/core/api/webhooks/diffs.rs
 
-use crate::{core::{api::{replay::diff::{apply_entire_state, apply_state_diff, update_checksum_for_state_diff}, uuid::generate_uuidv4}, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffString, StateChecksum, StateDiffRecord}}, team_invites::types::TeamInvite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::DriveStateDiffWebhookData};
+use crate::{core::{api::{replay::diff::{apply_entire_state, apply_state_diff, update_checksum_for_state_diff}, uuid::generate_uuidv4}, state::{drives::{state::state::{DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, URL_ENDPOINT}, types::{DriveStateDiffID, DriveStateDiffImplementationType, DriveStateDiffString, StateChecksum, StateDiffRecord}}, group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, types::IDPrefix}, rest::webhooks::types::DriveStateDiffWebhookData};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
     WebhookResourceData,
-    TeamInviteWebhookData
+    GroupInviteWebhookData
 };
 use ic_cdk::{api::management_canister::http_request::{
     http_request, 

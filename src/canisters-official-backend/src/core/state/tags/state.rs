@@ -7,7 +7,7 @@ use crate::{
     core::{
         api::{types::DirectoryIDError, uuid::generate_uuidv4},
         state::{
-            api_keys::{state::state::APIKEYS_BY_ID_HASHTABLE, types::ApiKeyID}, contacts::{state::state::CONTACTS_BY_ID_HASHTABLE, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::DiskID}, drives::{state::state::DRIVES_BY_ID_HASHTABLE, types::DriveID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionID, SystemPermissionID}}, tags::types::{TagResourceID, TagStringValue}, team_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::TeamInviteID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::{state::state::WEBHOOKS_BY_ID_HASHTABLE, types::WebhookID}
+            api_keys::{state::state::APIKEYS_BY_ID_HASHTABLE, types::ApiKeyID}, contacts::{state::state::CONTACTS_BY_ID_HASHTABLE, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::DiskID}, drives::{state::state::DRIVES_BY_ID_HASHTABLE, types::DriveID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionID, SystemPermissionID}}, tags::types::{TagResourceID, TagStringValue}, group_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::GroupInviteID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, webhooks::{state::state::WEBHOOKS_BY_ID_HASHTABLE, types::WebhookID}
         },
         types::{IDPrefix, UserID}
     },
@@ -127,8 +127,8 @@ pub fn parse_tag_resource_id(id_str: &str) -> Result<TagResourceID, DirectoryIDE
             "DriveID" => Ok(TagResourceID::Drive(DriveID(id_str.to_string()))),
             "DirectoryPermissionID" => Ok(TagResourceID::DirectoryPermission(DirectoryPermissionID(id_str.to_string()))),
             "SystemPermissionID" => Ok(TagResourceID::SystemPermission(SystemPermissionID(id_str.to_string()))),
-            "InviteID" => Ok(TagResourceID::TeamInvite(TeamInviteID(id_str.to_string()))),
-            "TeamID" => Ok(TagResourceID::Team(TeamID(id_str.to_string()))),
+            "InviteID" => Ok(TagResourceID::GroupInvite(GroupInviteID(id_str.to_string()))),
+            "GroupID" => Ok(TagResourceID::Group(GroupID(id_str.to_string()))),
             "WebhookID" => Ok(TagResourceID::Webhook(WebhookID(id_str.to_string()))),
             "TagID" => Ok(TagResourceID::Tag(TagID(id_str.to_string()))),
             _ => Err(DirectoryIDError::InvalidPrefix),
@@ -150,8 +150,8 @@ pub fn add_tag_to_resource(resource_id: &TagResourceID, tag_value: &TagStringVal
         TagResourceID::Drive(id) => DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::DirectoryPermission(id) => DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::SystemPermission(id) => SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
-        TagResourceID::TeamInvite(id) => INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
-        TagResourceID::Team(id) => TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
+        TagResourceID::GroupInvite(id) => INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
+        TagResourceID::Group(id) => GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::Webhook(id) => WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::Tag(id) => TAGS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
     };
@@ -283,7 +283,7 @@ pub fn add_tag_to_resource(resource_id: &TagResourceID, tag_value: &TagStringVal
                 }
             });
         },
-        TagResourceID::TeamInvite(id) => {
+        TagResourceID::GroupInvite(id) => {
             INVITES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
                 if let Some(resource) = store.get_mut(id) {
@@ -294,8 +294,8 @@ pub fn add_tag_to_resource(resource_id: &TagResourceID, tag_value: &TagStringVal
                 }
             });
         },
-        TagResourceID::Team(id) => {
-            TEAMS_BY_ID_HASHTABLE.with(|store| {
+        TagResourceID::Group(id) => {
+            GROUPS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
                 if let Some(resource) = store.get_mut(id) {
                     if !resource.tags.iter().any(|t| t == tag_value) {
@@ -352,8 +352,8 @@ pub fn remove_tag_from_resource(resource_id: &TagResourceID, tag_value: &TagStri
         TagResourceID::Drive(id) => DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::DirectoryPermission(id) => DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::SystemPermission(id) => SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
-        TagResourceID::TeamInvite(id) => INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
-        TagResourceID::Team(id) => TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
+        TagResourceID::GroupInvite(id) => INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
+        TagResourceID::Group(id) => GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::Webhook(id) => WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
         TagResourceID::Tag(id) => TAGS_BY_ID_HASHTABLE.with(|store| store.borrow().contains_key(id)),
     };
@@ -444,7 +444,7 @@ pub fn remove_tag_from_resource(resource_id: &TagResourceID, tag_value: &TagStri
                 }
             });
         },
-        TagResourceID::TeamInvite(id) => {
+        TagResourceID::GroupInvite(id) => {
             INVITES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
                 if let Some(resource) = store.get_mut(id) {
@@ -453,8 +453,8 @@ pub fn remove_tag_from_resource(resource_id: &TagResourceID, tag_value: &TagStri
                 }
             });
         },
-        TagResourceID::Team(id) => {
-            TEAMS_BY_ID_HASHTABLE.with(|store| {
+        TagResourceID::Group(id) => {
+            GROUPS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
                 if let Some(resource) = store.get_mut(id) {
                     resource.tags.retain(|t| t != tag_value);

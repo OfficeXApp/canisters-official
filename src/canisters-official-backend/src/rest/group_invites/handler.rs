@@ -1,25 +1,25 @@
-// src/rest/team_invites/handler.rs
+// src/rest/group_invites/handler.rs
 
 
-pub mod team_invites_handlers {
+pub mod group_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::team_invites::{fire_team_invite_webhook, get_active_team_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderTeamInviteeID, TeamInviteID, TeamInviteeID, TeamRole}}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, team_invites::types::{ CreateTeamInviteRequestBody, CreateTeam_InviteResponse, DeleteTeam_InviteRequest, DeleteTeam_InviteResponse, DeletedTeam_InviteData, ErrorResponse, GetTeam_InviteResponse, ListTeamInvitesRequestBody, ListTeamInvitesResponseData, ListTeam_InvitesResponse, RedeemTeamInviteRequest, RedeemTeamInviteResponseData, UpdateTeamInviteRequestBody, UpdateTeam_InviteRequest, UpdateTeam_InviteResponse}, teams::types::{ListTeamsRequestBody, ListTeamsResponseData}, webhooks::types::TeamInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::group_invites::{fire_group_invite_webhook, get_active_group_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderGroupInviteeID, GroupInviteID, GroupInviteeID, GroupRole}}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, group_invites::types::{ CreateGroupInviteRequestBody, CreateGroup_InviteResponse, DeleteGroup_InviteRequest, DeleteGroup_InviteResponse, DeletedGroup_InviteData, ErrorResponse, GetGroup_InviteResponse, ListGroupInvitesRequestBody, ListGroupInvitesResponseData, ListGroup_InvitesResponse, RedeemGroupInviteRequest, RedeemGroupInviteResponseData, UpdateGroupInviteRequestBody, UpdateGroup_InviteRequest, UpdateGroup_InviteResponse}, groups::types::{ListGroupsRequestBody, ListGroupsResponseData}, webhooks::types::GroupInviteWebhookData}
         
     };
-    use crate::core::state::team_invites::{
-        types::TeamInvite,
+    use crate::core::state::group_invites::{
+        types::GroupInvite,
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
 
-    pub async fn get_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn get_group_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-        let invite_id = TeamInviteID(params.get("invite_id").unwrap().to_string());
+        let invite_id = GroupInviteID(params.get("invite_id").unwrap().to_string());
         
         let invite = INVITES_BY_ID_HASHTABLE.with(|store| {
             store.borrow().get(&invite_id).cloned()
@@ -27,19 +27,19 @@ pub mod team_invites_handlers {
     
         match invite {
             Some(invite) => {
-                // Check if user is authorized (team owner, admin, or invitee)
-                let is_authorized = TEAMS_BY_ID_HASHTABLE.with(|store| {
-                    if let Some(team) = store.borrow().get(&invite.team_id) {
-                        team.owner == requester_api_key.user_id.clone() || 
-                        team.admin_invites.contains(&invite.id) ||
-                        invite.invitee_id == TeamInviteeID::User(requester_api_key.user_id.clone())
+                // Check if user is authorized (group owner, admin, or invitee)
+                let is_authorized = GROUPS_BY_ID_HASHTABLE.with(|store| {
+                    if let Some(group) = store.borrow().get(&invite.group_id) {
+                        group.owner == requester_api_key.user_id.clone() || 
+                        group.admin_invites.contains(&invite.id) ||
+                        invite.invitee_id == GroupInviteeID::User(requester_api_key.user_id.clone())
                     } else {
                         false
                     }
                 });
 
                 let table_permissions = check_system_permissions(
-                    SystemResourceID::Table(SystemTableEnum::Teams),
+                    SystemResourceID::Table(SystemTableEnum::Groups),
                     PermissionGranteeID::User(requester_api_key.user_id.clone())
                 );
     
@@ -49,7 +49,7 @@ pub mod team_invites_handlers {
     
                 create_response(
                     StatusCode::OK,
-                    GetTeam_InviteResponse::ok(&invite.cast_fe(&requester_api_key.user_id)).encode()
+                    GetGroup_InviteResponse::ok(&invite.cast_fe(&requester_api_key.user_id)).encode()
                 )
             },
             None => create_response(
@@ -59,13 +59,13 @@ pub mod team_invites_handlers {
         }
     }
     
-    pub async fn list_team_invites_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn list_group_invites_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
     
-        let query: ListTeamInvitesRequestBody = match serde_json::from_slice(request.body()) {
+        let query: ListGroupInvitesRequestBody = match serde_json::from_slice(request.body()) {
             Ok(q) => q,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -83,30 +83,30 @@ pub mod team_invites_handlers {
             );
         }
     
-        let team_id = TeamID(query.team_id.clone());
+        let group_id = GroupID(query.group_id.clone());
 
-        // Check if the team exists first
-        let team_exists = TEAMS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().contains_key(&team_id)
+        // Check if the group exists first
+        let group_exists = GROUPS_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().contains_key(&group_id)
         });
-        if !team_exists {
+        if !group_exists {
             return create_response(
                 StatusCode::NOT_FOUND,
-                ErrorResponse::err(400, "Team not found".to_string()).encode()
+                ErrorResponse::err(400, "Group not found".to_string()).encode()
             );
         }
     
         // Check if user is owner or admin
-        let is_authorized = TEAMS_BY_ID_HASHTABLE.with(|store| {
+        let is_authorized = GROUPS_BY_ID_HASHTABLE.with(|store| {
             store.borrow()
-                .get(&team_id)
-                .map(|team| {
-                    team.owner == requester_api_key.user_id.clone() || 
-                    team.admin_invites.iter().any(|invite_id| {
+                .get(&group_id)
+                .map(|group| {
+                    group.owner == requester_api_key.user_id.clone() || 
+                    group.admin_invites.iter().any(|invite_id| {
                         INVITES_BY_ID_HASHTABLE.with(|invite_store| {
                             invite_store.borrow()
                                 .get(invite_id)
-                                .map(|invite| invite.invitee_id == TeamInviteeID::User(requester_api_key.user_id.clone()))
+                                .map(|invite| invite.invitee_id == GroupInviteeID::User(requester_api_key.user_id.clone()))
                                 .unwrap_or(false)
                         })
                     })
@@ -115,7 +115,7 @@ pub mod team_invites_handlers {
         });
     
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Teams),
+            SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
@@ -123,12 +123,12 @@ pub mod team_invites_handlers {
             return create_auth_error_response();
         }
     
-        let all_invites = TEAMS_BY_ID_HASHTABLE.with(|teams_store| {
-            let teams = teams_store.borrow();
-            teams.get(&team_id)
-                .map(|team| INVITES_BY_ID_HASHTABLE.with(|invite_store| {
+        let all_invites = GROUPS_BY_ID_HASHTABLE.with(|groups_store| {
+            let groups = groups_store.borrow();
+            groups.get(&group_id)
+                .map(|group| INVITES_BY_ID_HASHTABLE.with(|invite_store| {
                     let invites = invite_store.borrow();
-                    team.member_invites.iter()
+                    group.member_invites.iter()
                         .filter_map(|id| invites.get(id))
                         .cloned()
                         .collect::<Vec<_>>()
@@ -152,7 +152,7 @@ pub mod team_invites_handlers {
             .cloned()
             .collect::<Vec<_>>();
     
-        let response_data = ListTeamInvitesResponseData {
+        let response_data = ListGroupInvitesResponseData {
             items: items.clone().into_iter().map(|invite| invite.cast_fe(&requester_api_key.user_id)).collect(),
             page_size: query.page_size,
             total: all_invites.len(),
@@ -162,11 +162,11 @@ pub mod team_invites_handlers {
     
         create_response(
             StatusCode::OK,
-            ListTeam_InvitesResponse::ok(&response_data).encode()
+            ListGroup_InvitesResponse::ok(&response_data).encode()
         )
     }
     
-    pub async fn create_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn create_group_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -175,7 +175,7 @@ pub mod team_invites_handlers {
     
         // Parse request body
         let body: &[u8] = request.body();
-        let create_req = serde_json::from_slice::<CreateTeamInviteRequestBody>(body).unwrap();
+        let create_req = serde_json::from_slice::<CreateGroupInviteRequestBody>(body).unwrap();
         
         if let Err(validation_err) = create_req.validate_body() {
             return create_response(
@@ -187,19 +187,19 @@ pub mod team_invites_handlers {
             );
         }
 
-        let team_id = TeamID(create_req.team_id);
-        let active_webhooks = get_active_team_invite_webhooks(&team_id, WebhookEventLabel::TeamInviteCreated);
+        let group_id = GroupID(create_req.group_id);
+        let active_webhooks = get_active_group_invite_webhooks(&group_id, WebhookEventLabel::GroupInviteCreated);
 
-        let before_snap = TeamInviteWebhookData {
-            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                store.borrow().get(&team_id).cloned()
+        let before_snap = GroupInviteWebhookData {
+            group: GROUPS_BY_ID_HASHTABLE.with(|store| 
+                store.borrow().get(&group_id).cloned()
             ),
-            team_invite: None,
+            group_invite: None,
         };
 
-        // Verify team exists and user has permission
-        let team = match TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&team_id).cloned()) {
-            Some(team) => team,
+        // Verify group exists and user has permission
+        let group = match GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&group_id).cloned()) {
+            Some(group) => group,
             None => return create_response(
                 StatusCode::NOT_FOUND,
                 ErrorResponse::not_found().encode()
@@ -207,18 +207,18 @@ pub mod team_invites_handlers {
         };
 
         // Check if user is authorized (owner or admin)
-        let is_authorized = team.owner == requester_api_key.user_id.clone() || 
-                        team.admin_invites.iter().any(|invite_id| {
+        let is_authorized = group.owner == requester_api_key.user_id.clone() || 
+                        group.admin_invites.iter().any(|invite_id| {
                             INVITES_BY_ID_HASHTABLE.with(|store| {
                                 store.borrow()
                                     .get(invite_id)
-                                    .map(|invite| invite.invitee_id == TeamInviteeID::User(requester_api_key.user_id.clone()))
+                                    .map(|invite| invite.invitee_id == GroupInviteeID::User(requester_api_key.user_id.clone()))
                                     .unwrap_or(false)
                             })
                         });
 
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Teams),
+            SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
@@ -231,31 +231,31 @@ pub mod team_invites_handlers {
         // Create new invite
 
         let invite_id = match create_req.id {
-            Some(id) => TeamInviteID(id.to_string()),
-            None => TeamInviteID(generate_uuidv4(IDPrefix::TeamInvite)),
+            Some(id) => GroupInviteID(id.to_string()),
+            None => GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite)),
         };
 
         let now = ic_cdk::api::time();
 
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
         let invitee_id = if let Some(invitee_user_id) = create_req.invitee_id {
-            TeamInviteeID::User(UserID(invitee_user_id))
+            GroupInviteeID::User(UserID(invitee_user_id))
         } else {
-            let _placeholder_id = PlaceholderTeamInviteeID(
-                generate_uuidv4(IDPrefix::PlaceholderTeamInviteeID)
+            let _placeholder_id = PlaceholderGroupInviteeID(
+                generate_uuidv4(IDPrefix::PlaceholderGroupInviteeID)
             );
-            let _placeholder_invitee = TeamInviteeID::PlaceholderTeamInvitee(_placeholder_id.clone());
+            let _placeholder_invitee = GroupInviteeID::PlaceholderGroupInvitee(_placeholder_id.clone());
             mark_claimed_uuid(&_placeholder_id.clone().to_string());
             _placeholder_invitee
         };
 
 
-        let new_invite = TeamInvite {
+        let new_invite = GroupInvite {
             id: invite_id.clone(),
-            team_id: team_id.clone(),
+            group_id: group_id.clone(),
             inviter_id: requester_api_key.user_id.clone(),
             invitee_id,
-            role: create_req.role.unwrap_or(TeamRole::Member),
+            role: create_req.role.unwrap_or(GroupRole::Member),
             note: create_req.note.unwrap_or("".to_string()),
             created_at: now,
             last_modified_at: now,
@@ -273,21 +273,21 @@ pub mod team_invites_handlers {
             store.borrow_mut().insert(invite_id.clone(), new_invite.clone());
         });
 
-        // Update team's invite lists
-        TEAMS_BY_ID_HASHTABLE.with(|store| {
+        // Update group's invite lists
+        GROUPS_BY_ID_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            if let Some(team) = store.get_mut(&team_id) {
+            if let Some(group) = store.get_mut(&group_id) {
                 match new_invite.role {
-                    TeamRole::Admin => {
-                        team.admin_invites.push(invite_id.clone());
-                        team.member_invites.push(invite_id.clone());
+                    GroupRole::Admin => {
+                        group.admin_invites.push(invite_id.clone());
+                        group.member_invites.push(invite_id.clone());
                     },
-                    TeamRole::Member => team.member_invites.push(invite_id.clone()),
+                    GroupRole::Member => group.member_invites.push(invite_id.clone()),
                 }
             }
         });
 
-        // Update user's team invites
+        // Update user's group invites
         USERS_INVITES_LIST_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
             store.entry(new_invite.invitee_id.clone())
@@ -297,19 +297,19 @@ pub mod team_invites_handlers {
 
         mark_claimed_uuid(&invite_id.clone().to_string());
 
-        // Fire webhook if we have active ones - create snapshot with team data
+        // Fire webhook if we have active ones - create snapshot with group data
         if !active_webhooks.is_empty() {
-            let after_snap = TeamInviteWebhookData {
-                team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                    store.borrow().get(&team_id).cloned()
+            let after_snap = GroupInviteWebhookData {
+                group: GROUPS_BY_ID_HASHTABLE.with(|store| 
+                    store.borrow().get(&group_id).cloned()
                 ),
-                team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
+                group_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
                     store.borrow().get(&invite_id).cloned()
                 ),
             };
 
-            fire_team_invite_webhook(
-                WebhookEventLabel::TeamInviteCreated,
+            fire_group_invite_webhook(
+                WebhookEventLabel::GroupInviteCreated,
                 active_webhooks,
                 Some(before_snap),
                 Some(after_snap),
@@ -319,7 +319,7 @@ pub mod team_invites_handlers {
 
         snapshot_poststate(prestate, Some(
             format!(
-                "{}: Create Team Invite {}", 
+                "{}: Create Group Invite {}", 
                 requester_api_key.user_id,
                 invite_id.0
             ).to_string()
@@ -327,12 +327,12 @@ pub mod team_invites_handlers {
 
         create_response(
             StatusCode::OK,
-            CreateTeam_InviteResponse::ok(&new_invite.cast_fe(&requester_api_key.user_id)).encode()
+            CreateGroup_InviteResponse::ok(&new_invite.cast_fe(&requester_api_key.user_id)).encode()
         )
 
     }
     
-    pub async fn update_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn update_group_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -341,7 +341,7 @@ pub mod team_invites_handlers {
     
         // Parse request body
         let body: &[u8] = request.body();
-        let update_req = serde_json::from_slice::<UpdateTeamInviteRequestBody>(body).unwrap();
+        let update_req = serde_json::from_slice::<UpdateGroupInviteRequestBody>(body).unwrap();
         
         if let Err(validation_err) = update_req.validate_body() {
             return create_response(
@@ -365,12 +365,12 @@ pub mod team_invites_handlers {
                 ErrorResponse::not_found().encode()
             ),
         };
-        let active_webhooks = get_active_team_invite_webhooks(&invite.team_id, WebhookEventLabel::TeamInviteUpdated);
-        let before_snap = TeamInviteWebhookData {
-            team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                store.borrow().get(&invite.team_id).cloned()
+        let active_webhooks = get_active_group_invite_webhooks(&invite.group_id, WebhookEventLabel::GroupInviteUpdated);
+        let before_snap = GroupInviteWebhookData {
+            group: GROUPS_BY_ID_HASHTABLE.with(|store| 
+                store.borrow().get(&invite.group_id).cloned()
             ),
-            team_invite: Some(invite.clone()),
+            group_invite: Some(invite.clone()),
         };
         
         // Check if user is authorized (owner or admin)
@@ -384,7 +384,7 @@ pub mod team_invites_handlers {
         });
 
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Teams),
+            SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
@@ -395,41 +395,41 @@ pub mod team_invites_handlers {
         let prestate = snapshot_prestate();
         
 
-        // If role is being updated, we need to update the team's invite lists
+        // If role is being updated, we need to update the group's invite lists
         if let Some(new_role) = update_req.role {
             if new_role != invite.role {
-                TEAMS_BY_ID_HASHTABLE.with(|store| {
+                GROUPS_BY_ID_HASHTABLE.with(|store| {
                     let mut store = store.borrow_mut();
-                    if let Some(team) = store.get_mut(&invite.team_id) {
+                    if let Some(group) = store.get_mut(&invite.group_id) {
                         // Remove from old role's list
                         match invite.role {
-                            TeamRole::Admin => {
-                                if let Some(pos) = team.admin_invites.iter().position(|id| *id == invite_id) {
-                                    team.admin_invites.remove(pos);
+                            GroupRole::Admin => {
+                                if let Some(pos) = group.admin_invites.iter().position(|id| *id == invite_id) {
+                                    group.admin_invites.remove(pos);
                                 }
-                                if let Some(pos) = team.member_invites.iter().position(|id| *id == invite_id) {
-                                    team.member_invites.remove(pos);
+                                if let Some(pos) = group.member_invites.iter().position(|id| *id == invite_id) {
+                                    group.member_invites.remove(pos);
                                 }
                             },
-                            TeamRole::Member => {
-                                if let Some(pos) = team.member_invites.iter().position(|id| *id == invite_id) {
-                                    team.member_invites.remove(pos);
+                            GroupRole::Member => {
+                                if let Some(pos) = group.member_invites.iter().position(|id| *id == invite_id) {
+                                    group.member_invites.remove(pos);
                                 }
                             },
                         }
                         // Add to new role's list
                         match new_role {
-                            TeamRole::Admin => {
-                                if !team.admin_invites.contains(&invite_id) {
-                                    team.admin_invites.push(invite_id.clone());
+                            GroupRole::Admin => {
+                                if !group.admin_invites.contains(&invite_id) {
+                                    group.admin_invites.push(invite_id.clone());
                                 }
-                                if !team.member_invites.contains(&invite_id) {
-                                    team.member_invites.push(invite_id.clone());
+                                if !group.member_invites.contains(&invite_id) {
+                                    group.member_invites.push(invite_id.clone());
                                 }
                             },
-                            TeamRole::Member => {
-                                if !team.member_invites.contains(&invite_id) {
-                                    team.member_invites.push(invite_id.clone());
+                            GroupRole::Member => {
+                                if !group.member_invites.contains(&invite_id) {
+                                    group.member_invites.push(invite_id.clone());
                                 }
                             },
                         }
@@ -472,18 +472,18 @@ pub mod team_invites_handlers {
             store.borrow_mut().insert(invite.id.clone(), invite.clone());
         });
 
-        // Fire webhook if we have active ones - create snapshot with team data
+        // Fire webhook if we have active ones - create snapshot with group data
         if !active_webhooks.is_empty() {
-            let after_snap = TeamInviteWebhookData {
-                team: TEAMS_BY_ID_HASHTABLE.with(|store| 
-                    store.borrow().get(&invite.team_id).cloned()
+            let after_snap = GroupInviteWebhookData {
+                group: GROUPS_BY_ID_HASHTABLE.with(|store| 
+                    store.borrow().get(&invite.group_id).cloned()
                 ),
-                team_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
+                group_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
                     store.borrow().get(&invite_id).cloned()
                 ),
             };
-            fire_team_invite_webhook(
-                WebhookEventLabel::TeamInviteUpdated,
+            fire_group_invite_webhook(
+                WebhookEventLabel::GroupInviteUpdated,
                 active_webhooks,
                 Some(before_snap),
                 Some(after_snap),
@@ -493,7 +493,7 @@ pub mod team_invites_handlers {
 
         snapshot_poststate(prestate, Some(
             format!(
-                "{}: Update Team Invite {}", 
+                "{}: Update Group Invite {}", 
                 requester_api_key.user_id,
                 invite_id.0
             ).to_string()
@@ -501,12 +501,12 @@ pub mod team_invites_handlers {
 
         create_response(
             StatusCode::OK,
-            UpdateTeam_InviteResponse::ok(&invite.cast_fe(&requester_api_key.user_id)).encode()
+            UpdateGroup_InviteResponse::ok(&invite.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
     
 
-    pub async fn delete_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn delete_group_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -514,7 +514,7 @@ pub mod team_invites_handlers {
         };
     
         // Parse request body
-        let delete_req = match serde_json::from_slice::<DeleteTeam_InviteRequest>(request.body()) {
+        let delete_req = match serde_json::from_slice::<DeleteGroup_InviteRequest>(request.body()) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -543,11 +543,11 @@ pub mod team_invites_handlers {
         let old_external_id = invite.external_id.clone();
         let old_internal_id = Some(invite.id.clone().to_string());
     
-        // Check if user is authorized (team owner, admin, or invite recipient)
-        let is_authorized = TEAMS_BY_ID_HASHTABLE.with(|store| {
-            if let Some(team) = store.borrow().get(&invite.team_id) {
-                team.owner == requester_api_key.user_id || 
-                team.admin_invites.contains(&invite.id)
+        // Check if user is authorized (group owner, admin, or invite recipient)
+        let is_authorized = GROUPS_BY_ID_HASHTABLE.with(|store| {
+            if let Some(group) = store.borrow().get(&invite.group_id) {
+                group.owner == requester_api_key.user_id || 
+                group.admin_invites.contains(&invite.id)
             } else {
                 false
             }
@@ -556,7 +556,7 @@ pub mod team_invites_handlers {
         let prestate = snapshot_prestate();
         
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Teams),
+            SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
@@ -569,26 +569,26 @@ pub mod team_invites_handlers {
             store.borrow_mut().remove(&delete_req.id);
         });
     
-        // Update team's invite lists
-        TEAMS_BY_ID_HASHTABLE.with(|store| {
+        // Update group's invite lists
+        GROUPS_BY_ID_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            if let Some(team) = store.get_mut(&invite.team_id) {
+            if let Some(group) = store.get_mut(&invite.group_id) {
                 match invite.role {
-                    TeamRole::Admin => {
-                        if let Some(pos) = team.admin_invites.iter().position(|id| *id == delete_req.id) {
-                            team.admin_invites.remove(pos);
+                    GroupRole::Admin => {
+                        if let Some(pos) = group.admin_invites.iter().position(|id| *id == delete_req.id) {
+                            group.admin_invites.remove(pos);
                         }
                     },
-                    TeamRole::Member => {
-                        if let Some(pos) = team.member_invites.iter().position(|id| *id == delete_req.id) {
-                            team.member_invites.remove(pos);
+                    GroupRole::Member => {
+                        if let Some(pos) = group.member_invites.iter().position(|id| *id == delete_req.id) {
+                            group.member_invites.remove(pos);
                         }
                     },
                 }
             }
         });
         
-        // Update user's team invites
+        // Update user's group invites
         USERS_INVITES_LIST_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
             if let Some(invites) = store.get_mut(&invite.invitee_id) {
@@ -602,7 +602,7 @@ pub mod team_invites_handlers {
 
         snapshot_poststate(prestate, Some(
             format!(
-                "{}: Delete Team Invite {}", 
+                "{}: Delete Group Invite {}", 
                 requester_api_key.user_id,
                 delete_req.id.0
             ).to_string()
@@ -610,14 +610,14 @@ pub mod team_invites_handlers {
         
         create_response(
             StatusCode::OK,
-            DeleteTeam_InviteResponse::ok(&DeletedTeam_InviteData {
+            DeleteGroup_InviteResponse::ok(&DeletedGroup_InviteData {
                 id: delete_req.id,
                 deleted: true
             }).encode()
         )
     }
 
-    pub async fn redeem_team_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    pub async fn redeem_group_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
@@ -625,7 +625,7 @@ pub mod team_invites_handlers {
         
         // Parse request body
         let body: &[u8] = request.body();
-        let redeem_request = match serde_json::from_slice::<RedeemTeamInviteRequest>(body) {
+        let redeem_request = match serde_json::from_slice::<RedeemGroupInviteRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -641,8 +641,8 @@ pub mod team_invites_handlers {
             );
         }
     
-        // Convert invite_id string to TeamInviteID
-        let invite_id = TeamInviteID(redeem_request.invite_id);
+        // Convert invite_id string to GroupInviteID
+        let invite_id = GroupInviteID(redeem_request.invite_id);
     
         // Get existing invite
         let invite = match INVITES_BY_ID_HASHTABLE.with(|store| {
@@ -659,21 +659,21 @@ pub mod team_invites_handlers {
     
         // Parse and validate the user_id
         let new_user_id = UserID(redeem_request.user_id);
-        let new_invitee = TeamInviteeID::User(new_user_id.clone());
+        let new_invitee = GroupInviteeID::User(new_user_id.clone());
     
         // Handle differently based on invitee_id type
-        if invite.invitee_id == TeamInviteeID::Public {
+        if invite.invitee_id == GroupInviteeID::Public {
             // For Public invites, create a new invite rather than modifying the original
-            let new_invite_id = TeamInviteID(generate_uuidv4(IDPrefix::TeamInvite));
+            let new_invite_id = GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite));
             let now = ic_cdk::api::time();
             
             // Create a new invite with duplicated fields but user-specific changes
-            let new_invite = TeamInvite {
+            let new_invite = GroupInvite {
                 id: new_invite_id.clone(),
-                team_id: invite.team_id.clone(),
+                group_id: invite.group_id.clone(),
                 inviter_id: invite.inviter_id.clone(),
                 invitee_id: new_invitee,
-                role: TeamRole::Member, // Default to Member role when redeeming
+                role: GroupRole::Member, // Default to Member role when redeeming
                 note: invite.note.clone(),
                 created_at: now,
                 last_modified_at: now,
@@ -690,7 +690,7 @@ pub mod team_invites_handlers {
                 store.borrow_mut().insert(new_invite_id.clone(), new_invite.clone());
             });
     
-            // Update user's team invites list with the new invite
+            // Update user's group invites list with the new invite
             USERS_INVITES_LIST_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
                 store.entry(new_invite.invitee_id.clone())
@@ -698,11 +698,11 @@ pub mod team_invites_handlers {
                     .push(new_invite_id.clone());
             });
     
-            // Update team's member invites
-            TEAMS_BY_ID_HASHTABLE.with(|store| {
+            // Update group's member invites
+            GROUPS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(team) = store.get_mut(&invite.team_id) {
-                    team.member_invites.push(new_invite_id.clone());
+                if let Some(group) = store.get_mut(&invite.group_id) {
+                    group.member_invites.push(new_invite_id.clone());
                 }
             });
     
@@ -710,7 +710,7 @@ pub mod team_invites_handlers {
     
             snapshot_poststate(prestate, Some(
                 format!(
-                    "{}: Redeem Public Team Invite {} as {}",
+                    "{}: Redeem Public Group Invite {} as {}",
                     requester_api_key.user_id,
                     invite_id.clone(),
                     new_invite_id.clone()
@@ -719,11 +719,11 @@ pub mod team_invites_handlers {
     
             create_response(
                 StatusCode::OK,
-                serde_json::to_vec(&RedeemTeamInviteResponseData {
+                serde_json::to_vec(&RedeemGroupInviteResponseData {
                     invite: new_invite.cast_fe(&requester_api_key.user_id),
                 }).expect("Failed to serialize response")
             )
-        } else if invite.invitee_id.to_string().starts_with(IDPrefix::PlaceholderTeamInviteeID.as_str()) {
+        } else if invite.invitee_id.to_string().starts_with(IDPrefix::PlaceholderGroupInviteeID.as_str()) {
             // Handle original placeholder invitee case
             if invite.from_placeholder_invitee.is_some() {
                 return create_response(
@@ -736,7 +736,7 @@ pub mod team_invites_handlers {
             let mut updated_invite = invite.clone();
             updated_invite.from_placeholder_invitee = Some(invite.invitee_id.clone().to_string());
             updated_invite.invitee_id = new_invitee;
-            updated_invite.role = TeamRole::Member; // Default to Member role when redeeming
+            updated_invite.role = GroupRole::Member; // Default to Member role when redeeming
             updated_invite.last_modified_at = ic_cdk::api::time();
     
             // Update state
@@ -744,7 +744,7 @@ pub mod team_invites_handlers {
                 store.borrow_mut().insert(invite_id.clone(), updated_invite.clone());
             });
     
-            // Update user's team invites list
+            // Update user's group invites list
             USERS_INVITES_LIST_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
                 store.entry(updated_invite.invitee_id.clone())
@@ -754,7 +754,7 @@ pub mod team_invites_handlers {
     
             snapshot_poststate(prestate, Some(
                 format!(
-                    "{}: Redeem Team Invite {}",
+                    "{}: Redeem Group Invite {}",
                     requester_api_key.user_id,
                     invite_id.clone()
                 ).to_string()
@@ -762,7 +762,7 @@ pub mod team_invites_handlers {
     
             create_response(
                 StatusCode::OK,
-                serde_json::to_vec(&RedeemTeamInviteResponseData {
+                serde_json::to_vec(&RedeemGroupInviteResponseData {
                     invite: updated_invite.cast_fe(&requester_api_key.user_id),
                 }).expect("Failed to serialize response")
             )

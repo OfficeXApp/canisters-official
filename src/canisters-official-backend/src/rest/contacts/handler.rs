@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_organization_webhook, get_active_organization_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::state::state::TEAMS_BY_ID_HASHTABLE, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_organization_webhook, get_active_organization_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::state::state::GROUPS_BY_ID_HASHTABLE, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -334,7 +334,7 @@ pub mod contacts_handlers {
             evm_public_address: create_req.evm_public_address.unwrap_or_default(),
             icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
             seed_phrase: Some(create_req.seed_phrase.unwrap_or_default()),
-            teams: [].to_vec(),
+            groups: [].to_vec(),
             tags: vec![],
             past_user_ids: [].to_vec(),
             external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
@@ -587,17 +587,17 @@ pub mod contacts_handlers {
 
         // Get and remove user's invites
         USERS_INVITES_LIST_HASHTABLE.with(|store| {
-            if let Some(invite_ids) = store.borrow_mut().remove(&&TeamInviteeID::User(contact_id.clone())) {
+            if let Some(invite_ids) = store.borrow_mut().remove(&&GroupInviteeID::User(contact_id.clone())) {
                 // Remove each invite from invites hashtable
                 INVITES_BY_ID_HASHTABLE.with(|invites_store| {
                     let mut store = invites_store.borrow_mut();
                     for invite_id in invite_ids {
                         if let Some(invite) = store.remove(&invite_id) {
-                            // Remove user from team if they were part of it
-                            TEAMS_BY_ID_HASHTABLE.with(|teams_store| {
-                                if let Some(mut team) = teams_store.borrow_mut().get_mut(&invite.team_id) {
-                                    team.member_invites.retain(|member_invite_id| member_invite_id != &invite_id);
-                                    team.admin_invites.retain(|admin_invite_id| admin_invite_id != &invite_id);
+                            // Remove user from group if they were part of it
+                            GROUPS_BY_ID_HASHTABLE.with(|groups_store| {
+                                if let Some(mut group) = groups_store.borrow_mut().get_mut(&invite.group_id) {
+                                    group.member_invites.retain(|member_invite_id| member_invite_id != &invite_id);
+                                    group.admin_invites.retain(|admin_invite_id| admin_invite_id != &invite_id);
                                 }
                             });
                         }

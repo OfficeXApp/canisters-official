@@ -1,40 +1,40 @@
-// src/rest/teams/types.rs
+// src/rest/groups/types.rs
 use serde::{Deserialize, Serialize};
 use crate::{core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}, team_invites::types::TeamInviteID, teams::{state::state::is_team_admin, types::{Team, TeamID}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}, group_invites::types::GroupInviteID, groups::{state::state::is_group_admin, types::{Group, GroupID}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}
 }, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TeamFE {
+pub struct GroupFE {
     #[serde(flatten)] // this lets us "extend" the Contact struct
-    pub team: Team,
-    pub member_previews: Vec<TeamMemberPreview>,
+    pub group: Group,
+    pub member_previews: Vec<GroupMemberPreview>,
     pub permission_previews: Vec<SystemPermissionType>,
 }
 
-impl TeamFE {
+impl GroupFE {
     pub fn redacted(&self, user_id: &UserID) -> Self {
         let mut redacted = self.clone();
 
         let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
         let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
-        let is_team_admin = is_team_admin(user_id, &self.team.id);
+        let is_group_admin = is_group_admin(user_id, &self.group.id);
 
         // Most sensitive
         if !is_owner {
 
             // 2nd most sensitive
-            if !has_edit_permissions && !is_team_admin {
-                redacted.team.endpoint_url = DriveRESTUrlEndpoint("".to_string());
-                redacted.team.private_note = None;
+            if !has_edit_permissions && !is_group_admin {
+                redacted.group.endpoint_url = DriveRESTUrlEndpoint("".to_string());
+                redacted.group.private_note = None;
             }
         }
         // Filter tags
-        redacted.team.tags = match is_owner {
-            true => redacted.team.tags,
-            false => redacted.team.tags.iter()
+        redacted.group.tags = match is_owner {
+            true => redacted.group.tags,
+            false => redacted.group.tags.iter()
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
@@ -44,20 +44,20 @@ impl TeamFE {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TeamMemberPreview {
+pub struct GroupMemberPreview {
     pub user_id: UserID,
     pub name: String,
     pub note: Option<String>,
     pub avatar: Option<String>,
-    pub team_id: TeamID,
+    pub group_id: GroupID,
     pub is_admin: bool,
-    pub invite_id: TeamInviteID,
+    pub invite_id: GroupInviteID,
     pub last_online_ms: u64,
 }
 
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ListTeamsRequestBody {
+pub struct ListGroupsRequestBody {
     #[serde(default)]
     pub filters: String,
     #[serde(default = "default_page_size")]
@@ -73,7 +73,7 @@ fn default_page_size() -> usize {
     50
 }
 
-impl ListTeamsRequestBody {
+impl ListGroupsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate filters string length
         if self.filters.len() > 256 {
@@ -115,18 +115,18 @@ impl ListTeamsRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ListTeamsResponseData {
-    pub items: Vec<TeamFE>,
+pub struct ListGroupsResponseData {
+    pub items: Vec<GroupFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
 }
-pub type ListTeamsResponse<'a> = ApiResponse<'a, ListTeamsResponseData>;
+pub type ListGroupsResponse<'a> = ApiResponse<'a, ListGroupsResponseData>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CreateTeamRequestBody {
+pub struct CreateGroupRequestBody {
     pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub avatar: Option<String>,
@@ -136,12 +136,12 @@ pub struct CreateTeamRequestBody {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
-impl CreateTeamRequestBody {
+impl CreateGroupRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
             validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
-            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Team)?;
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Group)?;
         }
         
         // Validate name (up to 256 chars)
@@ -182,7 +182,7 @@ impl CreateTeamRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateTeamRequestBody {
+pub struct UpdateGroupRequestBody {
     pub id: String,
     pub name: Option<String>,
     pub avatar: Option<String>,
@@ -192,9 +192,9 @@ pub struct UpdateTeamRequestBody {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
-impl UpdateTeamRequestBody {
+impl UpdateGroupRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate team ID
+        // Validate group ID
         validate_id_string(&self.id, "id")?;
 
         // Validate name if provided
@@ -237,12 +237,12 @@ impl UpdateTeamRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeleteTeamRequestBody {
+pub struct DeleteGroupRequestBody {
     pub id: String,
 }
-impl DeleteTeamRequestBody {
+impl DeleteGroupRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate team ID
+        // Validate group ID
         validate_id_string(&self.id, "id")?;
         
         Ok(())
@@ -250,39 +250,39 @@ impl DeleteTeamRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeletedTeamData {
+pub struct DeletedGroupData {
     pub id: String,
     pub deleted: bool
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateTeamRequestBody {
+pub struct ValidateGroupRequestBody {
     pub user_id: UserID, // does this user
-    pub team_id: TeamID, // belong to this team
+    pub group_id: GroupID, // belong to this group
     // pub signature: String, // relay the signature to the cosmic drive to prove user_id
 }
-impl ValidateTeamRequestBody {
+impl ValidateGroupRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate user_id
         validate_user_id(&self.user_id.0)?;
         
-        // Validate team_id
-        validate_id_string(&self.team_id.0, "team_id")?;
+        // Validate group_id
+        validate_id_string(&self.group_id.0, "group_id")?;
         
         Ok(())
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateTeamResponseData {
+pub struct ValidateGroupResponseData {
     pub is_member: bool,
-    pub team_id: TeamID,
+    pub group_id: GroupID,
     pub user_id: UserID
 }
 
 
-pub type GetTeamResponse<'a> = ApiResponse<'a, TeamFE>;
-pub type CreateTeamResponse<'a> = ApiResponse<'a, TeamFE>;
-pub type UpdateTeamResponse<'a> = ApiResponse<'a, TeamFE>;
-pub type DeleteTeamResponse<'a> = ApiResponse<'a, DeletedTeamData>;
+pub type GetGroupResponse<'a> = ApiResponse<'a, GroupFE>;
+pub type CreateGroupResponse<'a> = ApiResponse<'a, GroupFE>;
+pub type UpdateGroupResponse<'a> = ApiResponse<'a, GroupFE>;
+pub type DeleteGroupResponse<'a> = ApiResponse<'a, DeletedGroupData>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
-pub type ValidateTeamResponse<'a> = ApiResponse<'a, ValidateTeamResponseData>;
+pub type ValidateGroupResponse<'a> = ApiResponse<'a, ValidateGroupResponseData>;

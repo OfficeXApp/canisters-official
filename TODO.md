@@ -14,7 +14,6 @@
 
 ## Awkward Urgent
 
-- [ ] Fix validate_id_string which accepts an id prefix arg but does nothign with it, and the various implementations of validate_id_string pass in wrong prefix anyways. fix this ai slop!
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
 - [ ] Refactor rename "tags" to "labels" if we are going to call usertags a thing `Name@UserID_abc123`. or think of a better name for usertags (userlinks? userstrings? teamstring, teamtag, teamslug, userslug, userhandle, teamhandle)
@@ -130,3 +129,5 @@
 - [x] Audit REST API to ensure all snake case variables consistency
 - [x] Consider whether we change userID to user_id for consistent rest api spec (and force JS/other languages to comply too)
 - [x] Migrate to allowing client uuids for true p2p offline compatibility (however we should add validation of userids, including preventing duplicates with our own internal mappings to check if uuid already taken)
+- [x] Should we rename Teams into Group? Group is actually more correct since they can be ACL groups. Teams typically imply an ongoing collaboration, whereas ACL groups just share permissions. Proper language can make for a much more intuitive user experience. --> Yes refactored
+- [x] Fix validate_id_string which accepts an id prefix arg but does nothign with it, and the various implementations of validate_id_string pass in wrong prefix anyways. fix this ai slop!

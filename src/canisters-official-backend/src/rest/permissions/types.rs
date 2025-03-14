@@ -1,14 +1,16 @@
 // src/rest/permissions/types.rs
 use serde::{Deserialize, Serialize};
+use crate::core::state::directory::types::DriveFullFilePath;
 use crate::core::state::drives::state::state::OWNER_ID;
+use crate::core::state::drives::types::{ExternalID, ExternalPayload};
 use crate::core::state::permissions::types::*;
 use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
-use crate::core::state::tags::types::redact_tag;
+use crate::core::state::tags::types::{redact_tag, TagStringValue};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::core::state::permissions::types::PermissionMetadata;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, ApiResponse, ValidationError};
-
+use crate::rest::webhooks::types::SortDirection;
 
 
 
@@ -16,9 +18,28 @@ use crate::rest::types::{validate_description, validate_external_id, validate_ex
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemPermissionFE {
-    #[serde(flatten)] 
-    pub system_permission: SystemPermission,
-    pub permission_previews: Vec<SystemPermissionType>, 
+    pub id: String,
+    pub resource_id: String,
+    pub granted_to: String,
+    pub granted_by: String,
+    pub permission_types: Vec<SystemPermissionType>,
+    pub begin_date_ms: i64,
+    pub expiry_date_ms: i64,
+    pub note: String,
+    pub created_at: u64,
+    pub last_modified_at: u64,
+    pub from_placeholder_grantee: Option<String>,
+    pub tags: Vec<TagStringValue>,
+    pub metadata: Option<PermissionMetadata>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
+    
+    // Additional FE-specific fields
+    pub resource_name: Option<String>,
+    pub grantee_name: Option<String>,
+    pub grantee_avatar: Option<String>,
+    pub granter_name: Option<String>,
+    pub permission_previews: Vec<SystemPermissionType>,
 }
 
 impl SystemPermissionFE {
@@ -37,9 +58,9 @@ impl SystemPermissionFE {
             }
         }
         // Filter tags
-        redacted.system_permission.tags = match is_owner {
-            true => redacted.system_permission.tags,
-            false => redacted.system_permission.tags.iter()
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
@@ -52,9 +73,25 @@ impl SystemPermissionFE {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryPermissionFE {
-    #[serde(flatten)] 
-    pub directory_permission: DirectoryPermission,
-    pub permission_previews: Vec<SystemPermissionType>, 
+    pub id: String,
+    pub resource_id: String,
+    pub resource_path: String,
+    pub granted_to: String,
+    pub granted_by: String,
+    pub permission_types: Vec<DirectoryPermissionType>,
+    pub begin_date_ms: i64,
+    pub expiry_date_ms: i64,
+    pub inheritable: bool,
+    pub note: String,
+    pub created_at: u64,
+    pub last_modified_at: u64,
+    pub from_placeholder_grantee: Option<String>,
+    pub tags: Vec<TagStringValue>,
+    pub external_id: Option<String>,
+    pub external_payload: Option<String>,
+    
+    // Additional FE-specific fields
+    pub permission_previews: Vec<SystemPermissionType>,
 }
 
 impl DirectoryPermissionFE {
@@ -73,9 +110,9 @@ impl DirectoryPermissionFE {
             }
         }
         // Filter tags
-        redacted.directory_permission.tags = match is_owner {
-            true => redacted.directory_permission.tags,
-            false => redacted.directory_permission.tags.iter()
+        redacted.tags = match is_owner {
+            true => redacted.tags,
+            false => redacted.tags.iter()
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
@@ -165,16 +202,14 @@ pub struct CreateDirectoryPermissionsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateDirectoryPermissionsRequestBody {
     pub id: DirectoryPermissionID,
-    pub resource_id: String,
-    pub granted_to: Option<String>,
     pub permission_types: Vec<DirectoryPermissionType>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
     pub inheritable: Option<bool>,
     pub note: Option<String>,
     pub metadata: Option<PermissionMetadata>,
-    pub external_id: Option<String>,
-    pub external_payload: Option<String>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }
 
 impl UpdateDirectoryPermissionsRequestBody {
@@ -182,13 +217,6 @@ impl UpdateDirectoryPermissionsRequestBody {
 
         validate_id_string(&self.id.0, "id")?;
 
-        // Validate resource_id
-        validate_id_string(&self.resource_id, "resource_id")?;
-        
-        // Validate granted_to if provided
-        if let Some(granted_to) = &self.granted_to {
-            validate_id_string(granted_to, "granted_to")?;
-        }
         
         // Validate permission_types (must not be empty)
         if self.permission_types.is_empty() {
@@ -205,12 +233,12 @@ impl UpdateDirectoryPermissionsRequestBody {
         
         // Validate external_id if provided
         if let Some(external_id) = &self.external_id {
-            validate_external_id(external_id)?;
+            validate_external_id(&external_id.to_string())?;
         }
         
         // Validate external_payload if provided
         if let Some(external_payload) = &self.external_payload {
-            validate_external_payload(external_payload)?;
+            validate_external_payload(&external_payload.to_string())?;
         }
         
         
@@ -267,8 +295,8 @@ impl PermissionCheckRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CheckPermissionResult {
-    pub resource_id: DirectoryResourceID,
-    pub grantee_id: PermissionGranteeID,
+    pub resource_id: String,
+    pub grantee_id: String,
     pub permissions: Vec<DirectoryPermissionType>,
 }
 
@@ -296,11 +324,9 @@ pub struct RedeemPermissionResponseData {
 }
 
 pub type RedeemPermissionResponse<'a> = ApiResponse<'a, RedeemPermissionResponseData>;
-
-
-// Response type aliases using ApiResponse
 pub type GetPermissionResponse<'a> = ApiResponse<'a, DirectoryPermissionFE>;
 pub type CreatePermissionsResponse<'a> = ApiResponse<'a, CreateDirectoryPermissionsResponseData>;
+pub type UpdatePermissionsResponse<'a> = ApiResponse<'a, UpdateDirectoryPermissionsResponseData>;
 pub type DeletePermissionResponse<'a> = ApiResponse<'a, DeletePermissionResponseData>;
 pub type CheckPermissionResponse<'a> = ApiResponse<'a, CheckPermissionResult>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
@@ -320,6 +346,42 @@ impl GetSystemPermissionRequest {
         Ok(())
     }
 }
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ListSystemPermissionsRequestBody {
+    #[serde(default)]
+    pub filters: ListSystemPermissionsRequestBodyFilters,
+    #[serde(default = "default_page_size")]
+    pub page_size: usize,
+    #[serde(default)]
+    pub direction: SortDirection,
+    pub cursor: Option<String>,
+    // consider refactoring pagination to use "smart cursor" which is a string that has 3 parts `{resource_id}:{filter_index}:{global_index}`. this might be overcomplicating it and theres already established best practices
+}
+
+fn default_page_size() -> usize {
+    50
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ListSystemPermissionsRequestBodyFilters {
+    pub resource_ids: Option<Vec<SystemResourceID>>, // leave this empty to get all permissions for all resources, but due to pagination we cant use .cast_fe().redact(), we must first filter out those the requesters does not have access to
+    pub grantee_ids: Option<Vec<PermissionGranteeID>>, // leave this empty to get all permissions, but due to pagination we cant use .cast_fe().redact(), we must first filter out those the requesters does not have access to
+    pub tags: Option<Vec<TagStringValue>>, // leave this empty to get all permissions, but due to pagination we cant use .cast_fe().redact(), we must first filter out those the requesters does not have access to
+}
+
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListSystemPermissionsResponseData {
+    pub items: Vec<SystemPermissionFE>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor: Option<String>,
+}
+pub type ListSystemPermissionsResponse<'a> = ApiResponse<'a, ListSystemPermissionsResponseData>;
+
+
 
 // Create System Permissions
 #[derive(Debug, Clone, Deserialize)]
@@ -367,12 +429,12 @@ impl CreateSystemPermissionsRequestBody {
         
         // Validate external_id if provided
         if let Some(external_id) = &self.external_id {
-            validate_external_id(external_id)?;
+            validate_external_id(&external_id.to_string())?;
         }
         
         // Validate external_payload if provided
         if let Some(external_payload) = &self.external_payload {
-            validate_external_payload(external_payload)?;
+            validate_external_payload(&external_payload.to_string())?;
         }
         
         Ok(())
@@ -389,8 +451,6 @@ pub struct CreateSystemPermissionsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateSystemPermissionsRequestBody {
     pub id: SystemPermissionID,
-    pub resource_id: String, // Can be "Table_drives" or "DiskID_123" etc
-    pub granted_to: Option<String>,
     pub permission_types: Vec<SystemPermissionType>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
@@ -403,14 +463,6 @@ impl UpdateSystemPermissionsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         validate_id_string(&self.id.0, "id")?;
 
-        // Validate resource_id
-        validate_id_string(&self.resource_id, "resource_id")?;
-        
-        // Validate granted_to if provided
-        if let Some(granted_to) = &self.granted_to {
-            validate_id_string(granted_to, "granted_to")?;
-        }
-        
         // Validate permission_types (must not be empty)
         if self.permission_types.is_empty() {
             return Err(ValidationError {
@@ -466,7 +518,7 @@ pub struct DeleteSystemPermissionResponseData {
 }
 
 // Check System Permissions
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemPermissionCheckRequest {
     pub resource_id: String,
     pub grantee_id: String,
@@ -485,8 +537,8 @@ impl SystemPermissionCheckRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CheckSystemPermissionResult {
-    pub resource_id: SystemResourceID,
-    pub grantee_id: PermissionGranteeID,
+    pub resource_id: String,
+    pub grantee_id: String,
     pub permissions: Vec<SystemPermissionType>,
 }
 
@@ -516,6 +568,7 @@ pub struct RedeemSystemPermissionResponseData {
 // Response type aliases
 pub type GetSystemPermissionResponse<'a> = ApiResponse<'a, SystemPermissionFE>;
 pub type CreateSystemPermissionsResponse<'a> = ApiResponse<'a, CreateSystemPermissionsResponseData>;
+pub type UpdateSystemPermissionsResponse<'a> = ApiResponse<'a, UpdateSystemPermissionsResponseData>;
 pub type DeleteSystemPermissionResponse<'a> = ApiResponse<'a, DeleteSystemPermissionResponseData>;
 pub type CheckSystemPermissionResponse<'a> = ApiResponse<'a, CheckSystemPermissionResult>;
 pub type RedeemSystemPermissionResponse<'a> = ApiResponse<'a, RedeemSystemPermissionResponseData>;

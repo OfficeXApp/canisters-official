@@ -24,7 +24,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         },
     };
 
-    debug_log!("auth_header: {}", auth_header);
+    // debug_log!("auth_header: {}", auth_header);
 
     // Parse "Bearer <token>"
     let btoa_token = match auth_header.strip_prefix("Bearer ") {
@@ -36,14 +36,14 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
     };
     
 
-    debug_log!("btoa_token: {}", btoa_token);
+    // debug_log!("btoa_token: {}", btoa_token);
 
     let padded_token = match btoa_token.len() % 4 {
         0 => btoa_token.to_string(),
         n => format!("{}{}", btoa_token, "=".repeat(4 - n))
     };
 
-    debug_log!("padded_token: {}", padded_token);
+    // debug_log!("padded_token: {}", padded_token);
 
     // Decode the base64 proof string
     let stringified_token = match base64::decode(padded_token) {
@@ -60,7 +60,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         },
     };
 
-    debug_log!("stringified_token: {}", stringified_token);
+    // debug_log!("stringified_token: {}", stringified_token);
 
     // Parse the JSON proof
     let auth_json: AuthJsonDecoded = match serde_json::from_str(&stringified_token) {
@@ -71,7 +71,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         },
     };
 
-    debug_log!("auth_json: {:?}", auth_json);
+    // debug_log!("auth_json: {:?}", auth_json);
 
     // Handle different authentication types
     match auth_json {
@@ -162,7 +162,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
             
             // Look up the API key value from the proof
             let api_key_value = ApiKeyValue(btoa_token.to_string());
-            debug_log!("Looking up API key from JSON payload: {}", api_key_value);
+            // debug_log!("Looking up API key from JSON payload: {}", api_key_value);
             
             // Look up the API key ID using the value
             let api_key_id = APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
@@ -170,7 +170,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
             });
             
             if let Some(api_key_id) = api_key_id {
-                debug_log!("Found api_key_id: {}", api_key_id);
+                // debug_log!("Found api_key_id: {}", api_key_id);
                 
                 // Look up the full API key using the ID
                 let full_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
@@ -182,7 +182,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                     // Get current Unix timestamp
                     let now = ic_cdk::api::time() as i64;
                     
-                    debug_log!("key check - expires_at: {}, is_revoked: {}", key.expires_at, key.is_revoked);
+                    // debug_log!("key check - expires_at: {}, is_revoked: {}", key.expires_at, key.is_revoked);
                     
                     // Return the key if it's valid (not expired and not revoked)
                     if (key.expires_at <= 0 || now < key.expires_at) && !key.is_revoked {

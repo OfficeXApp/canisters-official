@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, redact_team_previews}}, team_invites::types::{TeamInviteID, TeamInviteeID}, teams::types::TeamID}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, redact_group_previews}}, group_invites::types::{GroupInviteID, GroupInviteeID}, groups::types::GroupID}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 
@@ -10,7 +10,7 @@ use crate::{core::{api::permissions::system::check_system_permissions, state::{c
 pub struct ContactFE {
     #[serde(flatten)] // this lets us "extend" the Contact struct
     pub contact: Contact,
-    pub team_previews: Vec<ContactTeamInvitePreview>,
+    pub group_previews: Vec<ContactGroupInvitePreview>,
     pub permission_previews: Vec<SystemPermissionType>,
 }
 impl ContactFE {
@@ -44,11 +44,11 @@ impl ContactFE {
             .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
             .collect()
         };
-        // Filter team previews
-        let redacted_team_previews: Vec<ContactTeamInvitePreview> = redacted.team_previews.iter()
-            .filter_map(|team_preview| redact_team_previews(team_preview.clone(), user_id.clone()))
+        // Filter group previews
+        let redacted_group_previews: Vec<ContactGroupInvitePreview> = redacted.group_previews.iter()
+            .filter_map(|group_preview| redact_group_previews(group_preview.clone(), user_id.clone()))
             .collect();
-        redacted.team_previews = redacted_team_previews;
+        redacted.group_previews = redacted_group_previews;
         // this code is kinda redundant, but it's here for clarity
         redacted.permission_previews = redacted.permission_previews;
             
@@ -57,12 +57,12 @@ impl ContactFE {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContactTeamInvitePreview {
-    pub team_id: TeamID,
-    pub invite_id: TeamInviteID,
+pub struct ContactGroupInvitePreview {
+    pub group_id: GroupID,
+    pub invite_id: GroupInviteID,
     pub is_admin: bool,
-    pub team_name: String,
-    pub team_avatar: Option<String>,
+    pub group_name: String,
+    pub group_avatar: Option<String>,
 }
 
 

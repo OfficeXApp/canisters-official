@@ -2,13 +2,13 @@
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::TeamInviteeID, teams::types::TeamID}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::contacts::types::{ContactFE, ContactTeamInvitePreview}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, group_invites::types::GroupInviteeID, groups::types::GroupID}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::contacts::types::{ContactFE, ContactGroupInvitePreview}};
 
 
 // frontend ui
 // row colums: avatar, name, icp, last_online_ms
 // popover: pub/priv note, email, evm/icp, tags
-// filters: search by name/icp/email, filter by tags, teams, sort by last_online_ms, created_at
+// filters: search by name/icp/email, filter by tags, groups, sort by last_online_ms, created_at
 
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Contact {
@@ -22,7 +22,7 @@ pub struct Contact {
     pub evm_public_address: String,
     pub icp_principal: ICPPrincipalString,
     pub seed_phrase: Option<String>, // careful! if we use superswap or redeem_code to change user_id, the seed_phrase wont be updated! you'll need to manually update it via UpdateContactRequestBody and obey the validation logic
-    pub teams: Vec<TeamID>,
+    pub groups: Vec<GroupID>,
     pub tags: Vec<TagStringValue>,
     pub past_user_ids: Vec<UserID>,
     pub external_id: Option<ExternalID>,
@@ -37,21 +37,21 @@ impl Contact {
 
     pub fn cast_fe(&self, user_id: &UserID) -> ContactFE {
         let contact = self.clone();
-        // Collect team invites for this user
-        let team_previews: Vec<ContactTeamInvitePreview> = contact.teams.iter()
-            .filter_map(|team_id| {
-                // Get the team data
-                let team_opt = crate::core::state::teams::state::state::TEAMS_BY_ID_HASHTABLE
-                    .with(|teams| teams.borrow().get(team_id).cloned());
+        // Collect group invites for this user
+        let group_previews: Vec<ContactGroupInvitePreview> = contact.groups.iter()
+            .filter_map(|group_id| {
+                // Get the group data
+                let group_opt = crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                    .with(|groups| groups.borrow().get(group_id).cloned());
                 
-                if let Some(team) = team_opt {
-                    // Find user's invite in this team
-                    let invite_id_opt = team.member_invites.iter()
+                if let Some(group) = group_opt {
+                    // Find user's invite in this group
+                    let invite_id_opt = group.member_invites.iter()
                         .find(|invite_id| {
-                            crate::core::state::team_invites::state::state::INVITES_BY_ID_HASHTABLE
+                            crate::core::state::group_invites::state::state::INVITES_BY_ID_HASHTABLE
                                 .with(|invites| {
                                     if let Some(invite) = invites.borrow().get(invite_id) {
-                                        invite.invitee_id == TeamInviteeID::User(self.id.clone())
+                                        invite.invitee_id == GroupInviteeID::User(self.id.clone())
                                     } else {
                                         false
                                     }
@@ -60,14 +60,14 @@ impl Contact {
                     
                     if let Some(invite_id) = invite_id_opt {
                         // Check if user is an admin
-                        let is_admin = crate::core::state::teams::state::state::is_team_admin(&self.id, team_id);
+                        let is_admin = crate::core::state::groups::state::state::is_group_admin(&self.id, group_id);
                         
-                        Some(ContactTeamInvitePreview {
-                            team_id: team_id.clone(),
+                        Some(ContactGroupInvitePreview {
+                            group_id: group_id.clone(),
                             invite_id,
                             is_admin,
-                            team_name: team.name,
-                            team_avatar: team.avatar,
+                            group_name: group.name,
+                            group_avatar: group.avatar,
                         })
                     } else {
                         None
@@ -96,7 +96,7 @@ impl Contact {
 
         ContactFE {
             contact,
-            team_previews,
+            group_previews,
             permission_previews
         }.redacted(user_id)
     }

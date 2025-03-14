@@ -9,7 +9,7 @@ use crate::core::state::contacts::state::state::HISTORY_SUPERSWAP_USERID;
 use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS, RECENT_DEPLOYMENTS, SPAWN_NOTE, SPAWN_REDEEM_CODE, UUID_CLAIMED};
 use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, FactorySpawnHistoryRecord, SpawnRedeemCode, StateChecksum, StateDiffRecord};
 use crate::core::types::{ICPPrincipalString, PublicKeyEVM};
-use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}}, disks::{state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{TeamInviteID, TeamInviteeID, TeamInvite}}, teams::{state::state::{TEAMS_BY_ID_HASHTABLE, TEAMS_BY_TIME_LIST}, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
+use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}}, disks::{state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupInvite}}, groups::{state::state::{GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
 
 // Define a type to represent the entire state
 #[derive(SerdeDiff, Serialize, Deserialize, Clone, Debug)]
@@ -54,12 +54,12 @@ pub struct EntireState {
     SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: HashMap<SystemResourceID, Vec<SystemPermissionID>>,
     SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: HashMap<PermissionGranteeID, Vec<SystemPermissionID>>,
     SYSTEM_PERMISSIONS_BY_TIME_LIST: Vec<SystemPermissionID>,
-    // Team Invites
-    INVITES_BY_ID_HASHTABLE: HashMap<TeamInviteID, TeamInvite>,
-    USERS_INVITES_LIST_HASHTABLE: HashMap<TeamInviteeID, Vec<TeamInviteID>>,
-    // Teams 
-    TEAMS_BY_ID_HASHTABLE: HashMap<TeamID, Team>,
-    TEAMS_BY_TIME_LIST: Vec<TeamID>,
+    // Group Invites
+    INVITES_BY_ID_HASHTABLE: HashMap<GroupInviteID, GroupInvite>,
+    USERS_INVITES_LIST_HASHTABLE: HashMap<GroupInviteeID, Vec<GroupInviteID>>,
+    // Groups 
+    GROUPS_BY_ID_HASHTABLE: HashMap<GroupID, Group>,
+    GROUPS_BY_TIME_LIST: Vec<GroupID>,
     // Webhooks
     WEBHOOKS_BY_ALT_INDEX_HASHTABLE: HashMap<WebhookAltIndexID, Vec<WebhookID>>,
     WEBHOOKS_BY_ID_HASHTABLE: HashMap<WebhookID, Webhook>,
@@ -108,12 +108,12 @@ pub fn snapshot_entire_state() -> EntireState {
         SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
         SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| store.borrow().clone()),
         SYSTEM_PERMISSIONS_BY_TIME_LIST: SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| store.borrow().clone()),
-        // Team Invites
+        // Group Invites
         INVITES_BY_ID_HASHTABLE: INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
         USERS_INVITES_LIST_HASHTABLE: USERS_INVITES_LIST_HASHTABLE.with(|store| store.borrow().clone()),
-        // Teams
-        TEAMS_BY_ID_HASHTABLE: TEAMS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        TEAMS_BY_TIME_LIST: TEAMS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        // Groups
+        GROUPS_BY_ID_HASHTABLE: GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
+        GROUPS_BY_TIME_LIST: GROUPS_BY_TIME_LIST.with(|store| store.borrow().clone()),
         // Webhooks
         WEBHOOKS_BY_ALT_INDEX_HASHTABLE: WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| store.borrow().clone()),
         WEBHOOKS_BY_ID_HASHTABLE: WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
@@ -333,7 +333,7 @@ pub fn apply_entire_state(state: EntireState) {
         *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_TIME_LIST;
     });
     
-    // Team Invites
+    // Group Invites
     INVITES_BY_ID_HASHTABLE.with(|store| {
         *store.borrow_mut() = state.INVITES_BY_ID_HASHTABLE;
     });
@@ -341,12 +341,12 @@ pub fn apply_entire_state(state: EntireState) {
         *store.borrow_mut() = state.USERS_INVITES_LIST_HASHTABLE;
     });
     
-    // Teams
-    TEAMS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.TEAMS_BY_ID_HASHTABLE;
+    // Groups
+    GROUPS_BY_ID_HASHTABLE.with(|store| {
+        *store.borrow_mut() = state.GROUPS_BY_ID_HASHTABLE;
     });
-    TEAMS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.TEAMS_BY_TIME_LIST;
+    GROUPS_BY_TIME_LIST.with(|store| {
+        *store.borrow_mut() = state.GROUPS_BY_TIME_LIST;
     });
     
     // Webhooks

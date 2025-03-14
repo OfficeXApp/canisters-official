@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, team_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::TeamInviteeID}, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::TeamID}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
         
     };
     
@@ -499,12 +499,12 @@ pub mod drive_internals {
         }
     }
 
-    pub fn is_user_in_team(user_id: &UserID, team_id: &TeamID) -> bool {
-        // First check if team exists and user is owner
-        let is_owner = TEAMS_BY_ID_HASHTABLE.with(|teams| {
-            teams.borrow()
-                .get(team_id)
-                .map(|team| team.owner == *user_id)
+    pub fn is_user_in_group(user_id: &UserID, group_id: &GroupID) -> bool {
+        // First check if group exists and user is owner
+        let is_owner = GROUPS_BY_ID_HASHTABLE.with(|groups| {
+            groups.borrow()
+                .get(group_id)
+                .map(|group| group.owner == *user_id)
                 .unwrap_or(false)
         });
     
@@ -517,17 +517,17 @@ pub mod drive_internals {
             // Get all user's invites
             let user_invites = USERS_INVITES_LIST_HASHTABLE.with(|user_invites| {
                 user_invites.borrow()
-                    .get(&TeamInviteeID::User(user_id.clone()))
+                    .get(&GroupInviteeID::User(user_id.clone()))
                     .cloned()
                     .unwrap_or_default()
             });
     
-            // Check if any of the user's invites are active for this team
+            // Check if any of the user's invites are active for this group
             let now = ic_cdk::api::time();
             user_invites.iter().any(|invite_id| {
                 if let Some(invite) = invites.borrow().get(invite_id) {
-                    // Check if invite is for this team
-                    invite.team_id == *team_id && 
+                    // Check if invite is for this group
+                    invite.group_id == *group_id && 
                     // Check if invite is active (not expired and after active_from)
                     invite.expires_at > 0 &&
                     now >= invite.active_from &&

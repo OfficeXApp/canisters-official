@@ -1247,8 +1247,8 @@ pub struct RestoreTrashResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DirectoryResourcePermissionFE {
-    pub permission_id: DirectoryPermissionID,
-    pub grant_type: DirectoryPermissionType,
+    pub permission_id: String,
+    pub grant_type: String,
 }
 
 // Example JSON requests:

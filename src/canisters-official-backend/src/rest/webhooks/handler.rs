@@ -80,7 +80,7 @@ pub mod webhooks_handlers {
         // Only owner can access webhooks
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         if !is_owner {
-            let resource_id = SystemResourceID::Table(SystemTableEnum::Teams); // Using Teams since webhooks are team-related
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Groups); // Using Groups since webhooks are group-related
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
