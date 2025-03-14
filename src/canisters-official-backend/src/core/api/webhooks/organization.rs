@@ -19,10 +19,10 @@ use ic_cdk::{api::management_canister::http_request::{
 use ic_cdk::spawn;
 use serde_json;
 
-pub fn get_active_organization_webhooks(event: WebhookEventLabel) -> Vec<Webhook> {
+pub fn get_superswap_user_webhooks(event: WebhookEventLabel) -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
-            .get(&WebhookAltIndexID::state_diffs_slug())
+            .get(&WebhookAltIndexID::superswap_user_slug())
             .cloned()
             .unwrap_or_default()
     });
