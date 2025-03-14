@@ -1,7 +1,7 @@
 // src/core/state/search/types.rs
 
 use serde::{Deserialize, Serialize};
-use crate::core::{state::{directory::types::{FileID, FolderID}, disks::types::DiskID, drives::types::DriveID, teams::types::TeamID}, types::UserID};
+use crate::core::{state::{directory::types::{FileID, FolderID}, disks::types::DiskID, drives::types::DriveID, groups::types::GroupID}, types::UserID};
 
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -13,7 +13,7 @@ pub enum SearchCategoryEnum {
     Contacts,
     Disks,
     Drives,
-    Teams,
+    Groups,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,7 +23,7 @@ pub enum SearchResultResourceID {
     Contact(UserID),
     Disk(DiskID),
     Drive(DriveID),
-    Team(TeamID),
+    Group(GroupID),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

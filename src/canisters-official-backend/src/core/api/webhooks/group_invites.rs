@@ -1,17 +1,17 @@
-// src/core/api/webhooks/team_invites.rs
+// src/core/api/webhooks/group_invites.rs
 
 use crate::core::{
     state::webhooks::types::{Webhook, WebhookEventLabel, WebhookAltIndexID},
-    state::teams::state::state::TEAMS_BY_ID_HASHTABLE,
+    state::groups::state::state::GROUPS_BY_ID_HASHTABLE,
     state::webhooks::state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE},
-    state::teams::types::{TeamID, Team},
-    state::team_invites::types::TeamInvite,
+    state::groups::types::{GroupID, Group},
+    state::group_invites::types::GroupInvite,
 };
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
     WebhookResourceData,
-    TeamInviteWebhookData
+    GroupInviteWebhookData
 };
 use ic_cdk::{api::management_canister::http_request::{
     http_request, 
@@ -22,10 +22,10 @@ use ic_cdk::{api::management_canister::http_request::{
 use ic_cdk::spawn;
 use serde_json;
 
-pub fn get_active_team_invite_webhooks(team_id: &TeamID, event: WebhookEventLabel) -> Vec<Webhook> {
+pub fn get_active_group_invite_webhooks(group_id: &GroupID, event: WebhookEventLabel) -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
-            .get(&WebhookAltIndexID(team_id.0.clone()))
+            .get(&WebhookAltIndexID(group_id.0.clone()))
             .cloned()
             .unwrap_or_default()
     });
@@ -39,11 +39,11 @@ pub fn get_active_team_invite_webhooks(team_id: &TeamID, event: WebhookEventLabe
     })
 }
 
-pub fn fire_team_invite_webhook(
+pub fn fire_group_invite_webhook(
     event: WebhookEventLabel,
     webhooks: Vec<Webhook>,
-    before_snap: Option<TeamInviteWebhookData>,
-    after_snap: Option<TeamInviteWebhookData>,
+    before_snap: Option<GroupInviteWebhookData>,
+    after_snap: Option<GroupInviteWebhookData>,
     notes: Option<String>
 ) {
     let timestamp_ms = ic_cdk::api::time() / 1_000_000;
@@ -56,8 +56,8 @@ pub fn fire_team_invite_webhook(
             webhook_id: webhook.id.clone(),
             webhook_alt_index: webhook.alt_index.clone(),
             payload: WebhookEventData {
-                before: before_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
-                after: after_snap.clone().map(|snap| WebhookResourceData::TeamInvite(snap)),
+                before: before_snap.clone().map(|snap| WebhookResourceData::GroupInvite(snap)),
+                after: after_snap.clone().map(|snap| WebhookResourceData::GroupInvite(snap)),
             },
         };
         // Serialize payload for this webhook

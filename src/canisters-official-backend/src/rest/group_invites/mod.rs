@@ -1,4 +1,4 @@
-// src/rest/teams/mod.rs
+// src/rest/group_invites/mod.rs
 pub mod route;
 pub mod handler;
 pub mod certs;

@@ -6,7 +6,7 @@ use candid::Principal;
 use serde_diff::SerdeDiff;
 use std::{fmt, str::FromStr};
 
-use crate::core::{state::drives::state::state::UUID_CLAIMED, types::IDPrefix};
+use crate::{core::{state::drives::state::state::UUID_CLAIMED, types::IDPrefix}, debug_log};
 
 use super::auth::{seed_phrase_to_wallet_addresses, WalletAddresses};
 
@@ -89,6 +89,10 @@ pub struct ValidationError {
 }
 
 pub fn validate_unclaimed_uuid(id: &str) -> Result<(), ValidationError> {
+    debug_log!("Validating unclaimed UUID: {}", id);
+
+    // print out the UUID_CLAIMED value noting lifetimes
+    debug_log!("UUID_CLAIMED: {:?}", UUID_CLAIMED);
 
     // check that this id isnt already claimed
     if UUID_CLAIMED.with(|claimed| claimed.borrow().contains_key(id)) {

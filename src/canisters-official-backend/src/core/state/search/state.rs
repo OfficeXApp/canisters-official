@@ -18,7 +18,7 @@ pub mod state {
     use crate::core::state::search::types::{SearchResult, SearchResultResourceID, SearchCategoryEnum};
     use crate::core::state::contacts::state::state::{CONTACTS_BY_ID_HASHTABLE};
     use crate::core::state::disks::state::state::{DISKS_BY_ID_HASHTABLE};
-    use crate::core::state::teams::state::state::{TEAMS_BY_ID_HASHTABLE};
+    use crate::core::state::groups::state::state::{GROUPS_BY_ID_HASHTABLE};
     use crate::rest::directory::types::DirectoryResourceID;
     
 
@@ -80,8 +80,8 @@ pub mod state {
         // Index drives
         index_drives(&mut entries, &mut path_to_id);
         
-        // Index teams
-        index_teams(&mut entries, &mut path_to_id);
+        // Index groups
+        index_groups(&mut entries, &mut path_to_id);
     
         // Get the total count of indexed items
         let indexed_count = entries.len();
@@ -230,24 +230,24 @@ pub mod state {
         });
     }
 
-    /// Index teams
-    fn index_teams(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
-        TEAMS_BY_ID_HASHTABLE.with(|teams| {
-            for (team_id, team) in teams.borrow().iter() {
-                // Create a searchable string with team id, name, and drive_id
+    /// Index groups
+    fn index_groups(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+        GROUPS_BY_ID_HASHTABLE.with(|groups| {
+            for (group_id, group) in groups.borrow().iter() {
+                // Create a searchable string with group id, name, and drive_id
                 let search_string = format!(
                     "{}|{}|{}",
-                    team_id.0,
-                    team.name,
-                    team.drive_id.0
+                    group_id.0,
+                    group.name,
+                    group.drive_id.0
                 );
                 
                 // Normalize for search
                 let normalized = normalize_path(&search_string);
                 
                 path_to_id.insert(normalized.clone(), (
-                    SearchResultResourceID::Team(team_id.clone()),
-                    SearchCategoryEnum::Teams
+                    SearchResultResourceID::Group(group_id.clone()),
+                    SearchCategoryEnum::Groups
                 ));
                 
                 // Insert with a default score of 1
@@ -415,9 +415,9 @@ pub mod state {
                         false // This should not happen based on category
                     }
                 },
-                SearchCategoryEnum::Teams => {
-                    if let SearchResultResourceID::Team(team_id) = &result.resource_id {
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Team(team_id.0.clone()));
+                SearchCategoryEnum::Groups => {
+                    if let SearchResultResourceID::Group(group_id) = &result.resource_id {
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
                             grantee_id.clone()
@@ -425,7 +425,7 @@ pub mod state {
                         // Check table-wide permission if no specific permission found
                         if !permissions.contains(&SystemPermissionType::View) {
                             let table_permission = check_system_permissions(
-                                SystemResourceID::Table(SystemTableEnum::Teams),
+                                SystemResourceID::Table(SystemTableEnum::Groups),
                                 grantee_id.clone()
                             );
                             table_permission.contains(&SystemPermissionType::View)
@@ -503,15 +503,15 @@ pub mod state {
                                 true
                             }
                         },
-                        SearchResultResourceID::Team(team_id) => {
-                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Team(team_id.0.clone()));
+                        SearchResultResourceID::Group(group_id) => {
+                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group_id.0.clone()));
                             let permissions = check_system_permissions(
                                 resource_id,
                                 grantee_id.clone()
                             );
                             if !permissions.contains(&SystemPermissionType::View) {
                                 let table_permission = check_system_permissions(
-                                    SystemResourceID::Table(SystemTableEnum::Teams),
+                                    SystemResourceID::Table(SystemTableEnum::Groups),
                                     grantee_id.clone()
                                 );
                                 table_permission.contains(&SystemPermissionType::View)
@@ -603,14 +603,14 @@ pub mod state {
                 
                 (title, preview)
             },
-            SearchResultResourceID::Team(team_id) => {
+            SearchResultResourceID::Group(group_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
                 
-                TEAMS_BY_ID_HASHTABLE.with(|teams| {
-                    if let Some(team) = teams.borrow().get(team_id) {
-                        title = team.name.clone();
-                        preview = team.drive_id.0.clone();
+                GROUPS_BY_ID_HASHTABLE.with(|groups| {
+                    if let Some(group) = groups.borrow().get(group_id) {
+                        title = group.name.clone();
+                        preview = group.drive_id.0.clone();
                     }
                 });
                 

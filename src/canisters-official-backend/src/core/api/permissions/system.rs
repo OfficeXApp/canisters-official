@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::core::{api::{internals::drive_internals::is_user_in_team, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, teams::types::TeamID}, types::UserID};
+use crate::core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, groups::types::GroupID}, types::UserID};
 
 use super::directory::parse_permission_grantee_id;
 
@@ -35,8 +35,8 @@ pub fn can_user_access_system_permission(
                 return true;
             }
         }
-        PermissionGranteeID::Team(team_id) => {
-            if is_user_in_team(user_id, team_id) {
+        PermissionGranteeID::Group(group_id) => {
+            if is_user_in_group(user_id, group_id) {
                 return true;
             }
         }
@@ -132,9 +132,9 @@ fn check_system_resource_permissions(
                                     false
                                 }
                             },
-                            PermissionGranteeID::Team(permission_team_id) => {
-                                if let PermissionGranteeID::Team(request_team_id) = grantee_id {
-                                    permission_team_id.0 == request_team_id.0
+                            PermissionGranteeID::Group(permission_group_id) => {
+                                if let PermissionGranteeID::Group(request_group_id) = grantee_id {
+                                    permission_group_id.0 == request_group_id.0
                                 } else {
                                     false
                                 }
@@ -226,9 +226,9 @@ pub fn check_system_resource_permissions_tags(
                                     false
                                 }
                             },
-                            PermissionGranteeID::Team(permission_team_id) => {
-                                if let PermissionGranteeID::Team(request_team_id) = grantee_id {
-                                    permission_team_id.0 == request_team_id.0
+                            PermissionGranteeID::Group(permission_group_id) => {
+                                if let PermissionGranteeID::Group(request_group_id) = grantee_id {
+                                    permission_group_id.0 == request_group_id.0
                                 } else {
                                     false
                                 }

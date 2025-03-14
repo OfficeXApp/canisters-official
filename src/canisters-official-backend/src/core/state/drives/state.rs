@@ -17,7 +17,7 @@ pub mod state {
     use crate::core::state::drives::types::SpawnRedeemCode;
     use crate::core::state::drives::types::StateChecksum;
     use crate::core::state::drives::types::DriveStateDiffString;
-    use crate::core::state::team_invites::types::TeamInviteeID;
+    use crate::core::state::group_invites::types::GroupInviteeID;
     use crate::core::state::webhooks::types::WebhookAltIndexID;
     use crate::core::types::ICPPrincipalString;
     use crate::core::types::IDPrefix;
@@ -117,6 +117,10 @@ pub mod state {
         new_external_id: Option<ExternalID>,
         internal_id: Option<String>,
     ) {
+        if internal_id.is_none() {
+            // Can't do anything without internal_id; safely return early
+            return;
+        }
         EXTERNAL_ID_MAPPINGS.with(|mappings| {
             let mut mappings_mut = mappings.borrow_mut();
             
@@ -280,20 +284,20 @@ pub mod state {
         });
     
         // 8. Update USERS_INVITES_LIST_HASHTABLE - optimize by using invite IDs
-        update_count += crate::core::state::team_invites::state::state::USERS_INVITES_LIST_HASHTABLE.with(|map| {
+        update_count += crate::core::state::group_invites::state::state::USERS_INVITES_LIST_HASHTABLE.with(|map| {
             let mut map = map.borrow_mut();
             let mut count = 0;
             
             // Find and update invites where the user is the invitee
-            let old_invitee = crate::core::state::team_invites::types::TeamInviteeID::User(old_user_id.clone());
-            let new_invitee = crate::core::state::team_invites::types::TeamInviteeID::User(new_user_id.clone());
+            let old_invitee = crate::core::state::group_invites::types::GroupInviteeID::User(old_user_id.clone());
+            let new_invitee = crate::core::state::group_invites::types::GroupInviteeID::User(new_user_id.clone());
             
             if let Some(invite_ids) = map.remove(&old_invitee) {
                 // Associate invites with the new user ID
                 map.insert(new_invitee.clone(), invite_ids.clone());
                 
                 // Update the individual invites
-                crate::core::state::team_invites::state::state::INVITES_BY_ID_HASHTABLE.with(|invites| {
+                crate::core::state::group_invites::state::state::INVITES_BY_ID_HASHTABLE.with(|invites| {
                     let mut invites = invites.borrow_mut();
                     for invite_id in &invite_ids {
                         if let Some(invite) = invites.get_mut(invite_id) {
@@ -301,8 +305,8 @@ pub mod state {
                                 invite.inviter_id = new_user_id.clone();
                                 count += 1;
                             }
-                            if invite.invitee_id == TeamInviteeID::User(old_user_id.clone()) {
-                                invite.invitee_id = TeamInviteeID::User(new_user_id.clone());
+                            if invite.invitee_id == GroupInviteeID::User(old_user_id.clone()) {
+                                invite.invitee_id = GroupInviteeID::User(new_user_id.clone());
                                 count += 1;
                             }
                         }
@@ -315,14 +319,14 @@ pub mod state {
             count
         });
     
-        // 9. Update TEAMS_BY_TIME_LIST (Teams where user is the owner)
-        update_count += crate::core::state::teams::state::state::TEAMS_BY_ID_HASHTABLE.with(|teams| {
-            let mut teams = teams.borrow_mut();
+        // 9. Update GROUPS_BY_TIME_LIST (Groups where user is the owner)
+        update_count += crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE.with(|groups| {
+            let mut groups = groups.borrow_mut();
             let mut count = 0;
             
-            for team in teams.values_mut() {
-                if team.owner == old_user_id {
-                    team.owner = new_user_id.clone();
+            for group in groups.values_mut() {
+                if group.owner == old_user_id {
+                    group.owner = new_user_id.clone();
                     count += 1;
                 }
             }

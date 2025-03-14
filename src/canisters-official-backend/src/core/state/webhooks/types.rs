@@ -150,10 +150,10 @@ pub enum WebhookEventLabel {
     SubfolderDeleted,
     #[serde(rename = "subfolder.shared")]
     SubfolderShared,
-    #[serde(rename = "team.invite.created")]
-    TeamInviteCreated,
-    #[serde(rename = "team.invite.updated")]
-    TeamInviteUpdated,
+    #[serde(rename = "group.invite.created")]
+    GroupInviteCreated,
+    #[serde(rename = "group.invite.updated")]
+    GroupInviteUpdated,
     #[serde(rename = "drive.restore_trash")]
     DriveRestoreTrash,
     #[serde(rename = "drive.state_diffs")]
@@ -191,8 +191,8 @@ impl std::str::FromStr for WebhookEventLabel {
             "subfolder.updated" => Ok(Self::SubfolderUpdated),
             "subfolder.deleted" => Ok(Self::SubfolderDeleted),
             "subfolder.shared" => Ok(Self::SubfolderShared),
-            "team.invite.created" => Ok(Self::TeamInviteCreated),
-            "team.invite.updated" => Ok(Self::TeamInviteUpdated),
+            "group.invite.created" => Ok(Self::GroupInviteCreated),
+            "group.invite.updated" => Ok(Self::GroupInviteUpdated),
             "tag.added" => Ok(Self::TagAdded),
             "tag.removed" => Ok(Self::TagRemoved),
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
@@ -231,9 +231,9 @@ impl ToString for WebhookEventLabel {
             Self::SubfolderUpdated => "subfolder.updated",
             Self::SubfolderDeleted => "subfolder.deleted",
             Self::SubfolderShared => "subfolder.shared",
-            // team
-            Self::TeamInviteCreated => "team.invite.created",
-            Self::TeamInviteUpdated => "team.invite.updated",
+            // group
+            Self::GroupInviteCreated => "group.invite.created",
+            Self::GroupInviteUpdated => "group.invite.updated",
             // drive
             Self::DriveRestoreTrash => "drive.restore_trash",
             Self::DriveStateDiffs => "drive.state_diffs",

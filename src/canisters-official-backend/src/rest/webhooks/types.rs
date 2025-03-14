@@ -8,8 +8,8 @@ use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChec
 use crate::core::state::permissions::types::SystemPermissionType;
 use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
 use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID, TagStringValue};
-use crate::core::state::team_invites::types::TeamInvite;
-use crate::core::state::teams::types::Team;
+use crate::core::state::group_invites::types::GroupInvite;
+use crate::core::state::groups::types::Group;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
@@ -319,8 +319,8 @@ pub struct WebhookEventData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum WebhookResourceData {
-    #[serde(rename = "team_invite")]
-    TeamInvite(TeamInviteWebhookData),
+    #[serde(rename = "group_invite")]
+    GroupInvite(GroupInviteWebhookData),
     #[serde(rename = "file")]
     File(FileWebhookData),
     #[serde(rename = "folder")]
@@ -340,9 +340,9 @@ pub enum WebhookResourceData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TeamInviteWebhookData {
-    pub team: Option<Team>,
-    pub team_invite: Option<TeamInvite>,
+pub struct GroupInviteWebhookData {
+    pub group: Option<Group>,
+    pub group_invite: Option<GroupInvite>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

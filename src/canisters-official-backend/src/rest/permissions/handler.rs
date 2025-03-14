@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, teams::state::state::{is_team_admin, is_user_on_team}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResult, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponseData, ErrorResponse, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponseData}},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, check_system_permissions, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, groups::state::state::{is_group_admin, is_user_on_group}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, tags::types::redact_tag}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResponse, CheckPermissionResult, CheckSystemPermissionResponse, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreatePermissionsResponse, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponse, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponse, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponse, DeleteSystemPermissionResponseData, ErrorResponse, GetPermissionResponse, GetSystemPermissionResponse, ListSystemPermissionsRequestBody, ListSystemPermissionsRequestBodyFilters, ListSystemPermissionsResponse, ListSystemPermissionsResponseData, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponse, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponse, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdatePermissionsResponse, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponse, UpdateSystemPermissionsResponseData}, webhooks::types::SortDirection},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -51,11 +51,12 @@ pub mod permissions_handlers {
             ),
         }
 
+
         // 5. Return permission if found and authorized
         match permission {
             Some(permission) => create_response(
                 StatusCode::OK,
-                serde_json::to_vec(&permission).expect("Failed to serialize permission")
+                GetPermissionResponse::ok(&permission.cast_fe(&requester_api_key.user_id)).encode()
             ),
             None => create_response(
                 StatusCode::NOT_FOUND,
@@ -116,9 +117,9 @@ pub mod permissions_handlers {
         } else {
             match &grantee_id {
                 PermissionGranteeID::User(user_id) if user_id.0 == requester_api_key.user_id.0 => true,
-                PermissionGranteeID::Team(team_id) => {
-                    is_team_admin(&requester_api_key.user_id, team_id) && 
-                    is_user_on_team(&UserID(grantee_id.to_string()), team_id).await
+                PermissionGranteeID::Group(group_id) => {
+                    is_group_admin(&requester_api_key.user_id, group_id) && 
+                    is_user_on_group(&UserID(grantee_id.to_string()), group_id).await
                 },
                 _ => has_directory_manage_permission(&requester_api_key.user_id, &resource_id).await
             }
@@ -154,14 +155,15 @@ pub mod permissions_handlers {
             grantee_id.clone()
         ).await;
 
-        // 6. Create and return the success response
+
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&CheckPermissionResult {
-                resource_id,
-                grantee_id,
+            CheckPermissionResponse::ok(&CheckPermissionResult {
+                resource_id: resource_id.to_string(),
+                grantee_id: grantee_id.to_string(),
                 permissions,
-            }).expect("Failed to serialize response")
+            }).encode()
         )
     }
 
@@ -297,6 +299,8 @@ pub mod permissions_handlers {
             last_modified_at: current_time,
             from_placeholder_grantee: None,
             tags: vec![],
+            external_id: Some(ExternalID(upsert_request.external_id.clone().unwrap_or_default())),
+            external_payload: Some(ExternalPayload(upsert_request.external_payload.clone().unwrap_or_default())),
         };
 
         // Update all state indices
@@ -332,11 +336,14 @@ pub mod permissions_handlers {
             ).to_string()
         ));
 
+
+
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&CreateDirectoryPermissionsResponseData {
+            CreatePermissionsResponse::ok(&CreateDirectoryPermissionsResponseData {
                 permission: new_permission.cast_fe(&requester_api_key.user_id.clone()),
-            }).expect("Failed to serialize response")
+            }).encode()
         )
         
     }
@@ -365,46 +372,20 @@ pub mod permissions_handlers {
             );
         }
     
-        // 3. Parse and validate resource ID
-        let resource_id = match parse_directory_resource_id(&upsert_request.resource_id.to_string()) {
-            Ok(id) => id,
-            Err(_) => return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
+
+        // 7. Handle update vs create based on ID presence
+        // UPDATE case
+        let id = upsert_request.id;
+        let mut existing_permission = match DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
+            permissions.borrow().get(&id).cloned()
+        ) {
+            Some(permission) => permission,
+            None => return create_response(
+                StatusCode::NOT_FOUND,
+                ErrorResponse::err(404, "Permission not found".to_string()).encode()
             ),
         };
-    
-        // 4. Parse and validate grantee ID if provided (not required for deferred links)
-        let grantee_id = if let Some(grantee) = upsert_request.granted_to {
-            match parse_permission_grantee_id(&grantee.to_string()) {
-                Ok(id) => id,
-                Err(_) => return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid grantee ID format".to_string()).encode()
-                ),
-            }
-        } else {
-            // Create a new deferred link ID for sharing
-            let _placeholder_id = PlaceholderPermissionGranteeID(
-                generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
-            );
-            let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
-            mark_claimed_uuid(&_placeholder_id.clone().to_string());
-            _placeholder_grantee
-        };
-    
-        // 5. Check if resource exists
-        let resource_exists = match &resource_id {
-            DirectoryResourceID::File(file_id) => file_uuid_to_metadata.contains_key(file_id),
-            DirectoryResourceID::Folder(folder_id) => folder_uuid_to_metadata.contains_key(folder_id),
-        };
-    
-        if !resource_exists {
-            return create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "Resource not found".to_string()).encode()
-            );
-        }
+
     
         // 6. Check authorization
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
@@ -414,7 +395,7 @@ pub mod permissions_handlers {
             upsert_request.permission_types.clone()
         } else {
             // Get requester's permissions on the resource and its parents
-            let resources_to_check = get_inherited_resources_list(resource_id.clone());
+            let resources_to_check = get_inherited_resources_list(existing_permission.resource_id.clone());
             let mut requester_permissions = Vec::new();
             for resource_id in resources_to_check.iter() {
                 let permissions = check_directory_permissions(
@@ -450,19 +431,6 @@ pub mod permissions_handlers {
 
         let prestate = snapshot_prestate();
     
-        // 7. Handle update vs create based on ID presence
-        // UPDATE case
-        let id = upsert_request.id;
-        let mut existing_permission = match DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
-            permissions.borrow().get(&id).cloned()
-        ) {
-            Some(permission) => permission,
-            None => return create_response(
-                StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "Permission not found".to_string()).encode()
-            ),
-        };
-
         // Update modifiable fields
         existing_permission.permission_types = allowed_permission_types
                                                     .into_iter()
@@ -488,11 +456,12 @@ pub mod permissions_handlers {
             ).to_string()
         ));
 
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&UpdateDirectoryPermissionsResponseData {
+            UpdatePermissionsResponse::ok(&UpdateDirectoryPermissionsResponseData {
                 permission: existing_permission.cast_fe(&requester_api_key.user_id.clone()),
-            }).expect("Failed to serialize response")
+            }).encode()
         )
         
     }
@@ -606,12 +575,13 @@ pub mod permissions_handlers {
             ).to_string()
         ));
 
-        // 6. Return success response
+
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&DeletePermissionResponseData {
+            DeletePermissionResponse::ok(&DeletePermissionResponseData {
                 deleted_id: delete_request.permission_id,
-            }).expect("Failed to serialize response")
+            }).encode()
         )
     }
 
@@ -716,12 +686,14 @@ pub mod permissions_handlers {
             ).to_string()
         ));
     
-        // 7. Return updated permission
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&RedeemPermissionResponseData {
-                permission: permission.cast_fe(&requester_api_key.user_id.clone())
-            }).expect("Failed to serialize response")
+            RedeemPermissionResponse::ok(
+                &RedeemPermissionResponseData {
+                    permission: permission.cast_fe(&requester_api_key.user_id.clone())
+                }
+            ).encode()
         )
     }
 
@@ -766,12 +738,12 @@ pub mod permissions_handlers {
                 ErrorResponse::err(404, "Permission not found".to_string()).encode()
             ),
         }
-    
-        // 5. Return permission if found and authorized
+        
+
         match permission {
             Some(permission) => create_response(
                 StatusCode::OK,
-                serde_json::to_vec(&permission).expect("Failed to serialize permission")
+                GetSystemPermissionResponse::ok(&permission.cast_fe(&requester_api_key.user_id)).encode()
             ),
             None => create_response(
                 StatusCode::NOT_FOUND,
@@ -780,6 +752,260 @@ pub mod permissions_handlers {
         }
     }
   
+
+    pub async fn list_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // 2. Parse request body
+        let body: &[u8] = request.body();
+        let request_body = match serde_json::from_slice::<ListSystemPermissionsRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // 3. Check authorization
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // Check table-level permissions if not owner
+        if !is_owner {
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Permissions);
+            let permissions = check_system_permissions(
+                resource_id.clone(),
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            if !permissions.contains(&SystemPermissionType::View) {
+                return create_auth_error_response();
+            }
+        }
+    
+        // 4. Parse cursor if provided
+        let cursor = if let Some(cursor_str) = &request_body.cursor {
+            match cursor_str.parse::<usize>() {
+                Ok(idx) => Some(idx),
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid cursor format".to_string()).encode()
+                ),
+            }
+        } else {
+            None
+        };
+    
+        // 5. Collect matching permissions with pagination applied directly
+        let user_id = &requester_api_key.user_id;
+        let mut filtered_permissions = Vec::new();
+        let page_size = request_body.page_size;
+        let direction = request_body.direction;
+        
+        // Use different strategies based on filters
+        match &request_body.filters.resource_ids {
+            Some(resource_ids) if !resource_ids.is_empty() => {
+                // Process resource IDs directly
+                let mut total_processed = 0;
+                
+                for resource_id in resource_ids {
+                    // Skip if user doesn't have permission to view this resource (unless owner)
+                    if !is_owner && !has_system_manage_permission(user_id, resource_id) {
+                        continue;
+                    }
+                    
+                    // Get permissions for this resource
+                    SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+                        if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
+                            // Clone to avoid borrow issues in nested closures
+                            let permission_ids = permission_ids.clone();
+                            
+                            // Sort permission IDs by time
+                            let mut timed_ids: Vec<(u64, SystemPermissionID)> = Vec::new();
+                            SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
+                                let id_store = id_store.borrow();
+                                for id in &permission_ids {
+                                    if let Some(permission) = id_store.get(id) {
+                                        timed_ids.push((permission.created_at, id.clone()));
+                                    }
+                                }
+                            });
+                            
+                            // Sort based on direction
+                            match direction {
+                                SortDirection::Desc => timed_ids.sort_by(|a, b| b.0.cmp(&a.0)), // Newest first
+                                SortDirection::Asc => timed_ids.sort_by(|a, b| a.0.cmp(&b.0)),  // Oldest first
+                            }
+                            
+                            // Skip items before cursor if needed
+                            let start_idx = cursor.unwrap_or(0);
+                            
+                            // Skip items we've already processed
+                            let adjusted_start = if start_idx > total_processed {
+                                start_idx - total_processed
+                            } else {
+                                0
+                            };
+                            
+                            // Only process items within our pagination window
+                            let items_to_process = &timed_ids[adjusted_start.min(timed_ids.len())..];
+                            total_processed += timed_ids.len();
+                            
+                            for (_, permission_id) in items_to_process {
+                                SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
+                                    if let Some(permission) = id_store.borrow().get(permission_id) {
+                                        // Apply remaining filters
+                                        if passes_remaining_filters(permission, &request_body.filters, user_id, is_owner) {
+                                            filtered_permissions.push(permission.clone());
+                                        }
+                                    }
+                                });
+                                
+                                // Early exit if we have enough items
+                                if filtered_permissions.len() >= page_size {
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Early exit if we have enough items
+                    if filtered_permissions.len() >= page_size {
+                        break;
+                    }
+                }
+            },
+            _ => {
+                // Process all permissions in time order
+                SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|time_list| {
+                    let time_list = time_list.borrow();
+                    let total_permissions = time_list.len();
+                    
+                    // Skip processing if no permissions
+                    if total_permissions == 0 {
+                        return;
+                    }
+                    
+                    // Determine start index and direction
+                    let (start_idx, step): (usize, isize) = match direction {
+                        SortDirection::Desc => {
+                            // For desc, we start from newest (end of list) and go backwards
+                            let start = if let Some(c) = cursor {
+                                (total_permissions as isize - 1 - c as isize).max(0) as usize
+                            } else {
+                                total_permissions - 1 // Start from newest
+                            };
+                            (start, -1)
+                        },
+                        SortDirection::Asc => {
+                            // For asc, we start from oldest (start of list) and go forwards
+                            let start = if let Some(c) = cursor {
+                                c.min(total_permissions - 1)
+                            } else {
+                                0 // Start from oldest
+                            };
+                            (start, 1)
+                        }
+                    };
+                    
+                    // Process permissions with early exit conditions
+                    SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
+                        let id_store = id_store.borrow();
+                        let mut idx = start_idx;
+                        
+                        for _ in 0..page_size {
+                            if let Some(permission) = id_store.get(&time_list[idx]) {
+                                // Check if user has access to the resource
+                                if is_owner || has_system_manage_permission(user_id, &permission.resource_id) {
+                                    // Apply remaining filters
+                                    if passes_remaining_filters(permission, &request_body.filters, user_id, is_owner) {
+                                        filtered_permissions.push(permission.clone());
+                                    }
+                                }
+                            }
+                            
+                            // Move to next item based on direction
+                            let next_idx = (idx as isize + step) as usize;
+                            if next_idx >= total_permissions {
+                                break; // Reached the end
+                            }
+                            idx = next_idx;
+                        }
+                    });
+                });
+            }
+        }
+        
+        // 6. Calculate next cursor for pagination
+        let next_cursor = if filtered_permissions.len() >= page_size {
+            // There might be more items
+            Some((cursor.unwrap_or(0) + page_size).to_string())
+        } else {
+            None
+        };
+        
+        // 7. Create response with filtered, paginated permissions
+        let response_data = ListSystemPermissionsResponseData {
+            items: filtered_permissions
+                .clone().into_iter()
+                .map(|permission| permission.cast_fe(user_id))
+                .collect(),
+            page_size: filtered_permissions.len(),
+            total: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|h| h.borrow().len()), // Return total count of all permissions
+            cursor: next_cursor,
+        };
+    
+        create_response(
+            StatusCode::OK,
+            ListSystemPermissionsResponse::ok(&response_data).encode()
+        )
+    }
+    
+    // Helper function to check remaining filters (after resource_id access check)
+    fn passes_remaining_filters(
+        permission: &SystemPermission,
+        filters: &ListSystemPermissionsRequestBodyFilters,
+        requester_id: &UserID,
+        is_owner: bool
+    ) -> bool {
+        // 1. Check if current user has access to this permission
+        if !can_user_access_system_permission(requester_id, permission, is_owner) {
+            return false;
+        }
+    
+        // 2. Filter by grantee_id if specified
+        if let Some(grantee_ids) = &filters.grantee_ids {
+            if !grantee_ids.is_empty() && !grantee_ids.contains(&permission.granted_to) {
+                return false;
+            }
+        }
+    
+        // 3. Filter by tags if specified (OR relationship between tags)
+        if let Some(tags) = &filters.tags {
+            if !tags.is_empty() {
+                // If any tag in the filter matches any tag in the permission, it passes
+                let has_matching_tag = tags.iter().any(|filter_tag| {
+                    permission.tags.iter().any(|permission_tag| {
+                        // Check if user has access to view this tag
+                        match redact_tag(permission_tag.clone(), requester_id.clone()) {
+                            Some(tag) => &tag == filter_tag,
+                            None => false // User cannot see this tag, so it's not a match
+                        }
+                    })
+                });
+                
+                if !has_matching_tag {
+                    return false;
+                }
+            }
+        }
+    
+        true
+    }
+
     pub async fn create_system_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -805,15 +1031,18 @@ pub mod permissions_handlers {
         }
     
         // 3. Parse resource ID string into SystemResourceID
+        debug_log!("Upsert request resource_id {:?}", upsert_request.resource_id.clone());
         let resource_id = match upsert_request.resource_id.split_once('_') {
-            Some(("Table", table_name)) => {
+            Some(("TABLE", table_name)) => {
                 match table_name {
-                    "drives" => SystemResourceID::Table(SystemTableEnum::Drives),
-                    "disks" => SystemResourceID::Table(SystemTableEnum::Disks),
-                    "contacts" => SystemResourceID::Table(SystemTableEnum::Contacts),
-                    "teams" => SystemResourceID::Table(SystemTableEnum::Teams),
-                    "api_keys" => SystemResourceID::Table(SystemTableEnum::Api_Keys),
-                    "permissions" => SystemResourceID::Table(SystemTableEnum::Permissions),
+                    "DRIVES" => SystemResourceID::Table(SystemTableEnum::Drives),
+                    "DISKS" => SystemResourceID::Table(SystemTableEnum::Disks),
+                    "CONTACTS" => SystemResourceID::Table(SystemTableEnum::Contacts),
+                    "GROUPS" => SystemResourceID::Table(SystemTableEnum::Groups),
+                    "API_KEYS" => SystemResourceID::Table(SystemTableEnum::Api_Keys),
+                    "PERMISSIONS" => SystemResourceID::Table(SystemTableEnum::Permissions),
+                    "WEBHOOKS" => SystemResourceID::Table(SystemTableEnum::Webhooks),
+                    "TAGS" => SystemResourceID::Table(SystemTableEnum::Tags),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,
                         ErrorResponse::err(400, "Invalid table name".to_string()).encode()
@@ -826,6 +1055,7 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
             ),
         };
+        debug_log!("Prased Upsert request resource_id {:?}", resource_id.clone());
     
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
         let grantee_id = if let Some(grantee) = upsert_request.granted_to {
@@ -884,8 +1114,14 @@ pub mod permissions_handlers {
             from_placeholder_grantee: None,
             tags: vec![],
             metadata: upsert_request.metadata,
-            external_id: Some(ExternalID(upsert_request.external_id.unwrap_or("".to_string()))),
-            external_payload: Some(ExternalPayload(upsert_request.external_payload.unwrap_or("".to_string()))),
+            external_id: match upsert_request.external_id {
+                Some(id) => Some(ExternalID(id)),
+                None => None,
+            },
+            external_payload: match upsert_request.external_payload {
+                Some(payload) => Some(ExternalPayload(payload)),
+                None => None,
+            },
         };
 
         // Update all state indices
@@ -915,7 +1151,7 @@ pub mod permissions_handlers {
 
         update_external_id_mapping(
             None,
-            Some(new_permission.external_id.clone().unwrap()),
+            new_permission.external_id.clone(),
             Some(new_permission.id.clone().to_string()),
         );
 
@@ -927,11 +1163,13 @@ pub mod permissions_handlers {
             ).to_string()
         ));
 
+        let final_permission = CreateSystemPermissionsResponseData {
+            permission: new_permission.cast_fe(&requester_api_key.user_id.clone())
+        };
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&CreateSystemPermissionsResponseData {
-                permission: new_permission.cast_fe(&requester_api_key.user_id.clone()),
-            }).expect("Failed to serialize response")
+            CreateSystemPermissionsResponse::ok(&final_permission).encode()
         )
         
     }
@@ -960,63 +1198,12 @@ pub mod permissions_handlers {
             );
         }
     
-        // 3. Parse resource ID string into SystemResourceID
-        let resource_id = match upsert_request.resource_id.split_once('_') {
-            Some(("Table", table_name)) => {
-                match table_name {
-                    "drives" => SystemResourceID::Table(SystemTableEnum::Drives),
-                    "disks" => SystemResourceID::Table(SystemTableEnum::Disks),
-                    "contacts" => SystemResourceID::Table(SystemTableEnum::Contacts),
-                    "teams" => SystemResourceID::Table(SystemTableEnum::Teams),
-                    "api_keys" => SystemResourceID::Table(SystemTableEnum::Api_Keys),
-                    "permissions" => SystemResourceID::Table(SystemTableEnum::Permissions),
-                    _ => return create_response(
-                        StatusCode::BAD_REQUEST,
-                        ErrorResponse::err(400, "Invalid table name".to_string()).encode()
-                    ),
-                }
-            },
-            Some(_) => SystemResourceID::Record(SystemRecordIDEnum::Unknown(upsert_request.resource_id.clone())),
-            None => return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
-            ),
-        };
-    
-        // 4. Parse and validate grantee ID if provided (not required for deferred links)
-        let grantee_id = if let Some(grantee) = upsert_request.granted_to {
-            match parse_permission_grantee_id(&grantee) {
-                Ok(id) => id,
-                Err(_) => return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid grantee ID format".to_string()).encode()
-                ),
-            }
-        } else {
-            // Create a new deferred link ID for sharing
-            let _placeholder_id = PlaceholderPermissionGranteeID(
-                generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
-            );
-            let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
-            mark_claimed_uuid(&_placeholder_id.clone().to_string());
-            _placeholder_grantee
-        };
-    
         // 5. Check authorization
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         
     
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
-    
-        // 6. Handle update vs create based on ID presence
-        // UPDATE case
-        let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Edit, is_owner);
-        if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &resource_id) &&!has_table_permission {
-            return create_response(
-                StatusCode::FORBIDDEN,
-                ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
-            );
-        }
+
         let id = upsert_request.id;
         let mut existing_permission = match SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
             permissions.borrow().get(&id).cloned()
@@ -1027,6 +1214,17 @@ pub mod permissions_handlers {
                 ErrorResponse::err(404, "Permission not found".to_string()).encode()
             ),
         };
+    
+        // 6. Handle update vs create based on ID presence
+        // UPDATE case
+        let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Edit, is_owner);
+        if !is_owner && !has_system_manage_permission(&requester_api_key.user_id, &existing_permission.resource_id) &&!has_table_permission {
+            return create_response(
+                StatusCode::FORBIDDEN,
+                ErrorResponse::err(403, "Not authorized to modify system permissions".to_string()).encode()
+            );
+        }
+        
 
         let prestate = snapshot_prestate();
 
@@ -1072,11 +1270,13 @@ pub mod permissions_handlers {
             ).to_string()
         ));
 
+        let final_permission = UpdateSystemPermissionsResponseData {
+            permission: existing_permission.cast_fe(&requester_api_key.user_id.clone())
+        };
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&UpdateSystemPermissionsResponseData {
-                permission: existing_permission.cast_fe(&requester_api_key.user_id.clone()),
-            }).expect("Failed to serialize response")
+            UpdateSystemPermissionsResponse::ok(&final_permission).encode()
         )
     
     }
@@ -1137,39 +1337,47 @@ pub mod permissions_handlers {
 
         // 5. Delete the permission from all indices
         // Remove from SYSTEM_PERMISSIONS_BY_ID_HASHTABLE
-        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+        {SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
             permissions.borrow_mut().remove(&delete_request.permission_id);
-        });
+        });}
     
+        debug_log!("Delete request resource_id {:?}", permission.resource_id.clone());
         // Remove from SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE
-        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            if let Some(permission_vec) = permissions_by_resource.borrow_mut().get_mut(&permission.resource_id) {
-                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
-                // If set is empty, remove the resource entry
+        {SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+            let mut perms = permissions_by_resource.borrow_mut();
+            if let Some(permission_vec) = perms.get_mut(&permission.resource_id) {
+                *permission_vec = permission_vec.iter()
+                    .filter(|id| **id != delete_request.permission_id)
+                    .cloned()
+                    .collect();
+                
+                // Check if empty and remove it
                 if permission_vec.is_empty() {
-                    permissions_by_resource.borrow_mut().remove(&permission.resource_id);
+                    perms.remove(&permission.resource_id);
                 }
             }
-        });
+        });}
     
         // Remove from SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE
-        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
+        {SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
             if let Some(permission_vec) = grantee_permissions.borrow_mut().get_mut(&permission.granted_to) {
                 *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
-                // If set is empty, remove the grantee entry
-                if permission_vec.is_empty() {
-                    grantee_permissions.borrow_mut().remove(&permission.granted_to);
-                }
+                // // If set is empty, remove the grantee entry (this panicks on error, already borrowed)
+                // if permission_vec.is_empty() {
+                //     grantee_permissions.borrow_mut().remove(&permission.granted_to);
+                // }
             }
-        });
+        });}
     
         // Remove from SYSTEM_PERMISSIONS_BY_TIME_LIST
-        SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-            let mut list = permissions_by_time.borrow_mut();
-            if let Some(pos) = list.iter().position(|id| *id == delete_request.permission_id) {
-                list.remove(pos);
-            }
-        });
+        {
+            SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
+                let mut list = permissions_by_time.borrow_mut();
+                if let Some(pos) = list.iter().position(|id| *id == delete_request.permission_id) {
+                    list.remove(pos);
+                }
+            });
+        }
 
         update_external_id_mapping(
             old_external_id,
@@ -1184,13 +1392,16 @@ pub mod permissions_handlers {
                 delete_request.permission_id.0
             ).to_string()
         ));
-    
-        // 6. Return success response
+
+        
+
+        let final_permission = DeleteSystemPermissionResponseData {
+            deleted_id: delete_request.permission_id,
+        };
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&DeleteSystemPermissionResponseData {
-                deleted_id: delete_request.permission_id,
-            }).expect("Failed to serialize response")
+            DeleteSystemPermissionResponse::ok(&final_permission).encode()
         )
     }
 
@@ -1213,7 +1424,7 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
         if let Err(e) = check_request.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,
@@ -1222,37 +1433,41 @@ pub mod permissions_handlers {
         }
     
         // 3. Parse resource_id into SystemResourceID
-        let resource_id = match check_request.resource_id.split_once('_') {
-            Some(("Table", table_name)) => {
+        // Clone the value to avoid move issues
+        let resource_id_str = check_request.resource_id.clone();
+        let resource_id = match resource_id_str.split_once('_') {
+            Some(("TABLE", table_name)) => {
                 match table_name {
-                    "drives" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Drives),
-                    "disks" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Disks),
-                    "contacts" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Contacts),
-                    "teams" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Teams),
-                    "api_keys" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Api_Keys),
-                    "permissions" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Permissions),
+                    "DRIVES" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Drives),
+                    "DISKS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Disks),
+                    "CONTACTS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Contacts),
+                    "GROUPS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Groups),
+                    "WEBHOOKS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Webhooks),
+                    "API_KEYS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Api_Keys),
+                    "PERMISSIONS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Permissions),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,
                         ErrorResponse::err(400, "Invalid table name".to_string()).encode()
                     ),
                 }
             },
-            Some(_) => SystemResourceID::Record(SystemRecordIDEnum::Unknown(check_request.resource_id)),
+            Some(_) => SystemResourceID::Record(SystemRecordIDEnum::Unknown(resource_id_str)),
             None => return create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
             ),
         };
     
-        // 4. Parse grantee_id
-        let grantee_id = match parse_permission_grantee_id(&check_request.grantee_id) {
+        // 4. Parse grantee_id - Clone it to avoid move issues
+        let grantee_id_str = check_request.grantee_id.clone();
+        let grantee_id = match parse_permission_grantee_id(&grantee_id_str) {
             Ok(id) => id,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, "Invalid grantee ID format".to_string()).encode()
             ),
         };
-
+    
         // 5. Check if requester is authorized to check these permissions
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         let is_authorized = if is_owner {
@@ -1260,20 +1475,17 @@ pub mod permissions_handlers {
         } else {
             match &grantee_id {
                 PermissionGranteeID::User(user_id) if user_id.0 == requester_api_key.user_id.0 => true,
-                PermissionGranteeID::Team(team_id) => {
-                    is_team_admin(&requester_api_key.user_id, team_id) && 
-                    is_user_on_team(&UserID(grantee_id.to_string()), team_id).await
+                PermissionGranteeID::Group(group_id) => {
+                    is_group_admin(&requester_api_key.user_id, group_id) && 
+                    is_user_on_group(&UserID(grantee_id.to_string()), group_id).await
                 },
                 _ => {
-                    if (has_system_manage_permission(&requester_api_key.user_id, &resource_id) || check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::View, is_owner)) {
-                        true
-                    } else {
-                        false
-                    }
+                    has_system_manage_permission(&requester_api_key.user_id, &resource_id) || 
+                    check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::View, is_owner)
                 }
             }
         };
-
+    
         if !is_authorized {
             return create_response(
                 StatusCode::FORBIDDEN,
@@ -1308,14 +1520,16 @@ pub mod permissions_handlers {
             }
         });
     
-        // 6. Create and return response
+        // Create the response using the wrapper pattern
+        let response_data = CheckSystemPermissionResult {
+            resource_id: check_request.resource_id,
+            grantee_id: check_request.grantee_id,
+            permissions: permissions.into_iter().collect(),
+        };
+    
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&CheckSystemPermissionResult {
-                resource_id,
-                grantee_id,
-                permissions: permissions.into_iter().collect(),
-            }).expect("Failed to serialize response")
+            CheckSystemPermissionResponse::ok(&response_data).encode()
         )
     }
 
@@ -1419,13 +1633,15 @@ pub mod permissions_handlers {
                 permission_id.0
             ).to_string()
         ));
-    
-        // 7. Return updated permission
+
+
+        let final_permission = RedeemSystemPermissionResponseData {
+            permission: permission.cast_fe(&requester_api_key.user_id.clone())
+        };
+
         create_response(
             StatusCode::OK,
-            serde_json::to_vec(&RedeemSystemPermissionResponseData {
-                permission: permission.cast_fe(&requester_api_key.user_id.clone()),
-            }).expect("Failed to serialize response")
+            RedeemSystemPermissionResponse::ok(&final_permission).encode()
         )
     }
 

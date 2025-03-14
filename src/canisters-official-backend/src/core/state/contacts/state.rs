@@ -40,7 +40,7 @@ pub mod state {
             evm_public_address: "".to_string(), // Empty string as placeholder
             icp_principal: owner_icp_principal.clone(),
             seed_phrase: None,
-            teams: vec![],
+            groups: vec![],
             tags: vec![],
             past_user_ids: vec![],
             external_id: None,

@@ -1,19 +1,19 @@
-// src/rest/team_invites/types.rs
+// src/rest/group_invites/types.rs
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::SystemPermissionType, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}, team_invites::types::{ TeamInvite, TeamInviteID, TeamRole}, teams::{state::state::is_team_admin, types::TeamID}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::SystemPermissionType, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}, group_invites::types::{ GroupInvite, GroupInviteID, GroupRole}, groups::{state::state::is_group_admin, types::GroupID}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TeamInviteFE {
-    // Keep all fields from TeamInvite except invitee_id modified to String instead of enum label format
-    pub id: TeamInviteID,
-    pub team_id: TeamID,
+pub struct GroupInviteFE {
+    // Keep all fields from GroupInvite except invitee_id modified to String instead of enum label format
+    pub id: GroupInviteID,
+    pub group_id: GroupID,
     pub inviter_id: UserID,
     // Override with the flat string version
     pub invitee_id: String,
-    pub role: TeamRole,
+    pub role: GroupRole,
     pub note: String,
     pub active_from: u64,
     pub expires_at: i64,
@@ -25,26 +25,26 @@ pub struct TeamInviteFE {
     pub external_payload: Option<ExternalPayload>,
     
     // Additional FE-specific fields
-    pub team_name: String,
-    pub team_avatar: Option<String>,
+    pub group_name: String,
+    pub group_avatar: Option<String>,
     pub invitee_name: String,
     pub invitee_avatar: Option<String>,
     pub permission_previews: Vec<SystemPermissionType>,
 }
 
-impl TeamInviteFE {
+impl GroupInviteFE {
     pub fn redacted(&self, user_id: &UserID) -> Self {
         let mut redacted = self.clone();
 
         let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
         let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
-        let is_team_admin = is_team_admin(user_id, &self.team_id);
+        let is_group_admin = is_group_admin(user_id, &self.group_id);
 
         // Most sensitive
         if !is_owner {
 
             // 2nd most sensitive
-            if !has_edit_permissions && !is_team_admin {
+            if !has_edit_permissions && !is_group_admin {
                 redacted.from_placeholder_invitee = None;
                 redacted.inviter_id = UserID("".to_string());
             }
@@ -61,10 +61,10 @@ impl TeamInviteFE {
     }
 }
 
-// Update CreateTeam_InviteRequest in rest/team_invites/types.rs
+// Update CreateGroup_InviteRequest in rest/group_invites/types.rs
 #[derive(Debug, Clone, Deserialize)]
-pub struct ListTeamInvitesRequestBody {
-    pub team_id: String,
+pub struct ListGroupInvitesRequestBody {
+    pub group_id: String,
     #[serde(default)]
     pub filters: String,
     #[serde(default = "default_page_size")]
@@ -79,10 +79,10 @@ fn default_page_size() -> usize {
     50
 }
 
-impl ListTeamInvitesRequestBody {
+impl ListGroupInvitesRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate team_id
-        validate_id_string(&self.team_id, "team_id")?;
+        // Validate group_id
+        validate_id_string(&self.group_id, "group_id")?;
         
         // Validate filters string length
         if self.filters.len() > 256 {
@@ -124,8 +124,8 @@ impl ListTeamInvitesRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ListTeamInvitesResponseData {
-    pub items: Vec<TeamInviteFE>,
+pub struct ListGroupInvitesResponseData {
+    pub items: Vec<GroupInviteFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -135,11 +135,11 @@ pub struct ListTeamInvitesResponseData {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CreateTeamInviteRequestBody {
+pub struct CreateGroupInviteRequestBody {
     pub id: Option<ClientSuggestedUUID>,
-    pub team_id: String,
+    pub group_id: String,
     pub invitee_id: Option<String>,
-    pub role: Option<TeamRole>,
+    pub role: Option<GroupRole>,
     pub active_from: Option<u64>,
     pub expires_at: Option<i64>,
     pub note: Option<String>,
@@ -147,17 +147,17 @@ pub struct CreateTeamInviteRequestBody {
     pub external_payload: Option<String>,
 }
 
-impl CreateTeamInviteRequestBody {
+impl CreateGroupInviteRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
 
         if self.id.is_some() {
             validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
-            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::TeamInvite)?;
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::GroupInvite)?;
         }
         
-        // Validate team_id
-        validate_id_string(&self.team_id, "team_id")?;
+        // Validate group_id
+        validate_id_string(&self.group_id, "group_id")?;
         
         // Validate invitee_id if present and not PUBLIC
         match &self.invitee_id {
@@ -190,9 +190,9 @@ impl CreateTeamInviteRequestBody {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateTeamInviteRequestBody {
-    pub id: TeamInviteID,
-    pub role: Option<TeamRole>,
+pub struct UpdateGroupInviteRequestBody {
+    pub id: GroupInviteID,
+    pub role: Option<GroupRole>,
     pub active_from: Option<u64>,
     pub expires_at: Option<i64>,
     pub note: Option<String>,
@@ -200,7 +200,7 @@ pub struct UpdateTeamInviteRequestBody {
     pub external_payload: Option<String>,
 }
 
-impl UpdateTeamInviteRequestBody {
+impl UpdateGroupInviteRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate id
         validate_id_string(&self.id.0, "id")?;
@@ -226,28 +226,28 @@ impl UpdateTeamInviteRequestBody {
 
 
 
-pub type GetTeam_InviteResponse<'a> = ApiResponse<'a, TeamInviteFE>;
+pub type GetGroup_InviteResponse<'a> = ApiResponse<'a, GroupInviteFE>;
 
-pub type ListTeam_InvitesResponse<'a> = ApiResponse<'a, ListTeamInvitesResponseData>;
+pub type ListGroup_InvitesResponse<'a> = ApiResponse<'a, ListGroupInvitesResponseData>;
 
 
-pub type CreateTeam_InviteResponse<'a> = ApiResponse<'a, TeamInviteFE>;
+pub type CreateGroup_InviteResponse<'a> = ApiResponse<'a, GroupInviteFE>;
 
 
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateTeam_InviteRequest {
+pub struct UpdateGroup_InviteRequest {
     pub title: Option<String>,
     pub completed: Option<bool>,
 }
 
-pub type UpdateTeam_InviteResponse<'a> = ApiResponse<'a, TeamInviteFE>;
+pub type UpdateGroup_InviteResponse<'a> = ApiResponse<'a, GroupInviteFE>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeleteTeam_InviteRequest {
-    pub id: TeamInviteID,
+pub struct DeleteGroup_InviteRequest {
+    pub id: GroupInviteID,
 }
-impl DeleteTeam_InviteRequest {
+impl DeleteGroup_InviteRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate id
         validate_id_string(&self.id.0, "id")?;
@@ -258,22 +258,22 @@ impl DeleteTeam_InviteRequest {
 
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DeletedTeam_InviteData {
-    pub id: TeamInviteID,
+pub struct DeletedGroup_InviteData {
+    pub id: GroupInviteID,
     pub deleted: bool
 }
 
-pub type DeleteTeam_InviteResponse<'a> = ApiResponse<'a, DeletedTeam_InviteData>;
+pub type DeleteGroup_InviteResponse<'a> = ApiResponse<'a, DeletedGroup_InviteData>;
 
 
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct RedeemTeamInviteRequest {
+pub struct RedeemGroupInviteRequest {
     pub invite_id: String,
     pub user_id: String,
 }
-impl RedeemTeamInviteRequest {
+impl RedeemGroupInviteRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate invite_id
         validate_id_string(&self.invite_id, "invite_id")?;
@@ -286,6 +286,6 @@ impl RedeemTeamInviteRequest {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct RedeemTeamInviteResponseData {
-    pub invite: TeamInviteFE,
+pub struct RedeemGroupInviteResponseData {
+    pub invite: GroupInviteFE,
 }

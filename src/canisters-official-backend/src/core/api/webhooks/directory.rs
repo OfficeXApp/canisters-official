@@ -1,11 +1,11 @@
 // src/core/api/webhooks/directory.rs
 
-use crate::{core::state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, team_invites::types::TeamInvite, teams::{state::state::TEAMS_BY_ID_HASHTABLE, types::{Team, TeamID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, rest::webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}};
+use crate::{core::state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, rest::webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
     WebhookResourceData,
-    TeamInviteWebhookData
+    GroupInviteWebhookData
 };
 use ic_cdk::{api::management_canister::http_request::{
     http_request, 

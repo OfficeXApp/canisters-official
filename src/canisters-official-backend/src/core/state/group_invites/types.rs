@@ -1,6 +1,6 @@
 use std::fmt;
 
-// src/core/state/team_invites/types.rs
+// src/core/state/group_invites/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use crate::core::api::permissions::system::check_system_permissions;
@@ -8,26 +8,26 @@ use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{ExternalID, ExternalPayload};
 use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
 use crate::core::state::tags::types::{redact_tag, TagStringValue};
-use crate::core::state::teams::types::TeamID;
+use crate::core::state::groups::types::GroupID;
 use crate::core::types::{UserID};
-use crate::rest::team_invites::types::TeamInviteFE;
+use crate::rest::group_invites::types::GroupInviteFE;
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct TeamInviteID(pub String);
-impl fmt::Display for TeamInviteID {
+pub struct GroupInviteID(pub String);
+impl fmt::Display for GroupInviteID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
-pub struct TeamInvite {
-    pub id: TeamInviteID,
-    pub team_id: TeamID,
+pub struct GroupInvite {
+    pub id: GroupInviteID,
+    pub group_id: GroupID,
     pub inviter_id: UserID,
-    pub invitee_id: TeamInviteeID,
-    pub role: TeamRole,
+    pub invitee_id: GroupInviteeID,
+    pub role: GroupRole,
     pub note: String,
     pub active_from: u64,
     pub expires_at: i64,
@@ -40,19 +40,19 @@ pub struct TeamInvite {
 }
 
 
-impl TeamInvite {
+impl GroupInvite {
 
-    pub fn cast_fe(&self, user_id: &UserID) -> TeamInviteFE {
-        let team_invite = self.clone();
-        // Collect team invites for this user
+    pub fn cast_fe(&self, user_id: &UserID) -> GroupInviteFE {
+        let group_invite = self.clone();
+        // Collect group invites for this user
         
         // Get user's system permissions for this contact record
         let record_permissions = check_system_permissions(
-            SystemResourceID::Record(SystemRecordIDEnum::Team(self.id.to_string())),
+            SystemResourceID::Record(SystemRecordIDEnum::Group(self.id.to_string())),
             PermissionGranteeID::User(user_id.clone())
         );
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Teams),
+            SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(user_id.clone())
         );
         let permission_previews: Vec<SystemPermissionType> = record_permissions
@@ -62,21 +62,21 @@ impl TeamInvite {
         .into_iter()
         .collect();
 
-        let (team_name, team_avatar) = match crate::core::state::teams::state::state::TEAMS_BY_ID_HASHTABLE.with(|teams| teams.borrow().get(&team_invite.team_id).cloned()) {
-            Some(team) => {
-                let team_name = team.name;
-                let team_avatar = team.avatar;
-                (team_name, team_avatar)
+        let (group_name, group_avatar) = match crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(&group_invite.group_id).cloned()) {
+            Some(group) => {
+                let group_name = group.name;
+                let group_avatar = group.avatar;
+                (group_name, group_avatar)
             },
             None => {
-                let team_name = "".to_string();
-                let team_avatar = None;
-                (team_name, team_avatar)
+                let group_name = "".to_string();
+                let group_avatar = None;
+                (group_name, group_avatar)
             }
         };
 
-        let (invitee_name, invitee_avatar) = match team_invite.clone().invitee_id {
-            TeamInviteeID::User(user_id) => {
+        let (invitee_name, invitee_avatar) = match group_invite.clone().invitee_id {
+            GroupInviteeID::User(user_id) => {
                 let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
                     .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
                 if let Some(contact) = contact_opt {
@@ -85,37 +85,37 @@ impl TeamInvite {
                     ("".to_string(), None)
                 }
             },
-            TeamInviteeID::PlaceholderTeamInvitee(placeholder_id) => {
+            GroupInviteeID::PlaceholderGroupInvitee(placeholder_id) => {
                 ("".to_string(), None)
             },
-            TeamInviteeID::Public => {
+            GroupInviteeID::Public => {
                 ("Public".to_string(), None)
             }
         };
 
         let invitee_id = match &self.invitee_id {
-            TeamInviteeID::User(user_id) => user_id.to_string(),
-            TeamInviteeID::PlaceholderTeamInvitee(placeholder_id) => placeholder_id.to_string(),
-            TeamInviteeID::Public => "PUBLIC".to_string(),
+            GroupInviteeID::User(user_id) => user_id.to_string(),
+            GroupInviteeID::PlaceholderGroupInvitee(placeholder_id) => placeholder_id.to_string(),
+            GroupInviteeID::Public => "PUBLIC".to_string(),
         };
-
-        TeamInviteFE {
-            id: team_invite.id,
-            team_id: team_invite.team_id,
-            inviter_id: team_invite.inviter_id,
+        
+        GroupInviteFE {
+            id: group_invite.id,
+            group_id: group_invite.group_id,
+            inviter_id: group_invite.inviter_id,
             invitee_id,
-            role: team_invite.role,
-            note: team_invite.note,
-            active_from: team_invite.active_from,
-            expires_at: team_invite.expires_at,
-            created_at: team_invite.created_at,
-            last_modified_at: team_invite.last_modified_at,
-            from_placeholder_invitee: team_invite.from_placeholder_invitee,
-            tags: team_invite.tags,
-            external_id: team_invite.external_id,
-            external_payload: team_invite.external_payload,
-            team_name,
-            team_avatar,
+            role: group_invite.role,
+            note: group_invite.note,
+            active_from: group_invite.active_from,
+            expires_at: group_invite.expires_at,
+            created_at: group_invite.created_at,
+            last_modified_at: group_invite.last_modified_at,
+            from_placeholder_invitee: group_invite.from_placeholder_invitee,
+            tags: group_invite.tags,
+            external_id: group_invite.external_id,
+            external_payload: group_invite.external_payload,
+            group_name,
+            group_avatar,
             invitee_name,
             invitee_avatar,
             permission_previews
@@ -128,15 +128,15 @@ impl TeamInvite {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, SerdeDiff)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum TeamRole {
+pub enum GroupRole {
     Admin,
     Member
 }
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct PlaceholderTeamInviteeID(pub String);
-impl fmt::Display for PlaceholderTeamInviteeID {
+pub struct PlaceholderGroupInviteeID(pub String);
+impl fmt::Display for PlaceholderGroupInviteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -144,17 +144,17 @@ impl fmt::Display for PlaceholderTeamInviteeID {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub enum TeamInviteeID {
+pub enum GroupInviteeID {
     User(UserID),
-    PlaceholderTeamInvitee(PlaceholderTeamInviteeID),
+    PlaceholderGroupInvitee(PlaceholderGroupInviteeID),
     Public
 }
-impl fmt::Display for TeamInviteeID {
+impl fmt::Display for GroupInviteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TeamInviteeID::User(user_id) => write!(f, "{}", user_id),
-            TeamInviteeID::PlaceholderTeamInvitee(placeholder_id) => write!(f, "{}", placeholder_id),
-            TeamInviteeID::Public => write!(f, "PUBLIC"),
+            GroupInviteeID::User(user_id) => write!(f, "{}", user_id),
+            GroupInviteeID::PlaceholderGroupInvitee(placeholder_id) => write!(f, "{}", placeholder_id),
+            GroupInviteeID::Public => write!(f, "PUBLIC"),
         }
     }
 }

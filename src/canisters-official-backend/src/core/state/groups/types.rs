@@ -1,26 +1,26 @@
-// src/core/state/teams/types.rs
+// src/core/state/groups/types.rs
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use crate::{core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, team_invites::types::{TeamInviteID, TeamInviteeID, TeamRole}}, types::UserID
-}, rest::teams::types::{TeamFE, TeamMemberPreview}};
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, group_invites::types::{GroupInviteID, GroupInviteeID, GroupRole}}, types::UserID
+}, rest::groups::types::{GroupFE, GroupMemberPreview}};
 use serde_diff::{SerdeDiff};
 use std::iter::Iterator;
-use super::state::state::is_team_admin;
+use super::state::state::is_group_admin;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct TeamID(pub String);
+pub struct GroupID(pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
-pub struct Team {
-    pub id: TeamID,
+pub struct Group {
+    pub id: GroupID,
     pub name: String,
     pub owner: UserID,
     pub avatar: Option<String>,
     pub private_note: Option<String>,
     pub public_note: Option<String>,
-    pub admin_invites: Vec<TeamInviteID>, // all admin_invites are also in member_invites
-    pub member_invites: Vec<TeamInviteID>,
+    pub admin_invites: Vec<GroupInviteID>, // all admin_invites are also in member_invites
+    pub member_invites: Vec<GroupInviteID>,
     pub created_at: u64,
     pub last_modified_at: u64,
     pub drive_id: DriveID,
@@ -30,25 +30,25 @@ pub struct Team {
     pub external_payload: Option<ExternalPayload>,
 }
 
-impl Team {
+impl Group {
 
-    pub fn cast_fe(&self, user_id: &UserID) -> TeamFE {
-        let team = self.clone();
-        // Collect team invites for this user
+    pub fn cast_fe(&self, user_id: &UserID) -> GroupFE {
+        let group = self.clone();
+        // Collect group invites for this user
         let mut member_previews = Vec::new();
         
-        for invite_id in &team.member_invites {
+        for invite_id in &group.member_invites {
             // Get the invite data
-            let invite_opt = crate::core::state::team_invites::state::state::INVITES_BY_ID_HASHTABLE
+            let invite_opt = crate::core::state::group_invites::state::state::INVITES_BY_ID_HASHTABLE
                 .with(|invites| invites.borrow().get(invite_id).cloned());
             
             if let Some(invite) = invite_opt {
                 
 
                 // query the contacts hashtable by invitee_id to get the name and avatar
-                // we have to check that TeamInviteeID::User matches
+                // we have to check that GroupInviteeID::User matches
                 let invitee_name = match invite.invitee_id.clone() {
-                    TeamInviteeID::User(user_id) => {
+                    GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the name
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
                             .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
@@ -61,7 +61,7 @@ impl Team {
                     _ => "".to_string()
                 };
                 let invitee_avatar = match invite.invitee_id.clone() {
-                    TeamInviteeID::User(user_id) => {
+                    GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the avatar
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
                             .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
@@ -74,7 +74,7 @@ impl Team {
                     _ => None
                 };
                 let invitee_last_online_ms = match invite.invitee_id.clone() {
-                    TeamInviteeID::User(user_id) => {
+                    GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the last_active
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
                             .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
@@ -87,18 +87,18 @@ impl Team {
                     _ => 0
                 };
                 let is_admin = match invite.role {
-                    TeamRole::Admin => true,
+                    GroupRole::Admin => true,
                     _ => false
                 };
                 
-                member_previews.push(TeamMemberPreview {
+                member_previews.push(GroupMemberPreview {
                     user_id: UserID(invite.invitee_id.to_string()),
                     name: invitee_name,
                     avatar: invitee_avatar,
                     note: Some(invite.note),
                     last_online_ms: invitee_last_online_ms,
                     is_admin,
-                    team_id: team.id.clone(),
+                    group_id: group.id.clone(),
                     invite_id: invite.id.clone(),
                 });
             }
@@ -107,11 +107,11 @@ impl Team {
         
         // Get user's system permissions for this contact record
         let record_permissions = check_system_permissions(
-            SystemResourceID::Record(SystemRecordIDEnum::Team(self.id.to_string())),
+            SystemResourceID::Record(SystemRecordIDEnum::Group(self.id.to_string())),
             PermissionGranteeID::User(user_id.clone())
         );
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Teams),
+            SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(user_id.clone())
         );
         let permission_previews: Vec<SystemPermissionType> = record_permissions
@@ -121,8 +121,8 @@ impl Team {
         .into_iter()
         .collect();
 
-        TeamFE {
-            team,
+        GroupFE {
+            group,
             member_previews,
             permission_previews
         }.redacted(user_id)
@@ -132,17 +132,17 @@ impl Team {
 }
 
 
-// Implement Display for TeamID
-impl fmt::Display for TeamID {
+// Implement Display for GroupID
+impl fmt::Display for GroupID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-// Implement Display for Team
-impl fmt::Display for Team {
+// Implement Display for Group
+impl fmt::Display for Group {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Team {{ id: {}, name: {}, owner: {} }}", 
+        write!(f, "Group {{ id: {}, name: {}, owner: {} }}", 
             self.id, self.name, self.owner)
     }
 }

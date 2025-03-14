@@ -6,7 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{
-        directory::types::DriveFullFilePath, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, tags::types::{redact_tag, TagStringValue}, teams::types::TeamID
+        directory::types::DriveFullFilePath, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, tags::types::{redact_tag, TagStringValue}, groups::types::GroupID
     }, types::UserID
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
@@ -38,12 +38,25 @@ pub enum DirectoryPermissionType {
     Invite,   // Can invite other users with same or lower permissions
     Manage,   // Can do anything on this directory resource
 }
+// impl display
+impl fmt::Display for DirectoryPermissionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DirectoryPermissionType::View => write!(f, "VIEW"),
+            DirectoryPermissionType::Upload => write!(f, "UPLOAD"),
+            DirectoryPermissionType::Edit => write!(f, "EDIT"),
+            DirectoryPermissionType::Delete => write!(f, "DELETE"),
+            DirectoryPermissionType::Invite => write!(f, "INVITE"),
+            DirectoryPermissionType::Manage => write!(f, "MANAGE"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub enum PermissionGranteeID {
     Public,
     User(UserID),
-    Team(TeamID),
+    Group(GroupID),
     PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID),
 }
 impl fmt::Display for PermissionGranteeID {
@@ -51,7 +64,7 @@ impl fmt::Display for PermissionGranteeID {
         match self {
             PermissionGranteeID::Public => write!(f, "{}", PUBLIC_GRANTEE_ID),
             PermissionGranteeID::User(user_id) => write!(f, "{}", user_id),
-            PermissionGranteeID::Team(team_id) => write!(f, "{}", team_id),
+            PermissionGranteeID::Group(group_id) => write!(f, "{}", group_id),
             PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => write!(f, "{}", placeholder_id),
         }
     }
@@ -75,36 +88,70 @@ pub struct DirectoryPermission {
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
     pub tags: Vec<TagStringValue>,
+    pub external_id: Option<ExternalID>,
+    pub external_payload: Option<ExternalPayload>,
 }
 
 impl DirectoryPermission {
-
     pub fn cast_fe(&self, user_id: &UserID) -> DirectoryPermissionFE {
-        let directory_permission = self.clone();
+        // Convert resource_id enum to string
+        let resource_id = self.resource_id.to_string();
         
-        // Get user's system permissions for this contact record
+        // Convert granted_to enum to string
+        let granted_to = match &self.granted_to {
+            PermissionGranteeID::Public => "PUBLIC".to_string(),
+            PermissionGranteeID::User(user_id) => user_id.to_string(),
+            PermissionGranteeID::Group(group_id) => group_id.to_string(),
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => placeholder_id.to_string(),
+        };
+        
+        // Convert from_placeholder_grantee to string if present
+        let from_placeholder_grantee = self.from_placeholder_grantee.as_ref().map(|p| p.to_string());
+        
+        // Convert external_id to string if present
+        let external_id = self.external_id.as_ref().map(|e| e.to_string());
+        
+        // Convert external_payload to string if present
+        let external_payload = self.external_payload.as_ref().map(|e| e.to_string());
+        
+        // Get user's system permissions for this permission record
         let record_permissions = check_system_permissions(
             SystemResourceID::Record(SystemRecordIDEnum::Permission(self.id.to_string())),
             PermissionGranteeID::User(user_id.clone())
         );
+        
         let table_permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Permissions),
             PermissionGranteeID::User(user_id.clone())
         );
+        
         let permission_previews: Vec<SystemPermissionType> = record_permissions
-        .into_iter()
-        .chain(table_permissions)
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
+            .into_iter()
+            .chain(table_permissions)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
 
         DirectoryPermissionFE {
-            directory_permission,
-            permission_previews
+            id: self.id.to_string(),
+            resource_id,
+            resource_path: self.resource_path.to_string(),
+            granted_to,
+            granted_by: self.granted_by.to_string(),
+            permission_types: self.permission_types.clone(),
+            begin_date_ms: self.begin_date_ms,
+            expiry_date_ms: self.expiry_date_ms,
+            inheritable: self.inheritable,
+            note: self.note.clone(),
+            created_at: self.created_at,
+            last_modified_at: self.last_modified_at,
+            from_placeholder_grantee,
+            tags: self.tags.clone(),
+            external_id,
+            external_payload,
+            permission_previews,
         }.redacted(user_id)
     }
-
-    
 }
 
 
@@ -135,7 +182,7 @@ pub enum SystemTableEnum {
     Drives,
     Disks,
     Contacts,
-    Teams,
+    Groups,
     Api_Keys,
     Permissions,
     Webhooks,
@@ -148,7 +195,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Drives => write!(f, "DRIVES"),
             SystemTableEnum::Disks => write!(f, "DISKS"),
             SystemTableEnum::Contacts => write!(f, "CONTACTS"),
-            SystemTableEnum::Teams => write!(f, "TEAMS"),
+            SystemTableEnum::Groups => write!(f, "GROUPS"),
             SystemTableEnum::Api_Keys => write!(f, "API_KEYS"),
             SystemTableEnum::Permissions => write!(f, "PERMISSIONS"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
             SystemTableEnum::Webhooks => write!(f, "WEBHOOKS"),
@@ -162,7 +209,7 @@ pub enum SystemRecordIDEnum {
     Drive(String),        // DriveID_xxx
     Disk(String),         // DiskID_xxx
     User(String),      // UserID_xxx (for contacts)
-    Team(String),         // TeamID_xxx
+    Group(String),         // GroupID_xxx
     ApiKey(String),       // ApiKeyID_xxx
     Permission(String),   // SystemPermissionID_xxx or DirectoryPermissionID_xxx
     Webhook(String),      // WebhookID_xxx
@@ -176,7 +223,7 @@ impl fmt::Display for SystemRecordIDEnum {
             SystemRecordIDEnum::Drive(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Disk(id) => write!(f, "{}", id),
             SystemRecordIDEnum::User(id) => write!(f, "{}", id),
-            SystemRecordIDEnum::Team(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Group(id) => write!(f, "{}", id),
             SystemRecordIDEnum::ApiKey(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Permission(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Webhook(id) => write!(f, "{}", id),
@@ -195,7 +242,7 @@ pub enum SystemResourceID {
 impl fmt::Display for SystemResourceID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SystemResourceID::Table(table) => write!(f, "Table_{}", table),
+            SystemResourceID::Table(table) => write!(f, "TABLE_{}", table),
             SystemResourceID::Record(id) => write!(f, "{}", id),
         }
     }
@@ -220,37 +267,118 @@ pub struct SystemPermission {
     pub external_payload: Option<ExternalPayload>,
 }
 
-
 impl SystemPermission {
-
     pub fn cast_fe(&self, user_id: &UserID) -> SystemPermissionFE {
-        let system_permission = self.clone();
+        // Convert resource_id enum to string
+        let resource_id = self.resource_id.to_string();
         
-        // Get user's system permissions for this contact record
+        // Convert granted_to enum to string
+        let granted_to = match &self.granted_to {
+            PermissionGranteeID::Public => "PUBLIC".to_string(),
+            PermissionGranteeID::User(user_id) => user_id.to_string(),
+            PermissionGranteeID::Group(group_id) => group_id.to_string(),
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => placeholder_id.to_string(),
+        };
+        
+        // Get resource name based on the resource ID
+        let resource_name = match &self.resource_id {
+            SystemResourceID::Record(record_id) => match record_id {
+                SystemRecordIDEnum::User(id) => {
+                    crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                        .with(|contacts| {
+                            contacts.borrow().get(&UserID(id.clone()))
+                                .map(|contact| contact.name.clone())
+                        })
+                },
+                SystemRecordIDEnum::Group(id) => {
+                    crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                        .with(|groups| {
+                            groups.borrow().get(&GroupID(id.clone()))
+                                .map(|group| group.name.clone())
+                        })
+                },
+                // Add other record types as needed
+                _ => None,
+            },
+            SystemResourceID::Table(table) => Some(format!("{:?} Table", table)),
+            // Add other resource types as needed
+            _ => None,
+        };
+        
+        // Get grantee name and avatar based on the grantee ID
+        let (grantee_name, grantee_avatar) = match &self.granted_to {
+            PermissionGranteeID::User(id) => {
+                crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                    .with(|contacts| {
+                        contacts.borrow().get(id)
+                            .map(|contact| (contact.name.clone(), contact.avatar.clone()))
+                            .unwrap_or((String::new(), None))
+                    })
+            },
+            // Add other grantee types as needed
+            _ => (String::new(), None),
+        };
+        
+        // Get granter name based on the granter ID
+        let granter_name = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+            .with(|contacts| {
+                contacts.borrow().get(&self.granted_by)
+                    .map(|contact| contact.name.clone())
+            });
+        
+        // Convert from_placeholder_grantee to string if present
+        let from_placeholder_grantee = self.from_placeholder_grantee.as_ref().map(|p| p.to_string());
+        
+        // Convert external_id to string if present
+        let external_id = self.external_id.as_ref().map(|e| e.to_string());
+        
+        // Convert external_payload to string if present
+        let external_payload = self.external_payload.as_ref().map(|e| e.to_string());
+        
+        // Get user's system permissions for this permission record
         let record_permissions = check_system_permissions(
             SystemResourceID::Record(SystemRecordIDEnum::Permission(self.id.to_string())),
             PermissionGranteeID::User(user_id.clone())
         );
+        
+        // Get permissions for the system permissions table
         let table_permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Permissions),
             PermissionGranteeID::User(user_id.clone())
         );
+        
+        // Combine and deduplicate permissions
         let permission_previews: Vec<SystemPermissionType> = record_permissions
-        .into_iter()
-        .chain(table_permissions)
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-
+            .into_iter()
+            .chain(table_permissions)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+        
         SystemPermissionFE {
-            system_permission,
-            permission_previews
+            id: self.id.to_string(),
+            resource_id,
+            granted_to,
+            granted_by: self.granted_by.to_string(),
+            permission_types: self.permission_types.clone(),
+            begin_date_ms: self.begin_date_ms,
+            expiry_date_ms: self.expiry_date_ms,
+            note: self.note.clone(),
+            created_at: self.created_at,
+            last_modified_at: self.last_modified_at,
+            from_placeholder_grantee,
+            tags: self.tags.clone(),
+            metadata: self.metadata.clone(),
+            external_id,
+            external_payload,
+            resource_name,
+            grantee_name: Some(grantee_name),
+            grantee_avatar,
+            granter_name,
+            permission_previews,
         }.redacted(user_id)
     }
-
-    
 }
-
 
 
 // TagStringValuePrefix definition

@@ -32,8 +32,8 @@ pub fn init_routes() {
     crate::rest::api_keys::route::init_routes();
     crate::rest::webhooks::route::init_routes();
     crate::rest::contacts::route::init_routes();
-    crate::rest::teams::route::init_routes();
-    crate::rest::team_invites::route::init_routes();
+    crate::rest::groups::route::init_routes();
+    crate::rest::group_invites::route::init_routes();
     crate::rest::drives::route::init_routes();
     crate::rest::organization::route::init_routes();
     crate::rest::disks::route::init_routes();

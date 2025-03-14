@@ -12,6 +12,7 @@ pub const DIRECTORY_PERMISSIONS_CHECK_PATH: &str =  genroute!("/permissions/dire
 pub const DIRECTORY_PERMISSIONS_REDEEM_PATH: &str = genroute!("/permissions/directory/redeem");
 
 pub const SYSTEM_PERMISSIONS_GET_PATH: &str =       genroute!("/permissions/system/get/{system_permission_id}");
+pub const SYSTEM_PERMISSIONS_LIST_PATH: &str =      genroute!("/permissions/system/list");
 pub const SYSTEM_PERMISSIONS_CREATE_PATH: &str =    genroute!("/permissions/system/create");
 pub const SYSTEM_PERMISSIONS_UPDATE_PATH: &str =    genroute!("/permissions/system/update");
 pub const SYSTEM_PERMISSIONS_DELETE_PATH: &str =    genroute!("/permissions/system/delete");
@@ -57,6 +58,11 @@ pub fn init_routes() {
             "GET",
             SYSTEM_PERMISSIONS_GET_PATH,
             |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::get_system_permissions_handler(req, params)),
+        ),
+        (
+            "POST",
+            SYSTEM_PERMISSIONS_LIST_PATH, 
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::list_system_permissions_handler(req, params)),
         ),
         (
             "POST",

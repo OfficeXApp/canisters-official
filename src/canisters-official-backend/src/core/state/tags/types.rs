@@ -12,11 +12,11 @@ use crate::{core::{
         disks::types::DiskID,
         drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}},
         permissions::types::{DirectoryPermissionID, PermissionGranteeID, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum},
-        team_invites::types::TeamInviteID,
-        teams::types::TeamID,
+        group_invites::types::GroupInviteID,
+        groups::types::GroupID,
         webhooks::types::WebhookID
     }, types::{IDPrefix, UserID}
-}, rest::{contacts::types::ContactTeamInvitePreview, tags::types::TagFE}};
+}, rest::{contacts::types::ContactGroupInvitePreview, tags::types::TagFE}};
 
 use super::state::TAGS_BY_VALUE_HASHTABLE;
 
@@ -110,8 +110,8 @@ pub enum TagResourceID {
     Drive(DriveID),
     DirectoryPermission(DirectoryPermissionID),
     SystemPermission(SystemPermissionID),
-    TeamInvite(TeamInviteID),
-    Team(TeamID),
+    GroupInvite(GroupInviteID),
+    Group(GroupID),
     Webhook(WebhookID),
     Tag(TagID),
 }
@@ -127,8 +127,8 @@ impl fmt::Display for TagResourceID {
             TagResourceID::Drive(id) => write!(f, "{}", id),
             TagResourceID::DirectoryPermission(id) => write!(f, "{}", id),
             TagResourceID::SystemPermission(id) => write!(f, "{}", id),
-            TagResourceID::TeamInvite(id) => write!(f, "{}", id),
-            TagResourceID::Team(id) => write!(f, "{}", id),
+            TagResourceID::GroupInvite(id) => write!(f, "{}", id),
+            TagResourceID::Group(id) => write!(f, "{}", id),
             TagResourceID::Webhook(id) => write!(f, "{}", id),
             TagResourceID::Tag(id) => write!(f, "{}", id),
         }
@@ -146,8 +146,8 @@ impl TagResourceID {
             TagResourceID::Drive(id) => id.0.clone(),
             TagResourceID::DirectoryPermission(id) => id.0.clone(),
             TagResourceID::SystemPermission(id) => id.0.clone(),
-            TagResourceID::TeamInvite(id) => id.0.clone(),
-            TagResourceID::Team(id) => id.0.clone(),
+            TagResourceID::GroupInvite(id) => id.0.clone(),
+            TagResourceID::Group(id) => id.0.clone(),
             TagResourceID::Webhook(id) => id.0.clone(),
             TagResourceID::Tag(id) => id.0.clone(),
         }
@@ -283,48 +283,48 @@ pub fn redact_tag(tag_value: TagStringValue, user_id: UserID) -> Option<TagStrin
     None
 }
 
-pub fn redact_team_previews(team_preview: ContactTeamInvitePreview, user_id: UserID) -> Option<ContactTeamInvitePreview> {
-    // Get the team ID from the preview
-    let team_id = &team_preview.team_id;
+pub fn redact_group_previews(group_preview: ContactGroupInvitePreview, user_id: UserID) -> Option<ContactGroupInvitePreview> {
+    // Get the group ID from the preview
+    let group_id = &group_preview.group_id;
     
     // Check if the user is the owner
     let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
     
     if is_owner {
         // Owner sees everything, no redaction needed
-        return Some(team_preview);
+        return Some(group_preview);
     }
     
-    // Check permissions for this specific team
-    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Team(team_id.to_string()));
+    // Check permissions for this specific group
+    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group_id.to_string()));
     let permissions = check_system_permissions(
         resource_id,
         PermissionGranteeID::User(user_id.clone())
     );
     
-    // Check permissions for the Teams table
+    // Check permissions for the Groups table
     let table_permissions = check_system_permissions(
-        SystemResourceID::Table(SystemTableEnum::Teams),
+        SystemResourceID::Table(SystemTableEnum::Groups),
         PermissionGranteeID::User(user_id.clone())
     );
 
-    let team = match crate::core::state::teams::state::state::TEAMS_BY_ID_HASHTABLE
-        .with(|teams| teams.borrow().get(team_id).cloned()) {
-        Some(team) => team,
+    let group = match crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+        .with(|groups| groups.borrow().get(group_id).cloned()) {
+        Some(group) => group,
         None => return None
     };
     
-    // Check if user is a member of this team
-    let is_team_member = crate::core::state::teams::state::state::is_user_on_local_team(&user_id, &team);
+    // Check if user is a member of this group
+    let is_group_member = crate::core::state::groups::state::state::is_user_on_local_group(&user_id, &group);
     
-    // If the user has View permission either at the table level or for this specific team
-    // or if the user is a member of the team
+    // If the user has View permission either at the table level or for this specific group
+    // or if the user is a member of the group
     if permissions.contains(&SystemPermissionType::View) || 
        table_permissions.contains(&SystemPermissionType::View) ||
-       is_team_member {
-        return Some(team_preview);
+       is_group_member {
+        return Some(group_preview);
     }
     
-    // If we get here, the user doesn't have permission to see this team
+    // If we get here, the user doesn't have permission to see this group
     None
 }
