@@ -1,11 +1,11 @@
-// src/core/state/tags/types.rs
+// src/core/state/labels/types.rs
 
 use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::SerdeDiff;
 
 use crate::{core::{
-    api::permissions::system::{check_system_permissions, check_system_resource_permissions_tags}, state::{
+    api::permissions::system::{check_system_permissions, check_system_resource_permissions_labels}, state::{
         api_keys::types::ApiKeyID,
         contacts::types::Contact,
         directory::types::{FileID, FolderID},
@@ -16,25 +16,25 @@ use crate::{core::{
         groups::types::GroupID,
         webhooks::types::WebhookID
     }, types::{IDPrefix, UserID}
-}, rest::{contacts::types::ContactGroupInvitePreview, tags::types::TagFE}};
+}, rest::{contacts::types::ContactGroupInvitePreview, labels::types::LabelFE}};
 
-use super::state::TAGS_BY_VALUE_HASHTABLE;
+use super::state::LABELS_BY_VALUE_HASHTABLE;
 
-// TagID is the unique identifier for a tag
+// LabelID is the unique identifier for a label
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct TagID(pub String);
+pub struct LabelID(pub String);
 
-impl fmt::Display for TagID {
+impl fmt::Display for LabelID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-// TagStringValue is the actual text of the tag
+// LabelStringValue is the actual text of the label
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct TagStringValue(pub String);
+pub struct LabelStringValue(pub String);
 
-impl fmt::Display for TagStringValue {
+impl fmt::Display for LabelStringValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -50,36 +50,36 @@ impl fmt::Display for HexColorString {
     }
 }
 
-// The main Tag type that represents a tag definition
-// We also dont redact tags here, for convinience. if we find this is a security issue, we can redact tags here too
+// The main Label type that represents a label definition
+// We also dont redact labels here, for convinience. if we find this is a security issue, we can redact labels here too
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
-pub struct Tag {
-    pub id: TagID,
-    pub value: TagStringValue,
+pub struct Label {
+    pub id: LabelID,
+    pub value: LabelStringValue,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
     pub color: HexColorString,
     pub created_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub created_at: u64,
     pub last_updated_at: u64,
-    pub resources: Vec<TagResourceID>,
-    pub tags: Vec<TagStringValue>,  // Tags can be tagged too
+    pub resources: Vec<LabelResourceID>,
+    pub labels: Vec<LabelStringValue>,  // Labels can be labelged too
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }
 
-impl Tag {
+impl Label {
 
-    pub fn cast_fe(&self, user_id: &UserID) -> TagFE {
-        let tag = self.clone();
+    pub fn cast_fe(&self, user_id: &UserID) -> LabelFE {
+        let label = self.clone();
         
         // Get user's system permissions for this contact record
         let record_permissions = check_system_permissions(
-            SystemResourceID::Record(SystemRecordIDEnum::Tag(self.id.to_string())),
+            SystemResourceID::Record(SystemRecordIDEnum::Label(self.id.to_string())),
             PermissionGranteeID::User(user_id.clone())
         );
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Tags),
+            SystemResourceID::Table(SystemTableEnum::Labels),
             PermissionGranteeID::User(user_id.clone())
         );
         let permission_previews: Vec<SystemPermissionType> = record_permissions
@@ -89,8 +89,8 @@ impl Tag {
         .into_iter()
         .collect();
 
-        TagFE {
-            tag,
+        LabelFE {
+            label,
             permission_previews
         }.redacted(user_id)
     }
@@ -99,9 +99,9 @@ impl Tag {
 }
 
 
-// TagResourceID represents any resource that can be tagged
+// LabelResourceID represents any resource that can be labelged
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub enum TagResourceID {
+pub enum LabelResourceID {
     ApiKey(ApiKeyID),
     Contact(UserID),
     File(FileID),
@@ -113,57 +113,57 @@ pub enum TagResourceID {
     GroupInvite(GroupInviteID),
     Group(GroupID),
     Webhook(WebhookID),
-    Tag(TagID),
+    Label(LabelID),
 }
 
-impl fmt::Display for TagResourceID {
+impl fmt::Display for LabelResourceID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TagResourceID::ApiKey(id) => write!(f, "{}", id),
-            TagResourceID::Contact(id) => write!(f, "{}", id),
-            TagResourceID::File(id) => write!(f, "{}", id),
-            TagResourceID::Folder(id) => write!(f, "{}", id),
-            TagResourceID::Disk(id) => write!(f, "{}", id),
-            TagResourceID::Drive(id) => write!(f, "{}", id),
-            TagResourceID::DirectoryPermission(id) => write!(f, "{}", id),
-            TagResourceID::SystemPermission(id) => write!(f, "{}", id),
-            TagResourceID::GroupInvite(id) => write!(f, "{}", id),
-            TagResourceID::Group(id) => write!(f, "{}", id),
-            TagResourceID::Webhook(id) => write!(f, "{}", id),
-            TagResourceID::Tag(id) => write!(f, "{}", id),
+            LabelResourceID::ApiKey(id) => write!(f, "{}", id),
+            LabelResourceID::Contact(id) => write!(f, "{}", id),
+            LabelResourceID::File(id) => write!(f, "{}", id),
+            LabelResourceID::Folder(id) => write!(f, "{}", id),
+            LabelResourceID::Disk(id) => write!(f, "{}", id),
+            LabelResourceID::Drive(id) => write!(f, "{}", id),
+            LabelResourceID::DirectoryPermission(id) => write!(f, "{}", id),
+            LabelResourceID::SystemPermission(id) => write!(f, "{}", id),
+            LabelResourceID::GroupInvite(id) => write!(f, "{}", id),
+            LabelResourceID::Group(id) => write!(f, "{}", id),
+            LabelResourceID::Webhook(id) => write!(f, "{}", id),
+            LabelResourceID::Label(id) => write!(f, "{}", id),
         }
     }
 }
 
-impl TagResourceID {
+impl LabelResourceID {
     pub fn get_id_string(&self) -> String {
         match self {
-            TagResourceID::ApiKey(id) => id.0.clone(),
-            TagResourceID::Contact(id) => id.0.clone(),
-            TagResourceID::File(id) => id.0.clone(),
-            TagResourceID::Folder(id) => id.0.clone(),
-            TagResourceID::Disk(id) => id.0.clone(),
-            TagResourceID::Drive(id) => id.0.clone(),
-            TagResourceID::DirectoryPermission(id) => id.0.clone(),
-            TagResourceID::SystemPermission(id) => id.0.clone(),
-            TagResourceID::GroupInvite(id) => id.0.clone(),
-            TagResourceID::Group(id) => id.0.clone(),
-            TagResourceID::Webhook(id) => id.0.clone(),
-            TagResourceID::Tag(id) => id.0.clone(),
+            LabelResourceID::ApiKey(id) => id.0.clone(),
+            LabelResourceID::Contact(id) => id.0.clone(),
+            LabelResourceID::File(id) => id.0.clone(),
+            LabelResourceID::Folder(id) => id.0.clone(),
+            LabelResourceID::Disk(id) => id.0.clone(),
+            LabelResourceID::Drive(id) => id.0.clone(),
+            LabelResourceID::DirectoryPermission(id) => id.0.clone(),
+            LabelResourceID::SystemPermission(id) => id.0.clone(),
+            LabelResourceID::GroupInvite(id) => id.0.clone(),
+            LabelResourceID::Group(id) => id.0.clone(),
+            LabelResourceID::Webhook(id) => id.0.clone(),
+            LabelResourceID::Label(id) => id.0.clone(),
         }
     }
 }
 
-// Request and response types for tag operations
+// Request and response types for label operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateTagRequest {
+pub struct CreateLabelRequest {
     pub value: String,
     pub description: Option<String>,
     pub color: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateTagRequest {
+pub struct UpdateLabelRequest {
     pub id: String,
     pub value: Option<String>,
     pub description: Option<String>,
@@ -171,27 +171,27 @@ pub struct UpdateTagRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum UpsertTagRequest {
-    Create(CreateTagRequest),
-    Update(UpdateTagRequest),
+pub enum UpsertLabelRequest {
+    Create(CreateLabelRequest),
+    Update(UpdateLabelRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TagResourceRequest {
-    pub tag_id: String,
+pub struct LabelResourceRequest {
+    pub label_id: String,
     pub resource_id: String,
     pub add: bool,  // true to add, false to remove
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct TagOperationResponse {
+pub struct LabelOperationResponse {
     pub success: bool,
     pub message: Option<String>,
-    pub tag: Option<Tag>,
+    pub label: Option<Label>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListTagsRequest {
+pub struct ListLabelsRequest {
     pub query: Option<String>,
     pub page_size: Option<usize>,
     pub cursor_up: Option<String>,
@@ -199,8 +199,8 @@ pub struct ListTagsRequest {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ListTagsResponse {
-    pub items: Vec<Tag>,
+pub struct ListLabelsResponse {
+    pub items: Vec<Label>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -208,19 +208,19 @@ pub struct ListTagsResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeleteTagRequest {
+pub struct DeleteLabelRequest {
     pub id: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DeleteTagResponse {
+pub struct DeleteLabelResponse {
     pub success: bool,
     pub id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetTagResourcesRequest {
-    pub tag_id: String,
+pub struct GetLabelResourcesRequest {
+    pub label_id: String,
     pub resource_type: Option<String>,
     pub page_size: Option<usize>,
     pub cursor_up: Option<String>,
@@ -228,58 +228,58 @@ pub struct GetTagResourcesRequest {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct GetTagResourcesResponse {
-    pub tag_id: String,
-    pub resources: Vec<TagResourceID>,
+pub struct GetLabelResourcesResponse {
+    pub label_id: String,
+    pub resources: Vec<LabelResourceID>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
 }
 
-pub fn redact_tag(tag_value: TagStringValue, user_id: UserID) -> Option<TagStringValue> {
-    // Get the tag ID from the value
-    let tag_id = TAGS_BY_VALUE_HASHTABLE.with(|store| {
-        store.borrow().get(&tag_value).cloned()
+pub fn redact_label(label_value: LabelStringValue, user_id: UserID) -> Option<LabelStringValue> {
+    // Get the label ID from the value
+    let label_id = LABELS_BY_VALUE_HASHTABLE.with(|store| {
+        store.borrow().get(&label_value).cloned()
     });
     
-    if let Some(tag_id) = tag_id {
+    if let Some(label_id) = label_id {
         // Check if the user is the owner
         let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
         
         if is_owner {
             // Owner sees everything, no redaction needed
-            return Some(tag_value);
+            return Some(label_value);
         }
         
-        // Check permissions for this specific tag
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Tag(tag_id.to_string()));
-        let permissions = check_system_resource_permissions_tags(
+        // Check permissions for this specific label
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Label(label_id.to_string()));
+        let permissions = check_system_resource_permissions_labels(
             &resource_id,
             &PermissionGranteeID::User(user_id.clone()),
-            &tag_value.to_string()
+            &label_value.to_string()
         );
         
-        // Check permissions for the Tags table
-        let table_permissions = check_system_resource_permissions_tags(
-            &SystemResourceID::Table(SystemTableEnum::Tags),
+        // Check permissions for the Labels table
+        let table_permissions = check_system_resource_permissions_labels(
+            &SystemResourceID::Table(SystemTableEnum::Labels),
             &PermissionGranteeID::User(user_id.clone()),
-            &tag_value.to_string()
+            &label_value.to_string()
         );
         
-        // If the user has View permission either at the table level or for this specific tag
+        // If the user has View permission either at the table level or for this specific label
         if permissions.contains(&SystemPermissionType::View) || table_permissions.contains(&SystemPermissionType::View) {
-            return Some(tag_value);
+            return Some(label_value);
         }
 
-        // Check if there are any permissions with tag prefixes that would allow viewing
-        // (This is already handled by check_system_resource_permissions_tags)
+        // Check if there are any permissions with label prefixes that would allow viewing
+        // (This is already handled by check_system_resource_permissions_labels)
         
-        // If we get here, the user doesn't have permission to see this tag
+        // If we get here, the user doesn't have permission to see this label
         return None;
     }
     
-    // Tag not found, so we can't provide it
+    // Label not found, so we can't provide it
     None
 }
 

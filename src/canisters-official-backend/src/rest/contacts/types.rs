@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, redact_group_previews}}, group_invites::types::{GroupInviteID, GroupInviteeID}, groups::types::GroupID}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::types::Contact, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, redact_group_previews}}, group_invites::types::{GroupInviteID, GroupInviteeID}, groups::types::GroupID}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{auth::seed_phrase_to_wallet_addresses, types::{validate_email, validate_evm_address, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_url, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 
@@ -37,11 +37,11 @@ impl ContactFE {
                 }
             }
         }
-        // Filter tags
-        redacted.contact.tags = match is_owner {
-            true => redacted.contact.tags,
-            false => redacted.contact.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.contact.labels = match is_owner {
+            true => redacted.contact.labels,
+            false => redacted.contact.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         // Filter group previews

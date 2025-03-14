@@ -335,7 +335,7 @@ pub mod contacts_handlers {
             icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
             seed_phrase: Some(create_req.seed_phrase.unwrap_or_default()),
             groups: [].to_vec(),
-            tags: vec![],
+            labels: vec![],
             past_user_ids: [].to_vec(),
             external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
             external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),

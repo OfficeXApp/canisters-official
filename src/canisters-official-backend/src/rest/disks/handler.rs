@@ -304,7 +304,7 @@ pub mod disks_handlers {
             private_note: create_req.private_note,
             auth_json: create_req.auth_json,
             disk_type: create_req.disk_type,
-            tags: vec![],
+            labels: vec![],
             created_at: ic_cdk::api::time() / 1_000_000,
             external_id: new_external_id.clone(),
             external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),

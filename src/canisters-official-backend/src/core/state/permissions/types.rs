@@ -6,7 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{
-        directory::types::DriveFullFilePath, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, tags::types::{redact_tag, TagStringValue}, groups::types::GroupID
+        api_keys::types::ApiKeyID, directory::types::DriveFullFilePath, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, labels::types::{redact_label, LabelID, LabelStringValue}, webhooks::types::WebhookID
     }, types::UserID
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
@@ -87,7 +87,7 @@ pub struct DirectoryPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }
@@ -146,7 +146,7 @@ impl DirectoryPermission {
             created_at: self.created_at,
             last_modified_at: self.last_modified_at,
             from_placeholder_grantee,
-            tags: self.tags.clone(),
+            labels: self.labels.clone(),
             external_id,
             external_payload,
             permission_previews,
@@ -186,7 +186,7 @@ pub enum SystemTableEnum {
     Api_Keys,
     Permissions,
     Webhooks,
-    Tags
+    Labels
 }
 
 impl fmt::Display for SystemTableEnum {
@@ -199,7 +199,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Api_Keys => write!(f, "API_KEYS"),
             SystemTableEnum::Permissions => write!(f, "PERMISSIONS"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
             SystemTableEnum::Webhooks => write!(f, "WEBHOOKS"),
-            SystemTableEnum::Tags => write!(f, "TAGS"),
+            SystemTableEnum::Labels => write!(f, "LABELS"),
         }
     }
 }
@@ -213,7 +213,7 @@ pub enum SystemRecordIDEnum {
     ApiKey(String),       // ApiKeyID_xxx
     Permission(String),   // SystemPermissionID_xxx or DirectoryPermissionID_xxx
     Webhook(String),      // WebhookID_xxx
-    Tag(String),          // TagID_xxx
+    Label(String),          // LabelID_xxx
     Unknown(String), // General catch
 }
 
@@ -227,7 +227,7 @@ impl fmt::Display for SystemRecordIDEnum {
             SystemRecordIDEnum::ApiKey(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Permission(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Webhook(id) => write!(f, "{}", id),
-            SystemRecordIDEnum::Tag(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Label(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Unknown(id) => write!(f, "{}", id),
         }
     }
@@ -261,7 +261,7 @@ pub struct SystemPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub metadata: Option<PermissionMetadata>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
@@ -269,10 +269,10 @@ pub struct SystemPermission {
 
 impl SystemPermission {
     pub fn cast_fe(&self, user_id: &UserID) -> SystemPermissionFE {
-        // Convert resource_id enum to string
+        // Convert resource_id to string
         let resource_id = self.resource_id.to_string();
         
-        // Convert granted_to enum to string
+        // Convert granted_to to string
         let granted_to = match &self.granted_to {
             PermissionGranteeID::Public => "PUBLIC".to_string(),
             PermissionGranteeID::User(user_id) => user_id.to_string(),
@@ -280,29 +280,66 @@ impl SystemPermission {
             PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => placeholder_id.to_string(),
         };
         
-        // Get resource name based on the resource ID
+        // Get resource name based on the resource ID and its prefix
         let resource_name = match &self.resource_id {
-            SystemResourceID::Record(record_id) => match record_id {
-                SystemRecordIDEnum::User(id) => {
-                    crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                        .with(|contacts| {
-                            contacts.borrow().get(&UserID(id.clone()))
-                                .map(|contact| contact.name.clone())
-                        })
-                },
-                SystemRecordIDEnum::Group(id) => {
-                    crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
-                        .with(|groups| {
-                            groups.borrow().get(&GroupID(id.clone()))
-                                .map(|group| group.name.clone())
-                        })
-                },
-                // Add other record types as needed
-                _ => None,
+            SystemResourceID::Record(record_id) => {
+                match record_id {
+                    SystemRecordIDEnum::User(id) if id.starts_with("UserID_") => {
+                        crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                            .with(|contacts| {
+                                contacts.borrow().get(&UserID(id.clone()))
+                                    .map(|contact| contact.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Group(id) if id.starts_with("GroupID_") => {
+                        crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                            .with(|groups| {
+                                groups.borrow().get(&GroupID(id.clone()))
+                                    .map(|group| group.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Drive(id) if id.starts_with("DriveID_") => {
+                        crate::core::state::drives::state::state::DRIVES_BY_ID_HASHTABLE
+                            .with(|drives| {
+                                drives.borrow().get(&DriveID(id.clone()))
+                                    .map(|drive| drive.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Disk(id) if id.starts_with("DiskID_") => {
+                        crate::core::state::disks::state::state::DISKS_BY_ID_HASHTABLE
+                            .with(|disks| {
+                                disks.borrow().get(&DiskID(id.clone()))
+                                    .map(|disk| disk.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::ApiKey(id) if id.starts_with("ApiKeyID_") => {
+                        crate::core::state::api_keys::state::state::APIKEYS_BY_ID_HASHTABLE
+                            .with(|keys| {
+                                keys.borrow().get(&ApiKeyID(id.clone()))
+                                    .map(|key| key.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Webhook(id) if id.starts_with("WebhookID_") => {
+                        crate::core::state::webhooks::state::state::WEBHOOKS_BY_ID_HASHTABLE
+                            .with(|webhooks| {
+                                webhooks.borrow().get(&WebhookID(id.clone()))
+                                    .map(|webhook| webhook.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Label(id) if id.starts_with("LabelID_") => {
+                        crate::core::state::labels::state::LABELS_BY_ID_HASHTABLE
+                            .with(|labels| {
+                                labels.borrow().get(&LabelID(id.clone()))
+                                    .map(|label| label.value.0.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Permission(id) if id.starts_with("SystemPermissionID_") => {
+                        Some(format!("Permission {}", id))
+                    },
+                    _ => None,
+                }
             },
             SystemResourceID::Table(table) => Some(format!("{:?} Table", table)),
-            // Add other resource types as needed
-            _ => None,
         };
         
         // Get grantee name and avatar based on the grantee ID
@@ -315,8 +352,20 @@ impl SystemPermission {
                             .unwrap_or((String::new(), None))
                     })
             },
-            // Add other grantee types as needed
-            _ => (String::new(), None),
+            PermissionGranteeID::Group(id) => {
+                crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                    .with(|groups| {
+                        groups.borrow().get(id)
+                            .map(|group| (group.name.clone(), group.avatar.clone()))
+                            .unwrap_or((String::new(), None))
+                    })
+            },
+            PermissionGranteeID::Public => {
+                ("PUBLIC".to_string(), None)
+            },
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(id) => {
+                (format!("PLACEHOLDER: {}", id), None)
+            },
         };
         
         // Get granter name based on the granter ID
@@ -367,7 +416,7 @@ impl SystemPermission {
             created_at: self.created_at,
             last_modified_at: self.last_modified_at,
             from_placeholder_grantee,
-            tags: self.tags.clone(),
+            labels: self.labels.clone(),
             metadata: self.metadata.clone(),
             external_id,
             external_payload,
@@ -380,12 +429,11 @@ impl SystemPermission {
     }
 }
 
-
-// TagStringValuePrefix definition
+// LabelStringValuePrefix definition
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct TagStringValuePrefix(pub String);
+pub struct LabelStringValuePrefix(pub String);
 
-impl fmt::Display for TagStringValuePrefix {
+impl fmt::Display for LabelStringValuePrefix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -402,13 +450,13 @@ pub struct PermissionMetadata {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PermissionMetadataTypeEnum {
-    Tags
+    Labels
 }
 
 impl fmt::Display for PermissionMetadataTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PermissionMetadataTypeEnum::Tags => write!(f, "TAGS"),
+            PermissionMetadataTypeEnum::Labels => write!(f, "LABELS"),
         }
     }
 }
@@ -417,6 +465,6 @@ impl fmt::Display for PermissionMetadataTypeEnum {
 // Define an enum for different types of metadata
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub enum PermissionMetadataContent {
-    Tags(TagStringValuePrefix),
+    Labels(LabelStringValuePrefix),
     // Future types can be added here without breaking changes
 }

@@ -1,11 +1,11 @@
-// src/rest/tags/types.rs
+// src/rest/labels/types.rs
 
 use serde::{Deserialize, Serialize};
 use crate::core::api::permissions::system::check_system_permissions;
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
-use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
-use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID};
+use crate::core::state::labels::state::validate_uuid4_string_with_prefix;
+use crate::core::state::labels::types::{redact_label, Label, LabelID, LabelResourceID};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::webhooks::types::SortDirection;
 use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, ApiResponse, UpsertActionTypeEnum, ValidationError};
@@ -13,13 +13,13 @@ use crate::rest::types::{validate_description, validate_external_id, validate_ex
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TagFE {
+pub struct LabelFE {
     #[serde(flatten)] 
-    pub tag: Tag,
+    pub label: Label,
     pub permission_previews: Vec<SystemPermissionType>, 
 }
 
-impl TagFE {
+impl LabelFE {
     pub fn redacted(&self, user_id: &UserID) -> Self {
         let mut redacted = self.clone();
 
@@ -29,19 +29,19 @@ impl TagFE {
         // Most sensitive
         if !is_owner {
 
-            // we redact the tag value for non-owners as it may leak sensitive info about the organization
-            redacted.tag.resources = vec![];
+            // we redact the label value for non-owners as it may leak sensitive info about the organization
+            redacted.label.resources = vec![];
 
             // 2nd most sensitive
             if !has_edit_permissions {
-                redacted.tag.private_note = None;
+                redacted.label.private_note = None;
             }
         }
-        // Filter tags
-        redacted.tag.tags = match is_owner {
-            true => redacted.tag.tags,
-            false => redacted.tag.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.label.labels = match is_owner {
+            true => redacted.label.labels,
+            false => redacted.label.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         
@@ -52,9 +52,9 @@ impl TagFE {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ListTagsRequestBody {
+pub struct ListLabelsRequestBody {
     #[serde(default)]
-    pub filters: ListTagsRequestBodyFilters,
+    pub filters: ListLabelsRequestBodyFilters,
     #[serde(default = "default_page_size")]
     pub page_size: usize,
     #[serde(default)]
@@ -67,7 +67,7 @@ fn default_page_size() -> usize {
     50
 }
 
-impl ListTagsRequestBody {
+impl ListLabelsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate page_size is reasonable
         if self.page_size == 0 || self.page_size > 1000 {
@@ -112,13 +112,13 @@ impl ListTagsRequestBody {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ListTagsRequestBodyFilters {
+pub struct ListLabelsRequestBodyFilters {
     pub prefix: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ListTagsResponseData {
-    pub items: Vec<TagFE>,
+pub struct ListLabelsResponseData {
+    pub items: Vec<LabelFE>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
@@ -128,7 +128,7 @@ pub struct ListTagsResponseData {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CreateTagRequestBody {
+pub struct CreateLabelRequestBody {
     pub id: Option<ClientSuggestedUUID>,
     pub value: String,
     pub public_note: Option<String>,
@@ -137,15 +137,15 @@ pub struct CreateTagRequestBody {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
-impl CreateTagRequestBody {
+impl CreateLabelRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
 
         if self.id.is_some() {
             validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
-            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::TagID)?;
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::LabelID)?;
         }
         
-        // Validate tag value (up to 256 chars)
+        // Validate label value (up to 256 chars)
         validate_short_string(&self.value, "value")?;
 
         // Validate description if provided
@@ -191,7 +191,7 @@ impl CreateTagRequestBody {
 
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateTagRequestBody {
+pub struct UpdateLabelRequestBody {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
@@ -206,12 +206,12 @@ pub struct UpdateTagRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_payload: Option<String>,
 }
-impl UpdateTagRequestBody {
+impl UpdateLabelRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate tag ID
+        // Validate label ID
         validate_id_string(&self.id, "id")?;
 
-        // Validate tag value if provided
+        // Validate label value if provided
         if let Some(value) = &self.value {
             validate_short_string(value, "value")?;
         }
@@ -258,12 +258,12 @@ impl UpdateTagRequestBody {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeleteTagRequest {
+pub struct DeleteLabelRequest {
     pub id: String,
 }
-impl DeleteTagRequest {
+impl DeleteLabelRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate tag ID
+        // Validate label ID
         validate_id_string(&self.id, "id")?;
         
         Ok(())
@@ -271,21 +271,21 @@ impl DeleteTagRequest {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DeletedTagData {
-    pub id: TagID,
+pub struct DeletedLabelData {
+    pub id: LabelID,
     pub deleted: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct TagResourceRequest {
-    pub tag_id: String,
+pub struct LabelResourceRequest {
+    pub label_id: String,
     pub resource_id: String,
     pub add: bool,  // true to add, false to remove
 }
-impl TagResourceRequest {
+impl LabelResourceRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate tag ID
-        validate_id_string(&self.tag_id, "tag_id")?;
+        // Validate label ID
+        validate_id_string(&self.label_id, "label_id")?;
         
         // Validate resource ID
         validate_id_string(&self.resource_id, "resource_id")?;
@@ -295,24 +295,24 @@ impl TagResourceRequest {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct TagOperationResponse {
+pub struct LabelOperationResponse {
     pub success: bool,
     pub message: Option<String>,
-    pub tag: Option<TagFE>,
+    pub label: Option<LabelFE>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct GetTagResourcesRequest {
-    pub tag_id: String,
+pub struct GetLabelResourcesRequest {
+    pub label_id: String,
     pub resource_type: Option<String>,
     pub page_size: Option<usize>,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
 }
-impl GetTagResourcesRequest {
+impl GetLabelResourcesRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate tag ID
-        validate_id_string(&self.tag_id, "tag_id")?;
+        // Validate label ID
+        validate_id_string(&self.label_id, "label_id")?;
         
         // Validate resource_type if provided
         if let Some(resource_type) = &self.resource_type {
@@ -353,20 +353,20 @@ impl GetTagResourcesRequest {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct GetTagResourcesResponseData {
-    pub tag_id: String,
-    pub resources: Vec<TagResourceID>,
+pub struct GetLabelResourcesResponseData {
+    pub label_id: String,
+    pub resources: Vec<LabelResourceID>,
     pub page_size: usize,
     pub total: usize,
     pub cursor_up: Option<String>,
     pub cursor_down: Option<String>,
 }
 
-pub type GetTagResponse<'a> = ApiResponse<'a, TagFE>;
-pub type DeleteTagResponse<'a> = ApiResponse<'a, DeletedTagData>;
+pub type GetLabelResponse<'a> = ApiResponse<'a, LabelFE>;
+pub type DeleteLabelResponse<'a> = ApiResponse<'a, DeletedLabelData>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
-pub type ListTagsResponse<'a> = ApiResponse<'a, ListTagsResponseData>;
-pub type CreateTagResponse<'a> = ApiResponse<'a, TagFE>;
-pub type UpdateTagResponse<'a> = ApiResponse<'a, TagFE>;
-pub type TagResourceResponse<'a> = ApiResponse<'a, TagOperationResponse>;
-pub type GetTagResourcesResponse<'a> = ApiResponse<'a, GetTagResourcesResponseData>;
+pub type ListLabelsResponse<'a> = ApiResponse<'a, ListLabelsResponseData>;
+pub type CreateLabelResponse<'a> = ApiResponse<'a, LabelFE>;
+pub type UpdateLabelResponse<'a> = ApiResponse<'a, LabelFE>;
+pub type LabelResourceResponse<'a> = ApiResponse<'a, LabelOperationResponse>;
+pub type GetLabelResourcesResponse<'a> = ApiResponse<'a, GetLabelResourcesResponseData>;

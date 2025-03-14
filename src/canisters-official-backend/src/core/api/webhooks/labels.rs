@@ -1,15 +1,15 @@
-// src/core/api/webhooks/tags.rs
+// src/core/api/webhooks/labels.rs
 
 use crate::core::{
     state::webhooks::types::{Webhook, WebhookEventLabel, WebhookAltIndexID},
-    state::tags::types::{TagID, Tag},
+    state::labels::types::{LabelID, Label},
     state::webhooks::state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE},
 };
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
     WebhookResourceData,
-    TagWebhookData
+    LabelWebhookData
 };
 use ic_cdk::{api::management_canister::http_request::{
     http_request, 
@@ -20,10 +20,10 @@ use ic_cdk::{api::management_canister::http_request::{
 use ic_cdk::spawn;
 use serde_json;
 
-pub fn get_active_tag_webhooks(tag_id: &TagID, event: WebhookEventLabel) -> Vec<Webhook> {
+pub fn get_active_label_webhooks(label_id: &LabelID, event: WebhookEventLabel) -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
-            .get(&WebhookAltIndexID(tag_id.0.clone()))
+            .get(&WebhookAltIndexID(label_id.0.clone()))
             .cloned()
             .unwrap_or_default()
     });
@@ -37,11 +37,11 @@ pub fn get_active_tag_webhooks(tag_id: &TagID, event: WebhookEventLabel) -> Vec<
     })
 }
 
-pub fn fire_tag_webhook(
+pub fn fire_label_webhook(
     event: WebhookEventLabel,
     webhooks: Vec<Webhook>,
-    before_snap: Option<TagWebhookData>,
-    after_snap: Option<TagWebhookData>,
+    before_snap: Option<LabelWebhookData>,
+    after_snap: Option<LabelWebhookData>,
     notes: Option<String>
 ) {
     let timestamp_ms = ic_cdk::api::time() / 1_000_000;
@@ -54,8 +54,8 @@ pub fn fire_tag_webhook(
             webhook_id: webhook.id.clone(),
             webhook_alt_index: webhook.alt_index.clone(),
             payload: WebhookEventData {
-                before: before_snap.clone().map(|snap| WebhookResourceData::Tag(snap)),
-                after: after_snap.clone().map(|snap| WebhookResourceData::Tag(snap)),
+                before: before_snap.clone().map(|snap| WebhookResourceData::Label(snap)),
+                after: after_snap.clone().map(|snap| WebhookResourceData::Label(snap)),
             },
         };
         // Serialize payload for this webhook

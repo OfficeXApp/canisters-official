@@ -41,7 +41,7 @@ pub mod state {
             icp_principal: owner_icp_principal.clone(),
             seed_phrase: None,
             groups: vec![],
-            tags: vec![],
+            labels: vec![],
             past_user_ids: vec![],
             external_id: None,
             external_payload: None,

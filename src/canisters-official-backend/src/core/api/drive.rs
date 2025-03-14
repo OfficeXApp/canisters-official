@@ -281,7 +281,7 @@ pub mod drive {
             next_version: None,
             extension: extension.clone(),
             full_file_path: DriveFullFilePath(full_file_path.clone()),
-            tags: Vec::new(),
+            labels: Vec::new(),
             created_by: user_id.clone(),
             created_at: ic_cdk::api::time() / 1_000_000,
             disk_id: disk_id.clone(),

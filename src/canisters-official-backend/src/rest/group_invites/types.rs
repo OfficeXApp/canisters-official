@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{core::{state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::SystemPermissionType, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}, group_invites::types::{ GroupInvite, GroupInviteID, GroupRole}, groups::{state::state::is_group_admin, types::GroupID}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::SystemPermissionType, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, group_invites::types::{ GroupInvite, GroupInviteID, GroupRole}, groups::{state::state::is_group_admin, types::GroupID}}, types::{ClientSuggestedUUID, IDPrefix, UserID}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_unclaimed_uuid, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ pub struct GroupInviteFE {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_invitee: Option<String>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
     
@@ -49,11 +49,11 @@ impl GroupInviteFE {
                 redacted.inviter_id = UserID("".to_string());
             }
         }
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.labels = match is_owner {
+            true => redacted.labels,
+            false => redacted.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         

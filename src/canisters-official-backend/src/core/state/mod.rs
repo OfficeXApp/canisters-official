@@ -12,4 +12,4 @@ pub mod directory;
 pub mod raw_storage;
 pub mod permissions;
 pub mod search;
-pub mod tags;
+pub mod labels;

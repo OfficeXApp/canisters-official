@@ -6,8 +6,8 @@ use crate::core::state::directory::types::{FileRecord, FolderRecord, ShareTrackI
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{DriveID, DriveRESTUrlEndpoint, StateChecksum, DriveStateDiffID, DriveStateDiffImplementationType, StateDiffRecord, DriveStateDiffString};
 use crate::core::state::permissions::types::SystemPermissionType;
-use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
-use crate::core::state::tags::types::{redact_tag, Tag, TagID, TagResourceID, TagStringValue};
+use crate::core::state::labels::state::validate_uuid4_string_with_prefix;
+use crate::core::state::labels::types::{redact_label, Label, LabelID, LabelResourceID, LabelStringValue};
 use crate::core::state::group_invites::types::GroupInvite;
 use crate::core::state::groups::types::Group;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
@@ -39,11 +39,11 @@ impl WebhookFE {
                 redacted.webhook.signature = "".to_string();
             }
         }
-        // Filter tags
-        redacted.webhook.tags = match is_owner {
-            true => redacted.webhook.tags,
-            false => redacted.webhook.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.webhook.labels = match is_owner {
+            true => redacted.webhook.labels,
+            false => redacted.webhook.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         
@@ -333,8 +333,8 @@ pub enum WebhookResourceData {
     ShareTracking(ShareTrackingWebhookData),
     #[serde(rename = "state_diffs")]
     StateDiffs(DriveStateDiffWebhookData),
-    #[serde(rename = "tag")]
-    Tag(TagWebhookData),
+    #[serde(rename = "label")]
+    Label(LabelWebhookData),
     #[serde(rename = "superswap_userid")]
     SuperswapUserID(UserID),
 }
@@ -346,10 +346,10 @@ pub struct GroupInviteWebhookData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TagWebhookData {
-    pub resource_id: TagResourceID,
-    pub tag_id: TagID,
-    pub tag_value: TagStringValue,
+pub struct LabelWebhookData {
+    pub resource_id: LabelResourceID,
+    pub label_id: LabelID,
+    pub label_value: LabelStringValue,
     pub add: bool,
 }
 

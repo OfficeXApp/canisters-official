@@ -2,7 +2,7 @@
 // src/core/state/api_keys/types.rs
 use serde_diff::{Diff, SerdeDiff};
 use serde::{Deserialize, Serialize};
-use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::state::state::CONTACTS_BY_ID_HASHTABLE, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::UserID}, rest::api_keys::types::ApiKeyFE};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::state::state::CONTACTS_BY_ID_HASHTABLE, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::UserID}, rest::api_keys::types::ApiKeyFE};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -30,7 +30,7 @@ pub struct ApiKey {
     pub created_at: u64,
     pub expires_at: i64, 
     pub is_revoked: bool,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }

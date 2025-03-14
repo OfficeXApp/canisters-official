@@ -6,8 +6,8 @@ use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
 use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
-use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
-use crate::core::state::tags::types::redact_tag;
+use crate::core::state::labels::state::validate_uuid4_string_with_prefix;
+use crate::core::state::labels::types::redact_label;
 use crate::core::types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
 use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_short_string, validate_unclaimed_uuid, ApiResponse, UpsertActionTypeEnum, ValidationError};
@@ -36,11 +36,11 @@ impl DriveFE {
                 redacted.drive.private_note = None;
             }
         }
-        // Filter tags
-        redacted.drive.tags = match is_owner {
-            true => redacted.drive.tags,
-            false => redacted.drive.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.drive.labels = match is_owner {
+            true => redacted.drive.labels,
+            false => redacted.drive.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         

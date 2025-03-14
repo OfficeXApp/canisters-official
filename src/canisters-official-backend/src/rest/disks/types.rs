@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}}, types::{ClientSuggestedUUID, IDPrefix, UserID}},
+    core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::{state::validate_uuid4_string_with_prefix, types::redact_label}}, types::{ClientSuggestedUUID, IDPrefix, UserID}},
     rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
 };
 
@@ -32,11 +32,11 @@ impl DiskFE {
                 redacted.disk.private_note = None;
             }
         }
-        // Filter tags
-        redacted.disk.tags = match is_owner {
-            true => redacted.disk.tags,
-            false => redacted.disk.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.disk.labels = match is_owner {
+            true => redacted.disk.labels,
+            false => redacted.disk.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         

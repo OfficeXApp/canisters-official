@@ -7,7 +7,7 @@ use crate::core::api::permissions::system::check_system_permissions;
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{ExternalID, ExternalPayload};
 use crate::core::state::permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
-use crate::core::state::tags::types::{redact_tag, TagStringValue};
+use crate::core::state::labels::types::{redact_label, LabelStringValue};
 use crate::core::state::groups::types::GroupID;
 use crate::core::types::{UserID};
 use crate::rest::group_invites::types::GroupInviteFE;
@@ -34,7 +34,7 @@ pub struct GroupInvite {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_invitee: Option<String>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }
@@ -111,7 +111,7 @@ impl GroupInvite {
             created_at: group_invite.created_at,
             last_modified_at: group_invite.last_modified_at,
             from_placeholder_invitee: group_invite.from_placeholder_invitee,
-            tags: group_invite.tags,
+            labels: group_invite.labels,
             external_id: group_invite.external_id,
             external_payload: group_invite.external_payload,
             group_name,

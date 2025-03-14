@@ -95,7 +95,7 @@ pub mod state {
             icp_principal: ICPPrincipalString(PublicKeyICP(ic_cdk::api::id().to_text())),
             endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
             last_indexed_ms: None,
-            tags: vec![],
+            labels: vec![],
             external_id: None,
             external_payload: None,
             created_at: ic_cdk::api::time() / 1_000_000,

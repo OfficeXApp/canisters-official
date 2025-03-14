@@ -2,13 +2,13 @@
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, group_invites::types::GroupInviteeID, groups::types::GroupID}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::contacts::types::{ContactFE, ContactGroupInvitePreview}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}, group_invites::types::GroupInviteeID, groups::types::GroupID}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::contacts::types::{ContactFE, ContactGroupInvitePreview}};
 
 
 // frontend ui
 // row colums: avatar, name, icp, last_online_ms
-// popover: pub/priv note, email, evm/icp, tags
-// filters: search by name/icp/email, filter by tags, groups, sort by last_online_ms, created_at
+// popover: pub/priv note, email, evm/icp, labels
+// filters: search by name/icp/email, filter by labels, groups, sort by last_online_ms, created_at
 
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Contact {
@@ -23,7 +23,7 @@ pub struct Contact {
     pub icp_principal: ICPPrincipalString,
     pub seed_phrase: Option<String>, // careful! if we use superswap or redeem_code to change user_id, the seed_phrase wont be updated! you'll need to manually update it via UpdateContactRequestBody and obey the validation logic
     pub groups: Vec<GroupID>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub past_user_ids: Vec<UserID>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
