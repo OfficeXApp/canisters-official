@@ -6,7 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{
-        directory::types::DriveFullFilePath, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, tags::types::{redact_tag, TagStringValue}, groups::types::GroupID
+        api_keys::types::ApiKeyID, directory::types::DriveFullFilePath, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, tags::types::{redact_tag, TagID, TagStringValue}, webhooks::types::WebhookID
     }, types::UserID
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
@@ -269,10 +269,10 @@ pub struct SystemPermission {
 
 impl SystemPermission {
     pub fn cast_fe(&self, user_id: &UserID) -> SystemPermissionFE {
-        // Convert resource_id enum to string
+        // Convert resource_id to string
         let resource_id = self.resource_id.to_string();
         
-        // Convert granted_to enum to string
+        // Convert granted_to to string
         let granted_to = match &self.granted_to {
             PermissionGranteeID::Public => "PUBLIC".to_string(),
             PermissionGranteeID::User(user_id) => user_id.to_string(),
@@ -280,29 +280,66 @@ impl SystemPermission {
             PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(placeholder_id) => placeholder_id.to_string(),
         };
         
-        // Get resource name based on the resource ID
+        // Get resource name based on the resource ID and its prefix
         let resource_name = match &self.resource_id {
-            SystemResourceID::Record(record_id) => match record_id {
-                SystemRecordIDEnum::User(id) => {
-                    crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                        .with(|contacts| {
-                            contacts.borrow().get(&UserID(id.clone()))
-                                .map(|contact| contact.name.clone())
-                        })
-                },
-                SystemRecordIDEnum::Group(id) => {
-                    crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
-                        .with(|groups| {
-                            groups.borrow().get(&GroupID(id.clone()))
-                                .map(|group| group.name.clone())
-                        })
-                },
-                // Add other record types as needed
-                _ => None,
+            SystemResourceID::Record(record_id) => {
+                match record_id {
+                    SystemRecordIDEnum::User(id) if id.starts_with("UserID_") => {
+                        crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                            .with(|contacts| {
+                                contacts.borrow().get(&UserID(id.clone()))
+                                    .map(|contact| contact.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Group(id) if id.starts_with("GroupID_") => {
+                        crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                            .with(|groups| {
+                                groups.borrow().get(&GroupID(id.clone()))
+                                    .map(|group| group.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Drive(id) if id.starts_with("DriveID_") => {
+                        crate::core::state::drives::state::state::DRIVES_BY_ID_HASHTABLE
+                            .with(|drives| {
+                                drives.borrow().get(&DriveID(id.clone()))
+                                    .map(|drive| drive.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Disk(id) if id.starts_with("DiskID_") => {
+                        crate::core::state::disks::state::state::DISKS_BY_ID_HASHTABLE
+                            .with(|disks| {
+                                disks.borrow().get(&DiskID(id.clone()))
+                                    .map(|disk| disk.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::ApiKey(id) if id.starts_with("ApiKeyID_") => {
+                        crate::core::state::api_keys::state::state::APIKEYS_BY_ID_HASHTABLE
+                            .with(|keys| {
+                                keys.borrow().get(&ApiKeyID(id.clone()))
+                                    .map(|key| key.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Webhook(id) if id.starts_with("WebhookID_") => {
+                        crate::core::state::webhooks::state::state::WEBHOOKS_BY_ID_HASHTABLE
+                            .with(|webhooks| {
+                                webhooks.borrow().get(&WebhookID(id.clone()))
+                                    .map(|webhook| webhook.name.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Tag(id) if id.starts_with("TagID_") => {
+                        crate::core::state::tags::state::TAGS_BY_ID_HASHTABLE
+                            .with(|tags| {
+                                tags.borrow().get(&TagID(id.clone()))
+                                    .map(|tag| tag.value.0.clone())
+                            })
+                    },
+                    SystemRecordIDEnum::Permission(id) if id.starts_with("SystemPermissionID_") => {
+                        Some(format!("Permission {}", id))
+                    },
+                    _ => None,
+                }
             },
             SystemResourceID::Table(table) => Some(format!("{:?} Table", table)),
-            // Add other resource types as needed
-            _ => None,
         };
         
         // Get grantee name and avatar based on the grantee ID
@@ -315,8 +352,20 @@ impl SystemPermission {
                             .unwrap_or((String::new(), None))
                     })
             },
-            // Add other grantee types as needed
-            _ => (String::new(), None),
+            PermissionGranteeID::Group(id) => {
+                crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                    .with(|groups| {
+                        groups.borrow().get(id)
+                            .map(|group| (group.name.clone(), group.avatar.clone()))
+                            .unwrap_or((String::new(), None))
+                    })
+            },
+            PermissionGranteeID::Public => {
+                ("PUBLIC".to_string(), None)
+            },
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(id) => {
+                (format!("PLACEHOLDER: {}", id), None)
+            },
         };
         
         // Get granter name based on the granter ID
@@ -379,7 +428,6 @@ impl SystemPermission {
         }.redacted(user_id)
     }
 }
-
 
 // TagStringValuePrefix definition
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
