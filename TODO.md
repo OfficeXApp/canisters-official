@@ -20,6 +20,7 @@
 
 ## Near Future
 
+- [ ] Consider adding a special inbox webhook. canister simply exposes a route `POST /organization/inbox` for 3rd parties to send post requests to. admins can add webhooks on inbox, to get filtered forwarding of inbox. note that this will probably need permissions to enable only authorized senders.
 - [ ] Add gas gift card system?
 - [ ] Test out webapp http server
 - [ ] Test out webapp torrenting

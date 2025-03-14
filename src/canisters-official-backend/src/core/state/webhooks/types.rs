@@ -73,10 +73,10 @@ impl fmt::Display for WebhookAltIndexID {
 }
 
 impl WebhookAltIndexID {
-    pub const FILE_CREATED: &'static str = "FILE_CREATED";
-    pub const FOLDER_CREATED: &'static str = "FOLDER_CREATED";
-    pub const RESTORE_TRASH: &'static str = "RESTORE_TRASH";
-    pub const STATE_DIFFS: &'static str = "STATE_DIFFS";
+    pub const FILE_CREATED: &'static str = "ANY_FILE";
+    pub const FOLDER_CREATED: &'static str = "ANY_FOLDER";
+    pub const RESTORE_TRASH: &'static str = "RESTORE_TRASH"; // this alt index is required due to it querying directory
+    pub const STATE_DIFFS: &'static str = "STATE_DIFFS"; 
     pub const SUPERSWAP_USER: &'static str = "SUPERSWAP_USER";
 
     // Helper method to create new instances
@@ -162,7 +162,7 @@ pub enum WebhookEventLabel {
     TagAdded,
     #[serde(rename = "tag.removed")]
     TagRemoved,
-    #[serde(rename = "organization.superswap_user")]
+    #[serde(rename = "org.superswap_user")]
     OrganizationSuperswapUser,
 }
 
@@ -197,7 +197,7 @@ impl std::str::FromStr for WebhookEventLabel {
             "tag.removed" => Ok(Self::TagRemoved),
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
             "drive.state_diffs" => Ok(Self::DriveStateDiffs),
-            "organization.superswap_user" => Ok(Self::OrganizationSuperswapUser),
+            "org.superswap_user" => Ok(Self::OrganizationSuperswapUser),
             _ => Err(format!("Invalid webhook event: {}", s)),
         }
     }
