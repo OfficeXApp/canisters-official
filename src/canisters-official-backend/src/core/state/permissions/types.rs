@@ -6,7 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{
-        api_keys::types::ApiKeyID, directory::types::DriveFullFilePath, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, tags::types::{redact_tag, TagID, TagStringValue}, webhooks::types::WebhookID
+        api_keys::types::ApiKeyID, directory::types::DriveFullFilePath, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, labels::types::{redact_label, LabelID, LabelStringValue}, webhooks::types::WebhookID
     }, types::UserID
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
@@ -87,7 +87,7 @@ pub struct DirectoryPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }
@@ -146,7 +146,7 @@ impl DirectoryPermission {
             created_at: self.created_at,
             last_modified_at: self.last_modified_at,
             from_placeholder_grantee,
-            tags: self.tags.clone(),
+            labels: self.labels.clone(),
             external_id,
             external_payload,
             permission_previews,
@@ -186,7 +186,7 @@ pub enum SystemTableEnum {
     Api_Keys,
     Permissions,
     Webhooks,
-    Tags
+    Labels
 }
 
 impl fmt::Display for SystemTableEnum {
@@ -199,7 +199,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Api_Keys => write!(f, "API_KEYS"),
             SystemTableEnum::Permissions => write!(f, "PERMISSIONS"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
             SystemTableEnum::Webhooks => write!(f, "WEBHOOKS"),
-            SystemTableEnum::Tags => write!(f, "TAGS"),
+            SystemTableEnum::Labels => write!(f, "LABELS"),
         }
     }
 }
@@ -213,7 +213,7 @@ pub enum SystemRecordIDEnum {
     ApiKey(String),       // ApiKeyID_xxx
     Permission(String),   // SystemPermissionID_xxx or DirectoryPermissionID_xxx
     Webhook(String),      // WebhookID_xxx
-    Tag(String),          // TagID_xxx
+    Label(String),          // LabelID_xxx
     Unknown(String), // General catch
 }
 
@@ -227,7 +227,7 @@ impl fmt::Display for SystemRecordIDEnum {
             SystemRecordIDEnum::ApiKey(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Permission(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Webhook(id) => write!(f, "{}", id),
-            SystemRecordIDEnum::Tag(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::Label(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Unknown(id) => write!(f, "{}", id),
         }
     }
@@ -261,7 +261,7 @@ pub struct SystemPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub metadata: Option<PermissionMetadata>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
@@ -326,11 +326,11 @@ impl SystemPermission {
                                     .map(|webhook| webhook.name.clone())
                             })
                     },
-                    SystemRecordIDEnum::Tag(id) if id.starts_with("TagID_") => {
-                        crate::core::state::tags::state::TAGS_BY_ID_HASHTABLE
-                            .with(|tags| {
-                                tags.borrow().get(&TagID(id.clone()))
-                                    .map(|tag| tag.value.0.clone())
+                    SystemRecordIDEnum::Label(id) if id.starts_with("LabelID_") => {
+                        crate::core::state::labels::state::LABELS_BY_ID_HASHTABLE
+                            .with(|labels| {
+                                labels.borrow().get(&LabelID(id.clone()))
+                                    .map(|label| label.value.0.clone())
                             })
                     },
                     SystemRecordIDEnum::Permission(id) if id.starts_with("SystemPermissionID_") => {
@@ -416,7 +416,7 @@ impl SystemPermission {
             created_at: self.created_at,
             last_modified_at: self.last_modified_at,
             from_placeholder_grantee,
-            tags: self.tags.clone(),
+            labels: self.labels.clone(),
             metadata: self.metadata.clone(),
             external_id,
             external_payload,
@@ -429,11 +429,11 @@ impl SystemPermission {
     }
 }
 
-// TagStringValuePrefix definition
+// LabelStringValuePrefix definition
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
-pub struct TagStringValuePrefix(pub String);
+pub struct LabelStringValuePrefix(pub String);
 
-impl fmt::Display for TagStringValuePrefix {
+impl fmt::Display for LabelStringValuePrefix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -450,13 +450,13 @@ pub struct PermissionMetadata {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PermissionMetadataTypeEnum {
-    Tags
+    Labels
 }
 
 impl fmt::Display for PermissionMetadataTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PermissionMetadataTypeEnum::Tags => write!(f, "TAGS"),
+            PermissionMetadataTypeEnum::Labels => write!(f, "LABELS"),
         }
     }
 }
@@ -465,6 +465,6 @@ impl fmt::Display for PermissionMetadataTypeEnum {
 // Define an enum for different types of metadata
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub enum PermissionMetadataContent {
-    Tags(TagStringValuePrefix),
+    Labels(LabelStringValuePrefix),
     // Future types can be added here without breaking changes
 }

@@ -2,7 +2,7 @@
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use crate::{core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}, group_invites::types::{GroupInviteID, GroupInviteeID, GroupRole}}, types::UserID
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}, group_invites::types::{GroupInviteID, GroupInviteeID, GroupRole}}, types::UserID
 }, rest::groups::types::{GroupFE, GroupMemberPreview}};
 use serde_diff::{SerdeDiff};
 use std::iter::Iterator;
@@ -25,7 +25,7 @@ pub struct Group {
     pub last_modified_at: u64,
     pub drive_id: DriveID,
     pub endpoint_url: DriveRESTUrlEndpoint,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }

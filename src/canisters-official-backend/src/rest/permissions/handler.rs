@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, check_system_permissions, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, groups::state::state::{is_group_admin, is_user_on_group}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, tags::types::redact_tag}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResponse, CheckPermissionResult, CheckSystemPermissionResponse, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreatePermissionsResponse, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponse, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponse, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponse, DeleteSystemPermissionResponseData, ErrorResponse, GetPermissionResponse, GetSystemPermissionResponse, ListSystemPermissionsRequestBody, ListSystemPermissionsRequestBodyFilters, ListSystemPermissionsResponse, ListSystemPermissionsResponseData, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponse, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponse, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdatePermissionsResponse, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponse, UpdateSystemPermissionsResponseData}, webhooks::types::SortDirection},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, check_system_permissions, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, groups::state::state::{is_group_admin, is_user_on_group}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, labels::types::redact_label}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResponse, CheckPermissionResult, CheckSystemPermissionResponse, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreatePermissionsResponse, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponse, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponse, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponse, DeleteSystemPermissionResponseData, ErrorResponse, GetPermissionResponse, GetSystemPermissionResponse, ListSystemPermissionsRequestBody, ListSystemPermissionsRequestBodyFilters, ListSystemPermissionsResponse, ListSystemPermissionsResponseData, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponse, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponse, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdatePermissionsResponse, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponse, UpdateSystemPermissionsResponseData}, webhooks::types::SortDirection},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -298,7 +298,7 @@ pub mod permissions_handlers {
             created_at: current_time,
             last_modified_at: current_time,
             from_placeholder_grantee: None,
-            tags: vec![],
+            labels: vec![],
             external_id: Some(ExternalID(upsert_request.external_id.clone().unwrap_or_default())),
             external_payload: Some(ExternalPayload(upsert_request.external_payload.clone().unwrap_or_default())),
         };
@@ -983,21 +983,21 @@ pub mod permissions_handlers {
             }
         }
     
-        // 3. Filter by tags if specified (OR relationship between tags)
-        if let Some(tags) = &filters.tags {
-            if !tags.is_empty() {
-                // If any tag in the filter matches any tag in the permission, it passes
-                let has_matching_tag = tags.iter().any(|filter_tag| {
-                    permission.tags.iter().any(|permission_tag| {
-                        // Check if user has access to view this tag
-                        match redact_tag(permission_tag.clone(), requester_id.clone()) {
-                            Some(tag) => &tag == filter_tag,
-                            None => false // User cannot see this tag, so it's not a match
+        // 3. Filter by labels if specified (OR relationship between labels)
+        if let Some(labels) = &filters.labels {
+            if !labels.is_empty() {
+                // If any label in the filter matches any label in the permission, it passes
+                let has_matching_label = labels.iter().any(|filter_label| {
+                    permission.labels.iter().any(|permission_label| {
+                        // Check if user has access to view this label
+                        match redact_label(permission_label.clone(), requester_id.clone()) {
+                            Some(label) => &label == filter_label,
+                            None => false // User cannot see this label, so it's not a match
                         }
                     })
                 });
                 
-                if !has_matching_tag {
+                if !has_matching_label {
                     return false;
                 }
             }
@@ -1042,7 +1042,7 @@ pub mod permissions_handlers {
                     "API_KEYS" => SystemResourceID::Table(SystemTableEnum::Api_Keys),
                     "PERMISSIONS" => SystemResourceID::Table(SystemTableEnum::Permissions),
                     "WEBHOOKS" => SystemResourceID::Table(SystemTableEnum::Webhooks),
-                    "TAGS" => SystemResourceID::Table(SystemTableEnum::Tags),
+                    "LABELS" => SystemResourceID::Table(SystemTableEnum::Labels),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,
                         ErrorResponse::err(400, "Invalid table name".to_string()).encode()
@@ -1112,7 +1112,7 @@ pub mod permissions_handlers {
             created_at: current_time,
             last_modified_at: current_time,
             from_placeholder_grantee: None,
-            tags: vec![],
+            labels: vec![],
             metadata: upsert_request.metadata,
             external_id: match upsert_request.external_id {
                 Some(id) => Some(ExternalID(id)),

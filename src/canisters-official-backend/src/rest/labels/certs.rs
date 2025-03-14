@@ -1,4 +1,4 @@
-// src/rest/tags/certs.rs
+// src/rest/labels/certs.rs
 
 
 #[derive(Debug, Clone)]
@@ -7,7 +7,7 @@ struct CertifiedHttpResponse<'a> {
     certification: HttpCertification,
 }
 
-use crate::rest::tags::route::TAGS_LIST_PATH;
+use crate::rest::labels::route::LABELS_LIST_PATH;
 
 
 use ic_http_certification::{
@@ -31,15 +31,15 @@ const NOT_FOUND_PATH: &str = "";
 
 
 lazy_static! {
-    pub static ref TAGS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(TAGS_LIST_PATH);
+    pub static ref LABELS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(LABELS_LIST_PATH);
     static ref NOT_FOUND_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::wildcard(NOT_FOUND_PATH);
 
-    static ref TAGS_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
+    static ref LABELS_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()
         .with_request_headers(vec![])
         .with_request_query_parameters(vec![])
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))
         .build();
-    static ref TAGS_CEL_EXPR: String = TAGS_CEL_EXPR_DEF.to_string();
+    static ref LABELS_CEL_EXPR: String = LABELS_CEL_EXPR_DEF.to_string();
 
     static ref NOT_FOUND_CEL_EXPR_DEF: DefaultResponseOnlyCelExpression<'static> = DefaultCelBuilder::response_only_certification()
         .with_response_certification(DefaultResponseCertification::response_header_exclusions(vec![]))

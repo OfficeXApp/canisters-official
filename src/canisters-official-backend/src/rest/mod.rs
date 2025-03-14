@@ -17,5 +17,5 @@ pub mod drives;
 pub mod disks;
 pub mod directory;
 pub mod permissions;
-pub mod tags;
+pub mod labels;
 pub mod organization;

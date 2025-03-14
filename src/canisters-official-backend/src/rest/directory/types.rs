@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, tags::{state::validate_uuid4_string_with_prefix, types::{redact_tag, TagStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -36,11 +36,11 @@ impl FileRecordFE {
                 // redact fields
             }
         }
-        // Filter tags
-        redacted.file.tags = match is_owner {
-            true => redacted.file.tags,
-            false => redacted.file.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.file.labels = match is_owner {
+            true => redacted.file.labels,
+            false => redacted.file.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         
@@ -73,11 +73,11 @@ impl FolderRecordFE {
                 // redact fields
             }
         }
-        // Filter tags
-        redacted.folder.tags = match is_owner {
-            true => redacted.folder.tags,
-            false => redacted.folder.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.folder.labels = match is_owner {
+            true => redacted.folder.labels,
+            false => redacted.folder.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         
@@ -748,7 +748,7 @@ pub struct CreateFilePayload {
     pub id: Option<ClientSuggestedUUID>,
     pub name: String,
     pub extension: String,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub file_size: u64,
     pub raw_url: String,
     pub disk_id: DiskID,
@@ -778,12 +778,12 @@ impl CreateFilePayload {
             });
         }
         
-        // Validate tags
-        for tag in &self.tags {
-            if tag.0.len() > 256 {
+        // Validate labels
+        for label in &self.labels {
+            if label.0.len() > 256 {
                 return Err(ValidationError {
-                    field: "tags".to_string(),
-                    message: "Each tag must be 256 characters or less".to_string(),
+                    field: "labels".to_string(),
+                    message: "Each label must be 256 characters or less".to_string(),
                 });
             }
         }
@@ -813,7 +813,7 @@ impl CreateFilePayload {
 pub struct CreateFolderPayload {
     pub id: Option<ClientSuggestedUUID>,
     pub name: String,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
@@ -833,12 +833,12 @@ impl CreateFolderPayload {
         // Validate name
         validate_short_string(&self.name, "name")?;
         
-        // Validate tags
-        for tag in &self.tags {
-            if tag.0.len() > 256 {
+        // Validate labels
+        for label in &self.labels {
+            if label.0.len() > 256 {
                 return Err(ValidationError {
-                    field: "tags".to_string(),
-                    message: "Each tag must be 256 characters or less".to_string(),
+                    field: "labels".to_string(),
+                    message: "Each label must be 256 characters or less".to_string(),
                 });
             }
         }
@@ -864,7 +864,7 @@ impl CreateFolderPayload {
 #[serde(deny_unknown_fields)]
 pub struct UpdateFilePayload {
     pub name: Option<String>,
-    pub tags: Option<Vec<TagStringValue>>,
+    pub labels: Option<Vec<LabelStringValue>>,
     pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
     pub external_id: Option<String>,
@@ -877,13 +877,13 @@ impl UpdateFilePayload {
             validate_short_string(name, "name")?;
         }
         
-        // Validate tags if provided
-        if let Some(tags) = &self.tags {
-            for tag in tags {
-                if tag.0.len() > 256 {
+        // Validate labels if provided
+        if let Some(labels) = &self.labels {
+            for label in labels {
+                if label.0.len() > 256 {
                     return Err(ValidationError {
-                        field: "tags".to_string(),
-                        message: "Each tag must be 256 characters or less".to_string(),
+                        field: "labels".to_string(),
+                        message: "Each label must be 256 characters or less".to_string(),
                     });
                 }
             }
@@ -913,7 +913,7 @@ impl UpdateFilePayload {
 #[serde(deny_unknown_fields)]
 pub struct UpdateFolderPayload {
     pub name: Option<String>,
-    pub tags: Option<Vec<TagStringValue>>,
+    pub labels: Option<Vec<LabelStringValue>>,
     pub expires_at: Option<i64>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -925,13 +925,13 @@ impl UpdateFolderPayload {
             validate_short_string(name, "name")?;
         }
         
-        // Validate tags if provided
-        if let Some(tags) = &self.tags {
-            for tag in tags {
-                if tag.0.len() > 256 {
+        // Validate labels if provided
+        if let Some(labels) = &self.labels {
+            for label in labels {
+                if label.0.len() > 256 {
                     return Err(ValidationError {
-                        field: "tags".to_string(),
-                        message: "Each tag must be 256 characters or less".to_string(),
+                        field: "labels".to_string(),
+                        message: "Each label must be 256 characters or less".to_string(),
                     });
                 }
             }
@@ -1290,7 +1290,7 @@ pub struct DirectoryResourcePermissionFE {
         "name": "report.pdf",
         "folder_uuid": "folder-uuid-789",
         "extension": "pdf",
-        "tags": ["work", "2024"],
+        "labels": ["work", "2024"],
         "file_size": 1024567,
         "raw_url": "https://example.com/files/raw/123",
         "disk_id": "disk-1",
@@ -1307,7 +1307,7 @@ pub struct DirectoryResourcePermissionFE {
     "payload": {
         "name": "project-alpha",
         "parent_folder_uuid": "folder-uuid-123",
-        "tags": ["project", "active"],
+        "labels": ["project", "active"],
         "disk_id": "disk-1",
         "expires_at": 1735689600000
     }
@@ -1322,7 +1322,7 @@ pub struct DirectoryResourcePermissionFE {
     "payload": {
         "name": "updated-report.pdf",
         "folder_uuid": "folder-uuid-new",
-        "tags": ["work", "2024", "reviewed"],
+        "labels": ["work", "2024", "reviewed"],
         "raw_url": "https://example.com/files/raw/124",
         "expires_at": 1735689600000
     }
@@ -1337,7 +1337,7 @@ pub struct DirectoryResourcePermissionFE {
     "payload": {
         "name": "project-beta",
         "parent_folder_uuid": "folder-uuid-new-parent",
-        "tags": ["project", "active", "phase-2"],
+        "labels": ["project", "active", "phase-2"],
         "expires_at": 1735689600000
     }
 }

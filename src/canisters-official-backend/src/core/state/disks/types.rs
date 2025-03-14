@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use std::fmt;
 
-use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::UserID}, rest::{disks::types::DiskFE, tags::types::TagFE}};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::UserID}, rest::{disks::types::DiskFE, labels::types::LabelFE}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -22,7 +22,7 @@ pub struct Disk {
     pub private_note: Option<String>,
     pub public_note: Option<String>,
     pub auth_json: Option<String>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub created_at: u64,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,

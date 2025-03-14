@@ -1,4 +1,4 @@
-// src/rest/tags/mod.rs
+// src/rest/labels/mod.rs
 pub mod route;
 pub mod handler;
 pub mod certs;

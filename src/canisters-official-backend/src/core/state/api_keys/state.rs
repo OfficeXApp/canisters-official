@@ -56,7 +56,7 @@ pub mod state {
             created_at: ic_cdk::api::time(),
             expires_at: -1,
             is_revoked: false,
-            tags: vec![],
+            labels: vec![],
             external_id: None,
             external_payload: None,
         };

@@ -2,7 +2,7 @@
 use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
-use crate::{core::{api::permissions::system::check_system_permissions, state::{directory::types::{FileID, FolderID}, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::{IDPrefix, UserID}}, rest::webhooks::types::WebhookFE};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{directory::types::{FileID, FolderID}, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::{IDPrefix, UserID}}, rest::webhooks::types::WebhookFE};
 
 
 
@@ -17,7 +17,7 @@ pub struct Webhook {
     pub note: Option<String>,
     pub active: bool,
     pub filters: String,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
     pub created_at: u64,
@@ -158,10 +158,10 @@ pub enum WebhookEventLabel {
     DriveRestoreTrash,
     #[serde(rename = "drive.state_diffs")]
     DriveStateDiffs,
-    #[serde(rename = "tag.added")]
-    TagAdded,
-    #[serde(rename = "tag.removed")]
-    TagRemoved,
+    #[serde(rename = "label.added")]
+    LabelAdded,
+    #[serde(rename = "label.removed")]
+    LabelRemoved,
     #[serde(rename = "org.superswap_user")]
     OrganizationSuperswapUser,
 }
@@ -193,8 +193,8 @@ impl std::str::FromStr for WebhookEventLabel {
             "subfolder.shared" => Ok(Self::SubfolderShared),
             "group.invite.created" => Ok(Self::GroupInviteCreated),
             "group.invite.updated" => Ok(Self::GroupInviteUpdated),
-            "tag.added" => Ok(Self::TagAdded),
-            "tag.removed" => Ok(Self::TagRemoved),
+            "label.added" => Ok(Self::LabelAdded),
+            "label.removed" => Ok(Self::LabelRemoved),
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
             "drive.state_diffs" => Ok(Self::DriveStateDiffs),
             "org.superswap_user" => Ok(Self::OrganizationSuperswapUser),
@@ -237,9 +237,9 @@ impl ToString for WebhookEventLabel {
             // drive
             Self::DriveRestoreTrash => "drive.restore_trash",
             Self::DriveStateDiffs => "drive.state_diffs",
-            // tags
-            Self::TagAdded => "tag.added",
-            Self::TagRemoved => "tag.removed",
+            // labels
+            Self::LabelAdded => "label.added",
+            Self::LabelRemoved => "label.removed",
             // organization
             Self::OrganizationSuperswapUser => "organization.superswap_user",
         }.to_string()

@@ -206,7 +206,7 @@ pub mod apikeys_handlers {
             created_at: ic_cdk::api::time(),
             expires_at: create_req.expires_at.unwrap_or(-1),
             is_revoked: false,
-            tags: vec![],
+            labels: vec![],
             external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
             external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
         };

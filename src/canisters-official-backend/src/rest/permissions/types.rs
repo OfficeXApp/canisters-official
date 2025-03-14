@@ -4,8 +4,8 @@ use crate::core::state::directory::types::DriveFullFilePath;
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{ExternalID, ExternalPayload};
 use crate::core::state::permissions::types::*;
-use crate::core::state::tags::state::validate_uuid4_string_with_prefix;
-use crate::core::state::tags::types::{redact_tag, TagStringValue};
+use crate::core::state::labels::state::validate_uuid4_string_with_prefix;
+use crate::core::state::labels::types::{redact_label, LabelStringValue};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourceID;
 use crate::core::state::permissions::types::PermissionMetadata;
@@ -29,7 +29,7 @@ pub struct SystemPermissionFE {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<String>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub metadata: Option<PermissionMetadata>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -57,11 +57,11 @@ impl SystemPermissionFE {
                 // redacted.system_permission.private_note = None;
             }
         }
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.labels = match is_owner {
+            true => redacted.labels,
+            false => redacted.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         
@@ -86,7 +86,7 @@ pub struct DirectoryPermissionFE {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<String>,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
     
@@ -109,11 +109,11 @@ impl DirectoryPermissionFE {
                 // redacted.system_permission.private_note = None;
             }
         }
-        // Filter tags
-        redacted.tags = match is_owner {
-            true => redacted.tags,
-            false => redacted.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.labels = match is_owner {
+            true => redacted.labels,
+            false => redacted.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         
@@ -368,7 +368,7 @@ fn default_page_size() -> usize {
 pub struct ListSystemPermissionsRequestBodyFilters {
     pub resource_ids: Option<Vec<SystemResourceID>>, // leave this empty to get all permissions for all resources, but due to pagination we cant use .cast_fe().redact(), we must first filter out those the requesters does not have access to
     pub grantee_ids: Option<Vec<PermissionGranteeID>>, // leave this empty to get all permissions, but due to pagination we cant use .cast_fe().redact(), we must first filter out those the requesters does not have access to
-    pub tags: Option<Vec<TagStringValue>>, // leave this empty to get all permissions, but due to pagination we cant use .cast_fe().redact(), we must first filter out those the requesters does not have access to
+    pub labels: Option<Vec<LabelStringValue>>, // leave this empty to get all permissions, but due to pagination we cant use .cast_fe().redact(), we must first filter out those the requesters does not have access to
 }
 
 

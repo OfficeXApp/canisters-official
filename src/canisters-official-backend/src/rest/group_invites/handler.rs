@@ -262,7 +262,7 @@ pub mod group_invites_handlers {
             active_from: create_req.active_from.unwrap_or(0),
             expires_at: create_req.expires_at.unwrap_or(-1),
             from_placeholder_invitee: None,
-            tags: vec![],
+            labels: vec![],
             external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
             external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
         };
@@ -680,7 +680,7 @@ pub mod group_invites_handlers {
                 active_from: invite.active_from,
                 expires_at: invite.expires_at,
                 from_placeholder_invitee: Some(invite.invitee_id.clone().to_string()),
-                tags: invite.tags.clone(),
+                labels: invite.labels.clone(),
                 external_id: invite.external_id.clone(),
                 external_payload: invite.external_payload.clone(),
             };

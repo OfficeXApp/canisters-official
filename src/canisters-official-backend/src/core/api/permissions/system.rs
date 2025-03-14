@@ -184,10 +184,10 @@ pub fn check_permissions_table_access(
 
 
 
-pub fn check_system_resource_permissions_tags(
+pub fn check_system_resource_permissions_labels(
     resource_id: &SystemResourceID,
     grantee_id: &PermissionGranteeID,
-    tag_string_value: &str,
+    label_string_value: &str,
 ) -> HashSet<SystemPermissionType> {
     let mut permissions_set = HashSet::new();
     
@@ -243,14 +243,14 @@ pub fn check_system_resource_permissions_tags(
                         };
 
                         if applies {
-                            // Check if there's metadata and it's a tag prefix match
-                            let tag_match = match &permission.metadata {
+                            // Check if there's metadata and it's a label prefix match
+                            let label_match = match &permission.metadata {
                                 Some(metadata) => {
-                                    if metadata.metadata_type == PermissionMetadataTypeEnum::Tags {
+                                    if metadata.metadata_type == PermissionMetadataTypeEnum::Labels {
                                         match &metadata.content {
-                                            PermissionMetadataContent::Tags(prefix) => {
+                                            PermissionMetadataContent::Labels(prefix) => {
                                                 // Case insensitive prefix check
-                                                tag_string_value.to_lowercase()
+                                                label_string_value.to_lowercase()
                                                     .starts_with(&prefix.0.to_lowercase())
                                             }
                                         }
@@ -261,8 +261,8 @@ pub fn check_system_resource_permissions_tags(
                                 None => true
                             };
 
-                            // If there's a tag match, add the permission types
-                            if tag_match {
+                            // If there's a label match, add the permission types
+                            if label_match {
                                 permissions_set.extend(permission.permission_types.iter().cloned());
                             }
                         }

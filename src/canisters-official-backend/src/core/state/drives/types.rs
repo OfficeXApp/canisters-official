@@ -3,7 +3,7 @@
 use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
-use crate::{core::{api::permissions::system::check_system_permissions, state::{permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::types::{redact_tag, TagStringValue}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::drives::types::DriveFE};
+use crate::{core::{api::permissions::system::check_system_permissions, state::{permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::drives::types::DriveFE};
 
 use super::state::state::OWNER_ID;
 
@@ -27,7 +27,7 @@ pub struct Drive {
     pub endpoint_url: DriveRESTUrlEndpoint,
     pub last_indexed_ms: Option<u64>,
     pub created_at: u64,
-    pub tags: Vec<TagStringValue>,
+    pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }   

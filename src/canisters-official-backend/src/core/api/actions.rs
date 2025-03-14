@@ -655,8 +655,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     // Update other metadata fields directly
                     file_uuid_to_metadata.with_mut(|map| {
                         if let Some(file) = map.get_mut(&file_id) {
-                            if let Some(tags) = payload.tags {
-                                file.tags = tags;
+                            if let Some(labels) = payload.labels {
+                                file.labels = labels;
                             }
                             if let Some(raw_url) = payload.raw_url {
                                 file.raw_url = raw_url;
@@ -824,8 +824,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     // Update other metadata fields directly
                     folder_uuid_to_metadata.with_mut(|map| {
                         if let Some(folder) = map.get_mut(&folder_id) {
-                            if let Some(tags) = payload.tags {
-                                folder.tags = tags;
+                            if let Some(labels) = payload.labels {
+                                folder.labels = labels;
                             }
                             if let Some(expires_at) = payload.expires_at {
                                 folder.expires_at = expires_at;

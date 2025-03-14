@@ -1,7 +1,7 @@
 // src/rest/groups/types.rs
 use serde::{Deserialize, Serialize};
 use crate::{core::{
-    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, tags::{state::validate_uuid4_string_with_prefix, types::redact_tag}, group_invites::types::GroupInviteID, groups::{state::state::is_group_admin, types::{Group, GroupID}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}
+    api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::DriveRESTUrlEndpoint}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::{state::validate_uuid4_string_with_prefix, types::redact_label}, group_invites::types::GroupInviteID, groups::{state::state::is_group_admin, types::{Group, GroupID}}}, types::{ClientSuggestedUUID, IDPrefix, UserID}
 }, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url, validate_url_endpoint, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection}};
 
 
@@ -31,11 +31,11 @@ impl GroupFE {
                 redacted.group.private_note = None;
             }
         }
-        // Filter tags
-        redacted.group.tags = match is_owner {
-            true => redacted.group.tags,
-            false => redacted.group.tags.iter()
-            .filter_map(|tag| redact_tag(tag.clone(), user_id.clone()))
+        // Filter labels
+        redacted.group.labels = match is_owner {
+            true => redacted.group.labels,
+            false => redacted.group.labels.iter()
+            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
             .collect()
         };
         
