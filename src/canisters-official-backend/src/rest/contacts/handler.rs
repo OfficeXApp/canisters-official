@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_organization_webhook, get_superswap_user_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::state::state::GROUPS_BY_ID_HASHTABLE, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_superswap_user_webhook, get_superswap_user_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::state::state::GROUPS_BY_ID_HASHTABLE, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -693,7 +693,7 @@ pub mod contacts_handlers {
                 );
 
                 // Fire organization webhook
-                fire_organization_webhook(
+                fire_superswap_user_webhook(
                     WebhookEventLabel::OrganizationSuperswapUser,
                     active_webhooks,
                     Some(current_user_id.clone()),

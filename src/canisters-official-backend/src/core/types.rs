@@ -84,6 +84,7 @@ pub enum IDPrefix {
     DriveStateDiffID,
     LabelID,
     RedeemCode,
+    InboxNotifID,
 }
 
 impl IDPrefix {
@@ -107,6 +108,7 @@ impl IDPrefix {
             IDPrefix::DriveStateDiffID => "DriveStateDiffID_",
             IDPrefix::LabelID => "LabelID_",
             IDPrefix::RedeemCode => "RedeemTokenID_",
+            IDPrefix::InboxNotifID => "InboxNotifID_",
         }
     }
 }

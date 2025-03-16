@@ -186,7 +186,8 @@ pub enum SystemTableEnum {
     Api_Keys,
     Permissions,
     Webhooks,
-    Labels
+    Labels,
+    Inbox
 }
 
 impl fmt::Display for SystemTableEnum {
@@ -200,6 +201,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Permissions => write!(f, "PERMISSIONS"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
             SystemTableEnum::Webhooks => write!(f, "WEBHOOKS"),
             SystemTableEnum::Labels => write!(f, "LABELS"),
+            SystemTableEnum::Inbox => write!(f, "INBOX"),
         }
     }
 }

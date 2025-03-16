@@ -4,7 +4,7 @@ use std::error::Error;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
-use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, StateChecksum, StateDiffRecord};
+use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, ExternalID, InboxNotifID, StateChecksum, StateDiffRecord};
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::{ICPPrincipalString, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
@@ -318,4 +318,33 @@ pub struct RedeemOrgResponseData {
     pub admin_login_password: String, // admin login password for the spawned drive
 }
 pub type RedeemOrgResponse<'a> = ApiResponse<'a, RedeemOrgResponseData>;
+
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxOrgRequestBody {
+    pub drive_id: DriveID,
+    pub recipient: String,
+    pub payload: serde_json::Value,
+}
+impl InboxOrgRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        
+        validate_drive_id(&self.drive_id.to_string())?;
+
+        validate_short_string(&self.recipient, "path")?;
+        
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxOrgResponseData {
+    pub inbox_notif_id: InboxNotifID,
+    pub drive_id: DriveID, 
+    pub timestamp_ms: u64,
+    pub note: String,
+}
+pub type InboxOrgResponse<'a> = ApiResponse<'a, InboxOrgResponseData>;
 

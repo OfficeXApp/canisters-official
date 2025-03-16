@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4, webhooks::organization::{fire_organization_webhook, get_superswap_user_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, SpawnRedeemCode}}, group_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, groups::state::state::{is_group_admin, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, labels::{state::{add_label_to_resource, parse_label_resource_id, remove_label_from_resource, validate_label_value}, types::{LabelOperationResponse, LabelResourceID}}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, RedeemOrgRequestBody, RedeemOrgResponse, RedeemOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4, webhooks::organization::{fire_org_inbox_new_notif_webhook, fire_superswap_user_webhook, get_org_inbox_webhooks, get_superswap_user_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, InboxNotifID, SpawnRedeemCode}}, group_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, groups::state::state::{is_group_admin, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, labels::{state::{add_label_to_resource, parse_label_resource_id, remove_label_from_resource, validate_label_value}, types::{LabelOperationResponse, LabelResourceID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, InboxOrgRequestBody, InboxOrgResponse, InboxOrgResponseData, RedeemOrgRequestBody, RedeemOrgResponse, RedeemOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
         
     };
     use ic_types::crypto::canister_threshold_sig::PublicKey;
@@ -742,7 +742,7 @@ pub mod drives_handlers {
                             WebhookEventLabel::OrganizationSuperswapUser
                         );
 
-                        fire_organization_webhook(
+                        fire_superswap_user_webhook(
                             WebhookEventLabel::OrganizationSuperswapUser,
                             active_webhooks,
                             Some(UserID(request_body.current_user_id.clone())),
@@ -869,6 +869,92 @@ pub mod drives_handlers {
             RedeemOrgResponse::ok(&response_data).encode()
         )
     }
+
+    pub async fn inbox_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // Parse request body
+        let body = request.body();
+        let request_body: InboxOrgRequestBody = match serde_json::from_slice(body) {
+            Ok(body) => body,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+
+        if let Err(validation_error) = request_body.validate_body() {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, format!("Validation error: {}: {}", 
+                    validation_error.field, validation_error.message)).encode()
+            );
+        }
+
+        // if drive id doesnt match, return with error
+        if request_body.drive_id != DRIVE_ID.with(|id| id.clone()) {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Drive ID does not match".to_string()).encode()
+            );
+        }
+    
+        // Check if user is owner
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // If not owner, check for View permissions:
+        // 1. On the entire Drives table, OR
+        // 2. On the specific Drive_ID drive
+        if !is_owner {
+            let table_resource_id = SystemResourceID::Table(SystemTableEnum::Inbox);
+            let table_permissions = check_system_permissions(
+                table_resource_id,
+                PermissionGranteeID::User(requester_api_key.user_id.clone())
+            );
+            
+            
+            // User needs View permission on either the table or the specific drive
+            let has_permission = table_permissions.contains(&SystemPermissionType::Create);
+            
+            if !has_permission {
+                return create_auth_error_response();
+            }
+        }
+
+        let inbox_notif_id = InboxNotifID(generate_uuidv4(IDPrefix::InboxNotifID));
+        let timestamp_ms = ic_cdk::api::time() / 1_000_000;
+    
+
+        let active_webhooks = get_org_inbox_webhooks();
+
+        debug_log!("Active webhooks: {:?}", active_webhooks);
+
+        fire_org_inbox_new_notif_webhook(
+            WebhookEventLabel::OrganizationInboxNewNotif,
+            active_webhooks,
+            None,
+            Some(request_body.clone()),
+            Some("New inbox notification received".to_string())
+        ).await;
+    
+        // Create response data
+        let response_data = InboxOrgResponseData {
+            inbox_notif_id,
+            drive_id: DRIVE_ID.with(|id| id.clone()),
+            timestamp_ms,
+            note: "Inbox notification received".to_string(),
+        };
+
+        create_response(
+            StatusCode::OK,
+            InboxOrgResponse::ok(&response_data).encode()
+        )
+    }
+
 
     fn json_decode<T>(value: &[u8]) -> T
     where

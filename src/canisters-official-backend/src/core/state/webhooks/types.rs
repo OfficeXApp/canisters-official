@@ -73,11 +73,12 @@ impl fmt::Display for WebhookAltIndexID {
 }
 
 impl WebhookAltIndexID {
-    pub const FILE_CREATED: &'static str = "ANY_FILE";
-    pub const FOLDER_CREATED: &'static str = "ANY_FOLDER";
+    pub const ALL_FILES: &'static str = "ALL_FILES";
+    pub const ALL_FOLDERS: &'static str = "ALL_FOLDERS";
     pub const RESTORE_TRASH: &'static str = "RESTORE_TRASH"; // this alt index is required due to it querying directory
     pub const STATE_DIFFS: &'static str = "STATE_DIFFS"; 
     pub const SUPERSWAP_USER: &'static str = "SUPERSWAP_USER";
+    pub const INBOX_NEW_NOTIF: &'static str = "INBOX_NEW_NOTIF";
 
     // Helper method to create new instances
     pub fn new(id: String) -> Self {
@@ -86,11 +87,11 @@ impl WebhookAltIndexID {
 
     // Helper methods to get the constant instances
     pub fn file_created_slug() -> Self {
-        WebhookAltIndexID(Self::FILE_CREATED.to_string())
+        WebhookAltIndexID(Self::ALL_FILES.to_string())
     }
 
     pub fn folder_created_slug() -> Self {
-        WebhookAltIndexID(Self::FOLDER_CREATED.to_string())
+        WebhookAltIndexID(Self::ALL_FOLDERS.to_string())
     }
 
     pub fn restore_trash_slug() -> Self {
@@ -103,6 +104,10 @@ impl WebhookAltIndexID {
 
     pub fn superswap_user_slug() -> Self {
         WebhookAltIndexID(Self::SUPERSWAP_USER.to_string())
+    }
+
+    pub fn inbox_new_notif_slug() -> Self {
+        WebhookAltIndexID(Self::INBOX_NEW_NOTIF.to_string())
     }
 }
 
@@ -164,6 +169,8 @@ pub enum WebhookEventLabel {
     LabelRemoved,
     #[serde(rename = "org.superswap_user")]
     OrganizationSuperswapUser,
+    #[serde(rename = "org.inbox.new_notif")]
+    OrganizationInboxNewNotif,
 }
 
 impl std::str::FromStr for WebhookEventLabel {
@@ -198,6 +205,7 @@ impl std::str::FromStr for WebhookEventLabel {
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
             "drive.state_diffs" => Ok(Self::DriveStateDiffs),
             "org.superswap_user" => Ok(Self::OrganizationSuperswapUser),
+            "org.inbox.new_notif" => Ok(Self::OrganizationInboxNewNotif),
             _ => Err(format!("Invalid webhook event: {}", s)),
         }
     }
@@ -242,6 +250,7 @@ impl ToString for WebhookEventLabel {
             Self::LabelRemoved => "label.removed",
             // organization
             Self::OrganizationSuperswapUser => "organization.superswap_user",
+            Self::OrganizationInboxNewNotif => "organization.inbox.new_notif",
         }.to_string()
     }
 }
