@@ -250,7 +250,7 @@ impl ToString for WebhookEventLabel {
             Self::LabelRemoved => "label.removed",
             // organization
             Self::OrganizationSuperswapUser => "organization.superswap_user",
-            Self::OrganizationInboxNewNotif => "organization.inbox.new_notif",
+            Self::OrganizationInboxNewNotif => "organization.inbox.new_mail",
         }.to_string()
     }
 }
