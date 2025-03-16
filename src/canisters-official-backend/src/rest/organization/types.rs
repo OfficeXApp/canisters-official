@@ -322,19 +322,16 @@ pub type RedeemOrgResponse<'a> = ApiResponse<'a, RedeemOrgResponseData>;
 
 
 
+// can be any payload shape, as its really just forwarding a webhook
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InboxOrgRequestBody {
-    pub drive_id: DriveID,
-    pub recipient: String,
-    pub payload: serde_json::Value,
+    pub drive_id: Option<DriveID>,
+    pub recipient: Option<String>,
+    pub payload: Option<serde_json::Value>,
 }
 impl InboxOrgRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        
-        validate_drive_id(&self.drive_id.to_string())?;
-
-        validate_short_string(&self.recipient, "path")?;
-        
+        // nothing is validated, as the payload can be any shape
         Ok(())
     }
 }
