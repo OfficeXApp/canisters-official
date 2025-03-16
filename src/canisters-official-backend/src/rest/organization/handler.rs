@@ -895,13 +895,6 @@ pub mod drives_handlers {
             );
         }
 
-        // if drive id doesnt match, return with error
-        if request_body.drive_id != DRIVE_ID.with(|id| id.clone()) {
-            return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Drive ID does not match".to_string()).encode()
-            );
-        }
     
         // Check if user is owner
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
