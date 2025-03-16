@@ -78,7 +78,7 @@ impl WebhookAltIndexID {
     pub const RESTORE_TRASH: &'static str = "RESTORE_TRASH"; // this alt index is required due to it querying directory
     pub const STATE_DIFFS: &'static str = "STATE_DIFFS"; 
     pub const SUPERSWAP_USER: &'static str = "SUPERSWAP_USER";
-    pub const INBOX_NEW_NOTIF: &'static str = "INBOX_NEW_NOTIF";
+    pub const INBOX_NEW_MAIL: &'static str = "INBOX_NEW_MAIL";
 
     // Helper method to create new instances
     pub fn new(id: String) -> Self {
@@ -107,7 +107,7 @@ impl WebhookAltIndexID {
     }
 
     pub fn inbox_new_notif_slug() -> Self {
-        WebhookAltIndexID(Self::INBOX_NEW_NOTIF.to_string())
+        WebhookAltIndexID(Self::INBOX_NEW_MAIL.to_string())
     }
 }
 
@@ -169,7 +169,7 @@ pub enum WebhookEventLabel {
     LabelRemoved,
     #[serde(rename = "org.superswap_user")]
     OrganizationSuperswapUser,
-    #[serde(rename = "org.inbox.new_notif")]
+    #[serde(rename = "org.inbox.new_mail")]
     OrganizationInboxNewNotif,
 }
 
@@ -205,7 +205,7 @@ impl std::str::FromStr for WebhookEventLabel {
             "drive.restore_trash" => Ok(Self::DriveRestoreTrash),
             "drive.state_diffs" => Ok(Self::DriveStateDiffs),
             "org.superswap_user" => Ok(Self::OrganizationSuperswapUser),
-            "org.inbox.new_notif" => Ok(Self::OrganizationInboxNewNotif),
+            "org.inbox.new_mail" => Ok(Self::OrganizationInboxNewNotif),
             _ => Err(format!("Invalid webhook event: {}", s)),
         }
     }
