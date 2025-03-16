@@ -7,10 +7,12 @@
 
 ## Urgent Next
 
+- [🔵] Consider adding a special inbox webhook. canister simply exposes a route `POST /organization/inbox` for 3rd parties to send post requests to. admins can add webhooks on inbox, to get filtered forwarding of inbox. note that this will probably need permissions to enable only authorized senders.
 - [🔵] Team Invite, allow the possibility of public invite by setting placeholder_id to constant string "PUBLIC". in which case when redeemed will create a new invite duplicating the settings of the public invite.
 - [🔵] Write all the redux-offline states and actions for webapp
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
+- [ ] Figure out the upgrade flow of ICP canisters and why snapshot cant serialize etc
 
 ## Awkward Urgent
 
@@ -20,7 +22,7 @@
 
 ## Near Future
 
-- [ ] Consider adding a special inbox webhook. canister simply exposes a route `POST /organization/inbox` for 3rd parties to send post requests to. admins can add webhooks on inbox, to get filtered forwarding of inbox. note that this will probably need permissions to enable only authorized senders.
+- [ ] Consider a `PUBLIC` permission.grantee_id type
 - [ ] Add gas gift card system?
 - [ ] Test out webapp http server
 - [ ] Test out webapp torrenting

@@ -17,6 +17,15 @@ impl fmt::Display for DriveID {
 }
 
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub struct InboxNotifID(pub String);
+impl fmt::Display for InboxNotifID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub struct Drive {
     pub id: DriveID,

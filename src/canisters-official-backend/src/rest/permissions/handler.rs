@@ -1043,6 +1043,7 @@ pub mod permissions_handlers {
                     "PERMISSIONS" => SystemResourceID::Table(SystemTableEnum::Permissions),
                     "WEBHOOKS" => SystemResourceID::Table(SystemTableEnum::Webhooks),
                     "LABELS" => SystemResourceID::Table(SystemTableEnum::Labels),
+                    "INBOX" => SystemResourceID::Table(SystemTableEnum::Inbox),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,
                         ErrorResponse::err(400, "Invalid table name".to_string()).encode()
@@ -1445,6 +1446,8 @@ pub mod permissions_handlers {
                     "WEBHOOKS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Webhooks),
                     "API_KEYS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Api_Keys),
                     "PERMISSIONS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Permissions),
+                    "LABELS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Labels),
+                    "INBOX" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Inbox),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,
                         ErrorResponse::err(400, "Invalid table name".to_string()).encode()
