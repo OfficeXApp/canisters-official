@@ -10,6 +10,7 @@ use crate::core::state::labels::state::validate_uuid4_string_with_prefix;
 use crate::core::state::labels::types::{redact_label, Label, LabelID, LabelResourceID, LabelStringValue};
 use crate::core::state::group_invites::types::GroupInvite;
 use crate::core::state::groups::types::Group;
+use crate::core::state::webhooks::state::state::WEBHOOKS_BY_ID_HASHTABLE;
 use crate::core::state::webhooks::types::{WebhookAltIndexID, WebhookEventLabel};
 use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
@@ -149,6 +150,26 @@ impl CreateWebhookRequestBody {
             validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Webhook)?;
         }
+
+        // Validate filters if provided
+        if let Some(filters) = &self.filters {
+            if filters.len() > 256 {
+                return Err(ValidationError {
+                    field: "filters".to_string(),
+                    message: "Filters must be 256 characters or less".to_string(),
+                });
+            }
+            
+            // If this is an inbox webhook, validate that the filter contains valid topic JSON
+            if self.event == "organization.inbox.new_mail" && !filters.is_empty() {
+                if let Err(_) = serde_json::from_str::<serde_json::Value>(filters) {
+                    return Err(ValidationError {
+                        field: "filters".to_string(),
+                        message: "For inbox webhooks, filters must be valid JSON".to_string(),
+                    });
+                }
+            }
+        }
         
         // Validate alt_index
         validate_short_string(&self.alt_index, "alt_index")?;
@@ -226,6 +247,31 @@ impl UpdateWebhookRequestBody {
         // Validate URL if provided
         if let Some(url) = &self.url {
             validate_url_endpoint(url, "url")?;
+        }
+
+        // Validate filters if provided
+        if let Some(filters) = &self.filters {
+            if filters.len() > 256 {
+                return Err(ValidationError {
+                    field: "filters".to_string(),
+                    message: "Filters must be 256 characters or less".to_string(),
+                });
+            }
+            
+            // Check if this is an inbox webhook by finding it
+            let webhook_id = WebhookID(self.id.clone());
+            let webhook = WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned());
+            
+            if let Some(webhook) = webhook {
+                if webhook.event == WebhookEventLabel::OrganizationInboxNewNotif && !filters.is_empty() {
+                    if let Err(_) = serde_json::from_str::<serde_json::Value>(filters) {
+                        return Err(ValidationError {
+                            field: "filters".to_string(),
+                            message: "For inbox webhooks, filters must be valid JSON".to_string(),
+                        });
+                    }
+                }
+            }
         }
         
         // Validate signature if provided

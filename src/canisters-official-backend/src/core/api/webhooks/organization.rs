@@ -3,7 +3,7 @@
 use crate::{core::{
     state::{group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}},
     types::UserID,
-}, rest::organization::types::InboxOrgRequestBody};
+}, debug_log, rest::organization::types::InboxOrgRequestBody};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -37,7 +37,7 @@ pub fn get_superswap_user_webhooks(event: WebhookEventLabel) -> Vec<Webhook> {
 }
 
 
-pub fn get_org_inbox_webhooks() -> Vec<Webhook> {
+pub fn get_org_inbox_webhooks(topic: Option<&String>) -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
             .get(&WebhookAltIndexID::inbox_new_notif_slug())
@@ -45,11 +45,66 @@ pub fn get_org_inbox_webhooks() -> Vec<Webhook> {
             .unwrap_or_default()
     });
 
+
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
         webhook_ids.into_iter()
             .filter_map(|id| store.get(&id).cloned())
-            .filter(|webhook| webhook.active && webhook.event == WebhookEventLabel::OrganizationInboxNewNotif)
+            .filter(|webhook| {
+                
+                if !webhook.active || webhook.event != WebhookEventLabel::OrganizationInboxNewNotif {
+                    return false;
+                }
+                
+                match (topic, webhook.filters.as_str()) {
+                    // No topic in request but webhook has filter - no match
+                    (None, filters) if !filters.is_empty() => {
+                        false
+                    },
+                    
+                    // Topic in request but no filter in webhook - no match
+                    (Some(_), filters) if filters.is_empty() => {
+                        false
+                    },
+                    
+                    // Both topic and filter exist - try to match
+                    (Some(request_topic), filters) if !filters.is_empty() => {
+                        
+                        match serde_json::from_str::<serde_json::Value>(filters) {
+                            Ok(filter_json) => {
+                                match filter_json.get("topic") {
+                                    Some(filter_topic) => {
+                                        match filter_topic.as_str() {
+                                            Some(filter_topic_str) => {
+                                                let matches = filter_topic_str == request_topic;
+                                                matches
+                                            },
+                                            None => {
+                                                debug_log!("Filter topic is not a string");
+                                                false
+                                            }
+                                        }
+                                    },
+                                    None => {
+                                        debug_log!("No 'topic' key in filter JSON");
+                                        false
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                debug_log!("Failed to parse filter JSON: {}", e);
+                                false
+                            }
+                        }
+                    },
+                    
+                    // No topic and no filter - catch-all case
+                    _ => {
+                        debug_log!("Catch-all case - no topic and no filter");
+                        true
+                    }
+                }
+            })
             .collect()
     })
 }

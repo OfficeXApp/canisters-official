@@ -326,7 +326,7 @@ pub type RedeemOrgResponse<'a> = ApiResponse<'a, RedeemOrgResponseData>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InboxOrgRequestBody {
     pub drive_id: Option<DriveID>,
-    pub recipient: Option<String>,
+    pub topic: Option<String>,
     pub payload: Option<serde_json::Value>,
 }
 impl InboxOrgRequestBody {
