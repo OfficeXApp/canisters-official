@@ -7,9 +7,7 @@
 
 ## Urgent Next
 
-- [🔵] Consider adding a special inbox webhook. canister simply exposes a route `POST /organization/inbox` for 3rd parties to send post requests to. admins can add webhooks on inbox, to get filtered forwarding of inbox. note that this will probably need permissions to enable only authorized senders.
 - [🔵] Team Invite, allow the possibility of public invite by setting placeholder_id to constant string "PUBLIC". in which case when redeemed will create a new invite duplicating the settings of the public invite.
-- [🔵] Write all the redux-offline states and actions for webapp
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
 - [ ] Figure out the upgrade flow of ICP canisters and why snapshot cant serialize etc
@@ -18,7 +16,7 @@
 
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
-- [ ] Refactor rename "tags" to "labels" if we are going to call usertags a thing `Name@UserID_abc123`. or think of a better name for usertags (userlinks? userstrings? teamstring, teamtag, teamslug, userslug, userhandle, teamhandle)
+- [ ] Refactor inbox webhook to allow topic filters so that webhooks dont receieve EVERY piece of mail
 
 ## Near Future
 
@@ -134,3 +132,6 @@
 - [x] Migrate to allowing client uuids for true p2p offline compatibility (however we should add validation of userids, including preventing duplicates with our own internal mappings to check if uuid already taken)
 - [x] Should we rename Teams into Group? Group is actually more correct since they can be ACL groups. Teams typically imply an ongoing collaboration, whereas ACL groups just share permissions. Proper language can make for a much more intuitive user experience. --> Yes refactored
 - [x] Fix validate_id_string which accepts an id prefix arg but does nothign with it, and the various implementations of validate_id_string pass in wrong prefix anyways. fix this ai slop!
+- [x] Consider adding a special inbox webhook. canister simply exposes a route `POST /organization/inbox` for 3rd parties to send post requests to. admins can add webhooks on inbox, to get filtered forwarding of inbox. note that this will probably need permissions to enable only authorized senders.
+- [x] Write all the redux-offline states and actions for webapp
+- [x] Refactor rename "tags" to "labels" if we are going to call usertags a thing `Name@UserID_abc123`. or think of a better name for usertags (userlinks? userstrings? teamstring, teamtag, teamslug, userslug, userhandle, teamhandle)

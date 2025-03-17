@@ -922,7 +922,7 @@ pub mod drives_handlers {
         let timestamp_ms = ic_cdk::api::time() / 1_000_000;
     
 
-        let active_webhooks = get_org_inbox_webhooks();
+        let active_webhooks = get_org_inbox_webhooks(request_body.topic.as_ref());
 
         debug_log!("Active webhooks: {:?}", active_webhooks);
 
