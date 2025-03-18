@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::DirectoryIDError, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::types::{ExternalID, ExternalPayload}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryResourceID, FileConflictResolutionEnum}, 
+        core::{api::{drive::drive::get_folder_by_id, types::{DirectoryError, DirectoryIDError}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::{state::state::DRIVE_ID, types::{DriveID, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryListResponse, DirectoryResourceID, FileConflictResolutionEnum, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse}, 
         
     };
     
@@ -26,13 +26,8 @@ pub mod drive_internals {
     }
     
 
-    pub fn ensure_root_folder(disk_id: &DiskID, disk_type: &DiskTypeEnum,user_id: &UserID, canister_id: String,) -> FolderID {
+    pub fn ensure_root_folder(disk_id: &DiskID, disk_type: &DiskTypeEnum,user_id: &UserID, drive_id: DriveID) -> FolderID {
         let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
-        let canister_icp_principal_string = if canister_id.is_empty() {
-            ic_cdk::api::id().to_text()
-        } else {
-            canister_id.clone()
-        };
         let root_uuid = if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
             uuid.clone()
         } else {
@@ -44,7 +39,7 @@ pub mod drive_internals {
                 restore_trash_prior_folder_path: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
-                full_folder_path: root_path.clone(),
+                full_directory_path: root_path.clone(),
                 labels: Vec::new(),
                 created_by: user_id.clone(),
                 created_at: ic_cdk::api::time(),
@@ -53,9 +48,10 @@ pub mod drive_internals {
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: user_id.clone(),
                 deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
+                drive_id: drive_id.clone(),
                 expires_at: -1,
                 has_sovereign_permissions: false,
+                shortcut_to: None,
                 external_id: None,
                 external_payload: None,
             };
@@ -76,7 +72,7 @@ pub mod drive_internals {
                 restore_trash_prior_folder_path: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
-                full_folder_path: trash_path.clone(),
+                full_directory_path: trash_path.clone(),
                 labels: Vec::new(),
                 created_by: user_id.clone(),
                 created_at: ic_cdk::api::time(),
@@ -85,9 +81,10 @@ pub mod drive_internals {
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: user_id.clone(),
                 deleted: false,
-                canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string)),
+                drive_id: drive_id.clone(),
                 expires_at: -1,
                 has_sovereign_permissions: true,
+                shortcut_to: None,
                 external_id: None,
                 external_payload: None,
             };
@@ -121,7 +118,7 @@ pub mod drive_internals {
         for subfolder_id in &subfolder_uuids {
             // Get old path before updating
             let old_subfolder_path = if let Some(subfolder) = folder_uuid_to_metadata.get(subfolder_id) {
-                subfolder.full_folder_path.clone()
+                subfolder.full_directory_path.clone()
             } else {
                 continue;
             };
@@ -131,7 +128,7 @@ pub mod drive_internals {
             // Update folder metadata
             folder_uuid_to_metadata.with_mut(|map| {
                 if let Some(subfolder) = map.get_mut(subfolder_id) {
-                    subfolder.full_folder_path = new_subfolder_path.clone();
+                    subfolder.full_directory_path = new_subfolder_path.clone();
                 }
             });
             
@@ -147,7 +144,7 @@ pub mod drive_internals {
         for file_id in &file_uuids {
             // Get old path before updating
             let old_file_path = if let Some(file) = file_uuid_to_metadata.get(file_id) {
-                file.full_file_path.clone()
+                file.full_directory_path.clone()
             } else {
                 continue;
             };
@@ -157,7 +154,7 @@ pub mod drive_internals {
             // Update file metadata
             file_uuid_to_metadata.with_mut(|map| {
                 if let Some(file) = map.get_mut(file_id) {
-                    file.full_file_path = new_file_path.clone();
+                    file.full_directory_path = new_file_path.clone();
                 }
             });
             
@@ -172,22 +169,17 @@ pub mod drive_internals {
         disk_id: DiskID,
         disk_type: DiskTypeEnum,
         user_id: UserID,
-        canister_id: String,
+        drive_id: DriveID,
         has_sovereign_permissions: bool,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
         final_folder_id: Option<ClientSuggestedUUID>,
+        shortcut_to: Option<FolderID>
     ) -> FolderID {
         let path_parts: Vec<&str> = folder_path.split("::").collect();
         let mut current_path = format!("{}::", path_parts[0]);
 
-        let canister_icp_principal_string = if canister_id.is_empty() {
-            ic_cdk::api::id().to_text()
-        } else {
-            canister_id.clone()
-        };
-
-        let mut parent_uuid = ensure_root_folder(&disk_id, &disk_type, &user_id, canister_icp_principal_string.clone());
+        let mut parent_uuid = ensure_root_folder(&disk_id, &disk_type, &user_id, DRIVE_ID.with(|id| id.clone()));
 
         for part in path_parts[1].split('/').filter(|&p| !p.is_empty()) {
             current_path = format!("{}{}/", current_path.clone(), part);
@@ -211,7 +203,7 @@ pub mod drive_internals {
                     parent_folder_uuid: Some(parent_uuid.clone()),
                     subfolder_uuids: Vec::new(),
                     file_uuids: Vec::new(),
-                    full_folder_path: DriveFullFilePath(current_path.clone()),
+                    full_directory_path: DriveFullFilePath(current_path.clone()),
                     labels: Vec::new(),
                     created_by: user_id.clone(),
                     created_at: ic_cdk::api::time(),
@@ -220,9 +212,14 @@ pub mod drive_internals {
                     last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                     last_updated_by: user_id.clone(),
                     deleted: false,
-                    canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
+                    drive_id: drive_id.clone(),
                     expires_at: -1,
                     restore_trash_prior_folder_path: None,
+                    shortcut_to: if is_final_folder {
+                        shortcut_to.clone()
+                    } else {
+                        None
+                    },
                     // only set if its the final folder and has sovereign permissions
                     has_sovereign_permissions: if is_final_folder {
                         has_sovereign_permissions
@@ -448,7 +445,7 @@ pub mod drive_internals {
         disk_id: DiskID,
         disk_type: DiskTypeEnum,
         user_id: UserID,
-        canister_id: String,
+        drive_id: DriveID,
     ) -> Result<FolderRecord, String> {
         if let Some(id) = folder_id {
             folder_uuid_to_metadata
@@ -466,8 +463,9 @@ pub mod drive_internals {
                     disk_id,
                     disk_type,
                     user_id,
-                    canister_id,
+                    drive_id,
                     false,
+                    None,
                     None,
                     None,
                     None
@@ -539,5 +537,147 @@ pub mod drive_internals {
         })
     }
 
+    pub async fn fetch_root_shortcuts_of_user(
+        config: &ListDirectoryRequest,
+        user_id: &UserID,
+    ) -> Result<DirectoryListResponse, DirectoryError> {
+        // Ensure disk_id is provided
+        let _disk_id = config
+            .disk_id
+            .as_ref()
+            .ok_or(DirectoryError::FolderNotFound("DiskID not provided".to_string()))?;
+        let disk_id = DiskID(_disk_id.clone());
+    
+        // Fetch permissions (user, group, public)
+        let user_permissions = DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|permissions| {
+            permissions
+                .borrow()
+                .get(&PermissionGranteeID::User(user_id.clone()))
+                .cloned()
+                .unwrap_or_default()
+        });
+    
+        let group_permissions = USERS_INVITES_LIST_HASHTABLE.with(|invites| {
+            invites
+                .borrow()
+                .get(&GroupInviteeID::User(user_id.clone()))
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|invite_id| {
+                    INVITES_BY_ID_HASHTABLE.with(|invites| {
+                        invites
+                            .borrow()
+                            .get(&invite_id)
+                            .map(|invite| invite.group_id.clone())
+                    })
+                })
+                .flat_map(|group_id| {
+                    DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|permissions| {
+                        permissions
+                            .borrow()
+                            .get(&PermissionGranteeID::Group(group_id))
+                            .cloned()
+                            .unwrap_or_default()
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
+    
+        let public_permissions = DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|permissions| {
+            permissions
+                .borrow()
+                .get(&PermissionGranteeID::Public)
+                .cloned()
+                .unwrap_or_default()
+        });
+    
+        // Combine all permissions
+        let mut all_permissions = user_permissions;
+        all_permissions.extend(group_permissions);
+        all_permissions.extend(public_permissions);
+    
+        // Fetch actual permission records and filter by disk_id
+        let mut permission_records = Vec::new();
+    
+        for permission_id in all_permissions {
+            if let Some(record) = DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
+                permissions.borrow().get(&permission_id).cloned()
+            }) {
+                let resource_disk_matches = match &record.resource_id {
+                    DirectoryResourceID::Folder(folder_id) => folder_uuid_to_metadata
+                        .get(folder_id)
+                        .map(|f| &f.disk_id == &disk_id)
+                        .unwrap_or(false),
+                    DirectoryResourceID::File(file_id) => file_uuid_to_metadata
+                        .get(file_id)
+                        .map(|f| &f.disk_id == &disk_id)
+                        .unwrap_or(false),
+                };
+    
+                if resource_disk_matches {
+                    permission_records.push(record);
+                }
+            }
+        }
+    
+        // Sort filtered permissions by last_modified_at descending
+        permission_records.sort_by(|a, b| b.last_modified_at.cmp(&a.last_modified_at));
+    
+        // Paginate the filtered results
+        let cursor_index = config.cursor.as_ref().and_then(|cursor| {
+            permission_records
+                .iter()
+                .position(|record| record.id.to_string() == *cursor)
+        });
+    
+        let start = cursor_index.map(|idx| idx + 1).unwrap_or(0);
+        let end = (start + config.page_size).min(permission_records.len());
+    
+        let paginated_records = &permission_records[start..end];
+    
+        // Fetch corresponding folders and files after pagination
+        let mut folders = Vec::new();
+        let mut files = Vec::new();
+    
+        for record in paginated_records {
+            match &record.resource_id {
+                DirectoryResourceID::Folder(folder_id) => {
+                    if let Some(folder) = folder_uuid_to_metadata.get(folder_id) {
+                        folders.push(folder.clone());
+                    }
+                }
+                DirectoryResourceID::File(file_id) => {
+                    if let Some(file) = file_uuid_to_metadata.get(file_id) {
+                        files.push(file.clone());
+                    }
+                }
+            }
+        }
+    
+        // Await async cast_fe conversions
+        let mut folders_fe = Vec::new();
+        for folder in folders {
+            folders_fe.push(folder.cast_fe(user_id).await);
+        }
+    
+        let mut files_fe = Vec::new();
+        for file in files {
+            files_fe.push(file.cast_fe(user_id).await);
+        }
+    
+        // Construct response
+        let response = DirectoryListResponse {
+            folders: folders_fe.clone(),
+            files: files_fe.clone(),
+            total_files: files_fe.len(),
+            total_folders: folders_fe.len(),
+            cursor: paginated_records
+                .last()
+                .map(|record| record.id.to_string()),
+        };
+    
+        Ok(response)
+    }
     
 }

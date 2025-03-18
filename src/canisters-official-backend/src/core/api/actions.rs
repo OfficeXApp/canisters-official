@@ -1,6 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
@@ -151,13 +151,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     );
                     
 
-                    let get_file_response = GetFileResponse {
-                        file: file.cast_fe(&user_id).await,
-                        permissions: your_permissions,
-                        requester_id: user_id,
-                    };
                     // If we get here, user is authorized - return the file metadata
-                    Ok(DirectoryActionResult::GetFile(get_file_response))
+                    Ok(DirectoryActionResult::GetFile(file.cast_fe(&user_id).await))
                 },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
@@ -236,11 +231,6 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         folder: Some(folder.clone()),
                     });    
                     
-                    let get_folder_response = GetFolderResponse {
-                        folder: folder.clone().cast_fe(&user_id).await,
-                        permissions: your_permissions,
-                        requester_id: user_id.clone(),
-                    };
 
                     fire_directory_webhook(
                         WebhookEventLabel::FolderViewed,
@@ -301,7 +291,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         Some("Tracked subfolder share".to_string()),
                     );
         
-                    Ok(DirectoryActionResult::GetFolder(get_folder_response))
+                    Ok(DirectoryActionResult::GetFolder(folder.clone().cast_fe(&user_id).await))
                 },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
@@ -377,13 +367,13 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     };
         
                     // Construct the full file path
-                    let full_file_path = format!("{}{}", parent_folder.full_folder_path.0, payload.name);
+                    let full_directory_path = format!("{}{}", parent_folder.full_directory_path.0, payload.name);
 
         
                     // Create file using the drive API
                     match create_file(
                         payload.id,
-                        full_file_path,
+                        full_directory_path,
                         payload.disk_id,
                         user_id.clone(),
                         payload.file_size,
@@ -391,6 +381,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
                         Some(payload.has_sovereign_permissions.unwrap_or(false)),
+                        payload.shortcut_to,
                         Some(ExternalID(payload.external_id.unwrap_or("".to_string()))),
                         Some(ExternalPayload(payload.external_payload.unwrap_or("".to_string()))),
                     ) {
@@ -416,7 +407,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             );
 
                             Ok(DirectoryActionResult::CreateFile(CreateFileResponse {
-                                file: file_metadata.redact_only(&user_id),
+                                file: file_metadata.cast_fe(&user_id).await,
                                 upload: upload_response,
                                 notes: "File created successfully".to_string(),
                             }))
@@ -502,18 +493,19 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     };
         
                     // Construct the full folder path
-                    let full_folder_path = DriveFullFilePath(format!("{}{}/", parent_folder.full_folder_path.0, payload.name));
+                    let full_directory_path = DriveFullFilePath(format!("{}{}/", parent_folder.full_directory_path.0, payload.name));
         
                     // Create folder using the drive API
                     match create_folder(
                         payload.id,
-                        full_folder_path,
+                        full_directory_path,
                         payload.disk_id,
                         user_id.clone(),
                         payload.expires_at.unwrap_or(-1),
                         String::new(), // Empty canister ID to use current canister
                         payload.file_conflict_resolution,
                         Some(payload.has_sovereign_permissions.unwrap_or(false)),
+                        payload.shortcut_to,
                         Some(ExternalID(payload.external_id.unwrap_or("".to_string()))),
                         Some(ExternalPayload(payload.external_payload.unwrap_or("".to_string()))),
                     ) {
@@ -537,7 +529,10 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some("Subfolder created".to_string()),
                             );
 
-                            Ok(DirectoryActionResult::CreateFolder(folder.redact_only(&user_id)))
+                            Ok(DirectoryActionResult::CreateFolder(CreateFolderResponse {
+                                notes: "Folder created successfully".to_string(),
+                                folder: folder.cast_fe(&user_id).await,
+                            }))
                         },
                         Err(e) => match e.as_str() {
                             "Folder already exists" => Err(DirectoryActionErrorInfo {
@@ -707,7 +702,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_file),
                                 Some("Subfile updated".to_string()),
                             );
-                            Ok(DirectoryActionResult::UpdateFile(updated_file.redact_only(&user_id)))
+                            Ok(DirectoryActionResult::UpdateFile(updated_file.cast_fe(&user_id).await))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -871,7 +866,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_folder),
                                 Some("Subfolder updated".to_string()),
                             );
-                            Ok(DirectoryActionResult::UpdateFolder(updated_folder.redact_only(&user_id)))
+                            Ok(DirectoryActionResult::UpdateFolder(updated_folder.cast_fe(&user_id).await))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1207,7 +1202,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         source_file.disk_id.clone(),
                         source_file.disk_type.clone(),
                         user_id.clone(),
-                        source_file.canister_id.0.0.clone(),
+                        source_file.drive_id.clone(),
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -1253,7 +1248,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_file),
                                 Some("Copy File".to_string()),
                             );
-                            Ok(DirectoryActionResult::CopyFile(file.redact_only(&user_id)))
+                            Ok(DirectoryActionResult::CopyFile(file.cast_fe(&user_id).await))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1341,7 +1336,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         source_folder.disk_id.clone(),
                         source_folder.disk_type.clone(),
                         user_id.clone(),
-                        source_folder.canister_id.0.0.clone(),
+                        source_folder.drive_id.clone(),
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -1388,7 +1383,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_folder),
                                 Some("Copy Folder".to_string()),
                             );
-                            Ok(DirectoryActionResult::CopyFolder(folder.redact_only(&user_id)))
+                            Ok(DirectoryActionResult::CopyFolder(folder.cast_fe(&user_id).await))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1488,7 +1483,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         file.disk_id,
                         file.disk_type,
                         user_id.clone(),
-                        file.canister_id.0.0.clone()
+                        file.drive_id.clone()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -1534,7 +1529,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_file),
                                 Some("Moved File".to_string()),
                             );
-                            Ok(DirectoryActionResult::MoveFile(file.redact_only(&user_id)))
+                            Ok(DirectoryActionResult::MoveFile(file.cast_fe(&user_id).await))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
@@ -1639,7 +1634,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         folder.disk_id,
                         folder.disk_type,
                         user_id.clone(),
-                        folder.canister_id.0.0.clone()
+                        folder.drive_id.clone()
                     ) {
                         Ok(folder) => folder,
                         Err(e) => return Err(DirectoryActionErrorInfo {
@@ -1685,7 +1680,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_folder),
                                 Some("Move Folder".to_string()),
                             );
-                            Ok(DirectoryActionResult::MoveFolder(folder.redact_only(&user_id)))
+                            Ok(DirectoryActionResult::MoveFolder(folder.cast_fe(&user_id).await))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,

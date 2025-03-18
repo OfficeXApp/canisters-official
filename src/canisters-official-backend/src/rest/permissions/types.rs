@@ -1,6 +1,6 @@
 // src/rest/permissions/types.rs
 use serde::{Deserialize, Serialize};
-use crate::core::state::directory::types::DriveFullFilePath;
+use crate::core::state::directory::types::{DriveClippedFilePath, DriveFullFilePath};
 use crate::core::state::drives::state::state::OWNER_ID;
 use crate::core::state::drives::types::{ExternalID, ExternalPayload};
 use crate::core::state::permissions::types::*;
@@ -75,7 +75,7 @@ impl SystemPermissionFE {
 pub struct DirectoryPermissionFE {
     pub id: String,
     pub resource_id: String,
-    pub resource_path: String,
+    pub resource_path: DriveClippedFilePath,
     pub granted_to: String,
     pub granted_by: String,
     pub permission_types: Vec<DirectoryPermissionType>,

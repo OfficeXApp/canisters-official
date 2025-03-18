@@ -115,7 +115,7 @@ pub mod state {
                 // Skip deleted files
                 if !metadata.deleted {
                     // Normalize the path for search
-                    let normalized = normalize_path(&metadata.full_file_path.0);
+                    let normalized = normalize_path(&metadata.full_directory_path.0);
                     
                     path_to_id.insert(normalized.clone(), (
                         SearchResultResourceID::File(file_id.clone()),
@@ -136,7 +136,7 @@ pub mod state {
                 // Skip deleted folders
                 if !metadata.deleted {
                     // Normalize the path for search
-                    let normalized = normalize_path(&metadata.full_folder_path.0);
+                    let normalized = normalize_path(&metadata.full_directory_path.0);
                     
                     path_to_id.insert(normalized.clone(), (
                         SearchResultResourceID::Folder(folder_id.clone()),
@@ -541,9 +541,9 @@ pub mod state {
                 file_uuid_to_metadata.with(|map| {
                     if let Some(metadata) = map.get(file_id) {
                         // Extract filename from path
-                        let path_parts: Vec<&str> = metadata.full_file_path.0.split('/').collect();
+                        let path_parts: Vec<&str> = metadata.full_directory_path.0.split('/').collect();
                         title = path_parts.last().unwrap_or(&"").to_string();
-                        preview = metadata.full_file_path.0.clone();
+                        preview = metadata.full_directory_path.0.clone();
                     }
                 });
                 
@@ -556,9 +556,9 @@ pub mod state {
                 folder_uuid_to_metadata.with(|map| {
                     if let Some(metadata) = map.get(folder_id) {
                         // Extract folder name from path
-                        let path_parts: Vec<&str> = metadata.full_folder_path.0.split('/').collect();
+                        let path_parts: Vec<&str> = metadata.full_directory_path.0.split('/').collect();
                         title = path_parts.last().unwrap_or(&"").to_string();
-                        preview = metadata.full_folder_path.0.clone();
+                        preview = metadata.full_directory_path.0.clone();
                     }
                 });
                 

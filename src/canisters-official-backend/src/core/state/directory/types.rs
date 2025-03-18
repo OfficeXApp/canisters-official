@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::{core::{api::permissions::{directory::check_directory_permissions, system::check_system_permissions}, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::{ICPPrincipalString, UserID}}, rest::directory::types::{DirectoryResourceID, FileRecordFE, FolderRecordFE}};
+use crate::{core::{api::permissions::{directory::check_directory_permissions, system::check_system_permissions}, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{ICPPrincipalString, UserID}}, rest::directory::types::{DirectoryResourceID, FileRecordFE, FolderRecordFE}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -32,6 +32,15 @@ impl fmt::Display for DriveFullFilePath {
 }
 
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+pub struct DriveClippedFilePath(pub String);
+impl fmt::Display for DriveClippedFilePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
@@ -41,7 +50,7 @@ pub struct FolderRecord {
     pub(crate) parent_folder_uuid: Option<FolderID>,
     pub(crate) subfolder_uuids: Vec<FolderID>,
     pub(crate) file_uuids: Vec<FileID>,
-    pub(crate) full_folder_path: DriveFullFilePath,
+    pub(crate) full_directory_path: DriveFullFilePath,
     pub(crate) labels: Vec<LabelStringValue>,
     pub(crate) created_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub(crate) created_at: u64, // unix ms
@@ -51,9 +60,10 @@ pub struct FolderRecord {
     pub(crate) disk_type: DiskTypeEnum,
     pub(crate) deleted: bool,
     pub(crate) expires_at: i64,
-    pub(crate) canister_id: ICPPrincipalString,
+    pub(crate) drive_id: DriveID,
     pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
     pub(crate) has_sovereign_permissions: bool,
+    pub(crate) shortcut_to: Option<FolderID>,
     pub(crate) external_id: Option<ExternalID>,
     pub(crate) external_payload: Option<ExternalPayload>,
 }
@@ -61,21 +71,9 @@ pub struct FolderRecord {
 
 impl FolderRecord {
 
-    pub fn redact_only(&self, user_id: &UserID) -> FolderRecord {
-        let mut folder = self.clone();
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-
-        folder.labels = match is_owner {
-            true => folder.labels,
-            false => folder.labels.iter()
-            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
-            .collect()
-        };
-        folder
-    }
 
     pub async fn cast_fe(&self, user_id: &UserID) -> FolderRecordFE {
-        let folder = self.clone();
+        let mut folder = self.clone();
         
         // Get user's system permissions for this contact record
         let resource_id = DirectoryResourceID::Folder(folder.id.clone());
@@ -84,8 +82,25 @@ impl FolderRecord {
             PermissionGranteeID::User(user_id.clone()),
         ).await;
 
+        let path_parts = folder.full_directory_path.0.split("/").collect::<Vec<&str>>();
+        let mut clipped_path = String::new();
+        if path_parts.len() > 1 {
+            clipped_path.push_str(path_parts[0]);
+            clipped_path.push_str("::");
+            if path_parts.len() > 2 {
+                clipped_path.push_str("..");
+                clipped_path.push_str("/");
+            }
+            clipped_path.push_str(path_parts[path_parts.len()-1]);
+        } else {
+            clipped_path.push_str(&folder.full_directory_path.0);
+        }
+
+        folder.full_directory_path = DriveFullFilePath("".to_string());
+
         FolderRecordFE {
             folder,
+            clipped_directory_path: DriveClippedFilePath(clipped_path),
             permission_previews
         }.redacted(user_id)
     }
@@ -104,7 +119,7 @@ pub struct FileRecord {
     pub(crate) prior_version: Option<FileID>,
     pub(crate) next_version: Option<FileID>,
     pub(crate) extension: String,
-    pub(crate) full_file_path: DriveFullFilePath,
+    pub(crate) full_directory_path: DriveFullFilePath,
     pub(crate) labels: Vec<LabelStringValue>,
     pub(crate) created_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub(crate) created_at: u64, // unix ms
@@ -115,33 +130,19 @@ pub struct FileRecord {
     pub(crate) last_updated_date_ms: u64,  // unix ms
     pub(crate) last_updated_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub(crate) deleted: bool,
-    pub(crate) canister_id: ICPPrincipalString,
+    pub(crate) drive_id: DriveID,
     pub(crate) expires_at: i64,
     pub(crate) restore_trash_prior_folder_path: Option<DriveFullFilePath>,
     pub(crate) has_sovereign_permissions: bool,
+    pub(crate) shortcut_to: Option<FileID>,
     pub(crate) external_id: Option<ExternalID>,
     pub(crate) external_payload: Option<ExternalPayload>,
 }
 
 impl FileRecord {
-
-    
-    pub fn redact_only(&self, user_id: &UserID) -> FileRecord {
-        let mut file = self.clone();
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
-
-        file.labels = match is_owner {
-            true => file.labels,
-            false => file.labels.iter()
-            .filter_map(|label| redact_label(label.clone(), user_id.clone()))
-            .collect()
-        };
-        file
-    }
-
-
+  
     pub async fn cast_fe(&self, user_id: &UserID) -> FileRecordFE {
-        let file = self.clone();
+        let mut file = self.clone();
         
         // Get user's system permissions for this contact record
         let resource_id = DirectoryResourceID::File(file.id.clone());
@@ -150,8 +151,27 @@ impl FileRecord {
             PermissionGranteeID::User(user_id.clone()),
         ).await;
 
+
+        let path_parts = file.full_directory_path.0.split("/").collect::<Vec<&str>>();
+        let mut clipped_path = String::new();
+        if path_parts.len() > 1 {
+            clipped_path.push_str(path_parts[0]);
+            clipped_path.push_str("::");
+            if path_parts.len() > 2 {
+                clipped_path.push_str("..");
+                clipped_path.push_str("/");
+            }
+            clipped_path.push_str(path_parts[path_parts.len()-1]);
+        } else {
+            clipped_path.push_str(&file.full_directory_path.0);
+        }
+
+        file.full_directory_path = DriveFullFilePath("".to_string());
+
+
         FileRecordFE {
             file,
+            clipped_directory_path: DriveClippedFilePath(clipped_path),
             permission_previews
         }.redacted(user_id)
     }

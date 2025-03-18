@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{directory::types::{DriveClippedFilePath, DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -18,6 +18,7 @@ use serde_diff::{SerdeDiff};
 pub struct FileRecordFE {
     #[serde(flatten)] 
     pub file: FileRecord,
+    pub clipped_directory_path: DriveClippedFilePath,
     pub permission_previews: Vec<DirectoryPermissionType>, 
 }
 
@@ -55,6 +56,7 @@ impl FileRecordFE {
 pub struct FolderRecordFE {
     #[serde(flatten)] 
     pub folder: FolderRecord,
+    pub clipped_directory_path: DriveClippedFilePath,
     pub permission_previews: Vec<DirectoryPermissionType>, 
 }
 
@@ -114,10 +116,11 @@ impl SearchDirectoryRequest {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListDirectoryRequest {
     pub folder_id: Option<String>,
     pub path: Option<String>,
+    pub disk_id: Option<String>,
     #[serde(default)]
     pub filters: String,
     #[serde(default = "default_page_size")]
@@ -133,6 +136,10 @@ impl ListDirectoryRequest {
         // Validate folder_id if provided
         if let Some(folder_id) = &self.folder_id {
             validate_id_string(folder_id, "folder_id")?;
+        }
+
+        if let Some(disk_id) = &self.disk_id {
+            validate_id_string(disk_id, "disk_id")?;
         }
         
         // Validate path if provided
@@ -177,8 +184,8 @@ impl ListDirectoryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryListResponse {
-    pub folders: Vec<ListGetFolderResponse>,
-    pub files: Vec<ListGetFileResponse>,
+    pub folders: Vec<FolderRecordFE>,
+    pub files: Vec<FileRecordFE>,
     pub total_files: usize,
     pub total_folders: usize,
     pub cursor: Option<String>,
@@ -755,6 +762,7 @@ pub struct CreateFilePayload {
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
+    pub shortcut_to: Option<FileID>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -818,6 +826,7 @@ pub struct CreateFolderPayload {
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
+    pub shortcut_to: Option<FolderID>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -867,6 +876,7 @@ pub struct UpdateFilePayload {
     pub labels: Option<Vec<LabelStringValue>>,
     pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
+    pub shortcut_to: Option<FileID>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -915,6 +925,7 @@ pub struct UpdateFolderPayload {
     pub name: Option<String>,
     pub labels: Option<Vec<LabelStringValue>>,
     pub expires_at: Option<i64>,
+    pub shortcut_to: Option<FolderID>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -1162,18 +1173,18 @@ impl RestoreTrashPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DirectoryActionResult {
-    GetFile(GetFileResponse),
-    GetFolder(GetFolderResponse),
+    GetFile(FileRecordFE),
+    GetFolder(FolderRecordFE),
     CreateFile(CreateFileResponse),
-    CreateFolder(FolderRecord),
-    UpdateFile(FileRecord),
-    UpdateFolder(FolderRecord),
+    CreateFolder(CreateFolderResponse),
+    UpdateFile(FileRecordFE),
+    UpdateFolder(FolderRecordFE),
     DeleteFile(DeleteFileResponse),
     DeleteFolder(DeleteFolderResponse),
-    CopyFile(FileRecord),
-    CopyFolder(FolderRecord),
-    MoveFile(FileRecord),
-    MoveFolder(FolderRecord),
+    CopyFile(FileRecordFE),
+    CopyFolder(FolderRecordFE),
+    MoveFile(FileRecordFE),
+    MoveFolder(FolderRecordFE),
     RestoreTrash(RestoreTrashResponse)
 }
 
@@ -1194,24 +1205,11 @@ pub struct ListGetFolderResponse {
     pub requester_id: UserID,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetFileResponse {
-    pub file: FileRecordFE,
-    pub permissions: Vec<DirectoryResourcePermissionFE>,
-    pub requester_id: UserID,
-}
 
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetFolderResponse {
-    pub folder: FolderRecordFE,
-    pub permissions: Vec<DirectoryResourcePermissionFE>,
-    pub requester_id: UserID,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFileResponse {
-    pub file: FileRecord,
+    pub file: FileRecordFE,
     pub upload: DiskUploadResponse,
     pub notes: String,
 }
@@ -1219,7 +1217,7 @@ pub struct CreateFileResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFolderResponse {
     pub notes: String,
-    pub folder: FolderRecord,
+    pub folder: FolderRecordFE,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
