@@ -1,6 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
@@ -33,29 +33,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // First try to get file_id either from resource_id or resource_path
-                    let file_id = if let Some(id) = action.target.resource_id {
-                        match id {
-                            DirectoryResourceID::File(file_id) => file_id,
-                            DirectoryResourceID::Folder(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected file ID but got folder ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.file {
-                            Some(file) => file.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "File not found at specified path".to_string(),
-                            }),
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400, 
-                            message: "Neither resource_id nor resource_path provided".to_string(),
-                        });
-                    };
+                    let file_id = payload.id;
 
                     // Get webhooks for both event types and combine them
                     let webhooks_file = get_active_file_webhooks(&file_id, WebhookEventLabel::FileViewed);
@@ -174,29 +152,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get folder_id from either resource_id or resource_path
-                    let folder_id = if let Some(id) = action.target.resource_id {
-                        match id {
-                            DirectoryResourceID::Folder(folder_id) => folder_id,
-                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected folder ID but got file ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.folder {
-                            Some(folder) => folder.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Folder not found at specified path".to_string(),
-                            }),
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided".to_string(),
-                        });
-                    };
+                    let folder_id = payload.id;
         
                     // Get folder metadata
                     let folder = match get_folder_by_id(folder_id.clone()) {
@@ -313,29 +269,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get parent folder ID where the file will be created
-                    let parent_folder_id = if let Some(id) = action.target.resource_id {
-                        match &id {
-                            DirectoryResourceID::Folder(folder_id) => folder_id.clone(),
-                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected folder ID but got file ID for parent".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.folder {
-                            Some(folder) => folder.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Parent folder not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided for parent folder".to_string(),
-                        });
-                    };
+                    let parent_folder_id = payload.parent_folder_uuid;
 
                     // Get webhooks for both event types and combine them
                     let webhooks_file = get_active_file_webhooks(&FileID(WebhookAltIndexID::file_created_slug().to_string()), WebhookEventLabel::FileCreated);
@@ -438,29 +372,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get parent folder ID where the new folder will be created
-                    let parent_folder_id = if let Some(id) = action.target.resource_id {
-                        match &id {
-                            DirectoryResourceID::Folder(folder_id) => folder_id.clone(),
-                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected folder ID but got file ID for parent".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.folder {
-                            Some(folder) => folder.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Parent folder not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided for parent folder".to_string(),
-                        });
-                    };
+                    let parent_folder_id = payload.parent_folder_uuid;
 
                     // Get webhooks for both event types and combine them
                     let webhooks_folder = get_active_folder_webhooks(&FolderID(WebhookAltIndexID::folder_created_slug().to_string()), WebhookEventLabel::FolderCreated);
@@ -566,29 +478,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get file ID from either resource_id or resource_path
-                    let file_id = if let Some(id) = action.target.resource_id {
-                        match &id {
-                            DirectoryResourceID::File(file_id) => file_id.clone(),
-                            DirectoryResourceID::Folder(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected file ID but got folder ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.file {
-                            Some(file) => file.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "File not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided".to_string(),
-                        });
-                    };
+                    let file_id = payload.id;
         
                     // Get current file metadata
                     let file = match get_file_by_id(file_id.clone()) {
@@ -608,7 +498,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     });
 
                     // Get parent folder permissions
-                    let parent_folder_id = file.folder_uuid.clone();
+                    let parent_folder_id = file.parent_folder_uuid.clone();
                     let parent_resource_id = DirectoryResourceID::Folder(parent_folder_id);
                     let user_permissions = check_directory_permissions(
                         parent_resource_id,
@@ -730,29 +620,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get folder ID from either resource_id or resource_path
-                    let folder_id = if let Some(id) = action.target.resource_id {
-                        match &id {
-                            DirectoryResourceID::Folder(folder_id) => folder_id.clone(),
-                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected folder ID but got file ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.folder {
-                            Some(folder) => folder.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Folder not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided".to_string(),
-                        });
-                    };
+                    let folder_id = payload.id;
         
                     // Get current folder metadata
                     let folder = match get_folder_by_id(folder_id.clone()) {
@@ -894,29 +762,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get file ID from either resource_id or resource_path
-                    let file_id = if let Some(id) = action.target.resource_id {
-                        match &id {
-                            DirectoryResourceID::File(file_id) => file_id.clone(),
-                            DirectoryResourceID::Folder(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected file ID but got folder ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.file {
-                            Some(file) => file.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "File not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided".to_string(),
-                        });
-                    };
+                    let file_id = payload.id;
         
                     // Get file metadata
                     let file = match get_file_by_id(file_id.clone()) {
@@ -936,7 +782,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     });
         
                     // Get parent folder for permission check if user is creator
-                    let parent_folder_id = file.folder_uuid.clone();
+                    let parent_folder_id = file.parent_folder_uuid.clone();
                     let resource_id = DirectoryResourceID::Folder(parent_folder_id);
                     let user_permissions = check_directory_permissions(
                         resource_id,
@@ -1010,29 +856,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get folder ID from either resource_id or resource_path
-                    let folder_id = if let Some(id) = action.target.resource_id {
-                        match &id {
-                            DirectoryResourceID::Folder(folder_id) => folder_id.clone(),
-                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected folder ID but got file ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.folder {
-                            Some(folder) => folder.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Folder not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided".to_string(),
-                        });
-                    };
+                    let folder_id = payload.id;
         
                     // Get folder metadata
                     let folder = match get_folder_by_id(folder_id.clone()) {
@@ -1141,29 +965,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
 
 
                     // Get source file ID
-                    let file_id = if let Some(id) = action.target.resource_id {
-                        match id {
-                            DirectoryResourceID::File(file_id) => file_id,
-                            DirectoryResourceID::Folder(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected file ID but got folder ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.file {
-                            Some(file) => file.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Source file not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided for source file".to_string(),
-                        });
-                    };
+                    let file_id = payload.id;
         
                     // Get source file metadata
                     let source_file = match get_file_by_id(file_id.clone()) {
@@ -1276,29 +1078,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     }
 
                     // Get source folder ID
-                    let folder_id = if let Some(id) = action.target.resource_id {
-                        match id {
-                            DirectoryResourceID::Folder(folder_id) => folder_id,
-                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected folder ID but got file ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.folder {
-                            Some(folder) => folder.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Source folder not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided for source folder".to_string(),
-                        });
-                    };
+                    let folder_id = payload.id;
         
                     // Get source folder metadata
                     let source_folder = match get_folder_by_id(folder_id.clone()) {
@@ -1412,29 +1192,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
 
 
                     // Get the file ID from either resource_id or resource_path
-                    let file_id = if let Some(id) = action.target.resource_id {
-                        match id {
-                            DirectoryResourceID::File(file_id) => file_id,
-                            DirectoryResourceID::Folder(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected file ID but got folder ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.file {
-                            Some(file) => file.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Source file not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided for source file".to_string(),
-                        });
-                    };
+                    let file_id = payload.id;
         
                     // Get file metadata
                     let file = match get_file_by_id(file_id.clone()) {
@@ -1558,29 +1316,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
 
 
                     // Get the folder ID from either resource_id or resource_path
-                    let folder_id = if let Some(id) = action.target.resource_id {
-                        match id {
-                            DirectoryResourceID::Folder(folder_id) => folder_id,
-                            DirectoryResourceID::File(_) => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Expected folder ID but got file ID".to_string(),
-                            }),
-                        }
-                    } else if let Some(path) = action.target.resource_path {
-                        let translation = translate_path_to_id(path);
-                        match translation.folder {
-                            Some(folder) => folder.id,
-                            None => return Err(DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "Source folder not found at specified path".to_string(),
-                            })
-                        }
-                    } else {
-                        return Err(DirectoryActionErrorInfo {
-                            code: 400,
-                            message: "Neither resource_id nor resource_path provided for source folder".to_string(),
-                        });
-                    };
+                    let folder_id = payload.id;
         
                     // Get folder metadata
                     let folder = match get_folder_by_id(folder_id.clone()) {
@@ -1707,15 +1443,14 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         });
                     }
 
-                    let resource_id = action.target.resource_id.ok_or_else(|| DirectoryActionErrorInfo {
-                        code: 400,
-                        message: "Resource ID is required for restore operation".to_string()
-                    })?;
+                    let resource_id = payload.clone().id;
         
                     // First check if it's a folder
-                    let folder_id = match &resource_id {
-                        DirectoryResourceID::Folder(id) => Some(id.clone()),
-                        _ => None,
+                    let folder_id = if resource_id.to_string().starts_with(IDPrefix::Folder.as_str()) {
+                        // Extract the ID portion by stripping the prefix
+                        Some(FolderID(resource_id.to_string().strip_prefix(IDPrefix::Folder.as_str()).unwrap().to_string()))
+                    } else {
+                        None
                     };
                     let webhooks_restore_trash = get_active_folder_webhooks(&&FolderID(WebhookAltIndexID::restore_trash_slug().to_string()), WebhookEventLabel::DriveRestoreTrash);
         
@@ -1791,83 +1526,91 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         }
                     } else {
                         // Try as a file
-                        let file_id = match &resource_id {
-                            DirectoryResourceID::File(id) => id.clone(),
-                            _ => return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "Invalid resource ID format".to_string(),
-                            }),
+                        let file_id = if resource_id.to_string().starts_with(IDPrefix::File.as_str()) {
+                            // Extract the ID portion by stripping the prefix
+                            Some(FileID(resource_id.to_string().strip_prefix(IDPrefix::Folder.as_str()).unwrap().to_string()))
+                        } else {
+                            None
                         };
-        
-                        // Get file metadata
-                        let file = file_uuid_to_metadata
-                            .get(&file_id)
-                            .ok_or_else(|| DirectoryActionErrorInfo {
-                                code: 404,
-                                message: "File not found".to_string(),
-                            })?;
-        
-                        // Verify file is actually in trash
-                        if file.restore_trash_prior_folder_path.is_none() {
-                            return Err(DirectoryActionErrorInfo {
-                                code: 400,
-                                message: "File is not in trash".to_string(),
-                            });
-                        }
 
-                        let before_snap = DirectoryWebhookData::File(FileWebhookData {
-                            file: Some(file.clone()),
-                        });
-        
-                        // Check permissions on the file itself
-                        let file_resource_id = DirectoryResourceID::File(file_id.clone());
-                        let file_permissions = check_directory_permissions(
-                            file_resource_id,
-                            PermissionGranteeID::User(user_id.clone())
-                        ).await;
-        
-                        // User needs Edit/Manage permission OR be creator with Upload permission to restore
-                        let is_creator_with_upload = file.created_by == user_id && 
-                            file_permissions.contains(&DirectoryPermissionType::Upload);
-                        let has_restore_permission = file_permissions.contains(&DirectoryPermissionType::Edit) ||
-                                                  file_permissions.contains(&DirectoryPermissionType::Manage);
-        
-                        if !is_creator_with_upload && !has_restore_permission {
-                            return Err(DirectoryActionErrorInfo {
-                                code: 403,
-                                message: "You don't have permission to restore this file".to_string(),
+                        if let Some(file_id) = file_id {
+                            // Get file metadata
+                            let file = file_uuid_to_metadata
+                                .get(&file_id)
+                                .ok_or_else(|| DirectoryActionErrorInfo {
+                                    code: 404,
+                                    message: "File not found".to_string(),
+                                })?;
+            
+                            // Verify file is actually in trash
+                            if file.restore_trash_prior_folder_path.is_none() {
+                                return Err(DirectoryActionErrorInfo {
+                                    code: 400,
+                                    message: "File is not in trash".to_string(),
+                                });
+                            }
+
+                            let before_snap = DirectoryWebhookData::File(FileWebhookData {
+                                file: Some(file.clone()),
                             });
-                        }
-        
-                        match restore_from_trash(&file_id.to_string(), &payload) {
-                            Ok(result) => {
-                                // query the file again to get the updated metadata
-                                let after_snap = match get_file_by_id(file_id.clone()) {
-                                    Ok(updated_file) => {
-                                        DirectoryWebhookData::File(FileWebhookData {
-                                            file: Some(updated_file.clone()),
+            
+                            // Check permissions on the file itself
+                            let file_resource_id = DirectoryResourceID::File(file_id.clone());
+                            let file_permissions = check_directory_permissions(
+                                file_resource_id,
+                                PermissionGranteeID::User(user_id.clone())
+                            ).await;
+            
+                            // User needs Edit/Manage permission OR be creator with Upload permission to restore
+                            let is_creator_with_upload = file.created_by == user_id && 
+                                file_permissions.contains(&DirectoryPermissionType::Upload);
+                            let has_restore_permission = file_permissions.contains(&DirectoryPermissionType::Edit) ||
+                                                    file_permissions.contains(&DirectoryPermissionType::Manage);
+            
+                            if !is_creator_with_upload && !has_restore_permission {
+                                return Err(DirectoryActionErrorInfo {
+                                    code: 403,
+                                    message: "You don't have permission to restore this file".to_string(),
+                                });
+                            }
+            
+                            match restore_from_trash(&file_id.to_string(), &payload) {
+                                Ok(result) => {
+                                    // query the file again to get the updated metadata
+                                    let after_snap = match get_file_by_id(file_id.clone()) {
+                                        Ok(updated_file) => {
+                                            DirectoryWebhookData::File(FileWebhookData {
+                                                file: Some(updated_file.clone()),
+                                            })
+                                        },
+                                        Err(e) => return Err(DirectoryActionErrorInfo {
+                                            code: 500,
+                                            message: format!("Failed to get updated file metadata: {}", e),
                                         })
-                                    },
-                                    Err(e) => return Err(DirectoryActionErrorInfo {
-                                        code: 500,
-                                        message: format!("Failed to get updated file metadata: {}", e),
-                                    })
-                                };
-                                // fire the webhooks
-                                fire_directory_webhook(
-                                    WebhookEventLabel::DriveRestoreTrash,
-                                    webhooks_restore_trash,
-                                    Some(before_snap.clone()),
-                                    Some(after_snap.clone()),
-                                    Some("File restored from trash".to_string()),
-                                );
-                                Ok(result)
-                            },
-                            Err(e) => Err(DirectoryActionErrorInfo {
-                                code: 500,
-                                message: format!("Failed to restore file from trash: {}", e),
+                                    };
+                                    // fire the webhooks
+                                    fire_directory_webhook(
+                                        WebhookEventLabel::DriveRestoreTrash,
+                                        webhooks_restore_trash,
+                                        Some(before_snap.clone()),
+                                        Some(after_snap.clone()),
+                                        Some("File restored from trash".to_string()),
+                                    );
+                                    Ok(result)
+                                },
+                                Err(e) => Err(DirectoryActionErrorInfo {
+                                    code: 500,
+                                    message: format!("Failed to restore file from trash: {}", e),
+                                })
+                            }
+                        } else {
+                            Err(DirectoryActionErrorInfo {
+                                code: 400,
+                                message: "Invalid resource ID".to_string(),
                             })
                         }
+        
+                        
                     }
                 }
                 _ => Err(DirectoryActionErrorInfo {

@@ -53,14 +53,14 @@ pub mod state {
 
     // Helper function to create root folder for a disk
     pub fn ensure_disk_root_and_trash_folder(disk_id: &DiskID, owner_id: &UserID, drive_id: &DriveID) -> (FolderID, FolderID) {
-        let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
+        let root_path = DriveFullFilePath(format!("{}::/", disk_id.to_string()));
         let root_folder_uuid = FolderID(generate_uuidv4(IDPrefix::Folder));
         
         // Only create if root folder doesn't exist
         if !full_folder_path_to_uuid.contains_key(&root_path) {
             let root_folder = FolderRecord {
                 id: root_folder_uuid.clone(),
-                name: String::new(),
+                name: "Root".to_string(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),

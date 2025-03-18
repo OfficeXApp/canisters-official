@@ -291,13 +291,10 @@ pub struct ClientSideUploadResponse {
 #[derive(Debug, Clone)]
 pub struct DirectoryAction {
     pub action: DirectoryActionEnum,
-    pub target: ResourceIdentifier,
     pub payload: DirectoryActionPayload,
 }
 impl DirectoryAction {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate target
-        self.target.validate()?;
         
         // Validate payload based on action type
         match self.action {
@@ -427,7 +424,6 @@ impl DirectoryAction {
 #[derive(Deserialize)]
 struct RawDirectoryAction {
     action: DirectoryActionEnum,
-    target: ResourceIdentifier,
     payload: Value,
 }
 
@@ -541,7 +537,6 @@ impl<'de> Deserialize<'de> for DirectoryAction {
 
         Ok(DirectoryAction {
             action: raw.action,
-            target: raw.target,
             payload,
         })
     }
@@ -555,7 +550,6 @@ impl Serialize for DirectoryAction {
     {
         let mut state = serializer.serialize_struct("DirectoryAction", 3)?;
         state.serialize_field("action", &self.action)?;
-        state.serialize_field("target", &self.target)?;
         // Match on the payload variant so that it serializes as a plain JSON object.
         match &self.payload {
             DirectoryActionPayload::GetFile(p) => state.serialize_field("payload", p)?,
@@ -648,49 +642,6 @@ impl DirectoryResourceID {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResourceIdentifier {
-    #[serde(default)]
-    pub resource_path: Option<DriveFullFilePath>, // points to file/folder itself, except in create file/folder operations would be a parent folder
-    #[serde(default)]
-    pub resource_id: Option<DirectoryResourceID>,  // points to file/folder itself, except in create file/folder operations would be a parent folder
-}
-impl ResourceIdentifier {
-    pub fn validate(&self) -> Result<(), ValidationError> {
-        // Validate resource_path if provided
-        if let Some(path) = &self.resource_path {
-            if path.0.len() > 4096 {
-                return Err(ValidationError {
-                    field: "resource_path".to_string(),
-                    message: "Resource path must be 4,096 characters or less".to_string(),
-                });
-            }
-        }
-        
-        // Validate resource_id if provided
-        if let Some(id) = &self.resource_id {
-            match id {
-                DirectoryResourceID::File(file_id) => {
-                    validate_id_string(&file_id.0, "resource_id")?;
-                },
-                DirectoryResourceID::Folder(folder_id) => {
-                    validate_id_string(&folder_id.0, "resource_id")?;
-                }
-            }
-        }
-        
-        // At least one of resource_path or resource_id must be provided
-        if self.resource_path.is_none() && self.resource_id.is_none() {
-            return Err(ValidationError {
-                field: "target".to_string(),
-                message: "Either resource_path or resource_id must be provided".to_string(),
-            });
-        }
-        
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DirectoryActionPayload {
     GetFile(GetFilePayload),
     GetFolder(GetFolderPayload),
@@ -710,10 +661,13 @@ pub enum DirectoryActionPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GetFilePayload {
+    pub id: FileID,
     pub share_track_hash: Option<String>,
 }
 impl GetFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
         // Validate share_track_hash if provided
         if let Some(share_track_hash) = &self.share_track_hash {
             if share_track_hash.len() > 256 {
@@ -731,10 +685,13 @@ impl GetFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GetFolderPayload {
+    pub id: FolderID,
     pub share_track_hash: Option<String>,
 }
 impl GetFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
         // Validate share_track_hash if provided
         if let Some(share_track_hash) = &self.share_track_hash {
             if share_track_hash.len() > 256 {
@@ -752,8 +709,9 @@ impl GetFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFilePayload {
-    pub id: Option<ClientSuggestedUUID>,
+    pub id: Option<ClientSuggestedUUID>, 
     pub name: String,
+    pub parent_folder_uuid: FolderID,
     pub extension: String,
     pub labels: Vec<LabelStringValue>,
     pub file_size: u64,
@@ -774,6 +732,8 @@ impl CreateFilePayload {
             validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::File)?;
         }
+
+        validate_uuid4_string_with_prefix(&self.parent_folder_uuid.to_string(), IDPrefix::Folder)?;
         
         // Validate name
         validate_short_string(&self.name, "name")?;
@@ -821,6 +781,7 @@ impl CreateFilePayload {
 pub struct CreateFolderPayload {
     pub id: Option<ClientSuggestedUUID>,
     pub name: String,
+    pub parent_folder_uuid: FolderID,
     pub labels: Vec<LabelStringValue>,
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
@@ -841,6 +802,7 @@ impl CreateFolderPayload {
 
         // Validate name
         validate_short_string(&self.name, "name")?;
+        validate_uuid4_string_with_prefix(&self.parent_folder_uuid.to_string(), IDPrefix::Folder)?;
         
         // Validate labels
         for label in &self.labels {
@@ -872,6 +834,7 @@ impl CreateFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateFilePayload {
+    pub id: FileID,
     pub name: Option<String>,
     pub labels: Option<Vec<LabelStringValue>>,
     pub raw_url: Option<String>,
@@ -882,6 +845,9 @@ pub struct UpdateFilePayload {
 }
 impl UpdateFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // validate id
+        validate_id_string(&self.id.0, "id")?;
+
         // Validate name if provided
         if let Some(name) = &self.name {
             validate_short_string(name, "name")?;
@@ -922,6 +888,7 @@ impl UpdateFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateFolderPayload {
+    pub id: FolderID,
     pub name: Option<String>,
     pub labels: Option<Vec<LabelStringValue>>,
     pub expires_at: Option<i64>,
@@ -931,6 +898,10 @@ pub struct UpdateFolderPayload {
 }
 impl UpdateFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
+
         // Validate name if provided
         if let Some(name) = &self.name {
             validate_short_string(name, "name")?;
@@ -965,10 +936,14 @@ impl UpdateFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteFilePayload {
+    pub id: FileID,
     pub permanent: bool,
 }
 impl DeleteFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
+
         // Nothing to validate for this simple payload
         Ok(())
     }
@@ -977,10 +952,13 @@ impl DeleteFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteFolderPayload {
+    pub id: FolderID,
     pub permanent: bool,
 }
 impl DeleteFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
         // Nothing to validate for this simple payload
         Ok(())
     }
@@ -990,6 +968,7 @@ impl DeleteFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CopyFilePayload {
+    pub id: FileID,
     pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
@@ -997,6 +976,9 @@ pub struct CopyFilePayload {
 }
 impl CopyFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
 
         if self.new_copy_id.is_some() {
             validate_unclaimed_uuid(&self.new_copy_id.as_ref().unwrap().to_string())?;
@@ -1033,6 +1015,7 @@ impl CopyFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CopyFolderPayload {
+    pub id: FolderID,
     pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
@@ -1040,6 +1023,9 @@ pub struct CopyFolderPayload {
 }
 impl CopyFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
 
         if self.new_copy_id.is_some() {
             validate_unclaimed_uuid(&self.new_copy_id.as_ref().unwrap().to_string())?;
@@ -1076,12 +1062,16 @@ impl CopyFolderPayload {
 #[derive(Debug, Clone,Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MoveFilePayload {
+    pub id: FileID,
     pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 impl MoveFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
+
         // Validate destination_folder_id if provided
         if let Some(folder_id) = &self.destination_folder_id {
             validate_id_string(&folder_id.0, "destination_folder_id")?;
@@ -1112,12 +1102,16 @@ impl MoveFilePayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MoveFolderPayload {
+    pub id: FolderID,
     pub destination_folder_id: Option<FolderID>,
     pub destination_folder_path: Option<DriveFullFilePath>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
 }
 impl MoveFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate id
+        validate_id_string(&self.id.0, "id")?;
+
         // Validate destination_folder_id if provided
         if let Some(folder_id) = &self.destination_folder_id {
             validate_id_string(&folder_id.0, "destination_folder_id")?;
@@ -1149,11 +1143,15 @@ impl MoveFolderPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RestoreTrashPayload {
+    pub id: String, // FileID or FolderID
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub restore_to_folder_path: Option<DriveFullFilePath>,
 }
 impl RestoreTrashPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate id
+        validate_id_string(&self.id, "id")?;
+
         // Validate restore_to_folder_path if provided
         if let Some(folder_path) = &self.restore_to_folder_path {
             if folder_path.0.len() > 4096 {

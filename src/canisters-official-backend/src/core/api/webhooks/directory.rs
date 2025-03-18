@@ -66,7 +66,7 @@ pub fn get_active_file_webhooks(
     // Start with the file's parent folder
     let mut current_folder_id = file_uuid_to_metadata
         .get(file_id)
-        .and_then(|file| Some(file.folder_uuid));
+        .and_then(|file| Some(file.parent_folder_uuid));
     let mut current_depth = 0;
 
     // Traverse up the parent folders

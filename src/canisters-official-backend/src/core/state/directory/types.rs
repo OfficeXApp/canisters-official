@@ -114,7 +114,7 @@ impl FolderRecord {
 pub struct FileRecord {
     pub(crate) id: FileID,
     pub(crate) name: String,
-    pub(crate) folder_uuid: FolderID,
+    pub(crate) parent_folder_uuid: FolderID,
     pub(crate) file_version: u32,
     pub(crate) prior_version: Option<FileID>,
     pub(crate) next_version: Option<FileID>,

@@ -89,7 +89,7 @@ pub fn get_inherited_resources_list(resource_id: DirectoryResourceID) -> Vec<Dir
                     if file_metadata.has_sovereign_permissions {
                         return resources;
                     }
-                    Some(file_metadata.folder_uuid.clone())
+                    Some(file_metadata.parent_folder_uuid.clone())
                 },
                 None => return Vec::new() // File not found
             }

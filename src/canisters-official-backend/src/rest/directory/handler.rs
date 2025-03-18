@@ -91,7 +91,6 @@ pub mod directorys_handlers {
                     success: true,
                     request: DirectoryAction {
                         action: action.action,
-                        target: action.target,
                         payload: action.payload,
                     },
                     response: DirectoryActionResponse {
@@ -104,7 +103,6 @@ pub mod directorys_handlers {
                     success: false,
                     request: DirectoryAction {
                         action: action.action,
-                        target: action.target,
                         payload: action.payload,
                     },
                     response: DirectoryActionResponse {

@@ -266,7 +266,7 @@ pub mod drive {
         let file_metadata = FileRecord {
             id: new_file_uuid.clone(),
             name: file_name,
-            folder_uuid: folder_uuid.clone(),
+            parent_folder_uuid: folder_uuid.clone(),
             file_version,
             prior_version,
             next_version: None,
@@ -855,7 +855,7 @@ pub mod drive {
         if permanent {
             // Permanent deletion logic
             let file_path = file.full_directory_path.clone();
-            let folder_uuid = file.folder_uuid.clone();
+            let folder_uuid = file.parent_folder_uuid.clone();
             
             // Handle version chain
             if let Some(prior_id) = &file.prior_version {
@@ -1002,7 +1002,7 @@ pub mod drive {
         let mut new_file_metadata = source_file.clone();
         new_file_metadata.id = new_file_uuid.clone();
         new_file_metadata.name = final_name;
-        new_file_metadata.folder_uuid = destination_folder.id.clone();
+        new_file_metadata.parent_folder_uuid = destination_folder.id.clone();
         new_file_metadata.full_directory_path = DriveFullFilePath(final_path.clone());
         new_file_metadata.file_version = 1;
         new_file_metadata.prior_version = None;
@@ -1120,7 +1120,7 @@ pub mod drive {
         }
 
         // Get source folder to update its file_uuids
-        let source_folder_id = source_file.folder_uuid.clone();
+        let source_folder_id = source_file.parent_folder_uuid.clone();
         
         // Handle naming conflicts
         let (final_name, final_path) = resolve_naming_conflict(
@@ -1142,7 +1142,7 @@ pub mod drive {
         file_uuid_to_metadata.with_mut(|map| {
             if let Some(file) = map.get_mut(file_id) {
                 file.name = final_name;
-                file.folder_uuid = destination_folder.id.clone();
+                file.parent_folder_uuid = destination_folder.id.clone();
                 file.full_directory_path = DriveFullFilePath(final_path.clone());
                 file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
