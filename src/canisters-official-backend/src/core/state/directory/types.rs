@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::{core::{api::permissions::{directory::check_directory_permissions, system::check_system_permissions}, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{ICPPrincipalString, UserID}}, rest::directory::types::{DirectoryResourceID, FileRecordFE, FolderRecordFE}};
+use crate::{core::{api::permissions::{directory::check_directory_permissions, system::check_system_permissions}, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, raw_storage::types::UploadStatus}, types::{ICPPrincipalString, UserID}}, rest::directory::types::{DirectoryResourceID, FileRecordFE, FolderRecordFE}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -131,6 +131,7 @@ pub struct FileRecord {
     pub(crate) last_updated_by: UserID, // wont get updated by superswap, reverse lookup HISTORY_SUPERSWAP_USERID
     pub(crate) deleted: bool,
     pub(crate) drive_id: DriveID,
+    pub(crate) upload_status: UploadStatus,
     pub(crate) expires_at: i64,
     pub(crate) restore_trash_prior_folder_uuid: Option<FolderID>,
     pub(crate) has_sovereign_permissions: bool,

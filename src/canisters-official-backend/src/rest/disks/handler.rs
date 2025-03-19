@@ -300,7 +300,8 @@ pub mod disks_handlers {
         let (root_folder_uuid, trash_folder_uuid) = ensure_disk_root_and_trash_folder(
             &disk_id,
             &requester_api_key.user_id,
-            &DRIVE_ID.with(|drive_id| drive_id.clone())
+            &DRIVE_ID.with(|drive_id| drive_id.clone()),
+            create_req.disk_type.clone()
         );
 
         let new_external_id = Some(ExternalID(create_req.external_id.unwrap_or("".to_string())));

@@ -2,7 +2,7 @@
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveClippedFilePath, DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{directory::types::{DriveClippedFilePath, DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, raw_storage::types::UploadStatus}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -717,6 +717,7 @@ pub struct CreateFilePayload {
     pub file_size: u64,
     pub raw_url: String,
     pub disk_id: DiskID,
+    pub disk_type: DiskTypeEnum,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
@@ -842,6 +843,7 @@ pub struct UpdateFilePayload {
     pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
     pub shortcut_to: Option<FileID>,
+    pub upload_status: Option<UploadStatus>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }

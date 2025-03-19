@@ -1,6 +1,7 @@
 use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/raw_storage/types.rs
 use serde::{Deserialize, Serialize};
+use serde_diff::SerdeDiff;
 use std::{borrow::Cow, fmt};
 
 
@@ -44,4 +45,12 @@ impl Storable for ChunkIdList {
             .expect("Failed to deserialize ChunkIdList");
         ChunkIdList(vec)
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum UploadStatus {
+    Queued,     // File is created but no chunks uploaded yet
+    Pending,    // Some chunks uploaded, not completed
+    Completed,  // All chunks uploaded and verified
 }

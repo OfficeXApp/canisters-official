@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_uuidv4}, state::{directory::{state::state::file_uuid_to_metadata, types::FileID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, CHUNK_SIZE}}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_uuidv4}, state::{directory::{state::state::file_uuid_to_metadata, types::FileID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, UploadStatus, CHUNK_SIZE}}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -126,6 +126,11 @@ pub mod directorys_handlers {
     pub async fn handle_upload_chunk<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("Handling upload chunk request");
 
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+
         let upload_req: UploadChunkRequest = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
             Err(_) => {
@@ -139,6 +144,28 @@ pub mod directorys_handlers {
         debug_log!("  chunk_index  = {}", upload_req.chunk_index);
         debug_log!("  total_chunks = {}", upload_req.total_chunks);
         debug_log!("  chunk_size   = {}", upload_req.chunk_data.len());
+
+        // Verify file exists and user has permission to upload to it
+        let file_id = FileID(upload_req.file_id.clone());
+        let file_record = match file_uuid_to_metadata.get(&file_id) {
+            Some(record) => record,
+            None => {
+                debug_log!("handle_upload_chunk: File ID not found");
+                return create_raw_upload_error_response("File ID not found or not authorized for upload")
+            }
+        };
+
+        // Check if user has permission to upload to this file
+        if file_record.created_by != requester_api_key.user_id {
+            debug_log!("handle_upload_chunk: User not authorized to upload to this file");
+            return create_raw_upload_error_response("Not authorized to upload to this file")
+        }
+
+        // Check if file is in valid upload state
+        if file_record.upload_status == UploadStatus::Completed {
+            debug_log!("handle_upload_chunk: File upload already completed");
+            return create_raw_upload_error_response("File upload already completed")
+        }
     
         if upload_req.chunk_data.len() > CHUNK_SIZE {
             return create_raw_upload_error_response("Chunk too large");
@@ -163,16 +190,51 @@ pub mod directorys_handlers {
         };
     
         debug_log!("handle_upload_chunk: Successfully stored chunk");
+
+        // Update file record to pending status if it was queued
+        if file_record.upload_status == UploadStatus::Queued {
+            debug_log!("handle_upload_chunk: Updating file status to Pending");
+            let mut updated_record = file_record.clone();
+            updated_record.upload_status = UploadStatus::Pending;
+            file_uuid_to_metadata.insert(file_id, updated_record);
+        }
+
         create_success_response(&response)
     }
     
     pub async fn handle_complete_upload<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+        
         let complete_req: CompleteUploadRequest = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
             Err(_) => return create_raw_upload_error_response("Invalid request format")
         };
         debug_log!("handle_complete_upload: Completing upload");
         debug_log!("  file_id = {}", complete_req.file_id);
+
+        let file_id = FileID(complete_req.file_id.clone());
+        let file_record = match file_uuid_to_metadata.get(&file_id) {
+            Some(record) => record,
+            None => {
+                debug_log!("handle_complete_upload: File ID not found");
+                return create_raw_upload_error_response("File ID not found or not authorized for upload")
+            }
+        };
+
+        // Check if user has permission to upload to this file
+        if file_record.created_by != requester_api_key.user_id {
+            debug_log!("handle_complete_upload: User not authorized to upload to this file");
+            return create_raw_upload_error_response("Not authorized to upload to this file")
+        }
+
+        // Check file upload status
+        if file_record.upload_status == UploadStatus::Completed {
+            debug_log!("handle_complete_upload: File upload already completed");
+            return create_raw_upload_error_response("File upload already completed")
+        }
 
         store_filename(&complete_req.file_id, &complete_req.filename);
     
@@ -190,6 +252,11 @@ pub mod directorys_handlers {
         };
          debug_log!("handle_complete_upload: Returning final response with size={} chunks={}", response.size, response.chunks);
     
+        // Update the file record to completed status
+        let mut updated_record = file_record.clone();
+        updated_record.upload_status = UploadStatus::Completed;
+        file_uuid_to_metadata.insert(file_id, updated_record);
+
         create_success_response(&response)
     }
 
