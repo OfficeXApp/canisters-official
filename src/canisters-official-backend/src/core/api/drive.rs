@@ -3,27 +3,28 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, ensure_root_folder, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::{generate_uuidv4, mark_claimed_uuid}
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, fetch_root_shortcuts_of_user, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::{generate_uuidv4, mark_claimed_uuid}
             },
             state::{
                 directory::{
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
                     types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}
                 },
-                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::update_external_id_mapping, types::{ExternalID, ExternalPayload}},
+                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID}, types::{ExternalID, ExternalPayload}},
             }, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
-        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, GetFileResponse, GetFolderResponse, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
     pub async fn fetch_files_at_folder_path(config: ListDirectoryRequest, user_id: UserID) -> Result<DirectoryListResponse, DirectoryError> {
         let ListDirectoryRequest { 
             folder_id, 
             path, 
+            disk_id,
             filters: _, 
             page_size, 
             direction, 
             cursor 
-        } = config;
+        } = config.clone();
     
         // Get the folder UUID either from folder_id or path
         let folder_uuid = if let Some(id) = folder_id {
@@ -32,6 +33,8 @@ pub mod drive {
             full_folder_path_to_uuid
                 .get(&DriveFullFilePath(path_str.clone()))
                 .ok_or_else(|| DirectoryError::FolderNotFound(format!("Path not found: {}", path_str)))?
+        } else if let Some(_disk_id) = disk_id {
+            return fetch_root_shortcuts_of_user(&config, &user_id).await;
         } else {
             return Err(DirectoryError::FolderNotFound("Neither folder_id nor path provided".to_string()));
         };
@@ -92,25 +95,11 @@ pub mod drive {
         let mut file_responses = Vec::new();
 
         for folder in folders {
-            let resource_id = DirectoryResourceID::Folder(folder.id.clone());
-            let your_permissions = preview_directory_permissions(&resource_id, &user_id);
-            let folder_response = ListGetFolderResponse {
-                folder,
-                permissions: your_permissions,
-                requester_id: user_id.clone(),
-            };
-            folder_responses.push(folder_response);
+            folder_responses.push(folder.cast_fe(&user_id).await);
         }
 
         for file in files {
-            let resource_id = DirectoryResourceID::File(file.id.clone());
-            let your_permissions = preview_directory_permissions(&resource_id, &user_id);
-            let file_response = ListGetFileResponse {
-                file,
-                permissions: your_permissions,
-                requester_id: user_id.clone(),
-            };
-            file_responses.push(file_response);
+            file_responses.push(file.cast_fe(&user_id).await);
         }
     
         Ok(DirectoryListResponse {
@@ -129,9 +118,10 @@ pub mod drive {
         user_id: UserID,
         file_size: u64,
         expires_at: i64,
-        canister_id: String,
+        drive_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
         has_sovereign_permissions: Option<bool>,
+        shortcut_to: Option<FileID>,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
     ) -> Result<(FileRecord, DiskUploadResponse), String> {
@@ -168,7 +158,7 @@ pub mod drive {
                 .cloned()
         }).ok_or_else(|| "Disk not found".to_string())?;
         
-        let full_file_path = final_path;
+        let full_directory_path = final_path;
         
         let new_file_uuid = match id {
             Some(id) => FileID(id.to_string()),
@@ -182,10 +172,10 @@ pub mod drive {
         );
         
     
-        let canister_icp_principal_string = if canister_id.is_empty() {
+        let canister_icp_principal_string = if drive_id.is_empty() {
             ic_cdk::api::id().to_text()
         } else {
-            canister_id.clone()
+            drive_id.clone()
         };
     
         let folder_uuid = ensure_folder_structure(
@@ -193,14 +183,15 @@ pub mod drive {
             disk_id.clone(), 
             disk.disk_type,
             user_id.clone(), 
-            canister_icp_principal_string.clone(),
+            DRIVE_ID.with(|id| id.clone()),
             false,
+            None,
             None,
             None,
             None
         );
     
-        let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_file_path.clone())).map(|uuid| uuid.clone());
+        let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_directory_path.clone())).map(|uuid| uuid.clone());
     
         // Handle version-related logic
         let (file_version, prior_version) = if let Some(existing_uuid) = &existing_file_uuid {
@@ -275,12 +266,12 @@ pub mod drive {
         let file_metadata = FileRecord {
             id: new_file_uuid.clone(),
             name: file_name,
-            folder_uuid: folder_uuid.clone(),
+            parent_folder_uuid: folder_uuid.clone(),
             file_version,
             prior_version,
             next_version: None,
             extension: extension.clone(),
-            full_file_path: DriveFullFilePath(full_file_path.clone()),
+            full_directory_path: DriveFullFilePath(full_directory_path.clone()),
             labels: Vec::new(),
             created_by: user_id.clone(),
             created_at: ic_cdk::api::time() / 1_000_000,
@@ -291,10 +282,11 @@ pub mod drive {
             last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
             last_updated_by: user_id,
             deleted: false,
-            canister_id: ICPPrincipalString(PublicKeyICP(canister_icp_principal_string.clone())),
+            drive_id: DRIVE_ID.with(|id| id.clone()),
             expires_at,
-            restore_trash_prior_folder_path: None,
+            restore_trash_prior_folder_uuid: None,
             has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),
+            shortcut_to,
             external_id: external_id.clone(),
             external_payload: external_payload.clone(),
         };
@@ -319,7 +311,7 @@ pub mod drive {
     
         // Update hashtables
         file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata.clone());
-        full_file_path_to_uuid.insert(DriveFullFilePath(full_file_path), new_file_uuid.clone());
+        full_file_path_to_uuid.insert(DriveFullFilePath(full_directory_path), new_file_uuid.clone());
     
         mark_claimed_uuid(&new_file_uuid.clone().to_string());
 
@@ -380,18 +372,19 @@ pub mod drive {
 
     pub fn create_folder(
         id: Option<ClientSuggestedUUID>,
-        full_folder_path: DriveFullFilePath,
+        full_directory_path: DriveFullFilePath,
         disk_id: DiskID,
         user_id: UserID,
         expires_at: i64,
-        canister_id: String,
+        drive_id: String,
         file_conflict_resolution: Option<FileConflictResolutionEnum>,
         has_sovereign_permissions: Option<bool>,
+        shortcut_to: Option<FolderID>,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
     ) -> Result<FolderRecord, String> {
         // Ensure the path ends with a slash
-        let mut sanitized_path = sanitize_file_path(&full_folder_path.to_string());
+        let mut sanitized_path = sanitize_file_path(&full_directory_path.to_string());
         if !sanitized_path.ends_with('/') {
             sanitized_path.push('/');
         }
@@ -414,10 +407,10 @@ pub mod drive {
             return Err(String::from("Storage location mismatch"));
         }
     
-        let canister_icp_principal_string = if canister_id.is_empty() {
+        let canister_icp_principal_string = if drive_id.is_empty() {
             ic_cdk::api::id().to_text()
         } else {
-            canister_id.clone()
+            drive_id.clone()
         };
 
         // Check if disk exists and return error if not found
@@ -486,11 +479,12 @@ pub mod drive {
             disk_id,
             disk.disk_type,
             user_id.clone(),
-            canister_icp_principal_string,
+            DRIVE_ID.with(|id| id.clone()),
             has_sovereign_permissions.unwrap_or(false),
             external_id.clone(),
             external_payload,
-            id
+            id,
+            shortcut_to
         );
         update_external_id_mapping(
             None,
@@ -533,7 +527,7 @@ pub mod drive {
             .get(&folder_id)
             .ok_or_else(|| "Folder not found".to_string())?;
         
-        let old_path = folder.full_folder_path.clone();
+        let old_path = folder.full_directory_path.clone();
         ic_cdk::println!("Old folder path: {}", old_path);
     
         // Create owned String before splitting
@@ -572,7 +566,7 @@ pub mod drive {
         folder_uuid_to_metadata.with_mut(|map| {
             if let Some(folder) = map.get_mut(&folder_id) {
                 folder.name = new_name;
-                folder.full_folder_path = DriveFullFilePath(new_folder_path.clone());
+                folder.full_directory_path = DriveFullFilePath(new_folder_path.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
@@ -621,7 +615,7 @@ pub mod drive {
             .get(&file_id)
             .ok_or_else(|| "File not found".to_string())?;
         
-        let old_path = file.full_file_path.clone();
+        let old_path = file.full_directory_path.clone();
         ic_cdk::println!("Old file path: {}", old_path);
     
         // Create owned String before splitting
@@ -656,7 +650,7 @@ pub mod drive {
         file_uuid_to_metadata.with_mut(|map| {
             if let Some(file) = map.get_mut(&file_id) {
                 file.name = new_name.clone();
-                file.full_file_path = DriveFullFilePath(new_path.clone());
+                file.full_directory_path = DriveFullFilePath(new_path.clone());
                 file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                 file.extension = new_name
                     .rsplit('.')
@@ -701,7 +695,7 @@ pub mod drive {
         }
     
         // If folder is already in trash, only allow permanent deletion
-        if let Some(_) = folder.restore_trash_prior_folder_path {
+        if let Some(_) = folder.restore_trash_prior_folder_uuid {
             if !permanent {
                 return Err("Cannot move to trash: item is already in trash".to_string());
             }
@@ -709,7 +703,7 @@ pub mod drive {
     
         if permanent {
             // Permanent deletion logic
-            let folder_path = folder.full_folder_path.clone();
+            let folder_path = folder.full_directory_path.clone();
             let subfolder_ids = folder.subfolder_uuids.clone();
             let file_ids = folder.file_uuids.clone();
     
@@ -761,45 +755,39 @@ pub mod drive {
                 .get(&trash_path)
                 .ok_or_else(|| "Trash folder not found".to_string())?;
     
-            // Store original folder path before moving
-            let original_folder_path = folder.full_folder_path.clone();
-    
-            // First, set restore_trash_prior_folder_path for the main folder and all its contents
+            // First, set restore_trash_prior_folder_uuid for the main folder and all its contents
             let mut stack = vec![folder_id.clone()];
             
             while let Some(current_folder_id) = stack.pop() {
                 // First handle the folder's metadata
                 let mut file_ids = Vec::new();
-                let mut current_folder_path = None;
                 
                 folder_uuid_to_metadata.with_mut(|map| {
                     if let Some(current_folder) = map.get_mut(&current_folder_id) {
                         if current_folder_id == *folder_id {
                             // Main folder gets the original parent path
-                            current_folder.restore_trash_prior_folder_path = Some(original_folder_path.clone());
+                            current_folder.restore_trash_prior_folder_uuid = Some(folder.id.clone());
                         } else {
                             // Subfolders keep their current path
-                            current_folder.restore_trash_prior_folder_path = Some(current_folder.full_folder_path.clone());
+                            current_folder.restore_trash_prior_folder_uuid = Some(current_folder.id.clone());
                         }
     
                         // Add subfolders to stack
                         stack.extend(current_folder.subfolder_uuids.clone());
                         // Get the file IDs for processing after we release this borrow
                         file_ids = current_folder.file_uuids.clone();
-                        current_folder_path = Some(current_folder.full_folder_path.clone());
                     }
                 });
     
                 // Now set restore info for all files using file_uuid_to_metadata
-                if let Some(folder_path) = current_folder_path {
-                    for file_id in file_ids {
-                        file_uuid_to_metadata.with_mut(|file_map| {
-                            if let Some(file) = file_map.get_mut(&file_id) {
-                                file.restore_trash_prior_folder_path = Some(folder_path.clone());
-                            }
-                        });
-                    }
+                for file_id in file_ids {
+                    file_uuid_to_metadata.with_mut(|file_map| {
+                        if let Some(file) = file_map.get_mut(&file_id) {
+                            file.restore_trash_prior_folder_uuid = Some(current_folder_id.clone());
+                        }
+                    });
                 }
+                
             }
     
             // Get trash folder metadata
@@ -841,7 +829,7 @@ pub mod drive {
             }
     
             // Return the new path in trash
-            Ok(moved_folder.full_folder_path)
+            Ok(moved_folder.full_directory_path)
         }
     }
 
@@ -852,7 +840,7 @@ pub mod drive {
             .ok_or_else(|| "File not found".to_string())?;
     
         // If file is already in trash, only allow permanent deletion
-        if let Some(_) = file.restore_trash_prior_folder_path {
+        if let Some(_) = file.restore_trash_prior_folder_uuid {
             if !permanent {
                 return Err("Cannot move to trash: item is already in trash".to_string());
             }
@@ -860,8 +848,8 @@ pub mod drive {
         
         if permanent {
             // Permanent deletion logic
-            let file_path = file.full_file_path.clone();
-            let folder_uuid = file.folder_uuid.clone();
+            let file_path = file.full_directory_path.clone();
+            let folder_uuid = file.parent_folder_uuid.clone();
             
             // Handle version chain
             if let Some(prior_id) = &file.prior_version {
@@ -901,19 +889,17 @@ pub mod drive {
             Ok(DriveFullFilePath("".to_string()))
         } else {
             // Move to trash
-            // Store original folder path before moving
-            let original_folder_path = DriveFullFilePath(format!("{}/", file.full_file_path.0.rsplitn(2, '/').nth(1).unwrap_or("")));
-            
+
             // Get .trash folder UUID
             let trash_path = DriveFullFilePath(format!("{}::.trash/", file.disk_id.to_string()));
             let trash_uuid = full_folder_path_to_uuid
                 .get(&trash_path)
                 .ok_or_else(|| "Trash folder not found".to_string())?;
     
-            // Set restore_trash_prior_folder_path BEFORE moving the file
+            // Set restore_trash_prior_folder_uuid BEFORE moving the file
             file_uuid_to_metadata.with_mut(|map| {
                 if let Some(file) = map.get_mut(file_id) {
-                    file.restore_trash_prior_folder_path = Some(original_folder_path);
+                    file.restore_trash_prior_folder_uuid = Some(file.parent_folder_uuid.clone());
                 }
             });
     
@@ -930,7 +916,7 @@ pub mod drive {
             )?;
     
             // Return the new path in trash
-            Ok(moved_file.full_file_path)
+            Ok(moved_file.full_directory_path)
         }
     }
 
@@ -951,11 +937,11 @@ pub mod drive {
         }
 
         // Construct new file path in destination
-        let new_path = format!("{}{}", destination_folder.full_folder_path.0, source_file.name);
+        let new_path = format!("{}{}", destination_folder.full_directory_path.0, source_file.name);
         
         // Handle naming conflicts
         let (final_name, final_path) = resolve_naming_conflict(
-            &destination_folder.full_folder_path.0,
+            &destination_folder.full_directory_path.0,
             &source_file.name,
             false,
             file_conflict_resolution,
@@ -1008,8 +994,8 @@ pub mod drive {
         let mut new_file_metadata = source_file.clone();
         new_file_metadata.id = new_file_uuid.clone();
         new_file_metadata.name = final_name;
-        new_file_metadata.folder_uuid = destination_folder.id.clone();
-        new_file_metadata.full_file_path = DriveFullFilePath(final_path.clone());
+        new_file_metadata.parent_folder_uuid = destination_folder.id.clone();
+        new_file_metadata.full_directory_path = DriveFullFilePath(final_path.clone());
         new_file_metadata.file_version = 1;
         new_file_metadata.prior_version = None;
         new_file_metadata.next_version = None;
@@ -1050,7 +1036,7 @@ pub mod drive {
         
         // Handle naming conflicts
         let (final_name, final_path) = resolve_naming_conflict(
-            &destination_folder.full_folder_path.0,
+            &destination_folder.full_directory_path.0,
             &source_folder.name,
             true,
             file_conflict_resolution.clone(),
@@ -1067,7 +1053,7 @@ pub mod drive {
         new_folder_metadata.id = new_folder_uuid.clone();
         new_folder_metadata.name = final_name;
         new_folder_metadata.parent_folder_uuid = Some(destination_folder.id.clone());
-        new_folder_metadata.full_folder_path = DriveFullFilePath(final_path.clone());
+        new_folder_metadata.full_directory_path = DriveFullFilePath(final_path.clone());
         new_folder_metadata.subfolder_uuids = Vec::new(); // Will be populated while copying subfolders
         new_folder_metadata.file_uuids = Vec::new(); // Will be populated while copying files
         new_folder_metadata.created_at = ic_cdk::api::time() / 1_000_000;
@@ -1126,11 +1112,11 @@ pub mod drive {
         }
 
         // Get source folder to update its file_uuids
-        let source_folder_id = source_file.folder_uuid.clone();
+        let source_folder_id = source_file.parent_folder_uuid.clone();
         
         // Handle naming conflicts
         let (final_name, final_path) = resolve_naming_conflict(
-            &destination_folder.full_folder_path.0,
+            &destination_folder.full_directory_path.0,
             &source_file.name,
             false,
             file_conflict_resolution,
@@ -1142,14 +1128,14 @@ pub mod drive {
         }
     
         // Remove old path mapping
-        full_file_path_to_uuid.remove(&source_file.full_file_path);
+        full_file_path_to_uuid.remove(&source_file.full_directory_path);
     
         // Update file metadata
         file_uuid_to_metadata.with_mut(|map| {
             if let Some(file) = map.get_mut(file_id) {
                 file.name = final_name;
-                file.folder_uuid = destination_folder.id.clone();
-                file.full_file_path = DriveFullFilePath(final_path.clone());
+                file.parent_folder_uuid = destination_folder.id.clone();
+                file.full_directory_path = DriveFullFilePath(final_path.clone());
                 file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
@@ -1204,7 +1190,7 @@ pub mod drive {
     
         // Handle naming conflicts via resolve_naming_conflict.
         let (final_name, final_path) = resolve_naming_conflict(
-            &destination_folder.full_folder_path.0,
+            &destination_folder.full_directory_path.0,
             &source_folder.name,
             true,
             file_conflict_resolution,
@@ -1215,14 +1201,14 @@ pub mod drive {
             return Ok(source_folder.clone());
         }
     
-        let old_path = source_folder.full_folder_path.clone();
+        let old_path = source_folder.full_directory_path.clone();
         
         // Update folder metadata using with_mut.
         folder_uuid_to_metadata.with_mut(|map| {
             if let Some(folder) = map.get_mut(folder_id) {
                 folder.name = final_name.clone();
                 folder.parent_folder_uuid = Some(destination_folder.id.clone());
-                folder.full_folder_path = DriveFullFilePath(final_path.clone());
+                folder.full_directory_path = DriveFullFilePath(final_path.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
             }
         });
@@ -1272,7 +1258,7 @@ pub mod drive {
         let folder_id = FolderID(resource_id.to_string());
         if let Some(folder) = folder_uuid_to_metadata.get(&folder_id) {
             // Verify folder is actually in trash
-            if folder.restore_trash_prior_folder_path.is_none() {
+            if folder.restore_trash_prior_folder_uuid.is_none() {
                 return Err("Folder is not in trash".to_string());
             }
 
@@ -1289,8 +1275,9 @@ pub mod drive {
                         folder.disk_id.clone(),
                         folder.disk_type.clone(),
                         folder.created_by.clone(),
-                        folder.canister_id.0.0.clone(),
+                        folder.drive_id.clone(),
                         folder.has_sovereign_permissions.clone(),
+                        None,
                         None,
                         None,
                         None
@@ -1302,33 +1289,29 @@ pub mod drive {
                 }
             } else {
                 // Get the folder UUID from the stored path
-                let path = folder.restore_trash_prior_folder_path.clone().unwrap();
-                let translation = translate_path_to_id(path.clone());
-                if let Some(existing_folder) = translation.folder {
-                    existing_folder
-                } else {
-                    // Create the folder structure if original path doesn't exist
-                    let new_folder_uuid = ensure_folder_structure(
-                        &path.to_string(),
-                        folder.disk_id.clone(),
-                        folder.disk_type.clone(),
-                        folder.created_by.clone(),
-                        folder.canister_id.0.0.clone(),
-                        folder.has_sovereign_permissions.clone(),
-                        None,
-                        None,
-                        None
-                    );
-                    
-                    folder_uuid_to_metadata
-                        .get(&new_folder_uuid)
-                        .ok_or_else(|| "Failed to create restore folder path".to_string())?
-                }
+                let restore_to_folder_uuid = folder.restore_trash_prior_folder_uuid.clone().unwrap();
+                // if restore_to_folder_uuid doesnt match a folder, just use the root folder
+                let restore_to_folder = match folder_uuid_to_metadata.get(&restore_to_folder_uuid) {
+                    Some(folder) => folder,
+                    None => {
+                        let disk_id = folder.disk_id.clone();
+                        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+                            map.borrow()
+                                .get(&disk_id)
+                                .cloned()
+                        }).ok_or_else(|| "Disk not found".to_string())?;
+                        let root_folder = folder_uuid_to_metadata
+                            .get(&disk.root_folder.clone())
+                            .ok_or_else(|| "Root folder not found".to_string())?;
+                        root_folder
+                    }
+                };
+                restore_to_folder
             };
 
             // Verify target folder is not in trash
-            if target_folder.restore_trash_prior_folder_path.is_some() {
-                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
+            if target_folder.restore_trash_prior_folder_uuid.is_some() {
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_directory_path).to_string());
             }
 
             // Move folder to target location
@@ -1338,7 +1321,7 @@ pub mod drive {
                 payload.file_conflict_resolution.clone(),
             )?;
 
-            // Clear restore_trash_prior_folder_path for the folder and all its contents
+            // Clear restore_trash_prior_folder_uuid for the folder and all its contents
             let mut stack = vec![folder_id.clone()];
             let mut restored_folders = vec![folder_id.clone()];
             let mut restored_files = Vec::new();
@@ -1349,7 +1332,7 @@ pub mod drive {
                     for subfolder_id in &current_folder.subfolder_uuids {
                         folder_uuid_to_metadata.with_mut(|map| {
                             if let Some(subfolder) = map.get_mut(subfolder_id) {
-                                subfolder.restore_trash_prior_folder_path = None;
+                                subfolder.restore_trash_prior_folder_uuid = None;
                             }
                         });
                         restored_folders.push(subfolder_id.clone());
@@ -1360,7 +1343,7 @@ pub mod drive {
                     for file_id in &current_folder.file_uuids {
                         file_uuid_to_metadata.with_mut(|map| {
                             if let Some(file) = map.get_mut(file_id) {
-                                file.restore_trash_prior_folder_path = None;
+                                file.restore_trash_prior_folder_uuid = None;
                             }
                         });
                         restored_files.push(file_id.clone());
@@ -1368,10 +1351,10 @@ pub mod drive {
                 }
             }
 
-            // Clear restore_trash_prior_folder_path for the main folder
+            // Clear restore_trash_prior_folder_uuid for the main folder
             folder_uuid_to_metadata.with_mut(|map| {
                 if let Some(folder) = map.get_mut(&folder_id) {
-                    folder.restore_trash_prior_folder_path = None;
+                    folder.restore_trash_prior_folder_uuid = None;
                 }
             });
 
@@ -1383,7 +1366,7 @@ pub mod drive {
         // Handle file restore case similarly
         else if let Some(file) = file_uuid_to_metadata.get(&FileID(resource_id.to_string())) {
             // Verify file is actually in trash
-            if file.restore_trash_prior_folder_path.is_none() {
+            if file.restore_trash_prior_folder_uuid.is_none() {
                 return Err("File is not in trash".to_string());
             }
 
@@ -1400,8 +1383,9 @@ pub mod drive {
                         file.disk_id.clone(),
                         file.disk_type.clone(),
                         file.created_by.clone(),
-                        file.canister_id.0.0.clone(),
+                        file.drive_id.clone(),
                         file.has_sovereign_permissions.clone(),
+                        None,
                         None,
                         None,
                         None
@@ -1413,33 +1397,28 @@ pub mod drive {
                 }
             } else {
                 // Get the folder UUID from the stored path
-                let path = file.restore_trash_prior_folder_path.clone().unwrap();
-                let translation = translate_path_to_id(path.clone());
-                if let Some(existing_folder) = translation.folder {
-                    existing_folder
-                } else {
-                    // Create the folder structure if original path doesn't exist
-                    let new_folder_uuid = ensure_folder_structure(
-                        &path.to_string(),
-                        file.disk_id.clone(),
-                        file.disk_type.clone(),
-                        file.created_by.clone(),
-                        file.canister_id.0.0.clone(),
-                        file.has_sovereign_permissions.clone(),
-                        None,
-                        None,
-                        None
-                    );
-                    
-                    folder_uuid_to_metadata
-                        .get(&new_folder_uuid)
-                        .ok_or_else(|| "Failed to create restore folder path".to_string())?
-                }
+                let restore_to_folder_uuid = file.restore_trash_prior_folder_uuid.clone().unwrap();
+                let restore_to_folder = match folder_uuid_to_metadata.get(&restore_to_folder_uuid) {
+                    Some(folder) => folder,
+                    None => {
+                        let disk_id = file.disk_id.clone();
+                        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
+                            map.borrow()
+                                .get(&disk_id)
+                                .cloned()
+                        }).ok_or_else(|| "Disk not found".to_string())?;
+                        let root_folder = folder_uuid_to_metadata
+                            .get(&disk.root_folder.clone())
+                            .ok_or_else(|| "Root folder not found".to_string())?;
+                        root_folder
+                    }
+                };
+                restore_to_folder
             };
 
             // Verify target folder is not in trash
-            if target_folder.restore_trash_prior_folder_path.is_some() {
-                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_folder_path).to_string());
+            if target_folder.restore_trash_prior_folder_uuid.is_some() {
+                return Err(format!("Cannot restore to a folder that is in trash. Please first restore {}", target_folder.full_directory_path).to_string());
             }
 
             let file_id = FileID(resource_id.to_string());
@@ -1451,10 +1430,10 @@ pub mod drive {
                 payload.file_conflict_resolution.clone(),
             )?;
 
-            // Clear restore_trash_prior_folder_path
+            // Clear restore_trash_prior_folder_uuid
             file_uuid_to_metadata.with_mut(|map| {
                 if let Some(file) = map.get_mut(&file_id) {
-                    file.restore_trash_prior_folder_path = None;
+                    file.restore_trash_prior_folder_uuid = None;
                 }
             });
 

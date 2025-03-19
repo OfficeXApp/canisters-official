@@ -6,7 +6,7 @@ use serde_diff::{SerdeDiff};
 
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{
-        api_keys::types::ApiKeyID, directory::types::DriveFullFilePath, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, labels::types::{redact_label, LabelID, LabelStringValue}, webhooks::types::WebhookID
+        api_keys::types::ApiKeyID, directory::types::{DriveClippedFilePath, DriveFullFilePath}, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, labels::types::{redact_label, LabelID, LabelStringValue}, webhooks::types::WebhookID
     }, types::UserID
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
@@ -132,10 +132,33 @@ impl DirectoryPermission {
             .into_iter()
             .collect();
 
+        // clip resource_path to only the disk & file or foldername
+        // disk_id::path/to/folder/
+        // disk_id::path/to/folder/file.txt
+        // recostruct with .. in between
+        // disk_id::../folder/
+        // disk_id::../file.txt
+        let resource_path = self.resource_path.clone();
+        let path_parts = resource_path.0.split("/").collect::<Vec<&str>>();
+        let mut clipped_path = String::new();
+        if path_parts.len() > 1 {
+            clipped_path.push_str(path_parts[0]);
+            clipped_path.push_str("::");
+            if path_parts.len() > 2 {
+                clipped_path.push_str("..");
+                clipped_path.push_str("/");
+            }
+            clipped_path.push_str(path_parts[path_parts.len()-1]);
+        } else {
+            clipped_path.push_str(&resource_path.0);
+        }
+
+        
+
         DirectoryPermissionFE {
             id: self.id.to_string(),
             resource_id,
-            resource_path: self.resource_path.to_string(),
+            resource_path: DriveClippedFilePath(clipped_path),
             granted_to,
             granted_by: self.granted_by.to_string(),
             permission_types: self.permission_types.clone(),
