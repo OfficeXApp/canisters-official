@@ -1464,7 +1464,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             })?;
 
                         // Verify folder is actually in trash
-                        if folder.restore_trash_prior_folder_path.is_none() {
+                        if folder.restore_trash_prior_folder_uuid.is_none() {
                             return Err(DirectoryActionErrorInfo {
                                 code: 400,
                                 message: "Folder is not in trash".to_string(),
@@ -1543,7 +1543,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 })?;
             
                             // Verify file is actually in trash
-                            if file.restore_trash_prior_folder_path.is_none() {
+                            if file.restore_trash_prior_folder_uuid.is_none() {
                                 return Err(DirectoryActionErrorInfo {
                                     code: 400,
                                     message: "File is not in trash".to_string(),

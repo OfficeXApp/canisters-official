@@ -36,7 +36,7 @@ pub mod drive_internals {
                 id: FolderID(root_folder_uuid.clone()),
                 name: String::new(),
                 parent_folder_uuid: None,
-                restore_trash_prior_folder_path: None,
+                restore_trash_prior_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_directory_path: root_path.clone(),
@@ -69,7 +69,7 @@ pub mod drive_internals {
                 id: FolderID(trash_folder_uuid.clone()),
                 name: ".trash".to_string(),
                 parent_folder_uuid: Some(root_uuid.clone()),
-                restore_trash_prior_folder_path: None,
+                restore_trash_prior_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_directory_path: trash_path.clone(),
@@ -214,7 +214,7 @@ pub mod drive_internals {
                     deleted: false,
                     drive_id: drive_id.clone(),
                     expires_at: -1,
-                    restore_trash_prior_folder_path: None,
+                    restore_trash_prior_folder_uuid: None,
                     shortcut_to: if is_final_folder {
                         shortcut_to.clone()
                     } else {
