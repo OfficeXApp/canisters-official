@@ -24,6 +24,7 @@ pub mod state {
             &current_canister_disk_id.clone(),
             &owner_id.borrow().clone(),
             &DRIVE_ID.with(|id| id.clone()),
+            DiskTypeEnum::IcpCanister
         );
 
         let default_canister_disk = Disk {
@@ -52,14 +53,16 @@ pub mod state {
     }
 
     // Helper function to create root folder for a disk
-    pub fn ensure_disk_root_and_trash_folder(disk_id: &DiskID, owner_id: &UserID, drive_id: &DriveID) -> (FolderID, FolderID) {
+    pub fn ensure_disk_root_and_trash_folder(disk_id: &DiskID, owner_id: &UserID, drive_id: &DriveID, disk_type: DiskTypeEnum) -> (FolderID, FolderID) {
         let root_path = DriveFullFilePath(format!("{}::/", disk_id.to_string()));
-        let root_folder_uuid = FolderID(generate_uuidv4(IDPrefix::Folder));
         
-        // Only create if root folder doesn't exist
-        if !full_folder_path_to_uuid.contains_key(&root_path) {
+        // Get existing or create new root folder
+        let root_folder_uuid = if let Some(existing_uuid) = full_folder_path_to_uuid.get(&root_path) {
+            existing_uuid.clone()
+        } else {
+            let new_uuid = FolderID(generate_uuidv4(IDPrefix::Folder));
             let root_folder = FolderRecord {
-                id: root_folder_uuid.clone(),
+                id: new_uuid.clone(),
                 name: "Root".to_string(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
@@ -69,7 +72,7 @@ pub mod state {
                 created_by: owner_id.clone(),
                 created_at: ic_cdk::api::time(),
                 disk_id: disk_id.clone(),
-                disk_type: DiskTypeEnum::IcpCanister,
+                disk_type: disk_type.clone(),
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: owner_id.clone(),
                 deleted: false,
@@ -81,18 +84,21 @@ pub mod state {
                 external_id: None,
                 external_payload: None,
             };
-
-            full_folder_path_to_uuid.insert(root_path, root_folder_uuid.clone());
-            folder_uuid_to_metadata.insert(root_folder_uuid.clone(), root_folder);
-        }
-
+    
+            full_folder_path_to_uuid.insert(root_path, new_uuid.clone());
+            folder_uuid_to_metadata.insert(new_uuid.clone(), root_folder);
+            new_uuid
+        };
+    
         let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
-        let trash_folder_uuid = FolderID(generate_uuidv4(IDPrefix::Folder));
         
-        // Only create if root folder doesn't exist
-        if !full_folder_path_to_uuid.contains_key(&trash_path) {
+        // Get existing or create new trash folder
+        let trash_folder_uuid = if let Some(existing_uuid) = full_folder_path_to_uuid.get(&trash_path) {
+            existing_uuid.clone()
+        } else {
+            let new_uuid = FolderID(generate_uuidv4(IDPrefix::Folder));
             let trash_folder = FolderRecord {
-                id: trash_folder_uuid.clone(),
+                id: new_uuid.clone(),
                 name: "Trash".to_string(),
                 parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
@@ -102,7 +108,7 @@ pub mod state {
                 created_by: owner_id.clone(),
                 created_at: ic_cdk::api::time(),
                 disk_id: disk_id.clone(),
-                disk_type: DiskTypeEnum::IcpCanister,
+                disk_type: disk_type.clone(),
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
                 last_updated_by: owner_id.clone(),
                 deleted: false,
@@ -114,10 +120,12 @@ pub mod state {
                 external_id: None,
                 external_payload: None,
             };
-
-            full_folder_path_to_uuid.insert(trash_path, trash_folder_uuid.clone());
-            folder_uuid_to_metadata.insert(trash_folder_uuid.clone(), trash_folder);
-        }
+    
+            full_folder_path_to_uuid.insert(trash_path, new_uuid.clone());
+            folder_uuid_to_metadata.insert(new_uuid.clone(), trash_folder);
+            new_uuid
+        };
+        
         return (root_folder_uuid, trash_folder_uuid);
     }
 }

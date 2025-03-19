@@ -10,7 +10,7 @@ pub mod drive {
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
                     types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}
                 },
-                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID}, types::{ExternalID, ExternalPayload}},
+                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID}, types::{ExternalID, ExternalPayload}}, raw_storage::types::UploadStatus,
             }, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
         }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
@@ -143,13 +143,7 @@ pub mod drive {
                 return Err("File already exists and resolution is KEEP_ORIGINAL".to_string());
             }
         }
-
-        // check for disk and return error if not found
-        let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
-            map.borrow()
-                .get(&disk_id)
-                .cloned()
-        }).ok_or_else(|| "Disk not found".to_string())?;
+        
 
         // Get the disk and if it's not found, return an error
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
@@ -157,6 +151,11 @@ pub mod drive {
                 .get(&disk_id)
                 .cloned()
         }).ok_or_else(|| "Disk not found".to_string())?;
+
+
+        if disk.disk_type != DiskTypeEnum::AwsBucket && disk.disk_type != DiskTypeEnum::StorjWeb3 && disk.disk_type != DiskTypeEnum::IcpCanister {
+            return Err("Only S3 buckets, Storj & ICP Canisters are supported for file uploads".to_string());
+        }
         
         let full_directory_path = final_path;
         
@@ -287,6 +286,7 @@ pub mod drive {
             restore_trash_prior_folder_uuid: None,
             has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),
             shortcut_to,
+            upload_status: UploadStatus::Queued,
             external_id: external_id.clone(),
             external_payload: external_payload.clone(),
         };
@@ -325,9 +325,6 @@ pub mod drive {
                 .cloned()
         }).ok_or_else(|| "Disk not found".to_string())?;
     
-        if disk.disk_type != DiskTypeEnum::AwsBucket && disk.disk_type != DiskTypeEnum::StorjWeb3 {
-            return Err("Only S3 buckets are supported for file uploads".to_string());
-        }
     
         let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
             .map_err(|_| "Invalid AWS credentials format".to_string())?;

@@ -1,6 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
@@ -54,9 +54,11 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         resource_id.clone(),
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
+
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
         
                     // User needs at least View permission to get file details
-                    if !user_permissions.contains(&DirectoryPermissionType::View) {
+                    if !is_owner && !user_permissions.contains(&DirectoryPermissionType::View) {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to view this file".to_string(), 
@@ -173,8 +175,10 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         resource_id.clone(),
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
+
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
         
-                    if !user_permissions.contains(&DirectoryPermissionType::View) {
+                    if !is_owner && !user_permissions.contains(&DirectoryPermissionType::View) {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to view this folder".to_string(),
@@ -281,8 +285,10 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         parent_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
+
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
         
-                    if !user_permissions.contains(&DirectoryPermissionType::Upload) && 
+                    if !is_owner && !user_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !user_permissions.contains(&DirectoryPermissionType::Edit) &&
                        !user_permissions.contains(&DirectoryPermissionType::Manage) {
                         return Err(DirectoryActionErrorInfo {
@@ -371,6 +377,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         });
                     }
 
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
                     // Get parent folder ID where the new folder will be created
                     let parent_folder_id = payload.parent_folder_uuid;
 
@@ -386,7 +394,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
         
-                    if !user_permissions.contains(&DirectoryPermissionType::Upload) && 
+                    if !is_owner && 
+                       !user_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !user_permissions.contains(&DirectoryPermissionType::Edit) &&
                        !user_permissions.contains(&DirectoryPermissionType::Manage) {
                         return Err(DirectoryActionErrorInfo {
@@ -516,7 +525,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     let has_edit_permission = user_permissions.contains(&DirectoryPermissionType::Edit) ||
                                             user_permissions.contains(&DirectoryPermissionType::Manage);
 
-                    if !is_creator_with_upload && !has_edit_permission {
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                    if !is_owner && !is_creator_with_upload && !has_edit_permission {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to edit this file".to_string(),
@@ -548,6 +559,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             }
                             if let Some(expires_at) = payload.expires_at {
                                 file.expires_at = expires_at;
+                            }
+                            if let Some(upload_status) = payload.upload_status {
+                                file.upload_status = upload_status;
                             }
                             file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
                             file.last_updated_by = user_id.clone();
@@ -664,7 +678,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     let has_edit_permission = user_permissions.contains(&DirectoryPermissionType::Edit) ||
                                             user_permissions.contains(&DirectoryPermissionType::Manage);
 
-                    if !is_creator_with_upload && !has_edit_permission {
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                    if !is_owner && !is_creator_with_upload && !has_edit_permission {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to edit this folder".to_string(),
@@ -800,7 +816,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     let has_delete_permission = user_permissions.contains(&DirectoryPermissionType::Delete) ||
                                               user_permissions.contains(&DirectoryPermissionType::Manage);
         
-                    if !is_creator_with_upload && !has_delete_permission {
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                    if !is_owner && !is_creator_with_upload && !has_delete_permission {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to delete this file".to_string(),
@@ -900,8 +918,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     let has_delete_permission = user_permissions.contains(&DirectoryPermissionType::Delete) ||
                                               user_permissions.contains(&DirectoryPermissionType::Manage);
-        
-                    if !is_creator_with_upload && !has_delete_permission {
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                    if !is_owner && !is_creator_with_upload && !has_delete_permission {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to delete this folder".to_string(),
@@ -1021,7 +1040,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
         
-                    if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                    if !is_owner && !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Manage) {
                         return Err(DirectoryActionErrorInfo {
@@ -1133,8 +1154,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         dest_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
-        
-                    if !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                    if !is_owner && !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Manage) {
                         return Err(DirectoryActionErrorInfo {
@@ -1226,8 +1248,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     let has_move_permission = source_permissions.contains(&DirectoryPermissionType::Edit) ||
                                             source_permissions.contains(&DirectoryPermissionType::Manage);
-        
-                    if !is_creator_with_upload && !has_move_permission {
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                    if !is_owner && !is_creator_with_upload && !has_move_permission {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to move this file from its current location".to_string(),
@@ -1387,8 +1410,10 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         dest_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
+
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
         
-                    if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
+                    if !is_owner && !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Manage) {
                         return Err(DirectoryActionErrorInfo {
@@ -1488,7 +1513,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         let has_restore_permission = folder_permissions.contains(&DirectoryPermissionType::Edit) ||
                                                   folder_permissions.contains(&DirectoryPermissionType::Manage);
         
-                        if !is_creator_with_upload && !has_restore_permission {
+                        let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                        if !is_owner && !is_creator_with_upload && !has_restore_permission {
                             return Err(DirectoryActionErrorInfo {
                                 code: 403,
                                 message: "You don't have permission to restore this folder".to_string(),
@@ -1566,8 +1593,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 file_permissions.contains(&DirectoryPermissionType::Upload);
                             let has_restore_permission = file_permissions.contains(&DirectoryPermissionType::Edit) ||
                                                     file_permissions.contains(&DirectoryPermissionType::Manage);
-            
-                            if !is_creator_with_upload && !has_restore_permission {
+                            let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+
+                            if !is_owner && !is_creator_with_upload && !has_restore_permission {
                                 return Err(DirectoryActionErrorInfo {
                                     code: 403,
                                     message: "You don't have permission to restore this file".to_string(),
