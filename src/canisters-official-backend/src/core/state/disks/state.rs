@@ -24,13 +24,13 @@ pub mod state {
             &current_canister_disk_id.clone(),
             &owner_id.borrow().clone(),
             &DRIVE_ID.with(|id| id.clone()),
-            DiskTypeEnum::IcpCanister
+            DiskTypeEnum::Icp_Canister
         );
 
         let default_canister_disk = Disk {
             id: current_canister_disk_id.clone(),
             name: "Default Admin Canister".to_string(),
-            disk_type: DiskTypeEnum::IcpCanister,
+            disk_type: DiskTypeEnum::Icp_Canister,
             private_note: Some("Default Canister Storage".to_string()),
             public_note: Some("Default Canister Storage".to_string()),
             auth_json: None,
@@ -54,13 +54,16 @@ pub mod state {
 
     // Helper function to create root folder for a disk
     pub fn ensure_disk_root_and_trash_folder(disk_id: &DiskID, owner_id: &UserID, drive_id: &DriveID, disk_type: DiskTypeEnum) -> (FolderID, FolderID) {
+        // Root folder path with trailing slash
         let root_path = DriveFullFilePath(format!("{}::/", disk_id.to_string()));
         
         // Get existing or create new root folder
         let root_folder_uuid = if let Some(existing_uuid) = full_folder_path_to_uuid.get(&root_path) {
             existing_uuid.clone()
         } else {
+            // Generate UUID with additional entropy for root folder
             let new_uuid = FolderID(generate_uuidv4(IDPrefix::Folder));
+            
             let root_folder = FolderRecord {
                 id: new_uuid.clone(),
                 name: "Root".to_string(),
@@ -90,17 +93,20 @@ pub mod state {
             new_uuid
         };
     
-        let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
+        // Trash folder path as a subfolder of root
+        let trash_path = DriveFullFilePath(format!("{}::/.trash/", disk_id.to_string()));
         
         // Get existing or create new trash folder
         let trash_folder_uuid = if let Some(existing_uuid) = full_folder_path_to_uuid.get(&trash_path) {
             existing_uuid.clone()
         } else {
+            // Generate UUID with additional entropy for trash folder
             let new_uuid = FolderID(generate_uuidv4(IDPrefix::Folder));
+            
             let trash_folder = FolderRecord {
                 id: new_uuid.clone(),
                 name: "Trash".to_string(),
-                parent_folder_uuid: None,
+                parent_folder_uuid: Some(root_folder_uuid.clone()), // Link to root folder
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_directory_path: trash_path.clone(),
@@ -123,10 +129,21 @@ pub mod state {
     
             full_folder_path_to_uuid.insert(trash_path, new_uuid.clone());
             folder_uuid_to_metadata.insert(new_uuid.clone(), trash_folder);
+            
+            // Update root folder to include trash folder in subfolder_uuids
+            folder_uuid_to_metadata.with_mut(|map| {
+                if let Some(root_folder) = map.get_mut(&root_folder_uuid) {
+                    if !root_folder.subfolder_uuids.contains(&new_uuid) {
+                        root_folder.subfolder_uuids.push(new_uuid.clone());
+                    }
+                }
+            });
+            
             new_uuid
         };
         
-        return (root_folder_uuid, trash_folder_uuid);
+        // Return both folder UUIDs
+        (root_folder_uuid, trash_folder_uuid)
     }
 }
 

@@ -40,6 +40,7 @@ pub mod state {
         pub(crate) static DRIVES_BY_ID_HASHTABLE: RefCell<HashMap<DriveID, Drive>> = RefCell::new(HashMap::new());
         pub(crate) static DRIVES_BY_TIME_LIST: RefCell<Vec<DriveID>> = RefCell::new(Vec::new());
         // external id tracking
+        pub(crate) static NONCE_UUID_GENERATED: RefCell<u128> = RefCell::new(0);
         pub(crate) static EXTERNAL_ID_MAPPINGS: RefCell<HashMap<ExternalID, Vec<String>>> = RefCell::new(HashMap::new());
         pub(crate) static UUID_CLAIMED: RefCell<HashMap<String, bool>> = RefCell::new(HashMap::new()); // tracks client generated uuids to prevent collisions
         // factory spawn tracking

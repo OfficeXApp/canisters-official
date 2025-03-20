@@ -706,6 +706,8 @@ impl GetFolderPayload {
     }
 }
 
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFilePayload {
@@ -717,7 +719,6 @@ pub struct CreateFilePayload {
     pub file_size: u64,
     pub raw_url: String,
     pub disk_id: DiskID,
-    pub disk_type: DiskTypeEnum,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,

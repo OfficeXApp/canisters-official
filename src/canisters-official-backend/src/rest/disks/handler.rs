@@ -281,7 +281,7 @@ pub mod disks_handlers {
             }
         }
         
-        // Validate that auth_json is provided and valid for AwsBucket or StorjWeb3 types.
+        // Validate that auth_json is provided and valid for Aws_Bucket or Storj_Web3 types.
         if let Err(err_msg) = validate_auth_json(&create_req.disk_type, &create_req.auth_json) {
             return create_response(
                 StatusCode::BAD_REQUEST,

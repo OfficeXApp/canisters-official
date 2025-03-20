@@ -72,13 +72,19 @@ pub mod directorys_handlers {
         if !is_owner {
             return create_auth_error_response();
         }
-    
+
+        debug_log!("Handling directory action request");
+        debug_log!("request.body({:?})", request.body());
+        
         let action_batch: DirectoryActionRequestBody = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
-            Err(_) => return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            ),
+            Err(err) => {
+                debug_log!("Failed to deserialize request {:?}", err.to_string());
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+                )
+            },
         };
     
         let mut outcomes = Vec::new();
@@ -473,7 +479,7 @@ pub mod directorys_handlers {
         // 5. Generate presigned URL with content-disposition header
         let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
         let presigned_url = match file_meta.disk_type {
-            DiskTypeEnum::AwsBucket => {
+            DiskTypeEnum::Aws_Bucket => {
                 generate_s3_view_url(
                     &file_meta.id.0,          // file_id
                     &file_meta.extension,     // file_extension
@@ -482,7 +488,7 @@ pub mod directorys_handlers {
                     Some(&download_filename)
                 )
             }
-            DiskTypeEnum::StorjWeb3 => {
+            DiskTypeEnum::Storj_Web3 => {
                 generate_storj_view_url(
                     &file_meta.id.0,          // file_id
                     &file_meta.extension,     // file_extension

@@ -1,6 +1,6 @@
 // src/core/api/uuid.rs
 
-use crate::{core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, UUID_CLAIMED}, types::{DriveID, DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}}, debug_log};
+use crate::{core::{state::{api_keys::types::{ApiKeyProof, ApiKeyValue, AuthTypeEnum}, directory::types::ShareTrackID, drives::{state::state::{DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, NONCE_UUID_GENERATED, UUID_CLAIMED}, types::{DriveID, DriveStateDiffString, StateChecksum}}}, types::{IDPrefix, UserID}}, debug_log};
 use sha2::{Sha256, Digest};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use std::{fmt, time::UNIX_EPOCH};
@@ -18,8 +18,16 @@ pub fn format_drive_id(principal_string: &str) -> DriveID {
 pub fn generate_uuidv4(prefix: IDPrefix) -> String {
     let canister_id = ic_cdk::api::id().to_string();
     let current_time = ic_cdk::api::time();
+    
+    // Get and increment the nonce
+    let nonce = NONCE_UUID_GENERATED.with(|counter| {
+        let current = *counter.borrow();
+        *counter.borrow_mut() += 1;
+        current
+    });
 
-    let entropy_input = format!("{}-{}", canister_id, current_time);
+    // Include nonce in entropy input
+    let entropy_input = format!("{}-{}-{}", canister_id, current_time, nonce);
     let mut hasher = Sha256::new();
     hasher.update(entropy_input.as_bytes());
     let mut hash_bytes = hasher.finalize();
@@ -43,6 +51,10 @@ pub fn generate_uuidv4(prefix: IDPrefix) -> String {
         hash_bytes[10], hash_bytes[11], hash_bytes[12], hash_bytes[13], hash_bytes[14], hash_bytes[15]
     );
     let pseudo_prefix_id = format!("{}{}", prefix.as_str(), pseudo_uuid);
+    
+    // Debug log with nonce for troubleshooting
+    debug_log!("Generated UUID with nonce {}: {}", nonce, pseudo_prefix_id);
+    
     pseudo_prefix_id
 }
 

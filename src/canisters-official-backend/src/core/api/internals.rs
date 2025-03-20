@@ -27,7 +27,7 @@ pub mod drive_internals {
     
 
     pub fn ensure_root_folder(disk_id: &DiskID, disk_type: &DiskTypeEnum,user_id: &UserID, drive_id: DriveID) -> FolderID {
-        let root_path = DriveFullFilePath(format!("{}::", disk_id.to_string()));
+        let root_path = DriveFullFilePath(format!("{}::/", disk_id.to_string()));
         let root_uuid = if let Some(uuid) = full_folder_path_to_uuid.get(&root_path) {
             uuid.clone()
         } else {
@@ -62,7 +62,7 @@ pub mod drive_internals {
         };
 
         // Ensure .trash folder exists
-        let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
+        let trash_path = DriveFullFilePath(format!("{}::/.trash/", disk_id.to_string()));
         if !full_folder_path_to_uuid.contains_key(&trash_path) {
             let trash_folder_uuid = generate_uuidv4(IDPrefix::Folder);
             let trash_folder = FolderRecord {
@@ -479,10 +479,10 @@ pub mod drive_internals {
     }
     
 
-    /// Validates that if the disk type is AwsBucket or StorjWeb3,
+    /// Validates that if the disk type is Aws_Bucket or Storj_Web3,
     /// then auth_json is provided and can be deserialized into AwsBucketAuth.
     pub fn validate_auth_json(disk_type: &DiskTypeEnum, auth_json: &Option<String>) -> Result<(), String> {
-        if *disk_type == DiskTypeEnum::AwsBucket || *disk_type == DiskTypeEnum::StorjWeb3 {
+        if *disk_type == DiskTypeEnum::Aws_Bucket || *disk_type == DiskTypeEnum::Storj_Web3 {
             match auth_json {
                 Some(json_str) => {
                     // Try to parse the provided JSON string into AwsBucketAuth.
