@@ -72,13 +72,19 @@ pub mod directorys_handlers {
         if !is_owner {
             return create_auth_error_response();
         }
-    
+
+        debug_log!("Handling directory action request");
+        debug_log!("request.body({:?})", request.body());
+        
         let action_batch: DirectoryActionRequestBody = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
-            Err(_) => return create_response(
-                StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
-            ),
+            Err(err) => {
+                debug_log!("Failed to deserialize request {:?}", err.to_string());
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+                )
+            },
         };
     
         let mut outcomes = Vec::new();
