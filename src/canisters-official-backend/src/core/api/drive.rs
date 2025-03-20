@@ -1,5 +1,7 @@
 // src/core/api/drive.rs
 pub mod drive {
+    use std::collections::HashMap;
+
     use crate::{
         core::{
             api::{
@@ -153,7 +155,7 @@ pub mod drive {
         }).ok_or_else(|| "Disk not found".to_string())?;
 
 
-        if disk.disk_type != DiskTypeEnum::AwsBucket && disk.disk_type != DiskTypeEnum::StorjWeb3 && disk.disk_type != DiskTypeEnum::IcpCanister {
+        if disk.disk_type != DiskTypeEnum::Aws_Bucket && disk.disk_type != DiskTypeEnum::Storj_Web3 && disk.disk_type != DiskTypeEnum::Icp_Canister {
             return Err("Only S3 buckets, Storj & ICP Canisters are supported for file uploads".to_string());
         }
         
@@ -211,12 +213,14 @@ pub mod drive {
                                         .cloned()
                                 }).ok_or_else(|| "Disk not found".to_string())?;
     
-                                let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
-                                    .map_err(|_| "Invalid AWS credentials format".to_string())?;
-    
                                 // Example using an "existing file" upload.
                                 let upload_response = match existing_file.disk_type {
-                                    DiskTypeEnum::AwsBucket => {
+                                    DiskTypeEnum::Aws_Bucket => {
+                                        // First check if aws_auth is available for AWS buckets
+                                        let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
+                                            .ok_or_else(|| "Missing AWS credentials for S3 bucket".to_string())?
+                                        ).map_err(|_| "Invalid AWS credentials format".to_string())?;
+                                        
                                         generate_s3_upload_url(
                                             &existing_uuid.0,           // file_id
                                             &existing_file.extension,   // file_extension
@@ -224,8 +228,13 @@ pub mod drive {
                                             file_size,
                                             3600
                                         )?
-                                    }
-                                    DiskTypeEnum::StorjWeb3 => {
+                                    },
+                                    DiskTypeEnum::Storj_Web3 => {
+                                        // First check if aws_auth is available for Storj
+                                        let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
+                                            .ok_or_else(|| "Missing Storj credentials".to_string())?
+                                        ).map_err(|_| "Invalid Storj credentials format".to_string())?;
+                                        
                                         generate_storj_upload_url(
                                             &existing_uuid.0,           // file_id
                                             &existing_file.extension,   // file_extension
@@ -233,7 +242,14 @@ pub mod drive {
                                             file_size,
                                             3600
                                         )?
-                                    }
+                                    },
+                                    DiskTypeEnum::Icp_Canister => {
+                                        // For ICP Canister, we don't need to generate a presigned URL
+                                        DiskUploadResponse {
+                                            url: "".to_string(),
+                                            fields: HashMap::new(),
+                                        }
+                                    },
                                     // Optionally handle other disk types
                                     _ => {
                                         panic!(
@@ -326,33 +342,48 @@ pub mod drive {
         }).ok_or_else(|| "Disk not found".to_string())?;
     
     
-        let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json.ok_or_else(|| "Missing AWS credentials".to_string())?)
-            .map_err(|_| "Invalid AWS credentials format".to_string())?;
-    
+        // In create_file function, modify the upload_response block like this:
         let upload_response = match file_metadata.disk_type {
-            DiskTypeEnum::AwsBucket => {
+            DiskTypeEnum::Aws_Bucket => {
+                // First check if aws_auth is available for AWS buckets
+                let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
+                    .ok_or_else(|| "Missing AWS credentials for S3 bucket".to_string())?
+                ).map_err(|_| "Invalid AWS credentials format".to_string())?;
+                
                 generate_s3_upload_url(
                     &new_file_uuid.0,                // file_id
                     file_metadata.extension.as_str(),// file_extension
-                    &aws_auth.clone(),                       // AWS credentials
+                    &aws_auth,                       // AWS credentials
                     file_size,
                     3600
                 )?
-            }
-            DiskTypeEnum::StorjWeb3 => {
+            },
+            DiskTypeEnum::Storj_Web3 => {
+                // First check if aws_auth is available for Storj
+                let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
+                    .ok_or_else(|| "Missing Storj credentials".to_string())?
+                ).map_err(|_| "Invalid Storj credentials format".to_string())?;
+                
                 generate_storj_upload_url(
                     &new_file_uuid.0,                // file_id
                     file_metadata.extension.as_str(),// file_extension
-                    &aws_auth.clone(),                     // Storj credentials
+                    &aws_auth,                     // Storj credentials
                     file_size,
                     3600
                 )?
-            }
+            },
+            DiskTypeEnum::Icp_Canister => {
+                // For ICP Canister, we don't need to generate a presigned URL
+                DiskUploadResponse {
+                    url: "".to_string(),
+                    fields: HashMap::new(),
+                }
+            },
             _ => {
-                panic!(
+                return Err(format!(
                     "Unsupported disk type for generating an upload URL: {:?}",
                     file_metadata.disk_type
-                );
+                ));
             }
         };
         
@@ -960,8 +991,8 @@ pub mod drive {
 
 
         // If this is an S3 or Storj bucket, perform copy operation
-        if source_file.disk_type == DiskTypeEnum::AwsBucket || 
-            source_file.disk_type == DiskTypeEnum::StorjWeb3 {
+        if source_file.disk_type == DiskTypeEnum::Aws_Bucket || 
+            source_file.disk_type == DiskTypeEnum::Storj_Web3 {
             // Get disk auth info
             let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                 map.borrow()
@@ -970,8 +1001,8 @@ pub mod drive {
             }).ok_or_else(|| "Disk not found".to_string())?;
 
             let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
-                .ok_or_else(|| "Missing AWS credentials".to_string())?
-            ).map_err(|_| "Invalid AWS credentials format".to_string())?;
+                .ok_or_else(|| "Missing S3 credentials".to_string())?
+            ).map_err(|_| "Invalid S3 credentials format".to_string())?;
 
             // Prepare S3 copy operation parameters
             let source_key = format!("{}", source_file.raw_url);
