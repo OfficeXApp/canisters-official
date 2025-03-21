@@ -24,13 +24,13 @@ pub mod state {
             &current_canister_disk_id.clone(),
             &owner_id.borrow().clone(),
             &DRIVE_ID.with(|id| id.clone()),
-            DiskTypeEnum::Icp_Canister
+            DiskTypeEnum::IcpCanister
         );
 
         let default_canister_disk = Disk {
             id: current_canister_disk_id.clone(),
             name: "Default Admin Canister".to_string(),
-            disk_type: DiskTypeEnum::Icp_Canister,
+            disk_type: DiskTypeEnum::IcpCanister,
             private_note: Some("Default Canister Storage".to_string()),
             public_note: Some("Default Canister Storage".to_string()),
             auth_json: None,

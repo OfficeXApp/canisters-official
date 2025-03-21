@@ -717,7 +717,6 @@ pub struct CreateFilePayload {
     pub extension: String,
     pub labels: Vec<LabelStringValue>,
     pub file_size: u64,
-    pub raw_url: String,
     pub disk_id: DiskID,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
@@ -757,9 +756,6 @@ impl CreateFilePayload {
                 });
             }
         }
-        
-        // Validate raw_url
-        validate_url_endpoint(&self.raw_url, "raw_url")?;
         
         // Validate disk_id
         validate_id_string(&self.disk_id.0, "disk_id")?;
@@ -841,7 +837,6 @@ pub struct UpdateFilePayload {
     pub id: FileID,
     pub name: Option<String>,
     pub labels: Option<Vec<LabelStringValue>>,
-    pub raw_url: Option<String>,
     pub expires_at: Option<i64>,
     pub shortcut_to: Option<FileID>,
     pub upload_status: Option<UploadStatus>,
@@ -868,11 +863,6 @@ impl UpdateFilePayload {
                     });
                 }
             }
-        }
-        
-        // Validate raw_url if provided
-        if let Some(raw_url) = &self.raw_url {
-            validate_url_endpoint(raw_url, "raw_url")?;
         }
         
         // Validate external_id if provided

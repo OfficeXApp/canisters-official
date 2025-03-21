@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, types::{DirectoryError, DirectoryIDError}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::{state::state::DRIVE_ID, types::{DriveID, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryListResponse, DirectoryResourceID, FileConflictResolutionEnum, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse}, 
+        core::{api::{drive::drive::get_folder_by_id, helpers::get_appropriate_url_endpoint, types::{DirectoryError, DirectoryIDError}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::types::{AwsBucketAuth, DiskID, DiskTypeEnum}, drives::{state::state::DRIVE_ID, types::{DriveID, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryListResponse, DirectoryResourceID, FileConflictResolutionEnum, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse}, 
         
     };
     
@@ -330,9 +330,12 @@ pub mod drive_internals {
         file_uuid: FileID,
         extension: String,
     ) -> String {
+        let base_url = get_appropriate_url_endpoint();
+        let drive_id = DRIVE_ID.with(|id| id.clone());
         format!(
-            "https://{}.raw.icp0.io/directory/asset/{file_uuid}.{extension}",
-            ic_cdk::api::id().to_text()
+            "{}/v1/{}/directory/asset/{file_uuid}.{extension}",
+            base_url,
+            drive_id,
         )
     }
 
@@ -479,10 +482,10 @@ pub mod drive_internals {
     }
     
 
-    /// Validates that if the disk type is Aws_Bucket or Storj_Web3,
+    /// Validates that if the disk type is AwsBucket or StorjWeb3,
     /// then auth_json is provided and can be deserialized into AwsBucketAuth.
     pub fn validate_auth_json(disk_type: &DiskTypeEnum, auth_json: &Option<String>) -> Result<(), String> {
-        if *disk_type == DiskTypeEnum::Aws_Bucket || *disk_type == DiskTypeEnum::Storj_Web3 {
+        if *disk_type == DiskTypeEnum::AwsBucket || *disk_type == DiskTypeEnum::StorjWeb3 {
             match auth_json {
                 Some(json_str) => {
                     // Try to parse the provided JSON string into AwsBucketAuth.
