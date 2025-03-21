@@ -554,9 +554,6 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             if let Some(labels) = payload.labels {
                                 file.labels = labels;
                             }
-                            if let Some(raw_url) = payload.raw_url {
-                                file.raw_url = raw_url;
-                            }
                             if let Some(expires_at) = payload.expires_at {
                                 file.expires_at = expires_at;
                             }

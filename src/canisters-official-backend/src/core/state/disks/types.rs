@@ -62,20 +62,20 @@ impl Disk {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, SerdeDiff)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DiskTypeEnum {
-    Browser_Cache,
-    Local_SSD,
-    Aws_Bucket,
-    Storj_Web3,
-    Icp_Canister,
+    BrowserCache,
+    LocalSsd,
+    AwsBucket,
+    StorjWeb3,
+    IcpCanister,
 }
 impl fmt::Display for DiskTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            DiskTypeEnum::Browser_Cache => write!(f, "BROWSER_CACHE"),
-            DiskTypeEnum::Local_SSD => write!(f, "LOCAL_SSD"),
-            DiskTypeEnum::Aws_Bucket => write!(f, "AWS_BUCKET"),
-            DiskTypeEnum::Storj_Web3 => write!(f, "STORJ_WEB3"),
-            DiskTypeEnum::Icp_Canister => write!(f, "ICP_CANISTER"),
+            DiskTypeEnum::BrowserCache => write!(f, "BROWSER_CACHE"),
+            DiskTypeEnum::LocalSsd => write!(f, "LOCAL_SSD"),
+            DiskTypeEnum::AwsBucket => write!(f, "AWS_BUCKET"),
+            DiskTypeEnum::StorjWeb3 => write!(f, "STORJ_WEB3"),
+            DiskTypeEnum::IcpCanister => write!(f, "ICP_CANISTER"),
         }
     }
 }

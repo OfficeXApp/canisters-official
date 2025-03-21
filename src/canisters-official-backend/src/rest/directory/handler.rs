@@ -479,7 +479,7 @@ pub mod directorys_handlers {
         // 5. Generate presigned URL with content-disposition header
         let download_filename = format!("{}.{}", file_meta.name, file_meta.extension);
         let presigned_url = match file_meta.disk_type {
-            DiskTypeEnum::Aws_Bucket => {
+            DiskTypeEnum::AwsBucket => {
                 generate_s3_view_url(
                     &file_meta.id.0,          // file_id
                     &file_meta.extension,     // file_extension
@@ -488,7 +488,7 @@ pub mod directorys_handlers {
                     Some(&download_filename)
                 )
             }
-            DiskTypeEnum::Storj_Web3 => {
+            DiskTypeEnum::StorjWeb3 => {
                 generate_storj_view_url(
                     &file_meta.id.0,          // file_id
                     &file_meta.extension,     // file_extension

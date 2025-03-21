@@ -155,7 +155,7 @@ pub mod drive {
         }).ok_or_else(|| "Disk not found".to_string())?;
 
 
-        if disk.disk_type != DiskTypeEnum::Aws_Bucket && disk.disk_type != DiskTypeEnum::Storj_Web3 && disk.disk_type != DiskTypeEnum::Icp_Canister {
+        if disk.disk_type != DiskTypeEnum::AwsBucket && disk.disk_type != DiskTypeEnum::StorjWeb3 && disk.disk_type != DiskTypeEnum::IcpCanister {
             return Err("Only S3 buckets, Storj & ICP Canisters are supported for file uploads".to_string());
         }
         
@@ -215,7 +215,7 @@ pub mod drive {
     
                                 // Example using an "existing file" upload.
                                 let upload_response = match existing_file.disk_type {
-                                    DiskTypeEnum::Aws_Bucket => {
+                                    DiskTypeEnum::AwsBucket => {
                                         // First check if aws_auth is available for AWS buckets
                                         let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
                                             .ok_or_else(|| "Missing AWS credentials for S3 bucket".to_string())?
@@ -229,7 +229,7 @@ pub mod drive {
                                             3600
                                         )?
                                     },
-                                    DiskTypeEnum::Storj_Web3 => {
+                                    DiskTypeEnum::StorjWeb3 => {
                                         // First check if aws_auth is available for Storj
                                         let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
                                             .ok_or_else(|| "Missing Storj credentials".to_string())?
@@ -243,7 +243,7 @@ pub mod drive {
                                             3600
                                         )?
                                     },
-                                    DiskTypeEnum::Icp_Canister => {
+                                    DiskTypeEnum::IcpCanister => {
                                         // For ICP Canister, we don't need to generate a presigned URL
                                         DiskUploadResponse {
                                             url: "".to_string(),
@@ -344,7 +344,7 @@ pub mod drive {
     
         // In create_file function, modify the upload_response block like this:
         let upload_response = match file_metadata.disk_type {
-            DiskTypeEnum::Aws_Bucket => {
+            DiskTypeEnum::AwsBucket => {
                 // First check if aws_auth is available for AWS buckets
                 let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
                     .ok_or_else(|| "Missing AWS credentials for S3 bucket".to_string())?
@@ -358,7 +358,7 @@ pub mod drive {
                     3600
                 )?
             },
-            DiskTypeEnum::Storj_Web3 => {
+            DiskTypeEnum::StorjWeb3 => {
                 // First check if aws_auth is available for Storj
                 let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
                     .ok_or_else(|| "Missing Storj credentials".to_string())?
@@ -372,7 +372,7 @@ pub mod drive {
                     3600
                 )?
             },
-            DiskTypeEnum::Icp_Canister => {
+            DiskTypeEnum::IcpCanister => {
                 // For ICP Canister, we don't need to generate a presigned URL
                 DiskUploadResponse {
                     url: "".to_string(),
@@ -991,8 +991,8 @@ pub mod drive {
 
 
         // If this is an S3 or Storj bucket, perform copy operation
-        if source_file.disk_type == DiskTypeEnum::Aws_Bucket || 
-            source_file.disk_type == DiskTypeEnum::Storj_Web3 {
+        if source_file.disk_type == DiskTypeEnum::AwsBucket || 
+            source_file.disk_type == DiskTypeEnum::StorjWeb3 {
             // Get disk auth info
             let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                 map.borrow()
