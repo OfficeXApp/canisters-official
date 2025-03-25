@@ -420,7 +420,7 @@ pub mod drive_internals {
                     final_path = if is_folder {
                         format!("{}/{}/", base_path.trim_end_matches('/'), final_name)
                     } else {
-                        format!("{}/{}", base_path.trim_end_matches('/'), final_name)
+                        format!("{}/{} ({})", base_path.trim_end_matches('/'), final_name, counter)
                     };
     
                     debug_log!(
