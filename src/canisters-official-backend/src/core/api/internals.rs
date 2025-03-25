@@ -62,7 +62,7 @@ pub mod drive_internals {
         };
 
         // Ensure .trash folder exists
-        let trash_path = DriveFullFilePath(format!("{}::/.trash/", disk_id.to_string()));
+        let trash_path = DriveFullFilePath(format!("{}::.trash", disk_id.to_string()));
         if !full_folder_path_to_uuid.contains_key(&trash_path) {
             let trash_folder_uuid = generate_uuidv4(IDPrefix::Folder);
             let trash_folder = FolderRecord {

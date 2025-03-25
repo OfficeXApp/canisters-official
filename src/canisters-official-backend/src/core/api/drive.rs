@@ -137,6 +137,9 @@ pub mod drive {
             false,
             file_conflict_resolution.clone()
         );
+
+        debug_log!("final_name {:?}", final_name);
+        debug_log!("final_path {:?}", final_path);
     
         // If empty strings returned, it means we should keep the original file
         if final_name.is_empty() && final_path.is_empty() {
@@ -194,6 +197,8 @@ pub mod drive {
     
         let existing_file_uuid = full_file_path_to_uuid.get(&DriveFullFilePath(full_directory_path.clone())).map(|uuid| uuid.clone());
     
+        debug_log!("file_conflict_resolution {:?}", file_conflict_resolution);
+
         // Handle version-related logic
         let (file_version, prior_version) = if let Some(existing_uuid) = &existing_file_uuid {
             match file_conflict_resolution {
@@ -280,7 +285,7 @@ pub mod drive {
     
         let file_metadata = FileRecord {
             id: new_file_uuid.clone(),
-            name: file_name,
+            name: final_name,
             parent_folder_uuid: folder_uuid.clone(),
             file_version,
             prior_version,
