@@ -718,6 +718,7 @@ pub struct CreateFilePayload {
     pub labels: Vec<LabelStringValue>,
     pub file_size: u64,
     pub disk_id: DiskID,
+    pub disk_type: DiskTypeEnum,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
