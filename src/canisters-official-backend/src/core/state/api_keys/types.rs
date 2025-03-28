@@ -28,6 +28,7 @@ pub struct ApiKey {
     pub name: String,
     pub private_note: Option<String>,
     pub created_at: u64,
+    pub begins_at: u64,
     pub expires_at: i64, 
     pub is_revoked: bool,
     pub labels: Vec<LabelStringValue>,

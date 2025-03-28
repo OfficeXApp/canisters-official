@@ -54,6 +54,7 @@ pub mod state {
             name: "Default Admin Key".to_string(),
             private_note: None,
             created_at: ic_cdk::api::time(),
+            begins_at: 0,
             expires_at: -1,
             is_revoked: false,
             labels: vec![],

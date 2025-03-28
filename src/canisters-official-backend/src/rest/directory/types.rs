@@ -189,6 +189,13 @@ pub struct DirectoryListResponse {
     pub total_files: usize,
     pub total_folders: usize,
     pub cursor: Option<String>,
+    pub breadcrumbs: Vec<FilePathBreadcrumb>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilePathBreadcrumb {
+    pub folder_id: FolderID,
+    pub folder_name: String,
 }
 
 fn default_page_size() -> usize {

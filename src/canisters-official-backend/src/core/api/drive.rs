@@ -110,6 +110,7 @@ pub mod drive {
             total_folders,
             total_files,
             cursor: next_cursor,
+            breadcrumbs: [].to_vec()
         })
     }
 

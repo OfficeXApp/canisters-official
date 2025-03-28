@@ -675,9 +675,11 @@ pub mod drive_internals {
             files: files_fe.clone(),
             total_files: files_fe.len(),
             total_folders: folders_fe.len(),
+            breadcrumbs: [].to_vec(),
             cursor: paginated_records
                 .last()
                 .map(|record| record.id.to_string()),
+                
         };
     
         Ok(response)

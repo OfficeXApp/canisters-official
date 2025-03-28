@@ -140,6 +140,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                         name: format!("Signature Authenticated User {}", computed_principal),
                         private_note: None,
                         created_at: now,
+                        begins_at: 0,
                         expires_at: -1,
                         is_revoked: false,
                         labels: vec![],
@@ -184,8 +185,8 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                     
                     // debug_log!("key check - expires_at: {}, is_revoked: {}", key.expires_at, key.is_revoked);
                     
-                    // Return the key if it's valid (not expired and not revoked)
-                    if (key.expires_at <= 0 || now < key.expires_at) && !key.is_revoked {
+                    // Return the key if it's valid (not expired and not revoked), and begins time is past
+                    if (key.expires_at <= 0 || now < key.expires_at) && !key.is_revoked && key.begins_at <= ic_cdk::api::time() {
 
                         update_last_online_at(&key.user_id);
                         return Some(key);

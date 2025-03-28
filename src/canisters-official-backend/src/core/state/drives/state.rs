@@ -182,6 +182,8 @@ pub mod state {
             if let Some(mut contact) = map.remove(&old_user_id) {
                 // Update the contact's ID
                 contact.id = new_user_id.clone();
+                // Update the contacts icp principal
+                contact.icp_principal = new_user_id.to_icp_principal_string();
                 // Add to past_user_ids if not already there
                 if !contact.past_user_ids.contains(&old_user_id) {
                     contact.past_user_ids.push(old_user_id.clone());
@@ -191,6 +193,15 @@ pub mod state {
                 1
             } else {
                 0
+            }
+        });
+
+        crate::core::state::contacts::state::state::CONTACTS_BY_TIME_LIST.with(|store| {
+            let mut time_list = store.borrow_mut();
+            for i in 0..time_list.len() {
+                if time_list[i] == old_user_id {
+                    time_list[i] = new_user_id.clone();
+                }
             }
         });
     

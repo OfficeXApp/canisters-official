@@ -56,6 +56,8 @@ pub struct CreateApiKeyRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub begins_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
@@ -98,7 +100,7 @@ impl CreateApiKeyRequestBody {
 
         // Validate expires_at if provided (must be a future timestamp)
         if let Some(expires_at) = self.expires_at {
-            if expires_at != -1 && expires_at <= ic_cdk::api::time() as i64 {
+            if expires_at != -1 && expires_at <= (ic_cdk::api::time() / 1_000_000) as i64 {
                 return Err(ValidationError {
                     field: "expires_at".to_string(),
                     message: "Expiration time must be in the future or -1 for never expires".to_string(),
@@ -150,6 +152,8 @@ pub struct UpdateApiKeyRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub begins_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_revoked: Option<bool>,
@@ -194,7 +198,7 @@ impl UpdateApiKeyRequestBody {
 
         // Validate expires_at if provided (must be a future timestamp)
         if let Some(expires_at) = self.expires_at {
-            if expires_at != -1 && expires_at <= ic_cdk::api::time() as i64 {
+            if expires_at != -1 && expires_at <= (ic_cdk::api::time() / 1_000_000) as i64 {
                 return Err(ValidationError {
                     field: "expires_at".to_string(),
                     message: "Expiration time must be in the future or -1 for never expires".to_string(),
