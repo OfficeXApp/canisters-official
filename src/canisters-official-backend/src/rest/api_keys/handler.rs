@@ -204,6 +204,7 @@ pub mod apikeys_handlers {
             name: create_req.name,
             private_note: create_req.private_note,
             created_at: ic_cdk::api::time(),
+            begins_at: create_req.begins_at.unwrap_or(0),
             expires_at: create_req.expires_at.unwrap_or(-1),
             is_revoked: false,
             labels: vec![],
@@ -312,6 +313,9 @@ pub mod apikeys_handlers {
         // Update only the fields that were provided
         if let Some(name) = update_req.name {
             api_key.name = name;
+        }
+        if let Some(begins_at) = update_req.begins_at {
+            api_key.begins_at = begins_at;
         }
         if let Some(expires_at) = update_req.expires_at {
             api_key.expires_at = expires_at;

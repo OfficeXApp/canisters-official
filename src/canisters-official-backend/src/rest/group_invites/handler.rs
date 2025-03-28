@@ -235,7 +235,7 @@ pub mod group_invites_handlers {
             None => GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite)),
         };
 
-        let now = ic_cdk::api::time();
+        let now = ic_cdk::api::time() / 1_000_000;
 
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
         let invitee_id = if let Some(invitee_user_id) = create_req.invitee_id {

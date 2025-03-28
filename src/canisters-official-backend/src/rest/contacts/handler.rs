@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_superswap_user_webhook, get_superswap_user_webhooks}}, state::{contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::state::state::GROUPS_BY_ID_HASHTABLE, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_api_key, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_superswap_user_webhook, get_superswap_user_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::state::state::GROUPS_BY_ID_HASHTABLE, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, RedeemContactResponse, RedeemContactResponseBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -683,10 +683,11 @@ pub mod contacts_handlers {
             Ok(update_count) => {
                 // Update the redeem token to None
                 CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                    if let Some(contact) = store.borrow_mut().get_mut(&current_user_id) {
+                    if let Some(contact) = store.borrow_mut().get_mut(&new_user_id) {
                         contact.redeem_code = None;
                     }
                 });
+
 
                 let active_webhooks = get_superswap_user_webhooks(
                     WebhookEventLabel::OrganizationSuperswapUser
@@ -713,9 +714,55 @@ pub mod contacts_handlers {
 
                 let cast_fe_contact = current_contact.clone().cast_fe(&requester_api_key.user_id);
 
+
+                let unique_id = ApiKeyID(generate_uuidv4(IDPrefix::ApiKey));
+        
+                // Generate new API key with proper user_id
+                let new_api_key = ApiKey {
+                    id: unique_id.clone(),
+                    value: ApiKeyValue(generate_api_key()),
+                    user_id: new_user_id.clone(), 
+                    name: "Superswap User API Key".to_string(),
+                    private_note: Some("Automatically generated API key for superswapped user".to_string()),
+                    created_at: ic_cdk::api::time(),
+                    begins_at: 0,
+                    expires_at: -1,
+                    is_revoked: false,
+                    labels: vec![],
+                    external_id: None,
+                    external_payload: None,
+                };
+                mark_claimed_uuid(&unique_id.to_string());
+
+                // create new api key for this user
+                let api_key_value = new_api_key.value.clone();
+        
+                // Update all three hashtables
+                
+                // 1. Add to APIKEYS_BY_VALUE_HASHTABLE
+                APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
+                    store.borrow_mut().insert(new_api_key.value.clone(), new_api_key.id.clone());
+                });
+        
+                // 2. Add to APIKEYS_BY_ID_HASHTABLE
+                APIKEYS_BY_ID_HASHTABLE.with(|store| {
+                    store.borrow_mut().insert(new_api_key.id.clone(), new_api_key.clone());
+                });
+        
+                // 3. Add to USERS_APIKEYS_HASHTABLE
+                USERS_APIKEYS_HASHTABLE.with(|store| {
+                    store.borrow_mut()
+                        .entry(new_api_key.user_id.clone())
+                        .or_insert_with(Vec::new)
+                        .push(new_api_key.id.clone());
+                });
+                
                 create_response(
                     StatusCode::OK,
-                    UpdateContactResponse::ok(&cast_fe_contact).encode()
+                    RedeemContactResponse::ok(&RedeemContactResponseBody {
+                        contact: cast_fe_contact,
+                        api_key: api_key_value,
+                    }).encode()
                 )
             },
             Err(err) => {

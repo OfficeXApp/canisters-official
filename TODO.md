@@ -17,6 +17,7 @@
 
 ## Awkward Urgent
 
+- [ ] Go through every ic_cdk::time::now() to check if we handle ms instead of ns
 - [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
 - [ ] Refactor inbox webhook to allow topic filters so that webhooks dont receieve EVERY piece of mail
@@ -24,6 +25,7 @@
 
 ## Near Future
 
+- [ ] Check if `organization/inbox` with webhook can forward mail to other drives
 - [ ] Consider a `PUBLIC` permission.grantee_id type
 - [ ] Add gas gift card system?
 - [ ] Test out webapp http server
