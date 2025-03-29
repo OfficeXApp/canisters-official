@@ -91,6 +91,10 @@ pub struct DirectoryPermissionFE {
     pub external_payload: Option<String>,
     
     // Additional FE-specific fields
+    pub resource_name: Option<String>,
+    pub grantee_name: Option<String>,
+    pub grantee_avatar: Option<String>,
+    pub granter_name: Option<String>,
     pub permission_previews: Vec<SystemPermissionType>,
 }
 

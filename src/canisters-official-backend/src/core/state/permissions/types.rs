@@ -153,6 +153,38 @@ impl DirectoryPermission {
             clipped_path.push_str(&resource_path.0);
         }
 
+        // Get grantee name and avatar based on the grantee ID
+        let (grantee_name, grantee_avatar) = match &self.granted_to {
+            PermissionGranteeID::User(id) => {
+                crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                    .with(|contacts| {
+                        contacts.borrow().get(id)
+                            .map(|contact| (contact.name.clone(), contact.avatar.clone()))
+                            .unwrap_or((String::new(), None))
+                    })
+            },
+            PermissionGranteeID::Group(id) => {
+                crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                    .with(|groups| {
+                        groups.borrow().get(id)
+                            .map(|group| (group.name.clone(), group.avatar.clone()))
+                            .unwrap_or((String::new(), None))
+                    })
+            },
+            PermissionGranteeID::Public => {
+                ("PUBLIC".to_string(), None)
+            },
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(id) => {
+                (format!("PLACEHOLDER: {}", id), None)
+            },
+        };
+        
+        // Get granter name based on the granter ID
+        let granter_name = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+            .with(|contacts| {
+                contacts.borrow().get(&self.granted_by)
+                    .map(|contact| contact.name.clone())
+            });
         
         DirectoryPermissionFE {
             id: self.id.clone().to_string(),
@@ -172,6 +204,10 @@ impl DirectoryPermission {
             external_id,
             external_payload,
             permission_previews,
+            resource_name: None,
+            grantee_name: Some(grantee_name),
+            grantee_avatar,
+            granter_name,
         }.redacted(user_id)
     }
 }
