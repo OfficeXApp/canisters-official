@@ -298,6 +298,7 @@ pub mod permissions_handlers {
             created_at: current_time,
             last_modified_at: current_time,
             from_placeholder_grantee: None,
+            metadata: upsert_request.metadata.clone(),
             labels: vec![],
             external_id: Some(ExternalID(upsert_request.external_id.clone().unwrap_or_default())),
             external_payload: Some(ExternalPayload(upsert_request.external_payload.clone().unwrap_or_default())),
@@ -420,10 +421,15 @@ pub mod permissions_handlers {
                 upsert_request.permission_types.clone()
             } else {
                 // Only include permissions they themselves have
-                upsert_request.permission_types.iter()
-                    .filter(|&perm| requester_permissions.contains(perm))
-                    .cloned()
-                    .collect()
+                match &upsert_request.permission_types {
+                    Some(perm_types) => Some(
+                        perm_types.iter()
+                            .filter(|&perm| requester_permissions.contains(perm))
+                            .cloned()
+                            .collect()
+                    ),
+                    None => None
+                }
             }
         };
     
@@ -432,15 +438,28 @@ pub mod permissions_handlers {
         let prestate = snapshot_prestate();
     
         // Update modifiable fields
-        existing_permission.permission_types = allowed_permission_types
-                                                    .into_iter()
-                                                    .collect::<HashSet<_>>()
-                                                    .into_iter()
-                                                    .collect();
-        existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
-        existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
-        existing_permission.inheritable = upsert_request.inheritable.unwrap_or(true);
-        existing_permission.note = upsert_request.note.unwrap_or_default();
+        if let Some(perm_types) = allowed_permission_types {
+            existing_permission.permission_types = perm_types
+                .into_iter()
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect();
+        }
+        if (upsert_request.begin_date_ms.is_some()) {
+            existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
+        }
+        if (upsert_request.expiry_date_ms.is_some()) {
+            existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
+        }         
+        if (upsert_request.inheritable.is_some()) {
+            existing_permission.inheritable = upsert_request.inheritable.unwrap_or(true);
+        }      
+        if (upsert_request.note.is_some()) {
+            existing_permission.note = upsert_request.note.unwrap_or_default();
+        }      
+        if (upsert_request.metadata.is_some()) {
+            existing_permission.metadata = upsert_request.metadata.clone();
+        }
         existing_permission.last_modified_at = current_time;
 
         // Update state

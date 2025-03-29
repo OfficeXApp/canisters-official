@@ -252,7 +252,8 @@ pub fn check_system_resource_permissions_labels(
                                                 // Case insensitive prefix check
                                                 label_string_value.to_lowercase()
                                                     .starts_with(&prefix.0.to_lowercase())
-                                            }
+                                            },
+                                            _ => false
                                         }
                                     } else {
                                         false

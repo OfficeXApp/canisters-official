@@ -87,6 +87,7 @@ pub struct DirectoryPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
+    pub metadata: Option<PermissionMetadata>,
     pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
@@ -475,13 +476,15 @@ pub struct PermissionMetadata {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PermissionMetadataTypeEnum {
-    Labels
+    Labels,
+    DirectoryPassword
 }
 
 impl fmt::Display for PermissionMetadataTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PermissionMetadataTypeEnum::Labels => write!(f, "LABELS"),
+            PermissionMetadataTypeEnum::DirectoryPassword => write!(f, "DIRECTORY_PASSWORD"),
         }
     }
 }
@@ -491,5 +494,6 @@ impl fmt::Display for PermissionMetadataTypeEnum {
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub enum PermissionMetadataContent {
     Labels(LabelStringValuePrefix),
+    DirectoryPassword(String),
     // Future types can be added here without breaking changes
 }

@@ -202,7 +202,7 @@ pub struct CreateDirectoryPermissionsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateDirectoryPermissionsRequestBody {
     pub id: DirectoryPermissionID,
-    pub permission_types: Vec<DirectoryPermissionType>,
+    pub permission_types: Option<Vec<DirectoryPermissionType>>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
     pub inheritable: Option<bool>,
@@ -219,11 +219,13 @@ impl UpdateDirectoryPermissionsRequestBody {
 
         
         // Validate permission_types (must not be empty)
-        if self.permission_types.is_empty() {
-            return Err(ValidationError {
-                field: "permission_types".to_string(),
-                message: "Permission types cannot be empty".to_string(),
-            });
+        if let Some(perm_types) = &self.permission_types {
+            if perm_types.is_empty() {
+                return Err(ValidationError {
+                    field: "permission_types".to_string(),
+                    message: "Permission types cannot be empty".to_string(),
+                });
+            }
         }
         
         // Validate note if provided
