@@ -5,6 +5,7 @@ use crate::rest::types::RouteHandler;
 
 
 pub const DIRECTORY_PERMISSIONS_GET_PATH: &str =    genroute!("/permissions/directory/get/{directory_permission_id}");
+pub const DIRECTORY_PERMISSIONS_LIST_PATH: &str =   genroute!("/permissions/directory/list");
 pub const DIRECTORY_PERMISSIONS_CREATE_PATH: &str = genroute!("/permissions/directory/create");
 pub const DIRECTORY_PERMISSIONS_UPDATE_PATH: &str = genroute!("/permissions/directory/update");
 pub const DIRECTORY_PERMISSIONS_DELETE_PATH: &str = genroute!("/permissions/directory/delete");
@@ -27,6 +28,11 @@ pub fn init_routes() {
             "GET",
             DIRECTORY_PERMISSIONS_GET_PATH,
             |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::get_directory_permissions_handler(req, params)),
+        ),
+        (
+            "POST",
+            DIRECTORY_PERMISSIONS_LIST_PATH, 
+            |req, params| Box::pin(crate::rest::permissions::handler::permissions_handlers::list_directory_permissions_handler(req, params)),
         ),
         (
             "POST",

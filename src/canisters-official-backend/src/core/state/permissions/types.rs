@@ -7,7 +7,7 @@ use serde_diff::{SerdeDiff};
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{
         api_keys::types::ApiKeyID, directory::types::{DriveClippedFilePath, DriveFullFilePath}, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, labels::types::{redact_label, LabelID, LabelStringValue}, webhooks::types::WebhookID
-    }, types::UserID
+    }, types::{IDPrefix, UserID}
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -96,7 +96,6 @@ pub struct DirectoryPermission {
 impl DirectoryPermission {
     pub fn cast_fe(&self, user_id: &UserID) -> DirectoryPermissionFE {
         // Convert resource_id enum to string
-        let resource_id = self.resource_id.to_string();
         
         // Convert granted_to enum to string
         let granted_to = match &self.granted_to {
@@ -155,10 +154,9 @@ impl DirectoryPermission {
         }
 
         
-
         DirectoryPermissionFE {
-            id: self.id.to_string(),
-            resource_id,
+            id: self.id.clone().to_string(),
+            resource_id: self.resource_id.clone().to_string(),
             resource_path: DriveClippedFilePath(clipped_path),
             granted_to,
             granted_by: self.granted_by.to_string(),

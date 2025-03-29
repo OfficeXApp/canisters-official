@@ -104,6 +104,8 @@ impl DirectoryPermissionFE {
         // Most sensitive
         if !is_owner {
 
+            redacted.resource_path = DriveClippedFilePath("".to_string());
+
             // 2nd most sensitive
             if !has_edit_permissions {
                 // redacted.system_permission.private_note = None;
@@ -120,6 +122,34 @@ impl DirectoryPermissionFE {
         redacted
     }
 }
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListDirectoryPermissionsRequestBody {
+    pub filters: ListDirectoryPermissionsRequestBodyFilters,
+    pub page_size: Option<usize>,
+    pub direction: Option<SortDirection>,
+    pub cursor: Option<String>,
+    // consider refactoring pagination to use "smart cursor" which is a string that has 3 parts `{resource_id}:{filter_index}:{global_index}`. this might be overcomplicating it and theres already established best practices
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListDirectoryPermissionsRequestBodyFilters {
+    pub resource_id: String,
+}
+
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListDirectoryPermissionsResponseData {
+    pub items: Vec<DirectoryPermissionFE>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor: Option<String>,
+}
+pub type ListDirectoryPermissionsResponse<'a> = ApiResponse<'a, ListDirectoryPermissionsResponseData>;
+
+
 
 
 
