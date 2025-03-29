@@ -7,6 +7,7 @@
 
 ## Urgent Next
 
+- [🔵] Directory filesharing with password option --> we implement this in a purely frontend manner by using password string to derive an ICP principal, and create a directory permission permitting access to that principal. when file/folder receiver opens link, their browser client uses password to derive same account to sign crypotgraphic auth token.
 - [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route
 - [🔵] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE`
 

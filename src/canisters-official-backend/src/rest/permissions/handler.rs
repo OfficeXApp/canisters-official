@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, check_system_permissions, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, groups::state::state::{is_group_admin, is_user_on_group}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, labels::types::redact_label}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResponse, CheckPermissionResult, CheckSystemPermissionResponse, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreatePermissionsResponse, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponse, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponse, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponse, DeleteSystemPermissionResponseData, ErrorResponse, GetPermissionResponse, GetSystemPermissionResponse, ListSystemPermissionsRequestBody, ListSystemPermissionsRequestBodyFilters, ListSystemPermissionsResponse, ListSystemPermissionsResponseData, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponse, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponse, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdatePermissionsResponse, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponse, UpdateSystemPermissionsResponseData}, webhooks::types::SortDirection},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, check_system_permissions, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, groups::state::state::{is_group_admin, is_user_on_group}, labels::types::redact_label, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResponse, CheckPermissionResult, CheckSystemPermissionResponse, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreatePermissionsResponse, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponse, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponse, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponse, DeleteSystemPermissionResponseData, ErrorResponse, GetPermissionResponse, GetSystemPermissionResponse, ListDirectoryPermissionsRequestBody, ListDirectoryPermissionsResponse, ListDirectoryPermissionsResponseData, ListSystemPermissionsRequestBody, ListSystemPermissionsRequestBodyFilters, ListSystemPermissionsResponse, ListSystemPermissionsResponseData, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponse, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponse, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdatePermissionsResponse, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponse, UpdateSystemPermissionsResponseData}, webhooks::types::SortDirection},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -167,6 +167,145 @@ pub mod permissions_handlers {
         )
     }
 
+    pub async fn list_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
+    
+        // 2. Parse request body
+        let body: &[u8] = request.body();
+        let request_body = match serde_json::from_slice::<ListDirectoryPermissionsRequestBody>(body) {
+            Ok(req) => req,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid request format".to_string()).encode()
+            ),
+        };
+    
+        // 3. Check authorization
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
+        // let resource_id = request_body.filters.resource_id.clone();
+        let resource_id = match parse_directory_resource_id(&request_body.filters.resource_id.to_string()) {
+            Ok(id) => id,
+            Err(_) => return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
+            ),
+        };
+        let permissions = check_directory_permissions(
+            resource_id.clone(),
+            PermissionGranteeID::User(requester_api_key.user_id.clone())
+        ).await;
+
+        // Check table-level permissions if not owner
+        if !is_owner {
+            if !permissions.contains(&DirectoryPermissionType::View) {
+                return create_auth_error_response();
+            }
+        }
+     
+        // 4. Parse cursor if provided
+        let cursor = if let Some(cursor_str) = &request_body.cursor {
+            match cursor_str.parse::<usize>() {
+                Ok(idx) => Some(idx),
+                Err(_) => return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid cursor format".to_string()).encode()
+                ),
+            }
+        } else {
+            None
+        };
+    
+        // 5. Collect matching permissions with pagination applied directly
+        let user_id = &requester_api_key.user_id;
+        let mut filtered_permissions = Vec::new();
+        let page_size = request_body.page_size.unwrap_or(50);
+        let direction = request_body.direction.unwrap_or(SortDirection::Desc);
+
+        // DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE
+        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+            if let Some(permission_ids) = permissions_by_resource.borrow().get(&resource_id) {
+                // Clone to avoid borrow issues in nested closures
+                let permission_ids = permission_ids.clone();
+                
+                // Sort permission IDs by time
+                let mut timed_ids: Vec<(u64, DirectoryPermissionID)> = Vec::new();
+                DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
+                    let id_store = id_store.borrow();
+                    for id in &permission_ids {
+                        if let Some(permission) = id_store.get(id) {
+                            timed_ids.push((permission.created_at, id.clone()));
+                        }
+                    }
+                });
+                
+                // Sort based on direction
+                match direction {
+                    SortDirection::Desc => timed_ids.sort_by(|a, b| b.0.cmp(&a.0)), // Newest first
+                    SortDirection::Asc => timed_ids.sort_by(|a, b| a.0.cmp(&b.0)),  // Oldest first
+                }
+                
+                let mut total_processed = 0;
+
+                // Skip items before cursor if needed
+                let start_idx = cursor.unwrap_or(0);
+                
+                // Skip items we've already processed
+                let adjusted_start = if start_idx > total_processed {
+                    start_idx - total_processed
+                } else {
+                    0
+                };
+                
+                // Only process items within our pagination window
+                let items_to_process = &timed_ids[adjusted_start.min(timed_ids.len())..];
+                total_processed += timed_ids.len();
+                
+                for (_, permission_id) in items_to_process {
+                    DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
+                        if let Some(permission) = id_store.borrow().get(permission_id) {
+                            filtered_permissions.push(permission.clone());
+                        }
+                    });
+                    
+                    // Early exit if we have enough items
+                    if filtered_permissions.len() >= page_size {
+                        break;
+                    }
+                }
+            }
+        });
+
+        // 6. Calculate next cursor for pagination
+        let next_cursor = if filtered_permissions.len() >= page_size {
+            // There might be more items
+            Some((cursor.unwrap_or(0) + page_size).to_string())
+        } else {
+            None
+        };
+        
+        // 7. Create response with filtered, paginated permissions
+        let response_data = ListDirectoryPermissionsResponseData {
+            items: filtered_permissions
+                .clone().into_iter()
+                .map(|permission| permission.cast_fe(user_id))
+                .collect(),
+            page_size: filtered_permissions.len(),
+            total: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|h| h.borrow().len()), // Return total count of all permissions
+            cursor: next_cursor,
+        };
+    
+        create_response(
+            StatusCode::OK,
+            ListDirectoryPermissionsResponse::ok(&response_data).encode()
+        )
+    }
+    
+
     pub async fn create_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -298,6 +437,7 @@ pub mod permissions_handlers {
             created_at: current_time,
             last_modified_at: current_time,
             from_placeholder_grantee: None,
+            metadata: upsert_request.metadata.clone(),
             labels: vec![],
             external_id: Some(ExternalID(upsert_request.external_id.clone().unwrap_or_default())),
             external_payload: Some(ExternalPayload(upsert_request.external_payload.clone().unwrap_or_default())),
@@ -420,10 +560,15 @@ pub mod permissions_handlers {
                 upsert_request.permission_types.clone()
             } else {
                 // Only include permissions they themselves have
-                upsert_request.permission_types.iter()
-                    .filter(|&perm| requester_permissions.contains(perm))
-                    .cloned()
-                    .collect()
+                match &upsert_request.permission_types {
+                    Some(perm_types) => Some(
+                        perm_types.iter()
+                            .filter(|&perm| requester_permissions.contains(perm))
+                            .cloned()
+                            .collect()
+                    ),
+                    None => None
+                }
             }
         };
     
@@ -432,15 +577,28 @@ pub mod permissions_handlers {
         let prestate = snapshot_prestate();
     
         // Update modifiable fields
-        existing_permission.permission_types = allowed_permission_types
-                                                    .into_iter()
-                                                    .collect::<HashSet<_>>()
-                                                    .into_iter()
-                                                    .collect();
-        existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
-        existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
-        existing_permission.inheritable = upsert_request.inheritable.unwrap_or(true);
-        existing_permission.note = upsert_request.note.unwrap_or_default();
+        if let Some(perm_types) = allowed_permission_types {
+            existing_permission.permission_types = perm_types
+                .into_iter()
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect();
+        }
+        if (upsert_request.begin_date_ms.is_some()) {
+            existing_permission.begin_date_ms = upsert_request.begin_date_ms.unwrap_or(0);
+        }
+        if (upsert_request.expiry_date_ms.is_some()) {
+            existing_permission.expiry_date_ms = upsert_request.expiry_date_ms.unwrap_or(-1);
+        }         
+        if (upsert_request.inheritable.is_some()) {
+            existing_permission.inheritable = upsert_request.inheritable.unwrap_or(true);
+        }      
+        if (upsert_request.note.is_some()) {
+            existing_permission.note = upsert_request.note.unwrap_or_default();
+        }      
+        if (upsert_request.metadata.is_some()) {
+            existing_permission.metadata = upsert_request.metadata.clone();
+        }
         existing_permission.last_modified_at = current_time;
 
         // Update state

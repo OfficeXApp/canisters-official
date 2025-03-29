@@ -91,6 +91,10 @@ pub struct DirectoryPermissionFE {
     pub external_payload: Option<String>,
     
     // Additional FE-specific fields
+    pub resource_name: Option<String>,
+    pub grantee_name: Option<String>,
+    pub grantee_avatar: Option<String>,
+    pub granter_name: Option<String>,
     pub permission_previews: Vec<SystemPermissionType>,
 }
 
@@ -103,6 +107,8 @@ impl DirectoryPermissionFE {
 
         // Most sensitive
         if !is_owner {
+
+            redacted.resource_path = DriveClippedFilePath("".to_string());
 
             // 2nd most sensitive
             if !has_edit_permissions {
@@ -120,6 +126,34 @@ impl DirectoryPermissionFE {
         redacted
     }
 }
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListDirectoryPermissionsRequestBody {
+    pub filters: ListDirectoryPermissionsRequestBodyFilters,
+    pub page_size: Option<usize>,
+    pub direction: Option<SortDirection>,
+    pub cursor: Option<String>,
+    // consider refactoring pagination to use "smart cursor" which is a string that has 3 parts `{resource_id}:{filter_index}:{global_index}`. this might be overcomplicating it and theres already established best practices
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListDirectoryPermissionsRequestBodyFilters {
+    pub resource_id: String,
+}
+
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListDirectoryPermissionsResponseData {
+    pub items: Vec<DirectoryPermissionFE>,
+    pub page_size: usize,
+    pub total: usize,
+    pub cursor: Option<String>,
+}
+pub type ListDirectoryPermissionsResponse<'a> = ApiResponse<'a, ListDirectoryPermissionsResponseData>;
+
+
 
 
 
@@ -202,7 +236,7 @@ pub struct CreateDirectoryPermissionsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateDirectoryPermissionsRequestBody {
     pub id: DirectoryPermissionID,
-    pub permission_types: Vec<DirectoryPermissionType>,
+    pub permission_types: Option<Vec<DirectoryPermissionType>>,
     pub begin_date_ms: Option<i64>,
     pub expiry_date_ms: Option<i64>,
     pub inheritable: Option<bool>,
@@ -219,11 +253,13 @@ impl UpdateDirectoryPermissionsRequestBody {
 
         
         // Validate permission_types (must not be empty)
-        if self.permission_types.is_empty() {
-            return Err(ValidationError {
-                field: "permission_types".to_string(),
-                message: "Permission types cannot be empty".to_string(),
-            });
+        if let Some(perm_types) = &self.permission_types {
+            if perm_types.is_empty() {
+                return Err(ValidationError {
+                    field: "permission_types".to_string(),
+                    message: "Permission types cannot be empty".to_string(),
+                });
+            }
         }
         
         // Validate note if provided

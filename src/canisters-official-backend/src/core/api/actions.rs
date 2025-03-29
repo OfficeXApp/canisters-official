@@ -65,11 +65,11 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         });
                     }
 
-                    let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+                    // let your_permissions = preview_directory_permissions(&resource_id, &user_id);
 
                     let before_snap_file = DirectoryWebhookData::File(FileWebhookData {
                         file: Some(file.clone()),
-                    });
+                    }); 
 
                     fire_directory_webhook(
                         WebhookEventLabel::FileViewed,
@@ -185,7 +185,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         });
                     }
 
-                    let your_permissions = preview_directory_permissions(&resource_id, &user_id);
+                    // let your_permissions = preview_directory_permissions(&resource_id, &user_id);
                                         
                     let before_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
                         folder: Some(folder.clone()),

@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 
-use crate::{core::{api::permissions::{directory::check_directory_permissions, system::check_system_permissions}, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, raw_storage::types::UploadStatus}, types::{ICPPrincipalString, UserID}}, rest::directory::types::{DirectoryResourceID, FileRecordFE, FolderRecordFE}};
+use crate::{core::{api::permissions::{directory::check_directory_permissions, system::check_system_permissions}, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, raw_storage::types::UploadStatus}, types::{ICPPrincipalString, UserID}}, rest::directory::types::{DirectoryResourceID, FileRecordFE, FolderRecordFE}};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -144,14 +144,25 @@ impl FileRecord {
   
     pub async fn cast_fe(&self, user_id: &UserID) -> FileRecordFE {
         let mut file = self.clone();
-        
+
+        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow());
+
         // Get user's system permissions for this contact record
         let resource_id = DirectoryResourceID::File(file.id.clone());
-        let permission_previews = check_directory_permissions(
-            resource_id.clone(),
-            PermissionGranteeID::User(user_id.clone()),
-        ).await;
-
+        let permission_previews = if is_owner {
+            [
+                DirectoryPermissionType::View,
+                DirectoryPermissionType::Edit,
+                DirectoryPermissionType::Delete,
+                DirectoryPermissionType::Invite,
+                DirectoryPermissionType::Manage
+            ].to_vec()
+        } else {
+            check_directory_permissions(
+                resource_id.clone(),
+                PermissionGranteeID::User(user_id.clone()),
+            ).await
+        };
 
         let path_parts = file.full_directory_path.0.split("/").collect::<Vec<&str>>();
         let mut clipped_path = String::new();

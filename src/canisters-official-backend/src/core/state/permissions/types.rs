@@ -7,7 +7,7 @@ use serde_diff::{SerdeDiff};
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{
         api_keys::types::ApiKeyID, directory::types::{DriveClippedFilePath, DriveFullFilePath}, disks::types::DiskID, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, groups::types::GroupID, labels::types::{redact_label, LabelID, LabelStringValue}, webhooks::types::WebhookID
-    }, types::UserID
+    }, types::{IDPrefix, UserID}
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
@@ -87,6 +87,7 @@ pub struct DirectoryPermission {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<PlaceholderPermissionGranteeID>,
+    pub metadata: Option<PermissionMetadata>,
     pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
@@ -95,7 +96,6 @@ pub struct DirectoryPermission {
 impl DirectoryPermission {
     pub fn cast_fe(&self, user_id: &UserID) -> DirectoryPermissionFE {
         // Convert resource_id enum to string
-        let resource_id = self.resource_id.to_string();
         
         // Convert granted_to enum to string
         let granted_to = match &self.granted_to {
@@ -153,11 +153,42 @@ impl DirectoryPermission {
             clipped_path.push_str(&resource_path.0);
         }
 
+        // Get grantee name and avatar based on the grantee ID
+        let (grantee_name, grantee_avatar) = match &self.granted_to {
+            PermissionGranteeID::User(id) => {
+                crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+                    .with(|contacts| {
+                        contacts.borrow().get(id)
+                            .map(|contact| (contact.name.clone(), contact.avatar.clone()))
+                            .unwrap_or((String::new(), None))
+                    })
+            },
+            PermissionGranteeID::Group(id) => {
+                crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
+                    .with(|groups| {
+                        groups.borrow().get(id)
+                            .map(|group| (group.name.clone(), group.avatar.clone()))
+                            .unwrap_or((String::new(), None))
+                    })
+            },
+            PermissionGranteeID::Public => {
+                ("PUBLIC".to_string(), None)
+            },
+            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(id) => {
+                (format!("PLACEHOLDER: {}", id), None)
+            },
+        };
         
-
+        // Get granter name based on the granter ID
+        let granter_name = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
+            .with(|contacts| {
+                contacts.borrow().get(&self.granted_by)
+                    .map(|contact| contact.name.clone())
+            });
+        
         DirectoryPermissionFE {
-            id: self.id.to_string(),
-            resource_id,
+            id: self.id.clone().to_string(),
+            resource_id: self.resource_id.clone().to_string(),
             resource_path: DriveClippedFilePath(clipped_path),
             granted_to,
             granted_by: self.granted_by.to_string(),
@@ -173,6 +204,10 @@ impl DirectoryPermission {
             external_id,
             external_payload,
             permission_previews,
+            resource_name: None,
+            grantee_name: Some(grantee_name),
+            grantee_avatar,
+            granter_name,
         }.redacted(user_id)
     }
 }
@@ -475,13 +510,15 @@ pub struct PermissionMetadata {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PermissionMetadataTypeEnum {
-    Labels
+    Labels,
+    DirectoryPassword
 }
 
 impl fmt::Display for PermissionMetadataTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PermissionMetadataTypeEnum::Labels => write!(f, "LABELS"),
+            PermissionMetadataTypeEnum::DirectoryPassword => write!(f, "DIRECTORY_PASSWORD"),
         }
     }
 }
@@ -491,5 +528,6 @@ impl fmt::Display for PermissionMetadataTypeEnum {
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
 pub enum PermissionMetadataContent {
     Labels(LabelStringValuePrefix),
+    DirectoryPassword(String),
     // Future types can be added here without breaking changes
 }
