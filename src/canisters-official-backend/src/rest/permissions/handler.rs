@@ -697,22 +697,25 @@ pub mod permissions_handlers {
 
         // Remove from DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE
         DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            if let Some(permission_vec) = permissions_by_resource.borrow_mut().get_mut(&permission.resource_id) {
+            let mut permissions = permissions_by_resource.borrow_mut();
+            if let Some(permission_vec) = permissions.get_mut(&permission.resource_id) {
                 *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
                 // If set is empty, remove the resource entry
                 if permission_vec.is_empty() {
-                    permissions_by_resource.borrow_mut().remove(&permission.resource_id);
+                    // Now we use our existing mutable borrow instead of creating a new one
+                    permissions.remove(&permission.resource_id);
                 }
             }
         });
 
         // Remove from DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE
         DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            if let Some(permission_vec) = grantee_permissions.borrow_mut().get_mut(&permission.granted_to) {
+            let mut permissions = grantee_permissions.borrow_mut();
+            if let Some(permission_vec) = permissions.get_mut(&permission.granted_to) {
                 *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
                 // If set is empty, remove the grantee entry
                 if permission_vec.is_empty() {
-                    grantee_permissions.borrow_mut().remove(&permission.granted_to);
+                    permissions.remove(&permission.granted_to);
                 }
             }
         });

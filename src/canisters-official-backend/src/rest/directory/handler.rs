@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, uuid::generate_uuidv4}, state::{directory::{state::state::file_uuid_to_metadata, types::FileID}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, UploadStatus, CHUNK_SIZE}}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, permissions::directory::check_directory_permissions, uuid::generate_uuidv4}, state::{directory::{state::state::file_uuid_to_metadata, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, UploadStatus, CHUNK_SIZE}}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, DirectoryResourceID, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -24,12 +24,6 @@ pub mod directorys_handlers {
             None => return create_auth_error_response(),
         };
     
-        // Only owner can access directories
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
-    
         // Parse request body
         let list_request: ListDirectoryRequest = match serde_json::from_slice(request.body()) {
             Ok(req) => req,
@@ -48,6 +42,32 @@ pub mod directorys_handlers {
                     format!("Validation error: {} - {}", validation_error.field, validation_error.message)
                 ).encode()
             );
+        }
+
+        // check if user has permission to list directory
+        // match the folder_id and handle if it exists
+        match list_request.clone().folder_id {
+            Some(folder_id) => {
+                let resource_id = DirectoryResourceID::Folder(FolderID(folder_id.clone()));
+                let user_permissions = check_directory_permissions(
+                    resource_id.clone(),
+                    PermissionGranteeID::User(requester_api_key.user_id.clone())
+                ).await;
+
+                let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+
+                // User needs at least View permission to list directory
+                if !is_owner && !user_permissions.contains(&DirectoryPermissionType::View) {
+                    return create_response(
+                        StatusCode::FORBIDDEN,
+                        ErrorResponse::err(403, "You don't have permission to view this directory".to_string()).encode()
+                    );
+                }
+            },
+            None => {
+                // do nothing
+                
+            }
         }
     
         match fetch_files_at_folder_path(list_request, requester_api_key.user_id.clone()).await {
