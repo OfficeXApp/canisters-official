@@ -28,7 +28,6 @@ pub mod state {
         pub(crate) static DIRECTORY_PERMISSIONS_BY_TIME_LIST: RefCell<Vec<DirectoryPermissionID>> = 
             RefCell::new(Vec::new());
 
-
         // Main storage for system permissions
         pub(crate) static SYSTEM_PERMISSIONS_BY_ID_HASHTABLE: RefCell<HashMap<SystemPermissionID, SystemPermission>> = 
         RefCell::new(HashMap::new());
