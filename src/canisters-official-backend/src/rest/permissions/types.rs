@@ -340,6 +340,7 @@ pub struct CheckPermissionResult {
 pub struct RedeemPermissionRequest {
     pub permission_id: String,
     pub user_id: String,
+    pub note: Option<String>,
 }
 
 impl RedeemPermissionRequest {
@@ -349,6 +350,10 @@ impl RedeemPermissionRequest {
         
         // Validate user_id
         validate_id_string(&self.user_id, "user_id")?;
+
+        if (self.note.is_some()) {
+            validate_description(self.note.as_ref().unwrap(), "note")?;
+        }
         
         Ok(())
     }

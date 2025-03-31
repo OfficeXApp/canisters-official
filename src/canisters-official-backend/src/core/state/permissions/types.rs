@@ -175,7 +175,7 @@ impl DirectoryPermission {
                 ("PUBLIC".to_string(), None)
             },
             PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(id) => {
-                (format!("PLACEHOLDER: {}", id), None)
+                ("Awaiting Anon".to_string(), None)
             },
         };
         
@@ -424,7 +424,7 @@ impl SystemPermission {
                 ("PUBLIC".to_string(), None)
             },
             PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(id) => {
-                (format!("PLACEHOLDER: {}", id), None)
+                ("Awaiting Anon".to_string(), None)
             },
         };
         

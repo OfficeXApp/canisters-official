@@ -43,7 +43,6 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         n => format!("{}{}", btoa_token, "=".repeat(4 - n))
     };
 
-    debug_log!("padded_token: {}", padded_token);
 
     // Decode the base64 proof string
     let stringified_token = match base64::decode(padded_token) {
@@ -60,7 +59,6 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
         },
     };
 
-    debug_log!("stringified_token: {}", stringified_token);
 
     // Parse the JSON proof
     let auth_json: AuthJsonDecoded = match serde_json::from_str(&stringified_token) {

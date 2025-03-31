@@ -792,6 +792,7 @@ pub struct CreateFolderPayload {
     pub parent_folder_uuid: FolderID,
     pub labels: Vec<LabelStringValue>,
     pub disk_id: DiskID,
+    pub disk_type: Option<DiskTypeEnum>,
     pub expires_at: Option<i64>,
     pub file_conflict_resolution: Option<FileConflictResolutionEnum>,
     pub has_sovereign_permissions: Option<bool>,
