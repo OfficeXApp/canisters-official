@@ -329,7 +329,7 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, e.message).encode()
             );
         }
-    
+        
         // 3. Parse and validate resource ID
         let resource_id = match parse_directory_resource_id(&upsert_request.resource_id.to_string()) {
             Ok(id) => id,
@@ -338,7 +338,7 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
             ),
         };
-    
+        
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
         let grantee_id = if let Some(grantee) = upsert_request.granted_to {
             match parse_permission_grantee_id(&grantee.to_string()) {
@@ -357,8 +357,8 @@ pub mod permissions_handlers {
             mark_claimed_uuid(&_placeholder_id.clone().to_string());
             _placeholder_grantee
         };
-    
-        // 5. Check if resource exists
+        
+        // 5. Check if resource exists  
         let resource_exists = match &resource_id {
             DirectoryResourceID::File(file_id) => file_uuid_to_metadata.contains_key(file_id),
             DirectoryResourceID::Folder(folder_id) => folder_uuid_to_metadata.contains_key(folder_id),
@@ -822,6 +822,7 @@ pub mod permissions_handlers {
         let old_grantee = permission.granted_to.clone();
         permission.granted_to = new_grantee.clone();
         permission.last_modified_at = ic_cdk::api::time() / 1_000_000; // Convert ns to ms
+        permission.note = redeem_request.note.unwrap_or(format!("Magic link redeemed by {}", requester_api_key.user_id));
     
         // Update all state tables
         DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
