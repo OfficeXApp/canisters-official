@@ -36,7 +36,9 @@ pub mod groups_handlers {
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) && !is_owner {
+        let is_member = is_user_on_group(&requester_api_key.user_id, &id).await;
+
+        if !permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) && !is_owner && !is_member {
             return create_auth_error_response();
         }
 

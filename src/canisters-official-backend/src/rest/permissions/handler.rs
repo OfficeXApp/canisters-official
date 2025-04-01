@@ -340,9 +340,9 @@ pub mod permissions_handlers {
         };
         
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
-        let grantee_id = if let Some(grantee) = upsert_request.granted_to {
+        let (grantee_id, redeem_code) = if let Some(grantee) = upsert_request.granted_to {
             match parse_permission_grantee_id(&grantee.to_string()) {
-                Ok(id) => id,
+                Ok(id) => (id, None),
                 Err(_) => return create_response(
                     StatusCode::BAD_REQUEST,
                     ErrorResponse::err(400, "Invalid grantee ID format".to_string()).encode()
@@ -355,7 +355,8 @@ pub mod permissions_handlers {
             );
             let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
             mark_claimed_uuid(&_placeholder_id.clone().to_string());
-            _placeholder_grantee
+            let redeem_code = format!("REDEEM_{}", ic_cdk::api::time());
+            (_placeholder_grantee, Some(redeem_code))
         };
         
         // 5. Check if resource exists  
@@ -438,6 +439,7 @@ pub mod permissions_handlers {
             last_modified_at: current_time,
             from_placeholder_grantee: None,
             metadata: upsert_request.metadata.clone(),
+            redeem_code,
             labels: vec![],
             external_id: Some(ExternalID(upsert_request.external_id.clone().unwrap_or_default())),
             external_payload: Some(ExternalPayload(upsert_request.external_payload.clone().unwrap_or_default())),
@@ -816,6 +818,21 @@ pub mod permissions_handlers {
             ),
         };
 
+        // validate the redeem_code matches
+        if let Some(redeem_code) = &permission.redeem_code {
+            if redeem_code != &redeem_request.redeem_code {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid redeem code".to_string()).encode()
+                );
+            }
+        } else {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "No redeem code found".to_string()).encode()
+            );
+        }
+
         let prestate = snapshot_prestate();
     
         // 6. Update permission and state
@@ -823,7 +840,8 @@ pub mod permissions_handlers {
         permission.granted_to = new_grantee.clone();
         permission.last_modified_at = ic_cdk::api::time() / 1_000_000; // Convert ns to ms
         permission.note = redeem_request.note.unwrap_or(format!("Magic link redeemed by {}", requester_api_key.user_id));
-    
+        permission.redeem_code = None;
+
         // Update all state tables
         DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
             permissions.borrow_mut().insert(permission_id.clone(), permission.clone());
@@ -1221,9 +1239,9 @@ pub mod permissions_handlers {
         debug_log!("Prased Upsert request resource_id {:?}", resource_id.clone());
     
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
-        let grantee_id = if let Some(grantee) = upsert_request.granted_to {
+        let (grantee_id, redeem_code) = if let Some(grantee) = upsert_request.granted_to {
             match parse_permission_grantee_id(&grantee) {
-                Ok(id) => id,
+                Ok(id) => (id, None),
                 Err(_) => return create_response(
                     StatusCode::BAD_REQUEST,
                     ErrorResponse::err(400, "Invalid grantee ID format".to_string()).encode()
@@ -1236,7 +1254,8 @@ pub mod permissions_handlers {
             );
             let _placeholder_grantee = PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_placeholder_id.clone());
             mark_claimed_uuid(&_placeholder_id.clone().to_string());
-            _placeholder_grantee
+            let redeem_code = format!("REDEEM_{}", ic_cdk::api::time());
+            (_placeholder_grantee, Some(redeem_code))
         };
     
         // 5. Check authorization
@@ -1276,6 +1295,7 @@ pub mod permissions_handlers {
             last_modified_at: current_time,
             from_placeholder_grantee: None,
             labels: vec![],
+            redeem_code,
             metadata: upsert_request.metadata,
             external_id: match upsert_request.external_id {
                 Some(id) => Some(ExternalID(id)),
@@ -1768,12 +1788,28 @@ pub mod permissions_handlers {
             ),
         };
 
+        // validate that redeem code matches 
+        if let Some(redeem_code) = &permission.redeem_code {
+            if redeem_code != &redeem_request.redeem_code {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid redeem code".to_string()).encode()
+                );
+            }
+        } else {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "No redeem code found".to_string()).encode()
+            );
+        }
+
         let prestate = snapshot_prestate();
     
         // 6. Update permission and state
         let old_grantee = permission.granted_to.clone();
         permission.granted_to = new_grantee.clone();
         permission.last_modified_at = ic_cdk::api::time() / 1_000_000;
+        permission.redeem_code = None;
     
         // Update all state tables
         SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
