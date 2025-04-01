@@ -3,7 +3,7 @@
 
 pub mod group_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::group_invites::{fire_group_invite_webhook, get_active_group_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{PlaceholderGroupInviteeID, GroupInviteID, GroupInviteeID, GroupRole}}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, group_invites::types::{ CreateGroupInviteRequestBody, CreateGroup_InviteResponse, DeleteGroup_InviteRequest, DeleteGroup_InviteResponse, DeletedGroup_InviteData, ErrorResponse, GetGroup_InviteResponse, ListGroupInvitesRequestBody, ListGroupInvitesResponseData, ListGroup_InvitesResponse, RedeemGroupInviteRequest, RedeemGroupInviteResponseData, UpdateGroupInviteRequestBody, UpdateGroup_InviteRequest, UpdateGroup_InviteResponse}, groups::types::{ListGroupsRequestBody, ListGroupsResponseData}, webhooks::types::GroupInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::group_invites::{fire_group_invite_webhook, get_active_group_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupRole, PlaceholderGroupInviteeID}}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE}, types::GroupID}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, group_invites::types::{ CreateGroupInviteRequestBody, CreateGroup_InviteResponse, DeleteGroup_InviteRequest, DeleteGroup_InviteResponse, DeletedGroup_InviteData, ErrorResponse, GetGroup_InviteResponse, ListGroupInvitesRequestBody, ListGroupInvitesResponseData, ListGroup_InvitesResponse, RedeemGroupInviteRequest, RedeemGroupInviteResponseData, UpdateGroupInviteRequestBody, UpdateGroup_InviteRequest, UpdateGroup_InviteResponse}, groups::types::{ListGroupsRequestBody, ListGroupsResponseData}, webhooks::types::GroupInviteWebhookData}
         
     };
     use crate::core::state::group_invites::{
@@ -119,7 +119,10 @@ pub mod group_invites_handlers {
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !is_authorized && !table_permissions.contains(&SystemPermissionType::View) {
+        let is_member = is_user_on_group(&requester_api_key.user_id, &group_id).await;
+
+
+        if !is_authorized && !table_permissions.contains(&SystemPermissionType::View) && !is_member  {
             return create_auth_error_response();
         }
     
@@ -238,15 +241,16 @@ pub mod group_invites_handlers {
         let now = ic_cdk::api::time() / 1_000_000;
 
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
-        let invitee_id = if let Some(invitee_user_id) = create_req.invitee_id {
-            GroupInviteeID::User(UserID(invitee_user_id))
+        let (invitee_id, redeem_code) = if let Some(invitee_user_id) = create_req.invitee_id {
+            (GroupInviteeID::User(UserID(invitee_user_id)), None)
         } else {
             let _placeholder_id = PlaceholderGroupInviteeID(
                 generate_uuidv4(IDPrefix::PlaceholderGroupInviteeID)
             );
             let _placeholder_invitee = GroupInviteeID::PlaceholderGroupInvitee(_placeholder_id.clone());
             mark_claimed_uuid(&_placeholder_id.clone().to_string());
-            _placeholder_invitee
+            let redeem_code = format!("REDEEM_{}", ic_cdk::api::time());
+            (_placeholder_invitee, Some(redeem_code))
         };
 
 
@@ -258,11 +262,12 @@ pub mod group_invites_handlers {
             role: create_req.role.unwrap_or(GroupRole::Member),
             note: create_req.note.unwrap_or("".to_string()),
             created_at: now,
-            last_modified_at: now,
+            last_modified_at: now, 
             active_from: create_req.active_from.unwrap_or(0),
             expires_at: create_req.expires_at.unwrap_or(-1),
             from_placeholder_invitee: None,
             labels: vec![],
+            redeem_code,
             external_id: Some(ExternalID(create_req.external_id.unwrap_or("".to_string()))),
             external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
         };
@@ -654,6 +659,21 @@ pub mod group_invites_handlers {
                 ErrorResponse::err(404, "Invite not found".to_string()).encode()
             ),
         };
+
+        // validate the redeem code matches
+        if let Some(redeem_code) = &invite.redeem_code {
+            if redeem_request.redeem_code != *redeem_code {
+                return create_response(
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse::err(400, "Invalid redeem code".to_string()).encode()
+                );
+            }
+        } else {
+            return create_response(
+                StatusCode::BAD_REQUEST,
+                ErrorResponse::err(400, "Invite does not have a redeem code".to_string()).encode()
+            );
+        }
     
         let prestate = snapshot_prestate();
     
@@ -679,6 +699,7 @@ pub mod group_invites_handlers {
                 last_modified_at: now,
                 active_from: invite.active_from,
                 expires_at: invite.expires_at,
+                redeem_code: None,
                 from_placeholder_invitee: Some(invite.invitee_id.clone().to_string()),
                 labels: invite.labels.clone(),
                 external_id: invite.external_id.clone(),
@@ -738,6 +759,7 @@ pub mod group_invites_handlers {
             updated_invite.invitee_id = new_invitee;
             updated_invite.role = GroupRole::Member; // Default to Member role when redeeming
             updated_invite.last_modified_at = ic_cdk::api::time();
+            updated_invite.redeem_code = None;
     
             // Update state
             INVITES_BY_ID_HASHTABLE.with(|store| {

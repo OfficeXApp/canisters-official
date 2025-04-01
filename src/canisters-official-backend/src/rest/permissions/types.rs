@@ -30,6 +30,7 @@ pub struct SystemPermissionFE {
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<String>,
     pub labels: Vec<LabelStringValue>,
+    pub redeem_code: Option<String>,
     pub metadata: Option<PermissionMetadata>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
@@ -87,6 +88,7 @@ pub struct DirectoryPermissionFE {
     pub last_modified_at: u64,
     pub from_placeholder_grantee: Option<String>,
     pub labels: Vec<LabelStringValue>,
+    pub redeem_code: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
     pub metadata: Option<PermissionMetadata>,
@@ -341,6 +343,7 @@ pub struct CheckPermissionResult {
 pub struct RedeemPermissionRequest {
     pub permission_id: String,
     pub user_id: String,
+    pub redeem_code: String,
     pub note: Option<String>,
 }
 
@@ -589,6 +592,7 @@ pub struct CheckSystemPermissionResult {
 pub struct RedeemSystemPermissionRequest {
     pub permission_id: String,
     pub user_id: String,
+    pub redeem_code: String,
 }
 impl RedeemSystemPermissionRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {

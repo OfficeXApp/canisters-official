@@ -21,6 +21,7 @@ pub struct GroupInviteFE {
     pub last_modified_at: u64,
     pub from_placeholder_invitee: Option<String>,
     pub labels: Vec<LabelStringValue>,
+    pub redeem_code: Option<String>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
     
@@ -47,6 +48,7 @@ impl GroupInviteFE {
             if !has_edit_permissions && !is_group_admin {
                 redacted.from_placeholder_invitee = None;
                 redacted.inviter_id = UserID("".to_string());
+                redacted.redeem_code = None;
             }
         }
         // Filter labels
@@ -272,6 +274,7 @@ pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 pub struct RedeemGroupInviteRequest {
     pub invite_id: String,
     pub user_id: String,
+    pub redeem_code: String,
 }
 impl RedeemGroupInviteRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
