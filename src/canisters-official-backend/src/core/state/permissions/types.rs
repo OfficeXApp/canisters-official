@@ -203,6 +203,7 @@ impl DirectoryPermission {
             labels: self.labels.clone(),
             external_id,
             external_payload,
+            metadata: self.metadata.clone(),
             permission_previews,
             resource_name: None,
             grantee_name: Some(grantee_name),
