@@ -94,7 +94,7 @@ pub mod state {
         };
     
         // Trash folder path as a subfolder of root
-        let trash_path = DriveFullFilePath(format!("{}::.trash", disk_id.to_string()));
+        let trash_path = DriveFullFilePath(format!("{}::.trash/", disk_id.to_string()));
         
         // Get existing or create new trash folder
         let trash_folder_uuid = if let Some(existing_uuid) = full_folder_path_to_uuid.get(&trash_path) {
