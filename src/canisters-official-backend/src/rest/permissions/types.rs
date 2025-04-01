@@ -89,6 +89,7 @@ pub struct DirectoryPermissionFE {
     pub labels: Vec<LabelStringValue>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
+    pub metadata: Option<PermissionMetadata>,
     
     // Additional FE-specific fields
     pub resource_name: Option<String>,
