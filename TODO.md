@@ -7,8 +7,7 @@
 
 ## Urgent Next
 
-- [🔵] Directory filesharing with password option --> we implement this in a purely frontend manner by using password string to derive an ICP principal, and create a directory permission permitting access to that principal. when file/folder receiver opens link, their browser client uses password to derive same account to sign crypotgraphic auth token.
-- [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route
+- [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route --> `[TODO]@"Return Disk Shortcuts"`
 - [🔵] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE`
 
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
@@ -34,7 +33,6 @@
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
 - [ ] Consider how to obfuscate ancestor folders in url route (eg. show folder_uuid in the url instead of full path)
-- [ ] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route)
 
 ## Priority Backlog
 
@@ -144,3 +142,5 @@
 - [x] Refactor rename "tags" to "labels" if we are going to call usertags a thing `Name@UserID_abc123`. or think of a better name for usertags (userlinks? userstrings? teamstring, teamtag, teamslug, userslug, userhandle, teamhandle)
 - [x] Team Invite, allow the possibility of public invite by setting placeholder_id to constant string "PUBLIC". in which case when redeemed will create a new invite duplicating the settings of the public invite.
 - [x] Implement logic for shortcuts (might be as easy as `FileRecord.shortcut_to = FileID` and `FolderRecord.shortcut_to = FolderID`)
+- [x] Directory filesharing with password option --> we implement this in a purely frontend manner by using password string to derive an ICP principal, and create a directory permission permitting access to that principal. when file/folder receiver opens link, their browser client uses password to derive same account to sign crypotgraphic auth token.
+- [x] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route) --> no we should not have any centralized point where OfficeX foundation is responsible for REST API forwarding

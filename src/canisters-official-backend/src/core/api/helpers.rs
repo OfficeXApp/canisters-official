@@ -67,32 +67,33 @@ struct ApiError {
 }
 
 pub fn is_local_environment() -> bool {
-    // Approach 1: Check for an environment variable at build time
-    #[cfg(feature = "local")]
-    {
-        return true;
-    }
+    return LOCAL_DEV_MODE;
+    // // Approach 1: Check for an environment variable at build time
+    // #[cfg(feature = "local")]
+    // {
+    //     return true;
+    // }
     
-    // Approach 2: Use a compile-time environment variable
-    #[cfg(feature = "local_env")]
-    {
-        return true;
-    }
+    // // Approach 2: Use a compile-time environment variable
+    // #[cfg(feature = "local_env")]
+    // {
+    //     return true;
+    // }
     
-    // Approach 3: Define a constant in your code that you can change
-    if LOCAL_DEV_MODE {
-        return true;
-    }
+    // // Approach 3: Define a constant in your code that you can change
+    // if LOCAL_DEV_MODE {
+    //     return true;
+    // }
     
-    // If none of the above conditions are met, check if we're running in a test environment
-    let time_nanos = ic_cdk::api::time();
-    // In test/local environment, the time is often set to a specific value or starts from a low number
-    if time_nanos < 1_000_000_000_000_000_000 { // If time is before ~2001 (very rough estimate)
-        return true;
-    }
+    // // If none of the above conditions are met, check if we're running in a test environment
+    // let time_nanos = ic_cdk::api::time();
+    // // In test/local environment, the time is often set to a specific value or starts from a low number
+    // if time_nanos < 1_000_000_000_000_000_000 { // If time is before ~2001 (very rough estimate)
+    //     return true;
+    // }
     
-    // If we can't determine for sure, assume production
-    false
+    // // If we can't determine for sure, assume production
+    // false
 }
 
 pub fn get_appropriate_url_endpoint() -> String {

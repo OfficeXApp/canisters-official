@@ -63,10 +63,12 @@ pub mod directorys_handlers {
                         ErrorResponse::err(403, "You don't have permission to view this directory".to_string()).encode()
                     );
                 }
+
             },
             None => {
                 // do nothing
-                
+                // [TODO]@"Return Disk Shortcuts"
+                debug_log!("No folder_id provided")
             }
         }
     

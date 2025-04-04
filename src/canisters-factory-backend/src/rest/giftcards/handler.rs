@@ -614,11 +614,20 @@ pub mod giftcards_handlers {
         };
     
         debug_log!("Creating drive for owner: {}", owner_icp_principal);
+
+
+        // temp hardcoded dfx controller principal
+        let dfx_controller_principal = Principal::from_text("ju5k3-incuz-afpss-iopne-5tzfe-b466x-j4roy-owlyu-zq2pv-4dfjb-4ae").unwrap();
+
     
         // Create canister settings
         let create_canister_arg = CreateCanisterArgument {
             settings: Some(ic_cdk::api::management_canister::main::CanisterSettings {
-                controllers: Some(vec![ic_cdk::id(), owner_principal]),
+                controllers: Some(vec![
+                    ic_cdk::id(),
+                    owner_principal,
+                    dfx_controller_principal
+                ]),
                 compute_allocation: None,
                 memory_allocation: None,
                 freezing_threshold: None,

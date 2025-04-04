@@ -16,6 +16,18 @@ Dev single line restart:
 $ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 ```
 
+or standalone factory in p
+
+```sh
+$ dfx canister create canisters-factory-backend && dfx build && dfx deploy --network ic canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+```
+
+or standalone backend in prod:
+
+```sh
+$ dfx canister create canisters-official-backend && dfx build && dfx deploy --network ic canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+```
+
 From clean start:
 
 ```sh
@@ -56,4 +68,29 @@ $ dfx canister create canisters-official-backend-2 --no-wallet
 # deploy
 $ dfx deploy canisters-official-backend
 $ dfx deploy canisters-official-backend-2
+```
+
+## Prod Deploy
+
+```sh
+# check ICP balance
+$ dfx ledger --network ic balance
+# check cycles balance
+$ dfx wallet --network ic balance
+# get account_id for sending ICP tokens to (eg account_id="a641efb49f6febc41a84b7442770619b46693718db210889cefd6750848b2a36")
+$ dfx ledger account-id
+# get wallet_id to convert ICP to cycles (eg wallet_id="q7b2w-ziaaa-aaaak-afrba-cai")
+$ dfx identity get-wallet --network ic
+# top up wallet_id with 0.5 ICP from account_id
+$ dfx ledger top-up --network ic --amount 0.5 <wallet_id>
+
+# deploy factory (eg canister_id="jnvba-jiaaa-aaaak-apckq-cai")
+$ dfx deploy canisters-factory-backend --network ic --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+
+# deposit 2.5T cycles into canister
+$ dfx canister deposit-cycles --network ic 2500000000000 <canister_id>
+
+# check status of deployed caniter
+$ dfx canister --network ic status <canister_id>
+$ dfx canister --network ic logs <canister_id>
 ```

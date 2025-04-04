@@ -1,6 +1,6 @@
 // src/lib.rs
 use ic_cdk::*;
-use ic_http_certification::{HttpRequest, HttpResponse};
+use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use core::{api::uuid::format_user_id, state::{api_keys::state::state::init_default_admin_apikey, contacts::state::state::init_default_owner_contact, disks::state::state::init_default_disks, drives::state::state::init_self_drive}, types::UserID};
 use std::{cell::RefCell, collections::HashMap};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use candid::{CandidType, Decode, Encode};
 
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = true;
+pub static LOCAL_DEV_MODE: bool = false;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
@@ -121,7 +121,8 @@ fn post_upgrade() {
 }
 
 #[query]
-fn http_request(_req: HttpRequest) -> HttpResponse<'static> {
+fn http_request(req: HttpRequest) -> HttpResponse<'static> {
+
     // All requests will be upgraded to update calls
     HttpResponse::builder()
         .with_upgrade(true)
