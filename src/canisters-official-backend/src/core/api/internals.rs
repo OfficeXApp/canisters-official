@@ -18,7 +18,8 @@ pub mod drive_internals {
         let sanitized = path_part.replace(':', ";");
         let re = Regex::new(r"/+").unwrap();
         let sanitized = re.replace_all(&sanitized, "/").to_string();
-        let sanitized = sanitized.trim_matches('/').to_string();
+        // Don't trim the leading slash, only trailing
+        let sanitized = sanitized.trim_end_matches('/').to_string();
     
         let final_path = format!("{}::{}", storage_part, sanitized);
         ic_cdk::println!("sanitize_file_path: {} -> {}", original, final_path);
@@ -177,7 +178,7 @@ pub mod drive_internals {
         shortcut_to: Option<FolderID>
     ) -> FolderID {
         let path_parts: Vec<&str> = folder_path.split("::").collect();
-        let mut current_path = format!("{}::", path_parts[0]);
+        let mut current_path = format!("{}::/", path_parts[0]);  // Always start with root slash
 
         let mut parent_uuid = ensure_root_folder(&disk_id, &disk_type, &user_id, DRIVE_ID.with(|id| id.clone()));
 
@@ -544,6 +545,9 @@ pub mod drive_internals {
         config: &ListDirectoryRequest,
         user_id: &UserID,
     ) -> Result<DirectoryListResponse, DirectoryError> {
+
+        debug_log!("Fetching root shortcuts of user: {:?}", user_id);
+
         // Ensure disk_id is provided
         let _disk_id = config
             .disk_id

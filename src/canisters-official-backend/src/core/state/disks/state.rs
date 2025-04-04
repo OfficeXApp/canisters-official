@@ -106,7 +106,7 @@ pub mod state {
             let trash_folder = FolderRecord {
                 id: new_uuid.clone(),
                 name: "Trash".to_string(),
-                parent_folder_uuid: None, // Link to root folder
+                parent_folder_uuid: None,
                 subfolder_uuids: Vec::new(),
                 file_uuids: Vec::new(),
                 full_directory_path: trash_path.clone(),
@@ -130,15 +130,6 @@ pub mod state {
             full_folder_path_to_uuid.insert(trash_path, new_uuid.clone());
             folder_uuid_to_metadata.insert(new_uuid.clone(), trash_folder);
             
-            // Update root folder to include trash folder in subfolder_uuids
-            folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(root_folder) = map.get_mut(&root_folder_uuid) {
-                    if !root_folder.subfolder_uuids.contains(&new_uuid) {
-                        root_folder.subfolder_uuids.push(new_uuid.clone());
-                    }
-                }
-            });
-            
             new_uuid
         };
         
@@ -146,5 +137,3 @@ pub mod state {
         (root_folder_uuid, trash_folder_uuid)
     }
 }
-
-

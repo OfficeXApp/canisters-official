@@ -15,24 +15,62 @@ use super::helpers::create_response;
 
 
 pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
-    // Extract the Authorization header
-    let auth_header = match req.headers().iter().find(|(k, _)| k == "authorization") {
-        Some((_, value)) => value,
-        None => {
-            debug_log!("No authorization header found");
-            return None;
-        },
-    };
+    // // Extract the Authorization header
+    // let auth_header = match req.headers().iter().find(|(k, _)| k == "authorization") {
+    //     Some((_, value)) => value,
+    //     None => {
+    //         debug_log!("No authorization header found");
+    //         return None;
+    //     },
+    // };
 
-    // debug_log!("auth_header: {}", auth_header);
+    // // debug_log!("auth_header: {}", auth_header);
 
-    // Parse "Bearer <token>"
-    let btoa_token = match auth_header.strip_prefix("Bearer ") {
-        Some(token) => token.trim(),
-        None => {
+    // // Parse "Bearer <token>"
+    // let btoa_token = match auth_header.strip_prefix("Bearer ") {
+    //     Some(token) => token.trim(),
+    //     None => {
+    //         debug_log!("Authorization header not in Bearer format");
+    //         return None;
+    //     },
+    // };
+
+    // Try to get the token from the Authorization header first
+    let mut btoa_token: Option<String> = None;
+    
+    // Check Authorization header
+    if let Some((_, auth_value)) = req.headers().iter().find(|(k, _)| k == "authorization") {
+        if let Some(token) = auth_value.strip_prefix("Bearer ") {
+            btoa_token = Some(token.trim().to_string());
+            debug_log!("Found token in Authorization header");
+        } else {
             debug_log!("Authorization header not in Bearer format");
+        }
+    }
+    
+    // If no token from header, try query parameter
+    if btoa_token.is_none() {
+        if let Some(query_string) = req.url().split('?').nth(1) {
+            // Parse the query string
+            for param in query_string.split('&') {
+                if let Some((key, value)) = param.split_once('=') {
+                    if key == "auth" {
+                        debug_log!("Found auth query parameter: {}", value);
+                        btoa_token = Some(value.to_string());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // If no token found in either place, return None
+    let btoa_token = match btoa_token {
+        Some(token) => token,
+        None => {
+            debug_log!("No authentication token found in header or query parameter");
             return None;
-        },
+        }
     };
     
 

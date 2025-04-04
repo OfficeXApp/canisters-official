@@ -10,9 +10,11 @@ pub fn create_response(status_code: StatusCode, body: String) -> HttpResponse<'s
     let headers = vec![
         ("Content-Type".to_string(), "application/json".to_string()),
         ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-        ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
-        ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key".to_string()),
         ("Access-Control-Max-Age".to_string(), "86400".to_string()),
+        // ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
+        // ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key".to_string()),
+    ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
+    ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key, Authorization".to_string()),
     ];
     
     HttpResponse::builder()
@@ -31,12 +33,16 @@ pub fn not_found_response() -> HttpResponse<'static> {
         }
     });
 
+    // The headers for the "not found" response. We set the Access-Control-Allow-Origin
+    // to "*" to allow requests from any origin. We also set the
+    // Access-Control-Allow-Methods and Access-Control-Allow-Headers to allow
+    // requests with the given methods and headers.
     let headers = vec![
         ("Content-Type".to_string(), "application/json".to_string()),
         ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-        ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
-        ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key".to_string()),
         ("Access-Control-Max-Age".to_string(), "86400".to_string()),
+        ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
+        ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key, Authorization".to_string()),
     ];
 
     HttpResponse::builder()

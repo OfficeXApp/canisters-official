@@ -27,15 +27,20 @@ pub mod drive {
             direction, 
             cursor 
         } = config.clone();
+
+        debug_log!("Fetching files at folder path: {:?}", config.clone());
     
         // Get the folder UUID either from folder_id or path
         let folder_uuid = if let Some(id) = folder_id {
+            debug_log!("We found at folder_id");
             FolderID(id)
         } else if let Some(path_str) = path {
+            debug_log!("We found at folder path");
             full_folder_path_to_uuid
                 .get(&DriveFullFilePath(path_str.clone()))
                 .ok_or_else(|| DirectoryError::FolderNotFound(format!("Path not found: {}", path_str)))?
         } else if let Some(_disk_id) = disk_id {
+            debug_log!("No folder_id found, so we are fetching at root shortcuts");
             return fetch_root_shortcuts_of_user(&config, &user_id).await;
         } else {
             return Err(DirectoryError::FolderNotFound("Neither folder_id nor path provided".to_string()));
@@ -46,6 +51,8 @@ pub mod drive {
             .get(&folder_uuid)
             .ok_or_else(|| DirectoryError::FolderNotFound("Folder metadata not found".to_string()))?;
     
+        debug_log!("Folder metadata: {:?}", folder);
+
         let total_folders = folder.subfolder_uuids.len();
         let total_files = folder.file_uuids.len();
         let total_items = total_folders + total_files;
@@ -434,7 +441,11 @@ pub mod drive {
         }
     
         let storage_part = parts[0];
-        let folder_path = parts[1..].join("::");
+        let folder_path = if parts[1].starts_with('/') {
+            parts[1..].join("::")
+        } else {
+            format!("/{}", parts[1..].join("::"))
+        };
     
         // Ensure the storage location matches
         if storage_part != disk_id.to_string() {
@@ -454,6 +465,7 @@ pub mod drive {
                 .cloned()
         }).ok_or_else(|| "Disk not found".to_string())?;
         
+        debug_log!("sanitized_path: {}", sanitized_path);
     
         // Check if folder already exists
         if let Some(existing_folder_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(sanitized_path.clone())) {
@@ -487,11 +499,11 @@ pub mod drive {
                 },
                 FileConflictResolutionEnum::KEEP_BOTH => {
                     // Split the path into parent path and folder name
-                    let path_parts: Vec<&str> = folder_path.split('/').filter(|&x| !x.is_empty()).collect();
+                    let path_parts: Vec<&str> = folder_path.rsplitn(2, '/').collect();
                     let parent_path = if path_parts.len() > 1 {
-                        format!("{}::{}/", storage_part, path_parts[..path_parts.len()-1].join("/"))
+                        format!("{}::/{}/", storage_part, path_parts[..path_parts.len()-1].join("/"))
                     } else {
-                        format!("{}::", storage_part)
+                        format!("{}::/", storage_part)
                     };
                     let folder_name = path_parts.last().unwrap_or(&"");
     
@@ -586,9 +598,9 @@ pub mod drive {
     
         // Construct the new folder path
         let new_folder_path = if parent_path.is_empty() {
-            format!("{}::{}{}", storage_part, new_name, "/")
+            format!("{}::/{}/", storage_part, new_name)
         } else {
-            format!("{}::{}/{}{}", storage_part, parent_path, new_name, "/")
+            format!("{}::/{}/{}/", storage_part, parent_path, new_name)
         };
     
         // Check if a folder with the new path already exists
@@ -617,7 +629,7 @@ pub mod drive {
     
         // Update parent folder reference if needed
         if !parent_path.is_empty() {
-            let parent_full_path = format!("{}::{}{}", storage_part, parent_path, "/");
+            let parent_full_path = format!("{}::/{}/", storage_part, parent_path);
             if let Some(parent_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(parent_full_path.clone())) {
                 folder_uuid_to_metadata.with_mut(|map| {
                     if let Some(parent_folder) = map.get_mut(&parent_uuid) {
