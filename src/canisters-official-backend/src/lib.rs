@@ -13,7 +13,7 @@ use candid::{CandidType, Decode, Encode};
 
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = true;
+pub static LOCAL_DEV_MODE: bool = false;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
