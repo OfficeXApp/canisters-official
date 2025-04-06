@@ -75,10 +75,10 @@ pub mod drives_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-
+    
         // Only owner can access drives
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-
+    
         if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Drives);
             let permissions = check_system_permissions(
@@ -90,7 +90,7 @@ pub mod drives_handlers {
                 return create_auth_error_response();
             }
         }
-
+    
         // Parse request body
         let body = request.body();
         let request_body: ListDrivesRequestBody = match serde_json::from_slice(body) {
@@ -100,7 +100,7 @@ pub mod drives_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
         if let Err(validation_error) = request_body.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,
@@ -108,35 +108,23 @@ pub mod drives_handlers {
                     validation_error.field, validation_error.message)).encode()
             );
         }
-
-        // Parse cursors if provided
-        let cursor_up = if let Some(cursor) = request_body.cursor_up {
+    
+        // Parse cursor if provided
+        let start_cursor = if let Some(cursor) = request_body.cursor {
             match cursor.parse::<usize>() {
                 Ok(idx) => Some(idx),
                 Err(_) => return create_response(
                     StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid cursor_up format".to_string()).encode()
+                    ErrorResponse::err(400, "Invalid cursor format".to_string()).encode()
                 ),
             }
         } else {
             None
         };
-
-        let cursor_down = if let Some(cursor) = request_body.cursor_down {
-            match cursor.parse::<usize>() {
-                Ok(idx) => Some(idx),
-                Err(_) => return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid cursor_down format".to_string()).encode()
-                ),
-            }
-        } else {
-            None
-        };
-
+    
         // Get total count
         let total_count = DRIVES_BY_TIME_LIST.with(|list| list.borrow().len());
-
+    
         // If there are no drives, return early
         if total_count == 0 {
             return create_response(
@@ -145,28 +133,27 @@ pub mod drives_handlers {
                     items: vec![],
                     page_size: 0,
                     total: 0,
-                    cursor_up: None,
-                    cursor_down: None,
+                    direction: request_body.direction,
+                    cursor: None,
                 }).encode()
             );
         }
-
-        // Determine starting point based on cursors
-        let start_index = if let Some(up) = cursor_up {
-            up.min(total_count - 1)
-        } else if let Some(down) = cursor_down {
-            down.min(total_count - 1)
+    
+        // Determine starting point based on cursor
+        let start_index = if let Some(cursor_idx) = start_cursor {
+            cursor_idx.min(total_count - 1)
         } else {
             match request_body.direction {
                 SortDirection::Asc => 0,
                 SortDirection::Desc => total_count - 1,
             }
         };
-
+    
         // Get drives with pagination and filtering
         let mut filtered_drives = Vec::new();
         let mut processed_count = 0;
-
+        let mut end_index = start_index;  // Track where we ended for cursor calculation
+    
         DRIVES_BY_TIME_LIST.with(|time_index| {
             let time_index = time_index.borrow();
             DRIVES_BY_ID_HASHTABLE.with(|id_store| {
@@ -186,8 +173,9 @@ pub mod drives_handlers {
                                 break;
                             }
                             current_idx -= 1;
-                            processed_count = start_index - current_idx;
+                            processed_count += 1;
                         }
+                        end_index = current_idx;
                     },
                     SortDirection::Asc => {
                         // Oldest first
@@ -199,43 +187,39 @@ pub mod drives_handlers {
                                 }
                             }
                             current_idx += 1;
-                            processed_count = current_idx - start_index;
+                            processed_count += 1;
+                            if current_idx >= total_count {
+                                break;
+                            }
                         }
+                        end_index = current_idx - 1;
                     }
                 }
             });
         });
-
-        // Calculate next cursors based on direction and current position
-        let (cursor_up, cursor_down) = match request_body.direction {
-            SortDirection::Desc => {
-                let next_up = if start_index < total_count - 1 {
-                    Some((start_index + 1).to_string())
-                } else {
-                    None
-                };
-                let next_down = if processed_count > 0 && start_index >= processed_count {
-                    Some((start_index - processed_count).to_string())
-                } else {
-                    None
-                };
-                (next_up, next_down)
-            },
-            SortDirection::Asc => {
-                let next_up = if processed_count > 0 {
-                    Some((start_index + processed_count).to_string())
-                } else {
-                    None
-                };
-                let next_down = if start_index > 0 {
-                    Some((start_index - 1).to_string())
-                } else {
-                    None
-                };
-                (next_up, next_down)
+    
+        // Calculate next cursor based on direction and where we ended
+        let next_cursor = if filtered_drives.len() >= request_body.page_size {
+            match request_body.direction {
+                SortDirection::Desc => {
+                    if end_index > 0 {
+                        Some(end_index.to_string())
+                    } else {
+                        None
+                    }
+                },
+                SortDirection::Asc => {
+                    if end_index < total_count - 1 {
+                        Some((end_index + 1).to_string())
+                    } else {
+                        None
+                    }
+                }
             }
+        } else {
+            None  // No more results available
         };
-
+    
         // Create response
         let response_data = ListDrivesResponseData {
             items: filtered_drives.clone().into_iter().map(|drive| {
@@ -243,10 +227,10 @@ pub mod drives_handlers {
             }).collect(),
             page_size: filtered_drives.len(),
             total: total_count,
-            cursor_up,
-            cursor_down,
+            direction: request_body.direction,
+            cursor: next_cursor,
         };
-
+    
         create_response(
             StatusCode::OK,
             ListDrivesResponse::ok(&response_data).encode()

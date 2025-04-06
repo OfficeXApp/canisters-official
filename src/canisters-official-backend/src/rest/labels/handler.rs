@@ -140,7 +140,7 @@ pub mod labels_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
         if let Err(validation_error) = request_body.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,
@@ -167,25 +167,13 @@ pub mod labels_handlers {
             }
         }
     
-        // Parse cursors if provided
-        let cursor_up = if let Some(cursor) = request_body.cursor_up {
+        // Parse cursor if provided
+        let cursor_index = if let Some(cursor) = &request_body.cursor {
             match cursor.parse::<usize>() {
                 Ok(idx) => Some(idx),
                 Err(_) => return create_response(
                     StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid cursor_up format".to_string()).encode()
-                ),
-            }
-        } else {
-            None
-        };
-    
-        let cursor_down = if let Some(cursor) = request_body.cursor_down {
-            match cursor.parse::<usize>() {
-                Ok(idx) => Some(idx),
-                Err(_) => return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid cursor_down format".to_string()).encode()
+                    ErrorResponse::err(400, "Invalid cursor format".to_string()).encode()
                 ),
             }
         } else {
@@ -243,8 +231,8 @@ pub mod labels_handlers {
                     items: vec![],
                     page_size: request_body.page_size,
                     total: 0,
-                    cursor_up: None,
-                    cursor_down: None,
+                    direction: request_body.direction,
+                    cursor: None,
                 }).encode()
             );
         }
@@ -257,22 +245,17 @@ pub mod labels_handlers {
         
         let total_filtered_count = all_filtered_labels.len();
         
-        // Determine starting point based on cursors
-        let start_pos = if let Some(up) = cursor_up {
-            // Find position in filtered labels where index >= up
+        // Determine starting point based on cursor
+        let start_pos = if let Some(index) = cursor_index {
             match request_body.direction {
-                SortDirection::Asc => all_filtered_labels.iter().position(|(idx, _)| *idx >= up).unwrap_or(0),
-                SortDirection::Desc => all_filtered_labels.iter().position(|(idx, _)| *idx <= up).unwrap_or(0),
-            }
-        } else if let Some(down) = cursor_down {
-            // Find position in filtered labels where index <= down
-            match request_body.direction {
-                SortDirection::Asc => all_filtered_labels.iter().position(|(idx, _)| *idx <= down)
-                    .map(|pos| if pos > 0 { pos - 1 } else { 0 })
-                    .unwrap_or(0),
-                SortDirection::Desc => all_filtered_labels.iter().position(|(idx, _)| *idx >= down)
-                    .map(|pos| if pos > 0 { pos - 1 } else { 0 })
-                    .unwrap_or(0),
+                SortDirection::Asc => {
+                    // Find position in sorted labels where index >= the cursor value
+                    all_filtered_labels.iter().position(|(idx, _)| *idx >= index).unwrap_or(0)
+                },
+                SortDirection::Desc => {
+                    // Find position in sorted labels where index <= the cursor value
+                    all_filtered_labels.iter().position(|(idx, _)| *idx <= index).unwrap_or(0)
+                },
             }
         } else {
             0 // Start at beginning by default
@@ -288,16 +271,12 @@ pub mod labels_handlers {
             .map(|(_, label)| label.clone())
             .collect();
         
-        // Calculate next cursors
-        let cursor_up = if end_pos < total_filtered_count {
+        // Calculate next cursor based on direction and where we ended
+        let next_cursor = if end_pos < total_filtered_count {
+            // There are more items, return cursor for next page
             Some(all_filtered_labels[end_pos].0.to_string())
         } else {
-            None
-        };
-        
-        let cursor_down = if start_pos > 0 {
-            Some(all_filtered_labels[start_pos - 1].0.to_string())
-        } else {
+            // No more items
             None
         };
         
@@ -309,8 +288,8 @@ pub mod labels_handlers {
                 }).collect(),
                 page_size: page_size,
                 total: total_filtered_count,
-                cursor_up,
-                cursor_down,
+                direction: request_body.direction,
+                cursor: next_cursor,
             }).encode()
         )
     }

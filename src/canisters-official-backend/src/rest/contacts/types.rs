@@ -74,8 +74,7 @@ pub struct ListContactsRequestBody {
     pub page_size: usize,
     #[serde(default)]
     pub direction: SortDirection,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 fn default_page_size() -> usize {
@@ -101,23 +100,15 @@ impl ListContactsRequestBody {
         }
 
         // Validate cursor strings if present
-        if let Some(cursor) = &self.cursor_up {
+        if let Some(cursor) = &self.cursor {
             if cursor.len() > 256 {
                 return Err(ValidationError {
-                    field: "cursor_up".to_string(),
+                    field: "cursor".to_string(),
                     message: "Cursor must be 256 characters or less".to_string(),
                 });
             }
         }
 
-        if let Some(cursor) = &self.cursor_down {
-            if cursor.len() > 256 {
-                return Err(ValidationError {
-                    field: "cursor_down".to_string(),
-                    message: "Cursor must be 256 characters or less".to_string(),
-                });
-            }
-        }
 
         Ok(())
     }
@@ -129,8 +120,8 @@ pub struct ListContactsResponseData {
     pub items: Vec<ContactFE>,
     pub page_size: usize,
     pub total: usize,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub direction: SortDirection,
+    pub cursor: Option<String>,
 }
 
 pub type GetContactResponse<'a> = ApiResponse<'a, ContactFE>;

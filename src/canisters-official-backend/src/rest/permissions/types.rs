@@ -152,6 +152,7 @@ pub struct ListDirectoryPermissionsResponseData {
     pub items: Vec<DirectoryPermissionFE>,
     pub page_size: usize,
     pub total: usize,
+    pub direction: SortDirection,
     pub cursor: Option<String>,
 }
 pub type ListDirectoryPermissionsResponse<'a> = ApiResponse<'a, ListDirectoryPermissionsResponseData>;

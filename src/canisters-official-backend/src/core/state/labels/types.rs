@@ -194,8 +194,7 @@ pub struct LabelOperationResponse {
 pub struct ListLabelsRequest {
     pub query: Option<String>,
     pub page_size: Option<usize>,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -203,8 +202,7 @@ pub struct ListLabelsResponse {
     pub items: Vec<Label>,
     pub page_size: usize,
     pub total: usize,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -223,8 +221,7 @@ pub struct GetLabelResourcesRequest {
     pub label_id: String,
     pub resource_type: Option<String>,
     pub page_size: Option<usize>,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -233,8 +230,7 @@ pub struct GetLabelResourcesResponse {
     pub resources: Vec<LabelResourceID>,
     pub page_size: usize,
     pub total: usize,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 pub fn redact_label(label_value: LabelStringValue, user_id: UserID) -> Option<LabelStringValue> {

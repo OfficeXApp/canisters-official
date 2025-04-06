@@ -59,8 +59,7 @@ pub struct ListLabelsRequestBody {
     pub page_size: usize,
     #[serde(default)]
     pub direction: SortDirection,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 fn default_page_size() -> usize {
@@ -88,23 +87,15 @@ impl ListLabelsRequestBody {
         }
 
         // Validate cursor strings if present
-        if let Some(cursor) = &self.cursor_up {
+        if let Some(cursor) = &self.cursor {
             if cursor.len() > 256 {
                 return Err(ValidationError {
-                    field: "cursor_up".to_string(),
+                    field: "cursor".to_string(),
                     message: "Cursor must be 256 characters or less".to_string(),
                 });
             }
         }
 
-        if let Some(cursor) = &self.cursor_down {
-            if cursor.len() > 256 {
-                return Err(ValidationError {
-                    field: "cursor_down".to_string(),
-                    message: "Cursor must be 256 characters or less".to_string(),
-                });
-            }
-        }
 
         Ok(())
     }
@@ -121,8 +112,8 @@ pub struct ListLabelsResponseData {
     pub items: Vec<LabelFE>,
     pub page_size: usize,
     pub total: usize,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub direction: SortDirection,
+    pub cursor: Option<String>,
 }
 
 
@@ -306,8 +297,7 @@ pub struct GetLabelResourcesRequest {
     pub label_id: String,
     pub resource_type: Option<String>,
     pub page_size: Option<usize>,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 impl GetLabelResourcesRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -330,23 +320,15 @@ impl GetLabelResourcesRequest {
         }
         
         // Validate cursor strings if present
-        if let Some(cursor) = &self.cursor_up {
+        if let Some(cursor) = &self.cursor {
             if cursor.len() > 256 {
                 return Err(ValidationError {
-                    field: "cursor_up".to_string(),
+                    field: "cursor".to_string(),
                     message: "Cursor must be 256 characters or less".to_string(),
                 });
             }
         }
 
-        if let Some(cursor) = &self.cursor_down {
-            if cursor.len() > 256 {
-                return Err(ValidationError {
-                    field: "cursor_down".to_string(),
-                    message: "Cursor must be 256 characters or less".to_string(),
-                });
-            }
-        }
         
         Ok(())
     }
@@ -358,8 +340,7 @@ pub struct GetLabelResourcesResponseData {
     pub resources: Vec<LabelResourceID>,
     pub page_size: usize,
     pub total: usize,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 pub type GetLabelResponse<'a> = ApiResponse<'a, LabelFE>;
