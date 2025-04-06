@@ -1000,10 +1000,12 @@ pub mod permissions_handlers {
                 let mut total_processed = 0;
                 
                 for resource_id in resource_ids {
+
+                    // Current if user has permissions view on entire table then skip permission check
                     // Skip if user doesn't have permission to view this resource (unless owner)
-                    if !is_owner && !has_system_manage_permission(user_id, resource_id) {
-                        continue;
-                    }
+                    // if !is_owner && !has_system_manage_permission(user_id, resource_id) {
+                    //     continue;
+                    // }
                     
                     // Get permissions for this resource
                     SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {

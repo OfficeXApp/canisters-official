@@ -77,20 +77,21 @@ pub mod webhooks_handlers {
             None => return create_auth_error_response(),
         };
     
-        // Only owner can access webhooks
+        // Check if user is owner (for optimization)
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            let resource_id = SystemResourceID::Table(SystemTableEnum::Groups); // Using Groups since webhooks are group-related
+        
+        let has_table_permission = if !is_owner {
+            let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::View) {
-                return create_auth_error_response();
-            }
-        }
-    
+            permissions.contains(&SystemPermissionType::View)
+        } else {
+            true
+        };
+
         // Parse request body
         let body = request.body();
         let request_body: ListWebhooksRequestBody = match serde_json::from_slice(body) {
@@ -120,7 +121,7 @@ pub mod webhooks_handlers {
             None
         };
     
-        // Get total count
+        // Get total count (initially, as this might be filtered down)
         let total_count = WEBHOOKS_BY_TIME_LIST.with(|list| list.borrow().len());
     
         // If there are no webhooks, return early
@@ -147,9 +148,11 @@ pub mod webhooks_handlers {
             }
         };
     
-        // Get webhooks with pagination and filtering
+        // Get webhooks with pagination, filtering, and permission checking
         let mut filtered_webhooks = Vec::new();
+        let mut total_accessible_count = 0; // Count of records user can access
         let mut processed_count = 0;
+        let mut viewed_count = 0; // Count for pagination
         let mut end_index = start_index;  // Track where we ended for cursor calculation
     
         WEBHOOKS_BY_TIME_LIST.with(|time_index| {
@@ -157,16 +160,64 @@ pub mod webhooks_handlers {
             WEBHOOKS_BY_ID_HASHTABLE.with(|id_store| {
                 let id_store = id_store.borrow();
                 
+                // First pass: Count total accessible records (for accurate pagination info)
+                if !is_owner {
+                    for webhook_id in time_index.iter() {
+                        if let Some(webhook) = id_store.get(webhook_id) {
+                            // Check if user has permission to view this specific webhook
+                            let resource_id = SystemResourceID::Record(
+                                SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
+                            );
+                            
+                            // Skip content filtering for total count - just check permissions
+                            let has_permission = check_system_permissions(
+                                resource_id,
+                                PermissionGranteeID::User(requester_api_key.user_id.clone())
+                            ).contains(&SystemPermissionType::View);
+                            
+                            if has_permission || has_table_permission {
+                                total_accessible_count += 1;
+                            }
+                        }
+                    }
+                } else {
+                    // Owner can see everything
+                    total_accessible_count = total_count;
+                }
+                
+                // Second pass: Get paged results with permission checking
                 match request_body.direction {
                     SortDirection::Desc => {
                         // Newest first
                         let mut current_idx = start_index;
                         while filtered_webhooks.len() < request_body.page_size && current_idx < total_count {
                             if let Some(webhook) = id_store.get(&time_index[current_idx]) {
-                                if request_body.filters.is_empty() || webhook.event.to_string().contains(&request_body.filters) {
-                                    filtered_webhooks.push(webhook.clone());
+                                // Check text filter first (cheaper operation)
+                                let passes_filter = request_body.filters.is_empty() || 
+                                                   webhook.event.to_string().contains(&request_body.filters);
+                                
+                                if passes_filter {
+                                    // Then check permissions for this specific webhook
+                                    let has_permission = if is_owner {
+                                        true // Owner can access everything
+                                    } else {
+                                        let resource_id = SystemResourceID::Record(
+                                            SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
+                                        );
+                                        
+                                        check_system_permissions(
+                                            resource_id,
+                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                        ).contains(&SystemPermissionType::View)
+                                    };
+                                    
+                                    if has_permission || has_table_permission {
+                                        viewed_count += 1;
+                                        filtered_webhooks.push(webhook.clone());
+                                    }
                                 }
                             }
+                            
                             if current_idx == 0 {
                                 break;
                             }
@@ -180,10 +231,32 @@ pub mod webhooks_handlers {
                         let mut current_idx = start_index;
                         while filtered_webhooks.len() < request_body.page_size && current_idx < total_count {
                             if let Some(webhook) = id_store.get(&time_index[current_idx]) {
-                                if request_body.filters.is_empty() || webhook.event.to_string().contains(&request_body.filters) {
-                                    filtered_webhooks.push(webhook.clone());
+                                // Check text filter first (cheaper operation)
+                                let passes_filter = request_body.filters.is_empty() || 
+                                                   webhook.event.to_string().contains(&request_body.filters);
+                                
+                                if passes_filter {
+                                    // Then check permissions for this specific webhook
+                                    let has_permission = if is_owner {
+                                        true // Owner can access everything
+                                    } else {
+                                        let resource_id = SystemResourceID::Record(
+                                            SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
+                                        );
+                                        
+                                        check_system_permissions(
+                                            resource_id,
+                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                        ).contains(&SystemPermissionType::View)
+                                    };
+                                    
+                                    if has_permission || has_table_permission {
+                                        viewed_count += 1;
+                                        filtered_webhooks.push(webhook.clone());
+                                    }
                                 }
                             }
+                            
                             current_idx += 1;
                             processed_count += 1;
                             if current_idx >= total_count {
@@ -224,7 +297,7 @@ pub mod webhooks_handlers {
                 webhook.cast_fe(&requester_api_key.user_id)
             }).collect(),
             page_size: filtered_webhooks.len(),
-            total: total_count,
+            total: total_accessible_count, // Use the count of accessible records
             direction: request_body.direction,
             cursor: next_cursor,
         };

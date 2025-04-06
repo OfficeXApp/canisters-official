@@ -66,7 +66,7 @@ pub struct EntireState {
     WEBHOOKS_BY_ID_HASHTABLE: HashMap<WebhookID, Webhook>,
     WEBHOOKS_BY_TIME_LIST: Vec<WebhookID>,
 }
-
+ 
 pub fn snapshot_entire_state() -> EntireState {
     EntireState {
         // About
@@ -246,7 +246,7 @@ pub fn apply_state_diff(diff_data: &DriveStateDiffString, expected_checksum: &St
 }
 
 pub fn apply_entire_state(state: EntireState) {
-    // About (ignores any state that doesnt actually change)
+    
     OWNER_ID.with(|store| {
         *store.borrow_mut() = state.OWNER_ID;
     });
@@ -505,4 +505,269 @@ pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<Dr
 struct StateDiffChecksumShape {
     timestamp_ns: u64,
     diff_string: DriveStateDiffString,
+}
+
+
+pub fn convert_state_to_serializable(state: &EntireState) -> HashMap<String, serde_json::Value> {
+    use serde_json::{json, Value};
+    
+    let mut result = HashMap::new();
+    
+    // About section
+    result.insert("DRIVE_ID".to_string(), json!(state.DRIVE_ID));
+    result.insert("CANISTER_ID".to_string(), json!(state.CANISTER_ID));
+    result.insert("OWNER_ID".to_string(), json!(state.OWNER_ID));
+    result.insert("URL_ENDPOINT".to_string(), json!(state.URL_ENDPOINT));
+    result.insert("DRIVE_STATE_TIMESTAMP_NS".to_string(), json!(state.DRIVE_STATE_TIMESTAMP_NS));
+    result.insert("SPAWN_REDEEM_CODE".to_string(), json!(state.SPAWN_REDEEM_CODE));
+    result.insert("SPAWN_NOTE".to_string(), json!(state.SPAWN_NOTE));
+    result.insert("NONCE_UUID_GENERATED".to_string(), json!(state.NONCE_UUID_GENERATED));
+    result.insert("RECENT_DEPLOYMENTS".to_string(), json!(state.RECENT_DEPLOYMENTS));
+    
+    // ExternalID mappings
+    let external_id_map: HashMap<String, Vec<String>> = state.EXTERNAL_ID_MAPPINGS
+        .iter()
+        .map(|(k, v)| (k.0.clone(), v.clone()))
+        .collect();
+    result.insert("EXTERNAL_ID_MAPPINGS".to_string(), json!(external_id_map));
+    
+    // UUID claimed (already has string keys)
+    result.insert("UUID_CLAIMED".to_string(), json!(state.UUID_CLAIMED));
+    
+    // API Keys
+    let api_keys_by_value: HashMap<String, String> = state.APIKEYS_BY_VALUE_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), v.0.clone()))
+        .collect();
+    result.insert("APIKEYS_BY_VALUE_HASHTABLE".to_string(), json!(api_keys_by_value));
+    
+    let api_keys_by_id: HashMap<String, Value> = state.APIKEYS_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("APIKEYS_BY_ID_HASHTABLE".to_string(), json!(api_keys_by_id));
+    
+    let users_apikeys: HashMap<String, Vec<String>> = state.USERS_APIKEYS_HASHTABLE
+        .iter()
+        .map(|(k, v)| {
+            let values: Vec<String> = v.iter().map(|id| id.0.clone()).collect();
+            (k.0.clone(), values)
+        })
+        .collect();
+    result.insert("USERS_APIKEYS_HASHTABLE".to_string(), json!(users_apikeys));
+    
+    // Contacts
+    let contacts_by_id: HashMap<String, Value> = state.CONTACTS_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("CONTACTS_BY_ID_HASHTABLE".to_string(), json!(contacts_by_id));
+    
+    let contacts_by_icp: HashMap<String, String> = state.CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.0.clone(), v.0.clone()))
+        .collect();
+    result.insert("CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE".to_string(), json!(contacts_by_icp));
+    
+    let contacts_by_time: Vec<String> = state.CONTACTS_BY_TIME_LIST
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    result.insert("CONTACTS_BY_TIME_LIST".to_string(), json!(contacts_by_time));
+    
+    let history_superswap: HashMap<String, String> = state.HISTORY_SUPERSWAP_USERID
+        .iter()
+        .map(|(k, v)| (k.0.clone(), v.0.clone()))
+        .collect();
+    result.insert("HISTORY_SUPERSWAP_USERID".to_string(), json!(history_superswap));
+    
+    // Directory
+    let folder_uuid_metadata: HashMap<String, Value> = state.folder_uuid_to_metadata
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("folder_uuid_to_metadata".to_string(), json!(folder_uuid_metadata));
+    
+    let file_uuid_metadata: HashMap<String, Value> = state.file_uuid_to_metadata
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("file_uuid_to_metadata".to_string(), json!(file_uuid_metadata));
+    
+    let full_folder_path: HashMap<String, String> = state.full_folder_path_to_uuid
+        .iter()
+        .map(|(k, v)| (k.0.clone(), v.0.clone()))
+        .collect();
+    result.insert("full_folder_path_to_uuid".to_string(), json!(full_folder_path));
+    
+    let full_file_path: HashMap<String, String> = state.full_file_path_to_uuid
+        .iter()
+        .map(|(k, v)| (k.0.clone(), v.0.clone()))
+        .collect();
+    result.insert("full_file_path_to_uuid".to_string(), json!(full_file_path));
+    
+    // Disks
+    let disks_by_id: HashMap<String, Value> = state.DISKS_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("DISKS_BY_ID_HASHTABLE".to_string(), json!(disks_by_id));
+    
+    let disks_by_time: Vec<String> = state.DISKS_BY_TIME_LIST
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    result.insert("DISKS_BY_TIME_LIST".to_string(), json!(disks_by_time));
+    
+    // Drives
+    let drives_by_id: HashMap<String, Value> = state.DRIVES_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("DRIVES_BY_ID_HASHTABLE".to_string(), json!(drives_by_id));
+    
+    let drives_by_time: Vec<String> = state.DRIVES_BY_TIME_LIST
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    result.insert("DRIVES_BY_TIME_LIST".to_string(), json!(drives_by_time));
+    
+    // Permissions
+    let dir_perms_by_id: HashMap<String, Value> = state.DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE".to_string(), json!(dir_perms_by_id));
+    
+    let dir_perms_by_resource: HashMap<String, Vec<String>> = state.DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE
+        .iter()
+        .map(|(k, v)| {
+            let resource_key = format!("resource:{}", k);
+            let perm_ids: Vec<String> = v.iter().map(|id| id.0.clone()).collect();
+            (resource_key, perm_ids)
+        })
+        .collect();
+    result.insert("DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE".to_string(), json!(dir_perms_by_resource));
+    
+    // This is the problematic one with enum keys
+    let dir_grantee_perms: HashMap<String, Vec<String>> = state.DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE
+        .iter()
+        .map(|(k, v)| {
+            let key_str = match k {
+                PermissionGranteeID::User(user_id) => format!("user:{}", user_id.0),
+                PermissionGranteeID::Group(group_id) => format!("group:{}", group_id.0),
+                PermissionGranteeID::Public => "public".to_string(),
+                PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_) => "placeholder".to_string(),
+            };
+            let perm_ids: Vec<String> = v.iter().map(|id| id.0.clone()).collect();
+            (key_str, perm_ids)
+        })
+        .collect();
+    result.insert("DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE".to_string(), json!(dir_grantee_perms));
+    
+    let dir_perms_by_time: Vec<String> = state.DIRECTORY_PERMISSIONS_BY_TIME_LIST
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    result.insert("DIRECTORY_PERMISSIONS_BY_TIME_LIST".to_string(), json!(dir_perms_by_time));
+    
+    // System permissions
+    let sys_perms_by_id: HashMap<String, Value> = state.SYSTEM_PERMISSIONS_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("SYSTEM_PERMISSIONS_BY_ID_HASHTABLE".to_string(), json!(sys_perms_by_id));
+    
+    let sys_perms_by_resource: HashMap<String, Vec<String>> = state.SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE
+        .iter()
+        .map(|(k, v)| {
+            let resource_key = match k {
+                SystemResourceID::Table(table) => format!("table:{:?}", table),
+                SystemResourceID::Record(record) => format!("record:{:?}", record),
+            };
+            let perm_ids: Vec<String> = v.iter().map(|id| id.0.clone()).collect();
+            (resource_key, perm_ids)
+        })
+        .collect();
+    result.insert("SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE".to_string(), json!(sys_perms_by_resource));
+    
+    // Another problematic one with enum keys
+    let sys_grantee_perms: HashMap<String, Vec<String>> = state.SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE
+        .iter()
+        .map(|(k, v)| {
+            let key_str = match k {
+                PermissionGranteeID::User(user_id) => format!("user:{}", user_id.0),
+                PermissionGranteeID::Group(group_id) => format!("group:{}", group_id.0),
+                PermissionGranteeID::Public => "public".to_string(),
+                PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(_) => "placeholder".to_string(),
+            };
+            let perm_ids: Vec<String> = v.iter().map(|id| id.0.clone()).collect();
+            (key_str, perm_ids)
+        })
+        .collect();
+    result.insert("SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE".to_string(), json!(sys_grantee_perms));
+    
+    let sys_perms_by_time: Vec<String> = state.SYSTEM_PERMISSIONS_BY_TIME_LIST
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    result.insert("SYSTEM_PERMISSIONS_BY_TIME_LIST".to_string(), json!(sys_perms_by_time));
+    
+    // Group invites
+    let invites_by_id: HashMap<String, Value> = state.INVITES_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("INVITES_BY_ID_HASHTABLE".to_string(), json!(invites_by_id));
+    
+    // Another problematic one with enum keys
+    let users_invites: HashMap<String, Vec<String>> = state.USERS_INVITES_LIST_HASHTABLE
+        .iter()
+        .map(|(k, v)| {
+            let key_str = match k {
+                GroupInviteeID::User(user_id) => format!("user:{}", user_id.0),
+                GroupInviteeID::PlaceholderGroupInvitee(_) | GroupInviteeID::Public => "public".to_string(),
+            };
+            let invite_ids: Vec<String> = v.iter().map(|id| id.0.clone()).collect();
+            (key_str, invite_ids)
+        })
+        .collect();
+    result.insert("USERS_INVITES_LIST_HASHTABLE".to_string(), json!(users_invites));
+    
+    // Groups
+    let groups_by_id: HashMap<String, Value> = state.GROUPS_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("GROUPS_BY_ID_HASHTABLE".to_string(), json!(groups_by_id));
+    
+    let groups_by_time: Vec<String> = state.GROUPS_BY_TIME_LIST
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    result.insert("GROUPS_BY_TIME_LIST".to_string(), json!(groups_by_time));
+    
+    // Webhooks
+    let webhooks_by_alt_index: HashMap<String, Vec<String>> = state.WEBHOOKS_BY_ALT_INDEX_HASHTABLE
+        .iter()
+        .map(|(k, v)| {
+            let webhook_ids: Vec<String> = v.iter().map(|id| id.0.clone()).collect();
+            (k.0.clone(), webhook_ids)
+        })
+        .collect();
+    result.insert("WEBHOOKS_BY_ALT_INDEX_HASHTABLE".to_string(), json!(webhooks_by_alt_index));
+    
+    let webhooks_by_id: HashMap<String, Value> = state.WEBHOOKS_BY_ID_HASHTABLE
+        .iter()
+        .map(|(k, v)| (k.0.clone(), json!(v)))
+        .collect();
+    result.insert("WEBHOOKS_BY_ID_HASHTABLE".to_string(), json!(webhooks_by_id));
+    
+    let webhooks_by_time: Vec<String> = state.WEBHOOKS_BY_TIME_LIST
+        .iter()
+        .map(|id| id.0.clone())
+        .collect();
+    result.insert("WEBHOOKS_BY_TIME_LIST".to_string(), json!(webhooks_by_time));
+    
+    result
 }

@@ -7,8 +7,11 @@
 
 ## Urgent Next
 
+- [🔵] Frontend hide unnecessary drives
+- [ ] Fix default admin canister uploading (ICP chunk upload)
 - [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route --> `[TODO]@"Return Disk Shortcuts"`
 - [🔵] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE`
+- [ ] Fix bug where /list gets called 4 times on load
 
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
@@ -33,6 +36,7 @@
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
 - [ ] Consider how to obfuscate ancestor folders in url route (eg. show folder_uuid in the url instead of full path)
+- [ ] Implement grouped permissions crud. currently owners give someone permission crud on ALL permissions system wide, but it is important to add groups to limit permission management. this can be in permission metadata
 
 ## Priority Backlog
 
@@ -144,3 +148,5 @@
 - [x] Implement logic for shortcuts (might be as easy as `FileRecord.shortcut_to = FileID` and `FolderRecord.shortcut_to = FolderID`)
 - [x] Directory filesharing with password option --> we implement this in a purely frontend manner by using password string to derive an ICP principal, and create a directory permission permitting access to that principal. when file/folder receiver opens link, their browser client uses password to derive same account to sign crypotgraphic auth token.
 - [x] Consider whether we need a global index on web2 for all containers in world history (that way we can easily also catch canisters on https://api.officex.app/v1/{any_drive_id}/route) --> no we should not have any centralized point where OfficeX foundation is responsible for REST API forwarding
+- [x] Auto-add contacts to a group called "Everyone" when they are added as a contact, and let this "Everyone" group have view access on all tables except permissions
+- [x] Refactor permissions check so that check_system_resource_permissions also checks if user has table permission or if user is part of a group that has table permission

@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_api_key, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_superswap_user_webhook, get_superswap_user_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::state::state::GROUPS_BY_ID_HASHTABLE, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, RedeemContactResponse, RedeemContactResponseBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_api_key, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_superswap_user_webhook, get_superswap_user_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInvite, GroupInviteID, GroupInviteeID, GroupRole}}, groups::state::state::{DEFAULT_EVERYONE_GROUP, GROUPS_BY_ID_HASHTABLE}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, RedeemContactResponse, RedeemContactResponseBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -89,23 +89,25 @@ pub mod contacts_handlers {
             None => return create_auth_error_response(),
         };
         
-        // Only owner can access webhooks
+        // Check if the requester is the owner (who has full access)
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         
-        // Check table-level permissions if not owner
-        if !is_owner {
+        // Check table-level permissions
+        let has_table_permission = if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Contacts);
+            debug_log!("Checking permissions for resource: {:?} for user {}", resource_id, requester_api_key.user_id);
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
-            
-            if !permissions.contains(&SystemPermissionType::View) {
-                return create_auth_error_response();
-            }
-        }
-    
-        // let prestate = snapshot_prestate();
+            debug_log!("Permissions: {:?}", permissions);
+            debug_log!("Matching against {:?}", SystemPermissionType::View);
+            permissions.contains(&SystemPermissionType::View)
+        } else {
+            true
+        };
+
+        debug_log!("has_table_permission: {}", has_table_permission);
     
         // Parse request body
         let body = request.body();
@@ -167,10 +169,17 @@ pub mod contacts_handlers {
             }
         };
     
-        // Get contacts with pagination and filtering
+        // Get contacts with pagination and filtering, applying permission checks
         let mut filtered_contacts = Vec::new();
         let mut processed_count = 0;
         let mut end_index = start_index;  // Track where we ended for cursor calculation
+        let mut total_count_to_return = 0; // Will use this for the response
+    
+        // If user is owner or has table access, they get the actual total count
+        // Otherwise, we'll only report the batch size + 1 (if there are more)
+        if is_owner || has_table_permission {
+            total_count_to_return = total_count;
+        }
     
         CONTACTS_BY_TIME_LIST.with(|time_index| {
             let time_index = time_index.borrow();
@@ -183,7 +192,16 @@ pub mod contacts_handlers {
                         let mut current_idx = start_index;
                         while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
                             if let Some(contact) = id_store.get(&time_index[current_idx]) {
-                                if request_body.filters.is_empty() {
+                                let can_view = is_owner || has_table_permission || {
+                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(contact.id.to_string()));
+                                    let permissions = check_system_permissions(
+                                        resource_id,
+                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                    );
+                                    permissions.contains(&SystemPermissionType::View)
+                                };
+    
+                                if can_view {
                                     filtered_contacts.push(contact.clone());
                                 }
                             }
@@ -200,7 +218,16 @@ pub mod contacts_handlers {
                         let mut current_idx = start_index;
                         while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
                             if let Some(contact) = id_store.get(&time_index[current_idx]) {
-                                if request_body.filters.is_empty() {
+                                let can_view = is_owner || has_table_permission || {
+                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(contact.id.to_string()));
+                                    let permissions = check_system_permissions(
+                                        resource_id,
+                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                    );
+                                    permissions.contains(&SystemPermissionType::View)
+                                };
+    
+                                if can_view {
                                     filtered_contacts.push(contact.clone());
                                 }
                             }
@@ -238,24 +265,29 @@ pub mod contacts_handlers {
             None  // No more results available
         };
     
+        // Determine the total count for the response
+        // If the user doesn't have full access and we haven't calculated the total yet,
+        // set it to batch size + 1 if there are more results available
+        if !is_owner && !has_table_permission {
+            if next_cursor.is_some() {
+                // If there are more results (next cursor exists), return batch size + 1
+                total_count_to_return = filtered_contacts.len() + 1;
+            } else {
+                // Otherwise, just return the batch size
+                total_count_to_return = filtered_contacts.len();
+            }
+        }
+    
         // Create response
         let response_data = ListContactsResponseData {
-            // filtered, cast_fe contacts
             items: filtered_contacts.clone().into_iter().map(|contact| {
                 contact.cast_fe(&requester_api_key.user_id)
             }).collect(),
             page_size: filtered_contacts.len(),
-            total: total_count,
+            total: total_count_to_return,
             direction: request_body.direction,
             cursor: next_cursor,
         };
-    
-        // snapshot_poststate(prestate, Some(
-        //     format!(
-        //         "{}: List Contacts", 
-        //         requester_api_key.user_id
-        //     ).to_string())   
-        // );
     
         create_response(
             StatusCode::OK,
@@ -356,6 +388,59 @@ pub mod contacts_handlers {
         update_external_id_mapping(None, contact.external_id.clone(), Some(contact_id.to_string()));
 
         mark_claimed_uuid(&contact_id.to_string());
+
+        // Add the contact to the default "Everyone" group if it exists
+        let default_group_id = DEFAULT_EVERYONE_GROUP.with(|group_id| group_id.borrow().clone());
+        let owner_id = OWNER_ID.with(|owner_id| owner_id.borrow().clone());
+        
+        // Check if the default group still exists
+        let group_exists = GROUPS_BY_ID_HASHTABLE.with(|groups| {
+            groups.borrow().contains_key(&default_group_id)
+        });
+        
+        if group_exists {
+            // Create a new group invite for the contact
+            let invite_id = GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite));
+            let current_time = ic_cdk::api::time() / 1_000_000;
+            
+            let group_invite = GroupInvite {
+                id: invite_id.clone(),
+                group_id: default_group_id.clone(),
+                inviter_id: owner_id.clone(),
+                invitee_id: GroupInviteeID::User(contact_id.clone()),
+                role: GroupRole::Member,
+                note: format!("Auto-added to default group upon contact creation"),
+                active_from: current_time,
+                expires_at: -1, // Never expires
+                created_at: current_time,
+                last_modified_at: current_time,
+                redeem_code: None,
+                from_placeholder_invitee: None,
+                labels: Vec::new(),
+                external_id: None,
+                external_payload: None,
+            };
+            
+            // Store the invite in hashtable
+            INVITES_BY_ID_HASHTABLE.with(|invites| {
+                invites.borrow_mut().insert(invite_id.clone(), group_invite.clone());
+            });
+            
+            // Add to user's invites list
+            USERS_INVITES_LIST_HASHTABLE.with(|users_invites| {
+                let mut users_invites_ref = users_invites.borrow_mut();
+                let user_invites = users_invites_ref.entry(GroupInviteeID::User(contact_id.clone())).or_insert_with(Vec::new);
+                user_invites.push(invite_id.clone());
+            });
+            
+            // Update the group's member_invites list
+            GROUPS_BY_ID_HASHTABLE.with(|groups| {
+                if let Some(group) = groups.borrow_mut().get_mut(&default_group_id) {
+                    group.member_invites.push(invite_id);
+                    group.last_modified_at = current_time;
+                }
+            });
+        }
 
         snapshot_poststate(prestate, Some(
             format!(

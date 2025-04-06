@@ -16,7 +16,19 @@ Dev single line restart:
 $ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 ```
 
-or standalone factory in p
+or standalone factory in dev:
+
+```sh
+$ dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+```
+
+or upgrade specific canister in dev:
+
+```sh
+$ dfx build canisters-official-backend && dfx canister install bw4dl-smaaa-aaaaa-qaacq-cai --mode upgrade --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" --wasm target/wasm32-unknown-unknown/release/canisters_official_backend.wasm
+```
+
+or standalone factory in prod:
 
 ```sh
 $ dfx canister create canisters-factory-backend && dfx build && dfx deploy --network ic canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
