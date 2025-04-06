@@ -7,6 +7,9 @@
 
 ## Urgent Next
 
+- [🔵] Auto-add contacts to a group called "Everyone" when they are added as a contact, and let this "Everyone" group have view access on all tables except permissions
+- [🔵] Refactor permissions check so that check_system_resource_permissions also checks if user has table permission or if user is part of a group that has table permission
+
 - [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route --> `[TODO]@"Return Disk Shortcuts"`
 - [🔵] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE`
 
@@ -33,6 +36,7 @@
 - [ ] Consider optimistic frontend UI (we should probably use Tanstack Query for React as it handles it for us)
 - [ ] Refactor frontend (or consider how to enable AI rest calls)
 - [ ] Consider how to obfuscate ancestor folders in url route (eg. show folder_uuid in the url instead of full path)
+- [ ] Implement grouped permissions crud. currently owners give someone permission crud on ALL permissions system wide, but it is important to add groups to limit permission management. this can be in permission metadata
 
 ## Priority Backlog
 

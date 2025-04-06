@@ -99,31 +99,36 @@ pub mod groups_handlers {
     
         debug_log!("Has table permission: {}", has_table_permission);
     
-        // Get all groups and filter based on permissions
-        let filtered_groups = GROUPS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow()
-                .values()
-                .filter(|group| {
-                    // Check if user has permission to view this group
-                    let can_view = is_owner || has_table_permission || {
-                        // Check if user is a member of this group
-                        let is_member = is_user_in_group(&requester_api_key.user_id, &group.id);
-                        
-                        // Check if user has specific permission for this group
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group.id.0.clone()));
-                        let permissions = check_system_permissions(
-                            resource_id,
-                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                        );
-                        
-                        is_member || permissions.contains(&SystemPermissionType::View)
-                    };
-                    
-                    can_view
-                })
-                .cloned()
-                .collect::<Vec<_>>()
+        // Get all group IDs in time order
+        let all_group_ids = GROUPS_BY_TIME_LIST.with(|store| {
+            store.borrow().clone()
         });
+    
+        // Filter groups based on permissions and membership
+        let mut filtered_groups = Vec::new();
+        for group_id in &all_group_ids {
+            let group_opt = GROUPS_BY_ID_HASHTABLE.with(|groups| {
+                groups.borrow().get(group_id).cloned()
+            });
+            
+            if let Some(group) = group_opt {
+                // Check if user has permission to view this group
+                let is_member = is_user_on_group(&requester_api_key.user_id, &group.id).await;
+                
+                // Check if user has specific permission for this group
+                let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group.id.0.clone()));
+                let permissions = check_system_permissions(
+                    resource_id,
+                    PermissionGranteeID::User(requester_api_key.user_id.clone())
+                );
+                
+                let can_view = is_owner || has_table_permission || is_member || permissions.contains(&SystemPermissionType::View);
+                
+                if can_view {
+                    filtered_groups.push(group);
+                }
+            }
+        }
     
         // If there are no groups the user can access, return early
         if filtered_groups.is_empty() {
@@ -139,9 +144,8 @@ pub mod groups_handlers {
             );
         }
     
-        // Sort groups by creation time
-        let mut sorted_groups = filtered_groups.clone();
-        sorted_groups.sort_by(|a, b| {
+        // Sort groups according to requested direction
+        filtered_groups.sort_by(|a, b| {
             match query.direction {
                 SortDirection::Asc => a.created_at.cmp(&b.created_at),
                 SortDirection::Desc => b.created_at.cmp(&a.created_at),
@@ -151,7 +155,7 @@ pub mod groups_handlers {
         // Find the starting position based on cursor
         let start_position = if let Some(cursor_value) = &query.cursor {
             // Find the group with the matching ID
-            sorted_groups.iter()
+            filtered_groups.iter()
                 .position(|group| group.id.0 == *cursor_value)
                 .map(|pos| {
                     match query.direction {
@@ -167,8 +171,8 @@ pub mod groups_handlers {
         };
     
         // Get paginated groups
-        let end_position = (start_position + query.page_size).min(sorted_groups.len());
-        let paginated_groups = sorted_groups
+        let end_position = (start_position + query.page_size).min(filtered_groups.len());
+        let paginated_groups = filtered_groups
             .iter()
             .skip(start_position)
             .take(query.page_size)
@@ -176,7 +180,7 @@ pub mod groups_handlers {
             .collect::<Vec<_>>();
     
         // Calculate next cursor
-        let next_cursor = if end_position < sorted_groups.len() && !paginated_groups.is_empty() {
+        let next_cursor = if end_position < filtered_groups.len() && !paginated_groups.is_empty() {
             // If there are more groups to fetch, provide the ID of the last group in this page
             paginated_groups.last().map(|group| group.id.0.clone())
         } else {
@@ -187,7 +191,7 @@ pub mod groups_handlers {
         // Calculate total count based on permission level
         let total_count_to_return = if is_owner || has_table_permission {
             // Full access users get the actual total count
-            sorted_groups.len()
+            filtered_groups.len()
         } else {
             // Limited access users get current batch size + 1 if there's more
             if next_cursor.is_some() {

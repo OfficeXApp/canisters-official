@@ -1,7 +1,7 @@
 // src/lib.rs
 use ic_cdk::*;
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use core::{api::uuid::format_user_id, state::{api_keys::state::state::init_default_admin_apikey, contacts::state::state::init_default_owner_contact, disks::state::state::init_default_disks, drives::state::state::init_self_drive}, types::UserID};
+use core::{api::uuid::format_user_id, state::{api_keys::state::state::init_default_admin_apikey, contacts::state::state::init_default_owner_contact, disks::state::state::init_default_disks, drives::state::state::init_self_drive, groups::state::state::init_default_group}, types::UserID};
 use std::{cell::RefCell, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use bip39::{Mnemonic, Language};
@@ -88,6 +88,7 @@ fn initialize_canister(args: Option<InitArgs>) {
                 init_default_admin_apikey();
                 init_default_owner_contact(init_args.owner_name);
                 init_default_disks();
+                init_default_group();
             },
             Err(validation_error) => {
                 // Log and trap (abort) on invalid ICP principal
