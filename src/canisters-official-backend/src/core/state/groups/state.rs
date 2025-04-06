@@ -187,7 +187,7 @@ pub mod state {
     }
 
     pub async fn is_user_on_group(user_id: &UserID, group_id: &GroupID) -> bool {
-        let group_opt = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned());
+        let group_opt: Option<Group> = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned());
         
         if let Some(group) = group_opt {
             // If it's our own drive's group, use local validation

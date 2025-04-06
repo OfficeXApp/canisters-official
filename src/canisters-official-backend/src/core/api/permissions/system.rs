@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}, groups::types::GroupID}, types::UserID};
+use crate::core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, groups::{state::state::{is_user_on_local_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::GroupID}, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}}, types::UserID};
 
 use super::directory::parse_permission_grantee_id;
 
@@ -66,13 +66,42 @@ pub fn check_system_permissions(
     resource_id: SystemResourceID,
     grantee_id: PermissionGranteeID,
 ) -> Vec<SystemPermissionType> {
-    // Then check permissions for each resource and combine them
+    // Get a mutable HashSet to collect permissions
     let mut all_permissions = HashSet::new();
+    // First, check direct permissions for the grantee
     let resource_permissions = check_system_resource_permissions(
         &resource_id, 
         &grantee_id,
     );
     all_permissions.extend(resource_permissions);
+
+    // Always check public permissions (for any grantee type)
+    let public_permissions = check_system_resource_permissions(
+        &resource_id,
+        &PermissionGranteeID::Public,
+    );
+    all_permissions.extend(public_permissions);
+
+
+    // If the grantee is a user, also check group permissions
+    if let PermissionGranteeID::User(user_id) = &grantee_id {
+        // Check all groups the user is a member of (using GROUPS_BY_TIME_LIST)
+        crate::core::state::groups::state::state::GROUPS_BY_TIME_LIST.with(|group_list| {
+            for group_id in group_list.borrow().iter() {
+                // Use the existing is_user_on_local_group function
+                if crate::core::state::groups::state::state::is_user_on_local_group(user_id, &crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned().unwrap())) {
+                    // Add this group's permissions
+                    let group_permissions = check_system_resource_permissions(
+                        &resource_id,
+                        &PermissionGranteeID::Group(group_id.clone()),
+                    );
+                    all_permissions.extend(group_permissions);
+                }
+            }
+        });
+    }
+    
+    // Convert the HashSet to a Vec and return
     all_permissions.into_iter().collect()
 }
 
@@ -179,9 +208,52 @@ pub fn check_permissions_table_access(
     permissions.contains(&required_permission)
 }
 
-
-
 pub fn check_system_resource_permissions_labels(
+    resource_id: &SystemResourceID,
+    grantee_id: &PermissionGranteeID,
+    label_string_value: &str,
+) -> HashSet<SystemPermissionType> {
+    let mut permissions_set = HashSet::new();
+    
+    // Get direct permissions
+    let direct_permissions = check_system_resource_permissions_labels_internal(
+        resource_id,
+        grantee_id,
+        label_string_value,
+    );
+    permissions_set.extend(direct_permissions);
+
+    // Always check public permissions
+    permissions_set.extend(check_system_resource_permissions_labels_internal(
+        resource_id,
+        &PermissionGranteeID::Public,
+        label_string_value,
+    ));
+    
+    // If the grantee is a user, also check group permissions
+    if let PermissionGranteeID::User(user_id) = grantee_id {
+        // Check all groups the user is a member of
+        GROUPS_BY_TIME_LIST.with(|group_list| {
+            for group_id in group_list.borrow().iter() {
+                // Use the existing is_user_on_local_group function
+                if is_user_on_local_group(user_id, &GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned().unwrap())) {
+                    // Add this group's permissions
+                    let group_permissions = check_system_resource_permissions_labels_internal(
+                        resource_id,
+                        &PermissionGranteeID::Group(group_id.clone()),
+                        label_string_value,
+                    );
+                    permissions_set.extend(group_permissions);
+                }
+            }
+        });
+    }
+    
+    permissions_set
+}
+
+
+fn check_system_resource_permissions_labels_internal(
     resource_id: &SystemResourceID,
     grantee_id: &PermissionGranteeID,
     label_string_value: &str,
