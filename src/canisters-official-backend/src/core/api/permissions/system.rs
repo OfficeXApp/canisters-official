@@ -149,10 +149,7 @@ fn check_system_resource_permissions(
                         };
 
                         if applies {
-                            // permissions_set.extend(permission.permission_types.iter().cloned());
-
-                            // check permission metadata, handled differently for different types of permissions
-
+                            permissions_set.extend(permission.permission_types.iter().cloned());
                         }
                     }
                 }

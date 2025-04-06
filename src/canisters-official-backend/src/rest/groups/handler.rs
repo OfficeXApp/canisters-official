@@ -3,7 +3,7 @@
 
 pub mod groups_handlers {
     use crate::{
-        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInvite}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, groups::types::{CreateGroupRequestBody, CreateGroupResponse, DeleteGroupRequestBody, DeleteGroupResponse, DeletedGroupData, ErrorResponse, GetGroupResponse, ListGroupsRequestBody, ListGroupsResponse, ListGroupsResponseData, UpdateGroupRequestBody, UpdateGroupResponse, ValidateGroupRequestBody, ValidateGroupResponse, ValidateGroupResponseData}, types::ApiResponse, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::is_user_in_group, permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInvite}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, groups::types::{CreateGroupRequestBody, CreateGroupResponse, DeleteGroupRequestBody, DeleteGroupResponse, DeletedGroupData, ErrorResponse, GetGroupResponse, ListGroupsRequestBody, ListGroupsResponse, ListGroupsResponseData, UpdateGroupRequestBody, UpdateGroupResponse, ValidateGroupRequestBody, ValidateGroupResponse, ValidateGroupResponseData}, types::ApiResponse, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -88,30 +88,45 @@ pub mod groups_handlers {
             None => return create_auth_error_response(),
         };
     
-        // Only owner can list groups for now
+        // Check if user is the system owner
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        
         // Check table-level permissions for Groups table
-        let permissions = check_system_permissions(
+        let has_table_permission = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
-        );
+        ).contains(&SystemPermissionType::View);
     
-        debug_log!("Permissions: {:?}", permissions);
+        debug_log!("Has table permission: {}", has_table_permission);
     
-        if !permissions.contains(&SystemPermissionType::View) && !is_owner {
-            return create_auth_error_response();
-        }
-    
-        // Get all groups
-        let all_groups = GROUPS_BY_ID_HASHTABLE.with(|store| {
+        // Get all groups and filter based on permissions
+        let filtered_groups = GROUPS_BY_ID_HASHTABLE.with(|store| {
             store.borrow()
                 .values()
+                .filter(|group| {
+                    // Check if user has permission to view this group
+                    let can_view = is_owner || has_table_permission || {
+                        // Check if user is a member of this group
+                        let is_member = is_user_in_group(&requester_api_key.user_id, &group.id);
+                        
+                        // Check if user has specific permission for this group
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group.id.0.clone()));
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                        );
+                        
+                        is_member || permissions.contains(&SystemPermissionType::View)
+                    };
+                    
+                    can_view
+                })
                 .cloned()
                 .collect::<Vec<_>>()
         });
     
-        // If there are no groups, return early
-        if all_groups.is_empty() {
+        // If there are no groups the user can access, return early
+        if filtered_groups.is_empty() {
             return create_response(
                 StatusCode::OK,
                 ListGroupsResponse::ok(&ListGroupsResponseData {
@@ -124,9 +139,8 @@ pub mod groups_handlers {
             );
         }
     
-        // Sort groups by creation time (assuming groups have a created_at field)
-        // If not, you might want to sort by ID or another relevant field
-        let mut sorted_groups = all_groups.clone();
+        // Sort groups by creation time
+        let mut sorted_groups = filtered_groups.clone();
         sorted_groups.sort_by(|a, b| {
             match query.direction {
                 SortDirection::Asc => a.created_at.cmp(&b.created_at),
@@ -153,7 +167,7 @@ pub mod groups_handlers {
         };
     
         // Get paginated groups
-        let end_position = start_position + query.page_size;
+        let end_position = (start_position + query.page_size).min(sorted_groups.len());
         let paginated_groups = sorted_groups
             .iter()
             .skip(start_position)
@@ -170,12 +184,25 @@ pub mod groups_handlers {
             None
         };
     
+        // Calculate total count based on permission level
+        let total_count_to_return = if is_owner || has_table_permission {
+            // Full access users get the actual total count
+            sorted_groups.len()
+        } else {
+            // Limited access users get current batch size + 1 if there's more
+            if next_cursor.is_some() {
+                paginated_groups.len() + 1
+            } else {
+                paginated_groups.len()
+            }
+        };
+    
         let response_data = ListGroupsResponseData {
             items: paginated_groups.into_iter().map(|group| {
                 group.cast_fe(&requester_api_key.user_id)
             }).collect(),
             page_size: query.page_size,
-            total: sorted_groups.len(),
+            total: total_count_to_return,
             direction: query.direction,
             cursor: next_cursor,
         };

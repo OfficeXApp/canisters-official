@@ -129,6 +129,7 @@ pub mod labels_handlers {
             None => return create_auth_error_response(),
         };
     
+        // Check if the requester is the owner
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
     
         // Parse request body
@@ -150,21 +151,31 @@ pub mod labels_handlers {
     
         let prefix_filter = request_body.filters.prefix.as_deref().unwrap_or("");
         
-        // If not owner, check early if user has permission to search with the given prefix
-        if !is_owner {
+        // Check if user has table-level permission with the given prefix
+        let has_table_permission = is_owner || {
             let table_permissions = check_system_resource_permissions_labels(
                 &SystemResourceID::Table(SystemTableEnum::Labels),
                 &PermissionGranteeID::User(requester_api_key.user_id.clone()),
                 prefix_filter
             );
             
-            // Throw early error if user doesn't have permission to search with this prefix
-            if !table_permissions.contains(&SystemPermissionType::View) {
-                return create_response(
-                    StatusCode::FORBIDDEN,
-                    ErrorResponse::err(403, format!("You don't have permission to search labels with prefix '{}'", prefix_filter)).encode()
-                );
-            }
+            table_permissions.contains(&SystemPermissionType::View)
+        };
+
+        debug_log!("has_table_permission: {}", has_table_permission);
+    
+        // If user doesn't have table-level permissions for this prefix, return early
+        if !has_table_permission {
+            return create_response(
+                StatusCode::OK,
+                ListLabelsResponse::ok(&ListLabelsResponseData {
+                    items: Vec::new(),
+                    page_size: 0,
+                    total: 0,
+                    direction: request_body.direction,
+                    cursor: None,
+                }).encode()
+            )
         }
     
         // Parse cursor if provided
@@ -180,7 +191,7 @@ pub mod labels_handlers {
             None
         };
     
-        // First collect all labels that match the filter
+        // First collect all labels that match the filter and permissions
         let mut all_filtered_labels = Vec::new();
         
         LABELS_BY_TIME_LIST.with(|time_index| {
@@ -190,9 +201,9 @@ pub mod labels_handlers {
                 
                 for idx in 0..time_index.len() {
                     if let Some(label) = id_store.get(&time_index[idx]) {
-                        // Check record-level permissions for non-owners
-                        let has_access = is_owner || {
-                            // For non-owners, check record-level permissions
+                        // Check resource-level permissions
+                        let can_view = is_owner || has_table_permission || {
+                            // Check specific permissions for this label
                             let label_id = &label.id;
                             let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Label(label_id.0.clone()));
                             let permissions = check_system_resource_permissions_labels(
@@ -200,13 +211,11 @@ pub mod labels_handlers {
                                 &PermissionGranteeID::User(requester_api_key.user_id.clone()),
                                 &label.value.0
                             );
-                            // We already checked table-level permissions earlier,
-                            // so we only need to check if there are any record-specific
-                            // permissions that explicitly deny access
-                            permissions.is_empty() || permissions.contains(&SystemPermissionType::View)
+                            
+                            permissions.contains(&SystemPermissionType::View)
                         };
                         
-                        if has_access {
+                        if can_view {
                             // Apply prefix filter if provided
                             let meets_prefix_filter = if let Some(prefix) = &request_body.filters.prefix {
                                 label.value.0.to_lowercase().starts_with(&prefix.to_lowercase())
@@ -280,6 +289,19 @@ pub mod labels_handlers {
             None
         };
         
+        // Calculate total count to return based on permission level
+        let total_count_to_return = if is_owner || has_table_permission {
+            // Full access users get the actual total count
+            total_filtered_count
+        } else {
+            // Limited access users get the current batch size + 1 if there's more
+            if next_cursor.is_some() {
+                paginated_labels.len() + 1
+            } else {
+                paginated_labels.len()
+            }
+        };
+        
         create_response(
             StatusCode::OK,
             ListLabelsResponse::ok(&ListLabelsResponseData {
@@ -287,7 +309,7 @@ pub mod labels_handlers {
                     label.cast_fe(&requester_api_key.user_id)
                 }).collect(),
                 page_size: page_size,
-                total: total_filtered_count,
+                total: total_count_to_return,
                 direction: request_body.direction,
                 cursor: next_cursor,
             }).encode()

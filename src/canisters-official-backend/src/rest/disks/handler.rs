@@ -74,20 +74,23 @@ pub mod disks_handlers {
             None => return create_auth_error_response(),
         };
     
+        // Check if the requester is the owner
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
     
-        // Check table permissions if not owner
-        if !is_owner {
+        // Check table-level permissions if not owner
+        let has_table_permission = if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Disks);
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
             
-            if !permissions.contains(&SystemPermissionType::View) {
-                return create_auth_error_response();
-            }
-        }
+            permissions.contains(&SystemPermissionType::View)
+        } else {
+            true
+        };
+
+        debug_log!("has_table_permission: {}", has_table_permission);
     
         // Parse request body
         let body = request.body();
@@ -147,10 +150,16 @@ pub mod disks_handlers {
             }
         };
     
-        // Get disks with pagination and filtering
+        // Get disks with pagination and filtering, applying permission checks
         let mut filtered_disks = Vec::new();
         let mut processed_count = 0;
         let mut end_index = start_index;  // Track where we ended for cursor calculation
+        let mut total_count_to_return = 0; // Will use this for the response
+    
+        // If user is owner or has table access, they get the actual total count
+        if is_owner || has_table_permission {
+            total_count_to_return = total_count;
+        }
     
         DISKS_BY_TIME_LIST.with(|time_index| {
             let time_index = time_index.borrow();
@@ -162,7 +171,17 @@ pub mod disks_handlers {
                         let mut current_idx = start_index;
                         while filtered_disks.len() < request_body.page_size && current_idx < total_count {
                             if let Some(disk) = id_store.get(&time_index[current_idx]) {
-                                if request_body.filters.is_empty() {
+                                // Check if user has permission to view this specific disk
+                                let can_view = is_owner || has_table_permission || {
+                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk.id.to_string()));
+                                    let permissions = check_system_permissions(
+                                        resource_id,
+                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                    );
+                                    permissions.contains(&SystemPermissionType::View)
+                                };
+    
+                                if can_view && request_body.filters.is_empty() {
                                     filtered_disks.push(disk.clone());
                                 }
                             }
@@ -178,7 +197,17 @@ pub mod disks_handlers {
                         let mut current_idx = start_index;
                         while filtered_disks.len() < request_body.page_size && current_idx < total_count {
                             if let Some(disk) = id_store.get(&time_index[current_idx]) {
-                                if request_body.filters.is_empty() {
+                                // Check if user has permission to view this specific disk
+                                let can_view = is_owner || has_table_permission || {
+                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk.id.to_string()));
+                                    let permissions = check_system_permissions(
+                                        resource_id,
+                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                    );
+                                    permissions.contains(&SystemPermissionType::View)
+                                };
+    
+                                if can_view && request_body.filters.is_empty() {
                                     filtered_disks.push(disk.clone());
                                 }
                             }
@@ -216,6 +245,19 @@ pub mod disks_handlers {
             None  // No more results available
         };
     
+        // Determine the total count for the response
+        // If the user doesn't have full access and we haven't calculated the total yet,
+        // set it to batch size + 1 if there are more results available
+        if !is_owner && !has_table_permission {
+            if next_cursor.is_some() {
+                // If there are more results (next cursor exists), return batch size + 1
+                total_count_to_return = filtered_disks.len() + 1;
+            } else {
+                // Otherwise, just return the batch size
+                total_count_to_return = filtered_disks.len();
+            }
+        }
+    
         create_response(
             StatusCode::OK,
             ListDisksResponse::ok(&ListDisksResponseData {
@@ -223,7 +265,7 @@ pub mod disks_handlers {
                     disk.cast_fe(&requester_api_key.user_id)
                 }).collect(),
                 page_size: filtered_disks.len(),
-                total: total_count,
+                total: total_count_to_return,
                 direction: request_body.direction,
                 cursor: next_cursor,
             }).encode()
