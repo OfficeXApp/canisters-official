@@ -79,8 +79,7 @@ pub struct ListWebhooksRequestBody {
     pub page_size: usize,
     #[serde(default)]
     pub direction: SortDirection,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub cursor: Option<String>,
 }
 
 fn default_page_size() -> usize {
@@ -106,13 +105,10 @@ impl ListWebhooksRequestBody {
         }
 
         // Validate cursor strings if present
-        if let Some(cursor) = &self.cursor_up {
-            validate_short_string(cursor, "cursor_up")?;
+        if let Some(cursor) = &self.cursor {
+            validate_short_string(cursor, "cursor")?;
         }
 
-        if let Some(cursor) = &self.cursor_down {
-            validate_short_string(cursor, "cursor_down")?;
-        }
 
         Ok(())
     }
@@ -123,8 +119,8 @@ pub struct ListWebhooksResponseData {
     pub items: Vec<WebhookFE>,
     pub page_size: usize,
     pub total: usize,
-    pub cursor_up: Option<String>,
-    pub cursor_down: Option<String>,
+    pub direction: SortDirection,
+    pub cursor: Option<String>,
 }
 
 

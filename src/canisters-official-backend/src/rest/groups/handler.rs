@@ -3,7 +3,7 @@
 
 pub mod groups_handlers {
     use crate::{
-        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInvite}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, groups::types::{CreateGroupRequestBody, CreateGroupResponse, DeleteGroupRequestBody, DeleteGroupResponse, DeletedGroupData, ErrorResponse, GetGroupResponse, ListGroupsRequestBody, ListGroupsResponseData, UpdateGroupRequestBody, UpdateGroupResponse, ValidateGroupRequestBody, ValidateGroupResponse, ValidateGroupResponseData}, types::ApiResponse}
+        core::{api::{permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInvite}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, groups::types::{CreateGroupRequestBody, CreateGroupResponse, DeleteGroupRequestBody, DeleteGroupResponse, DeletedGroupData, ErrorResponse, GetGroupResponse, ListGroupsRequestBody, ListGroupsResponse, ListGroupsResponseData, UpdateGroupRequestBody, UpdateGroupResponse, ValidateGroupRequestBody, ValidateGroupResponse, ValidateGroupResponseData}, types::ApiResponse, webhooks::types::SortDirection}
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -59,10 +59,11 @@ pub mod groups_handlers {
     }
 
 
+    
     pub async fn list_groups_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
-        
+    
         debug_log!("Listing groups...");
-
+    
         let query: ListGroupsRequestBody = match serde_json::from_slice(request.body()) {
             Ok(q) => q,
             Err(_) => return create_response(
@@ -70,7 +71,7 @@ pub mod groups_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
         if let Err(validation_err) = query.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,
@@ -80,13 +81,13 @@ pub mod groups_handlers {
                 ).encode()
             );
         }
-
+    
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-
+    
         // Only owner can list groups for now
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         // Check table-level permissions for Groups table
@@ -94,36 +95,96 @@ pub mod groups_handlers {
             SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
-
+    
         debug_log!("Permissions: {:?}", permissions);
-
+    
         if !permissions.contains(&SystemPermissionType::View) && !is_owner {
             return create_auth_error_response();
         }
-
-        let groups = GROUPS_BY_ID_HASHTABLE.with(|store| {
+    
+        // Get all groups
+        let all_groups = GROUPS_BY_ID_HASHTABLE.with(|store| {
             store.borrow()
                 .values()
                 .cloned()
                 .collect::<Vec<_>>()
         });
-
+    
+        // If there are no groups, return early
+        if all_groups.is_empty() {
+            return create_response(
+                StatusCode::OK,
+                ListGroupsResponse::ok(&ListGroupsResponseData {
+                    items: vec![],
+                    page_size: 0,
+                    total: 0,
+                    direction: query.direction,
+                    cursor: None,
+                }).encode()
+            );
+        }
+    
+        // Sort groups by creation time (assuming groups have a created_at field)
+        // If not, you might want to sort by ID or another relevant field
+        let mut sorted_groups = all_groups.clone();
+        sorted_groups.sort_by(|a, b| {
+            match query.direction {
+                SortDirection::Asc => a.created_at.cmp(&b.created_at),
+                SortDirection::Desc => b.created_at.cmp(&a.created_at),
+            }
+        });
+    
+        // Find the starting position based on cursor
+        let start_position = if let Some(cursor_value) = &query.cursor {
+            // Find the group with the matching ID
+            sorted_groups.iter()
+                .position(|group| group.id.0 == *cursor_value)
+                .map(|pos| {
+                    match query.direction {
+                        SortDirection::Asc => pos + 1, // Start after cursor in ascending order
+                        SortDirection::Desc => {
+                            if pos > 0 { pos - 1 } else { 0 } // Start before cursor in descending order
+                        }
+                    }
+                })
+                .unwrap_or(0) // If cursor not found, start from beginning
+        } else {
+            0 // No cursor, start from beginning
+        };
+    
+        // Get paginated groups
+        let end_position = start_position + query.page_size;
+        let paginated_groups = sorted_groups
+            .iter()
+            .skip(start_position)
+            .take(query.page_size)
+            .cloned()
+            .collect::<Vec<_>>();
+    
+        // Calculate next cursor
+        let next_cursor = if end_position < sorted_groups.len() && !paginated_groups.is_empty() {
+            // If there are more groups to fetch, provide the ID of the last group in this page
+            paginated_groups.last().map(|group| group.id.0.clone())
+        } else {
+            // No more groups to fetch
+            None
+        };
+    
         let response_data = ListGroupsResponseData {
-            items: groups.clone().into_iter().map(|group| {
+            items: paginated_groups.into_iter().map(|group| {
                 group.cast_fe(&requester_api_key.user_id)
             }).collect(),
-            page_size: 50, // Using the default page size
-            total: groups.len(),
-            cursor_up: None,
-            cursor_down: None,
+            page_size: query.page_size,
+            total: sorted_groups.len(),
+            direction: query.direction,
+            cursor: next_cursor,
         };
     
         // Wrap it in a ApiResponse and encode
         create_response(
             StatusCode::OK,
-            ApiResponse::ok(&response_data).encode()
+            ListGroupsResponse::ok(&response_data).encode()
         )
-
     }
 
     pub async fn create_group_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {

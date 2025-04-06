@@ -187,7 +187,6 @@ pub mod permissions_handlers {
         // 3. Check authorization
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
         
-        // let resource_id = request_body.filters.resource_id.clone();
         let resource_id = match parse_directory_resource_id(&request_body.filters.resource_id.to_string()) {
             Ok(id) => id,
             Err(_) => return create_response(
@@ -199,7 +198,7 @@ pub mod permissions_handlers {
             resource_id.clone(),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         ).await;
-
+    
         // Check table-level permissions if not owner
         if !is_owner {
             if !permissions.contains(&DirectoryPermissionType::View) {
@@ -208,7 +207,7 @@ pub mod permissions_handlers {
         }
      
         // 4. Parse cursor if provided
-        let cursor = if let Some(cursor_str) = &request_body.cursor {
+        let start_cursor = if let Some(cursor_str) = &request_body.cursor {
             match cursor_str.parse::<usize>() {
                 Ok(idx) => Some(idx),
                 Err(_) => return create_response(
@@ -225,8 +224,8 @@ pub mod permissions_handlers {
         let mut filtered_permissions = Vec::new();
         let page_size = request_body.page_size.unwrap_or(50);
         let direction = request_body.direction.unwrap_or(SortDirection::Desc);
-
-        // DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE
+    
+        // Get all permissions for the resource
         DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
             if let Some(permission_ids) = permissions_by_resource.borrow().get(&resource_id) {
                 // Clone to avoid borrow issues in nested closures
@@ -243,47 +242,56 @@ pub mod permissions_handlers {
                     }
                 });
                 
+                // If there are no permissions, return early
+                if timed_ids.is_empty() {
+                    return;
+                }
+                
                 // Sort based on direction
                 match direction {
                     SortDirection::Desc => timed_ids.sort_by(|a, b| b.0.cmp(&a.0)), // Newest first
                     SortDirection::Asc => timed_ids.sort_by(|a, b| a.0.cmp(&b.0)),  // Oldest first
                 }
                 
-                let mut total_processed = 0;
-
-                // Skip items before cursor if needed
-                let start_idx = cursor.unwrap_or(0);
-                
-                // Skip items we've already processed
-                let adjusted_start = if start_idx > total_processed {
-                    start_idx - total_processed
+                // Determine starting position based on cursor
+                let start_pos = if let Some(cursor_idx) = start_cursor {
+                    match direction {
+                        SortDirection::Asc => {
+                            // Find the position where created_at >= cursor
+                            timed_ids.iter().position(|(created_at, _)| *created_at >= cursor_idx as u64)
+                                .unwrap_or(0)
+                        },
+                        SortDirection::Desc => {
+                            // Find the position where created_at <= cursor
+                            timed_ids.iter().position(|(created_at, _)| *created_at <= cursor_idx as u64)
+                                .unwrap_or(0)
+                        },
+                    }
                 } else {
-                    0
+                    0 // Start from beginning
                 };
                 
-                // Only process items within our pagination window
-                let items_to_process = &timed_ids[adjusted_start.min(timed_ids.len())..];
-                total_processed += timed_ids.len();
+                // Get paginated items based on direction
+                let end_pos = (start_pos + page_size).min(timed_ids.len());
+                let items_to_process = &timed_ids[start_pos..end_pos];
                 
+                // Get the permissions from the IDs
                 for (_, permission_id) in items_to_process {
                     DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
                         if let Some(permission) = id_store.borrow().get(permission_id) {
                             filtered_permissions.push(permission.clone());
                         }
                     });
-                    
-                    // Early exit if we have enough items
-                    if filtered_permissions.len() >= page_size {
-                        break;
-                    }
                 }
             }
         });
-
+    
         // 6. Calculate next cursor for pagination
         let next_cursor = if filtered_permissions.len() >= page_size {
-            // There might be more items
-            Some((cursor.unwrap_or(0) + page_size).to_string())
+            // There might be more items, get the timestamp of the last item
+            filtered_permissions.last().map(|permission| {
+                permission.created_at.to_string()
+            })
         } else {
             None
         };
@@ -296,6 +304,7 @@ pub mod permissions_handlers {
                 .collect(),
             page_size: filtered_permissions.len(),
             total: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|h| h.borrow().len()), // Return total count of all permissions
+            direction,
             cursor: next_cursor,
         };
     
@@ -305,7 +314,6 @@ pub mod permissions_handlers {
         )
     }
     
-
     pub async fn create_directory_permissions_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // 1. Authenticate request
         let requester_api_key = match authenticate_request(request) {

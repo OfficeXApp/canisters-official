@@ -3,7 +3,7 @@
 
 pub mod group_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::group_invites::{fire_group_invite_webhook, get_active_group_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupRole, PlaceholderGroupInviteeID}}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE}, types::GroupID}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, group_invites::types::{ CreateGroupInviteRequestBody, CreateGroup_InviteResponse, DeleteGroup_InviteRequest, DeleteGroup_InviteResponse, DeletedGroup_InviteData, ErrorResponse, GetGroup_InviteResponse, ListGroupInvitesRequestBody, ListGroupInvitesResponseData, ListGroup_InvitesResponse, RedeemGroupInviteRequest, RedeemGroupInviteResponseData, UpdateGroupInviteRequestBody, UpdateGroup_InviteRequest, UpdateGroup_InviteResponse}, groups::types::{ListGroupsRequestBody, ListGroupsResponseData}, webhooks::types::GroupInviteWebhookData}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::group_invites::{fire_group_invite_webhook, get_active_group_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupRole, PlaceholderGroupInviteeID}}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE}, types::GroupID}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, group_invites::types::{ CreateGroupInviteRequestBody, CreateGroup_InviteResponse, DeleteGroup_InviteRequest, DeleteGroup_InviteResponse, DeletedGroup_InviteData, ErrorResponse, GetGroup_InviteResponse, ListGroupInvitesRequestBody, ListGroupInvitesResponseData, ListGroup_InvitesResponse, RedeemGroupInviteRequest, RedeemGroupInviteResponseData, UpdateGroupInviteRequestBody, UpdateGroup_InviteRequest, UpdateGroup_InviteResponse}, groups::types::{ListGroupsRequestBody, ListGroupsResponseData}, webhooks::types::{GroupInviteWebhookData, SortDirection}}
         
     };
     use crate::core::state::group_invites::{
@@ -72,7 +72,7 @@ pub mod group_invites_handlers {
                 ErrorResponse::err(400, "Invalid request format".to_string()).encode()
             ),
         };
-
+    
         if let Err(validation_err) = query.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,
@@ -84,7 +84,7 @@ pub mod group_invites_handlers {
         }
     
         let group_id = GroupID(query.group_id.clone());
-
+    
         // Check if the group exists first
         let group_exists = GROUPS_BY_ID_HASHTABLE.with(|store| {
             store.borrow().contains_key(&group_id)
@@ -118,10 +118,9 @@ pub mod group_invites_handlers {
             SystemResourceID::Table(SystemTableEnum::Groups),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
-
+    
         let is_member = is_user_on_group(&requester_api_key.user_id, &group_id).await;
-
-
+    
         if !is_authorized && !table_permissions.contains(&SystemPermissionType::View) && !is_member  {
             return create_auth_error_response();
         }
@@ -139,28 +138,110 @@ pub mod group_invites_handlers {
                 .unwrap_or_default()
         });
     
-        let start = if let Some(cursor) = query.cursor_down {
-            match all_invites.iter().position(|i| i.id.0 == cursor) {
-                Some(pos) => pos + 1,
-                None => 0,
+        // If there are no invites, return early
+        if all_invites.is_empty() {
+            return create_response(
+                StatusCode::OK,
+                ListGroup_InvitesResponse::ok(&ListGroupInvitesResponseData {
+                    items: vec![],
+                    page_size: 0,
+                    total: 0,
+                    direction: query.direction,
+                    cursor: None,
+                }).encode()
+            );
+        }
+    
+        // Determine start position based on cursor
+        let start_position = if let Some(cursor_value) = query.cursor {
+            match all_invites.iter().position(|i| i.id.0 == cursor_value) {
+                Some(pos) => {
+                    // If ascending (default), start after the cursor
+                    // If descending, start before the cursor
+                    match query.direction {
+                        SortDirection::Asc => pos + 1,
+                        SortDirection::Desc => {
+                            if pos > 0 {
+                                pos - 1
+                            } else {
+                                0
+                            }
+                        }
+                    }
+                },
+                None => 0, // Cursor not found, start from beginning
             }
         } else {
-            0
+            // No cursor provided, start from beginning or end based on direction
+            match query.direction {
+                SortDirection::Asc => 0, // Start from beginning
+                SortDirection::Desc => {
+                    if all_invites.is_empty() {
+                        0
+                    } else {
+                        all_invites.len() - 1 // Start from end
+                    }
+                }
+            }
         };
     
-        let items = all_invites
-            .iter()
-            .skip(start)
-            .take(query.page_size)
-            .cloned()
-            .collect::<Vec<_>>();
+        // Get paginated items based on direction
+        let items = match query.direction {
+            SortDirection::Asc => {
+                all_invites
+                    .iter()
+                    .skip(start_position)
+                    .take(query.page_size)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            },
+            SortDirection::Desc => {
+                // If descending, we need to collect items in reverse order
+                let mut items = Vec::new();
+                let mut current_pos = start_position;
+                
+                while items.len() < query.page_size && current_pos < all_invites.len() {
+                    items.push(all_invites[current_pos].clone());
+                    if current_pos == 0 {
+                        break;
+                    }
+                    current_pos -= 1;
+                }
+                
+                items
+            }
+        };
+    
+        // Determine next cursor
+        let next_cursor = if items.is_empty() {
+            None
+        } else {
+            match query.direction {
+                SortDirection::Asc => {
+                    // For ascending order, use the last item's ID if there might be more
+                    if start_position + items.len() < all_invites.len() {
+                        items.last().map(|i| i.id.0.clone())
+                    } else {
+                        None
+                    }
+                },
+                SortDirection::Desc => {
+                    // For descending order, use the last accessed item's ID if there might be more
+                    if start_position > items.len() {
+                        Some(all_invites[start_position - items.len()].id.0.clone())
+                    } else {
+                        None
+                    }
+                }
+            }
+        };
     
         let response_data = ListGroupInvitesResponseData {
             items: items.clone().into_iter().map(|invite| invite.cast_fe(&requester_api_key.user_id)).collect(),
             page_size: query.page_size,
             total: all_invites.len(),
-            cursor_up: items.first().map(|i| i.id.0.clone()),
-            cursor_down: items.last().map(|i| i.id.0.clone()),
+            direction: query.direction,
+            cursor: next_cursor,
         };
     
         create_response(
@@ -168,7 +249,7 @@ pub mod group_invites_handlers {
             ListGroup_InvitesResponse::ok(&response_data).encode()
         )
     }
-    
+
     pub async fn create_group_invite_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {

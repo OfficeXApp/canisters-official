@@ -107,25 +107,13 @@ pub mod webhooks_handlers {
             );
         }
     
-        // Parse cursors if provided
-        let cursor_up = if let Some(cursor) = request_body.cursor_up {
+        // Parse cursor if provided
+        let start_cursor = if let Some(cursor) = request_body.cursor {
             match cursor.parse::<usize>() {
                 Ok(idx) => Some(idx),
                 Err(_) => return create_response(
                     StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid cursor_up format".to_string()).encode()
-                ),
-            }
-        } else {
-            None
-        };
-    
-        let cursor_down = if let Some(cursor) = request_body.cursor_down {
-            match cursor.parse::<usize>() {
-                Ok(idx) => Some(idx),
-                Err(_) => return create_response(
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse::err(400, "Invalid cursor_down format".to_string()).encode()
+                    ErrorResponse::err(400, "Invalid cursor format".to_string()).encode()
                 ),
             }
         } else {
@@ -143,17 +131,15 @@ pub mod webhooks_handlers {
                     items: vec![],
                     page_size: 0,
                     total: 0,
-                    cursor_up: None,
-                    cursor_down: None,
+                    direction: request_body.direction,
+                    cursor: None,
                 }).encode()
             );
         }
     
-        // Determine starting point based on cursors
-        let start_index = if let Some(up) = cursor_up {
-            up.min(total_count - 1)
-        } else if let Some(down) = cursor_down {
-            down.min(total_count - 1)
+        // Determine starting point based on cursor
+        let start_index = if let Some(cursor_idx) = start_cursor {
+            cursor_idx.min(total_count - 1)
         } else {
             match request_body.direction {
                 SortDirection::Asc => 0,
@@ -164,6 +150,7 @@ pub mod webhooks_handlers {
         // Get webhooks with pagination and filtering
         let mut filtered_webhooks = Vec::new();
         let mut processed_count = 0;
+        let mut end_index = start_index;  // Track where we ended for cursor calculation
     
         WEBHOOKS_BY_TIME_LIST.with(|time_index| {
             let time_index = time_index.borrow();
@@ -184,8 +171,9 @@ pub mod webhooks_handlers {
                                 break;
                             }
                             current_idx -= 1;
-                            processed_count = start_index - current_idx;
+                            processed_count += 1;
                         }
+                        end_index = current_idx;
                     },
                     SortDirection::Asc => {
                         // Oldest first
@@ -197,41 +185,37 @@ pub mod webhooks_handlers {
                                 }
                             }
                             current_idx += 1;
-                            processed_count = current_idx - start_index;
+                            processed_count += 1;
+                            if current_idx >= total_count {
+                                break;
+                            }
                         }
+                        end_index = current_idx - 1;
                     }
                 }
             });
         });
     
-        // Calculate next cursors based on direction and current position
-        let (cursor_up, cursor_down) = match request_body.direction {
-            SortDirection::Desc => {
-                let next_up = if start_index < total_count - 1 {
-                    Some((start_index + 1).to_string())
-                } else {
-                    None
-                };
-                let next_down = if processed_count > 0 && start_index >= processed_count {
-                    Some((start_index - processed_count).to_string())
-                } else {
-                    None
-                };
-                (next_up, next_down)
-            },
-            SortDirection::Asc => {
-                let next_up = if processed_count > 0 {
-                    Some((start_index + processed_count).to_string())
-                } else {
-                    None
-                };
-                let next_down = if start_index > 0 {
-                    Some((start_index - 1).to_string())
-                } else {
-                    None
-                };
-                (next_up, next_down)
+        // Calculate next cursor based on direction and where we ended
+        let next_cursor = if filtered_webhooks.len() >= request_body.page_size {
+            match request_body.direction {
+                SortDirection::Desc => {
+                    if end_index > 0 {
+                        Some(end_index.to_string())
+                    } else {
+                        None
+                    }
+                },
+                SortDirection::Asc => {
+                    if end_index < total_count - 1 {
+                        Some((end_index + 1).to_string())
+                    } else {
+                        None
+                    }
+                }
             }
+        } else {
+            None  // No more results available
         };
     
         // Create response
@@ -241,8 +225,8 @@ pub mod webhooks_handlers {
             }).collect(),
             page_size: filtered_webhooks.len(),
             total: total_count,
-            cursor_up,
-            cursor_down,
+            direction: request_body.direction,
+            cursor: next_cursor,
         };
     
         create_response(
@@ -250,7 +234,7 @@ pub mod webhooks_handlers {
             ListWebhooksResponse::ok(&response_data).encode()
         )
     }
-
+    
     pub async fn create_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
