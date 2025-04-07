@@ -1714,6 +1714,16 @@ pub mod permissions_handlers {
                 });
             }
         });
+
+        if is_owner {
+            permissions.extend([
+                SystemPermissionType::Create,
+                SystemPermissionType::Delete,
+                SystemPermissionType::Edit,
+                SystemPermissionType::View,
+                SystemPermissionType::Invite
+            ]);
+        }
     
         // Create the response using the wrapper pattern
         let response_data = CheckSystemPermissionResult {
