@@ -10,7 +10,6 @@
 - [🔵] Fix frontend optimistic bug where old contact still exists after superswap user redeemed
 - [🔵] Fix superswap user to also handle permissions updating
 
-- [🔵] Breadcrumbs for ListDirectory & Get_File
 - [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route --> `[TODO]@"Return Disk Shortcuts"`
 - [🔵] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE`
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
@@ -154,3 +153,4 @@
 - [x] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [x] Fix default admin canister uploading (ICP chunk upload)
 - [x] Fix group permission check on `check_system_permissions_handler` and `check_directory_permissions_handler`, currently only checks on user but not group or public
+- [x] Breadcrumbs for ListDirectory & Get_File
