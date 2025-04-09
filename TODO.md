@@ -7,20 +7,16 @@
 
 ## Urgent Next
 
-- [ ] Fix default admin canister uploading (ICP chunk upload)
 - [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route --> `[TODO]@"Return Disk Shortcuts"`
 - [🔵] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE`
-- [ ] Fix bug where /list gets called 4 times on load
 - [ ] Fix group permission check on `check_system_permissions_handler` and `check_directory_permissions_handler`, currently only checks on user but not group or public
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
-- [ ] Debug why snapshot cant serialize
-- [ ] Figure out the upgrade flow of ICP canisters
+- [ ] Figure out the upgrade flow of ICP canisters (so that API key values etc dont change)
 
 ## Awkward Urgent
 
 - [ ] Go through every ic_cdk::time::now() to check if we handle ms instead of ns
-- [ ] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
 - [ ] Refactor inbox webhook to allow topic filters so that webhooks dont receieve EVERY piece of mail
 - [ ] Consider deterministic canister deloyment via seed phrase to enable true cold archive & reboot (in case canister runs out of gas and owner wants to still keep it frozen, download as encrypted json string + seed phrase, be able to deploy anytime/anywhere)
@@ -150,3 +146,7 @@
 - [x] Auto-add contacts to a group called "Everyone" when they are added as a contact, and let this "Everyone" group have view access on all tables except permissions
 - [x] Refactor permissions check so that check_system_resource_permissions also checks if user has table permission or if user is part of a group that has table permission
 - [x] Frontend hide ancillary drives
+- [x] Fix bug where /list gets called 4 times on load
+- [x] Debug why snapshot cant serialize
+- [x] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
+- [x] Fix default admin canister uploading (ICP chunk upload)

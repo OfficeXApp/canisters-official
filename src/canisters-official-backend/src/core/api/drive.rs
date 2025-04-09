@@ -5,16 +5,15 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, fetch_root_shortcuts_of_user, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::preview_directory_permissions, types::DirectoryError, uuid::{generate_uuidv4, mark_claimed_uuid}
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, fetch_root_shortcuts_of_user, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::{check_directory_permissions, preview_directory_permissions}, types::DirectoryError, uuid::{generate_uuidv4, mark_claimed_uuid}
             },
             state::{
                 directory::{
                     state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
                     types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}
-                },
-                disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID}, types::{ExternalID, ExternalPayload}}, raw_storage::types::UploadStatus,
+                }, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::PermissionGranteeID, raw_storage::types::UploadStatus
             }, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
-        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, ListGetFileResponse, ListGetFolderResponse, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
+        }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
     };
 
     pub async fn fetch_files_at_folder_path(config: ListDirectoryRequest, user_id: UserID) -> Result<DirectoryListResponse, DirectoryError> {
@@ -110,6 +109,11 @@ pub mod drive {
         for file in files {
             file_responses.push(file.cast_fe(&user_id).await);
         }
+
+        let permission_previews = check_directory_permissions(
+            DirectoryResourceID::Folder(folder_uuid),
+            PermissionGranteeID::User(user_id),
+        ).await;
     
         Ok(DirectoryListResponse {
             folders: folder_responses,
@@ -117,7 +121,8 @@ pub mod drive {
             total_folders,
             total_files,
             cursor: next_cursor,
-            breadcrumbs: [].to_vec()
+            breadcrumbs: [].to_vec(),
+            permission_previews
         })
     }
 
@@ -812,10 +817,10 @@ pub mod drive {
                     if let Some(current_folder) = map.get_mut(&current_folder_id) {
                         if current_folder_id == *folder_id {
                             // Main folder gets the original parent path
-                            current_folder.restore_trash_prior_folder_uuid = Some(folder.id.clone());
+                            current_folder.restore_trash_prior_folder_uuid = Some(folder.parent_folder_uuid.clone().unwrap());
                         } else {
                             // Subfolders keep their current path
-                            current_folder.restore_trash_prior_folder_uuid = Some(current_folder.id.clone());
+                            current_folder.restore_trash_prior_folder_uuid = Some(current_folder.parent_folder_uuid.clone().unwrap());
                         }
     
                         // Add subfolders to stack
