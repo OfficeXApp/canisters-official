@@ -2,7 +2,7 @@
 
 use std::collections::{HashSet, VecDeque};
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, drives::state::state::OWNER_ID, groups::{state::state::is_user_on_group, types::GroupID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE, FilePathBreadcrumb}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID}}, disks::state::state::DISKS_BY_ID_HASHTABLE, drives::state::state::OWNER_ID, groups::{state::state::is_user_on_group, types::GroupID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE, FilePathBreadcrumb}};
 
 
 // Check if a user can CRUD the permission record
@@ -335,10 +335,21 @@ pub async fn derive_directory_breadcrumbs(
                 if parent_permissions.contains(&DirectoryPermissionType::View) || is_owner {
                     // Add the parent folder only if user has permission
                     if let Some(folder_metadata) = folder_uuid_to_metadata.get(&file_metadata.parent_folder_uuid) {
-                        breadcrumbs.push_front(FilePathBreadcrumb {
-                            resource_id: folder_metadata.id.clone().to_string(),
-                            resource_name: folder_metadata.name.clone(),
-                        });
+                        if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
+                            let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                            if let Some(disk) = disk {
+                                breadcrumbs.push_front(FilePathBreadcrumb {
+                                    resource_id: folder_metadata.id.clone().to_string(),
+                                    resource_name: disk.name.clone(),
+                                });
+                            }
+                        } else {
+                            breadcrumbs.push_front(FilePathBreadcrumb {
+                                resource_id: folder_metadata.id.clone().to_string(),
+                                resource_name: folder_metadata.name.clone(),
+                            });
+                        }
+                        
                     }
                 }
 
@@ -350,6 +361,12 @@ pub async fn derive_directory_breadcrumbs(
 
                 return breadcrumbs.into();
             }
+
+            // Add the file itself
+            breadcrumbs.push_front(FilePathBreadcrumb {
+                resource_id: file_metadata.id.clone().to_string(),
+                resource_name: file_metadata.name.clone(),
+            });
             
             Some(file_metadata.parent_folder_uuid.clone())
         },
@@ -370,11 +387,20 @@ pub async fn derive_directory_breadcrumbs(
                 return Vec::new(); // User doesn't have permission to view this folder
             }
             
-            // Add the current folder to breadcrumbs
-            breadcrumbs.push_front(FilePathBreadcrumb {
-                resource_id: folder_metadata.id.clone().to_string(),
-                resource_name: folder_metadata.name.clone(),
-            });
+            if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
+                let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                if let Some(disk) = disk {
+                    breadcrumbs.push_front(FilePathBreadcrumb {
+                        resource_id: folder_metadata.id.clone().to_string(),
+                        resource_name: disk.name.clone(),
+                    });
+                }
+            } else {
+                breadcrumbs.push_front(FilePathBreadcrumb {
+                    resource_id: folder_metadata.id.clone().to_string(),
+                    resource_name: folder_metadata.name.clone(),
+                });
+            }
             
             // If this folder has sovereign permissions, we don't include ancestors
             if folder_metadata.has_sovereign_permissions {
@@ -402,12 +428,21 @@ pub async fn derive_directory_breadcrumbs(
         
         match folder_uuid_to_metadata.get(&folder_id) {
             Some(folder_metadata) => {
-                // Add this folder to the beginning of our breadcrumbs
-                breadcrumbs.push_front(FilePathBreadcrumb {
-                    resource_id: folder_metadata.id.clone().to_string(),
-                    resource_name: folder_metadata.name.clone(),
-                });
-                
+
+                if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
+                    let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                    if let Some(disk) = disk {
+                        breadcrumbs.push_front(FilePathBreadcrumb {
+                            resource_id: folder_metadata.id.clone().to_string(),
+                            resource_name: disk.name.clone(),
+                        });
+                    }
+                } else {
+                    breadcrumbs.push_front(FilePathBreadcrumb {
+                        resource_id: folder_metadata.id.clone().to_string(),
+                        resource_name: folder_metadata.name.clone(),
+                    });
+                }
                 // Stop if we've reached a folder with sovereign permissions
                 if folder_metadata.has_sovereign_permissions {
                     break;
