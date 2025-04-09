@@ -190,6 +190,7 @@ pub struct DirectoryListResponse {
     pub total_folders: usize,
     pub cursor: Option<String>,
     pub breadcrumbs: Vec<FilePathBreadcrumb>,
+    pub permission_previews: Vec<DirectoryPermissionType>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1190,22 +1191,6 @@ pub enum DirectoryActionResult {
     RestoreTrash(RestoreTrashResponse)
 }
 
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListGetFileResponse {
-    pub file: FileRecord,
-    pub permissions: Vec<DirectoryResourcePermissionFE>,
-    pub requester_id: UserID,
-}
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListGetFolderResponse {
-    pub folder: FolderRecord,
-    pub permissions: Vec<DirectoryResourcePermissionFE>,
-    pub requester_id: UserID,
-}
 
 
 

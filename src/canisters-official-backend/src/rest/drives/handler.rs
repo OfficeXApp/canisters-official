@@ -287,9 +287,7 @@ pub mod drives_handlers {
         };
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
+       
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -379,9 +377,7 @@ pub mod drives_handlers {
         };
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
+       
 
         // Parse request body
         let body: &[u8] = request.body();

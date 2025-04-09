@@ -96,7 +96,7 @@ $ dfx identity get-wallet --network ic
 # top up wallet_id with 0.5 ICP from account_id
 $ dfx ledger top-up --network ic --amount 0.5 <wallet_id>
 
-# deploy factory (eg canister_id="jnvba-jiaaa-aaaak-apckq-cai")
+# deploy factory (eg canister_id="lfp6f-3iaaa-aaaak-apcgq-cai")
 $ dfx deploy canisters-factory-backend --network ic --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 
 # deposit 2.5T cycles into canister

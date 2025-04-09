@@ -1470,7 +1470,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     // First check if it's a folder
                     let folder_id = if resource_id.to_string().starts_with(IDPrefix::Folder.as_str()) {
                         // Extract the ID portion by stripping the prefix
-                        Some(FolderID(resource_id.to_string().strip_prefix(IDPrefix::Folder.as_str()).unwrap().to_string()))
+                        Some(FolderID(resource_id.to_string()))
                     } else {
                         None
                     };
@@ -1552,7 +1552,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         // Try as a file
                         let file_id = if resource_id.to_string().starts_with(IDPrefix::File.as_str()) {
                             // Extract the ID portion by stripping the prefix
-                            Some(FileID(resource_id.to_string().strip_prefix(IDPrefix::Folder.as_str()).unwrap().to_string()))
+                            Some(FileID(resource_id.to_string()))
                         } else {
                             None
                         };
