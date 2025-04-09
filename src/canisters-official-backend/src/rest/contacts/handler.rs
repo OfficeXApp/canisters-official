@@ -304,9 +304,6 @@ pub mod contacts_handlers {
         
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -324,11 +321,16 @@ pub mod contacts_handlers {
         
         // Check create permission if not owner
         if !is_owner {
+
+            debug_log!("Checking create permission on resource {} for user {}", SystemTableEnum::Contacts, requester_api_key.user_id);
+
             let resource_id = SystemResourceID::Table(SystemTableEnum::Contacts);
             let permissions = check_system_permissions(
                 resource_id,
                 PermissionGranteeID::User(requester_api_key.user_id.clone())
             );
+
+            debug_log!("Permissions: {:?}", permissions);
             
             if !permissions.contains(&SystemPermissionType::Create) {
                 return create_auth_error_response();
@@ -468,9 +470,7 @@ pub mod contacts_handlers {
         
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
+      
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -590,9 +590,7 @@ pub mod contacts_handlers {
         
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        if !is_owner {
-            return create_auth_error_response();
-        }
+    
 
         let prestate = snapshot_prestate();
 

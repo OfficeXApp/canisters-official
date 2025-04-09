@@ -1689,41 +1689,10 @@ pub mod permissions_handlers {
         }
     
         // 6. Check permissions
-        let mut permissions = HashSet::new();
-        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            if let Some(permission_ids) = permissions_by_resource.borrow().get(&resource_id) {
-                SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
-                    let permissions_map = permissions_by_id.borrow();
-                    for permission_id in permission_ids {
-                        if let Some(permission) = permissions_map.get(permission_id) {
-                            // Skip if permission is expired or not yet active
-                            let current_time = ic_cdk::api::time() as i64 / 1_000_000;
-                            if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
-                                continue;
-                            }
-                            if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
-                                continue;
-                            }
-    
-                            // Check if permission applies to this grantee
-                            if permission.granted_to == grantee_id {
-                                permissions.extend(permission.permission_types.clone());
-                            }
-                        }
-                    }
-                });
-            }
-        });
-
-        if is_owner {
-            permissions.extend([
-                SystemPermissionType::Create,
-                SystemPermissionType::Delete,
-                SystemPermissionType::Edit,
-                SystemPermissionType::View,
-                SystemPermissionType::Invite
-            ]);
-        }
+        let permissions = check_system_permissions(
+            resource_id.clone(),
+            grantee_id.clone()
+        );
     
         // Create the response using the wrapper pattern
         let response_data = CheckSystemPermissionResult {
