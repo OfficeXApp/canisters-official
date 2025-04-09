@@ -195,8 +195,8 @@ pub struct DirectoryListResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilePathBreadcrumb {
-    pub folder_id: FolderID,
-    pub folder_name: String,
+    pub resource_id: String,
+    pub resource_name: String,
 }
 
 fn default_page_size() -> usize {
@@ -1172,12 +1172,27 @@ impl RestoreTrashPayload {
 }
 
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetFileResponse {
+    pub file: FileRecordFE,
+    pub breadcrumbs: Vec<FilePathBreadcrumb>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetFolderResponse {
+    pub folder: FolderRecordFE,
+    pub breadcrumbs: Vec<FilePathBreadcrumb>,
+}
+
+
 // Response types remain the same as before
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DirectoryActionResult {
-    GetFile(FileRecordFE),
-    GetFolder(FolderRecordFE),
+    GetFile(GetFileResponse),
+    GetFolder(GetFolderResponse),
     CreateFile(CreateFileResponse),
     CreateFolder(CreateFolderResponse),
     UpdateFile(FileRecordFE),

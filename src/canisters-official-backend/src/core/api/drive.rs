@@ -5,7 +5,7 @@ pub mod drive {
     use crate::{
         core::{
             api::{
-                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, fetch_root_shortcuts_of_user, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::{check_directory_permissions, preview_directory_permissions}, types::DirectoryError, uuid::{generate_uuidv4, mark_claimed_uuid}
+                disks::{aws_s3::{copy_s3_object, generate_s3_upload_url}, storj_web3::generate_storj_upload_url}, internals::drive_internals::{ensure_folder_structure, fetch_root_shortcuts_of_user, format_file_asset_path, resolve_naming_conflict, sanitize_file_path, split_path, translate_path_to_id, update_folder_file_uuids, update_subfolder_paths}, permissions::directory::{check_directory_permissions, derive_directory_breadcrumbs, preview_directory_permissions}, types::DirectoryError, uuid::{generate_uuidv4, mark_claimed_uuid}
             },
             state::{
                 directory::{
@@ -111,8 +111,13 @@ pub mod drive {
         }
 
         let permission_previews = check_directory_permissions(
+            DirectoryResourceID::Folder(folder_uuid.clone()),
+            PermissionGranteeID::User(user_id.clone()),
+        ).await;
+
+        let breadcrumbs = derive_directory_breadcrumbs(
             DirectoryResourceID::Folder(folder_uuid),
-            PermissionGranteeID::User(user_id),
+            user_id
         ).await;
     
         Ok(DirectoryListResponse {
@@ -121,7 +126,7 @@ pub mod drive {
             total_folders,
             total_files,
             cursor: next_cursor,
-            breadcrumbs: [].to_vec(),
+            breadcrumbs,
             permission_previews
         })
     }

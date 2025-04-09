@@ -7,8 +7,8 @@
 
 ## Urgent Next
 
-- [🔵] Fix group permission check on `check_system_permissions_handler` and `check_directory_permissions_handler`, currently only checks on user but not group or public
-- [🔵] Fix superswap user to also handle permissions
+- [🔵] Fix frontend optimistic bug where old contact still exists after superswap user redeemed
+- [🔵] Fix superswap user to also handle permissions updating
 
 - [🔵] Breadcrumbs for ListDirectory & Get_File
 - [🔵] Query root folder of disk should give users shortcuts? or maybe that should be its own route --> `[TODO]@"Return Disk Shortcuts"`
@@ -153,3 +153,4 @@
 - [x] Debug why snapshot cant serialize
 - [x] Refactor list pagniation to use single cursor instead of cursor_up and cursor_down, since direction tells us where to go
 - [x] Fix default admin canister uploading (ICP chunk upload)
+- [x] Fix group permission check on `check_system_permissions_handler` and `check_directory_permissions_handler`, currently only checks on user but not group or public

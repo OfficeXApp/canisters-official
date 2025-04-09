@@ -1,8 +1,8 @@
 // src/core/api/permissions/directory.rs
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}, groups::{state::state::is_user_on_group, types::GroupID}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, drives::state::state::OWNER_ID, groups::{state::state::is_user_on_group, types::GroupID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE, FilePathBreadcrumb}};
 
 
 // Check if a user can CRUD the permission record
@@ -292,4 +292,134 @@ pub fn preview_directory_permissions(
     });
 
     resource_permissions
+}
+
+
+pub async fn derive_directory_breadcrumbs(
+    resource_id: DirectoryResourceID,
+    user_id: UserID,
+) -> Vec<FilePathBreadcrumb> {
+    // Create a vector to hold our breadcrumbs
+    let mut breadcrumbs = VecDeque::new();
+
+    let is_owner = OWNER_ID.with(|id| &id.borrow().clone() == &user_id);
+    
+    // Get the initial folder ID based on the resource type
+    let initial_folder_id = match &resource_id {
+        DirectoryResourceID::File(file_id) => {
+            // For files, we need to get the parent folder first
+            let file_metadata = match file_uuid_to_metadata.get(file_id) {
+                Some(metadata) => metadata,
+                None => return Vec::new(), // File not found, return empty breadcrumbs
+            };
+            
+            // Check if user has permission to view the file
+            let file_permissions = check_directory_permissions(
+                resource_id.clone(),
+                PermissionGranteeID::User(user_id.clone()),
+            ).await;
+            
+            if !file_permissions.contains(&DirectoryPermissionType::View) && !is_owner {
+                return Vec::new(); // User doesn't have permission to view this file
+            }
+            
+            // If this file has sovereign permissions, we only include its parent folder and itself
+            if file_metadata.has_sovereign_permissions {
+                // Check permission for parent folder
+                let parent_resource = DirectoryResourceID::Folder(file_metadata.parent_folder_uuid.clone());
+                let parent_permissions = check_directory_permissions(
+                    parent_resource.clone(),
+                    PermissionGranteeID::User(user_id.clone()),
+                ).await;
+                
+                if parent_permissions.contains(&DirectoryPermissionType::View) || is_owner {
+                    // Add the parent folder only if user has permission
+                    if let Some(folder_metadata) = folder_uuid_to_metadata.get(&file_metadata.parent_folder_uuid) {
+                        breadcrumbs.push_front(FilePathBreadcrumb {
+                            resource_id: folder_metadata.id.clone().to_string(),
+                            resource_name: folder_metadata.name.clone(),
+                        });
+                    }
+                }
+
+                // Add the file itself
+                breadcrumbs.push_front(FilePathBreadcrumb {
+                    resource_id: file_metadata.id.clone().to_string(),
+                    resource_name: file_metadata.name.clone(),
+                });
+
+                return breadcrumbs.into();
+            }
+            
+            Some(file_metadata.parent_folder_uuid.clone())
+        },
+        DirectoryResourceID::Folder(folder_id) => {
+            // For folders, include the current folder in breadcrumbs
+            let folder_metadata = match folder_uuid_to_metadata.get(folder_id) {
+                Some(metadata) => metadata,
+                None => return Vec::new(), // Folder not found, return empty breadcrumbs
+            };
+            
+            // Check if user has permission to view the folder
+            let folder_permissions = check_directory_permissions(
+                resource_id.clone(),
+                PermissionGranteeID::User(user_id.clone()),
+            ).await;
+            
+            if !folder_permissions.contains(&DirectoryPermissionType::View) && !is_owner {
+                return Vec::new(); // User doesn't have permission to view this folder
+            }
+            
+            // Add the current folder to breadcrumbs
+            breadcrumbs.push_front(FilePathBreadcrumb {
+                resource_id: folder_metadata.id.clone().to_string(),
+                resource_name: folder_metadata.name.clone(),
+            });
+            
+            // If this folder has sovereign permissions, we don't include ancestors
+            if folder_metadata.has_sovereign_permissions {
+                return breadcrumbs.into();
+            }
+            
+            folder_metadata.parent_folder_uuid.clone()
+        }
+    };
+    
+    // Traverse up through parent folders to build breadcrumbs
+    let mut current_folder_id = initial_folder_id;
+    while let Some(folder_id) = current_folder_id {
+        // Check if user has permission to view this folder
+        let folder_resource = DirectoryResourceID::Folder(folder_id.clone());
+        let folder_permissions = check_directory_permissions(
+            folder_resource.clone(),
+            PermissionGranteeID::User(user_id.clone()),
+        ).await;
+        
+        if !folder_permissions.contains(&DirectoryPermissionType::View) && !is_owner {
+            // User doesn't have permission to view this folder, stop here
+            break;
+        }
+        
+        match folder_uuid_to_metadata.get(&folder_id) {
+            Some(folder_metadata) => {
+                // Add this folder to the beginning of our breadcrumbs
+                breadcrumbs.push_front(FilePathBreadcrumb {
+                    resource_id: folder_metadata.id.clone().to_string(),
+                    resource_name: folder_metadata.name.clone(),
+                });
+                
+                // Stop if we've reached a folder with sovereign permissions
+                if folder_metadata.has_sovereign_permissions {
+                    break;
+                }
+                
+                // Move up to the parent folder
+                current_folder_id = folder_metadata.parent_folder_uuid.clone();
+            },
+            None => break // Folder not found, end traversal
+        }
+    }
+    
+    // Convert from VecDeque to Vec and return
+    breadcrumbs.into()
 }

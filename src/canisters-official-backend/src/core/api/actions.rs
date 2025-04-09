@@ -1,7 +1,7 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
-use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, derive_directory_breadcrumbs, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
 #[derive(Debug, Clone)]
@@ -129,10 +129,17 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         Some(DirectoryWebhookData::ShareTracking(share_tracking_payload)),
                         Some("Tracked subfile share".to_string()),
                     );
-                    
+
+                    let breadcrumbs = derive_directory_breadcrumbs(
+                        resource_id,
+                        user_id.clone()
+                    ).await;
 
                     // If we get here, user is authorized - return the file metadata
-                    Ok(DirectoryActionResult::GetFile(file.cast_fe(&user_id).await))
+                    Ok(DirectoryActionResult::GetFile(GetFileResponse {
+                        file: file.cast_fe(&user_id).await,
+                        breadcrumbs
+                    }))
                 },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
@@ -250,8 +257,18 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         Some(DirectoryWebhookData::ShareTracking(share_tracking_payload)),
                         Some("Tracked subfolder share".to_string()),
                     );
+
+
+                    let breadcrumbs = derive_directory_breadcrumbs(
+                        resource_id,
+                        user_id.clone()
+                    ).await;
+
         
-                    Ok(DirectoryActionResult::GetFolder(folder.clone().cast_fe(&user_id).await))
+                    Ok(DirectoryActionResult::GetFolder(GetFolderResponse {
+                        folder: folder.clone().cast_fe(&user_id).await,
+                        breadcrumbs
+                    }))
                 },
                 _ => Err(DirectoryActionErrorInfo {
                     code: 400,
