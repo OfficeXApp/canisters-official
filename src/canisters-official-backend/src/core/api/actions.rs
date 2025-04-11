@@ -1021,8 +1021,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
         
-                    if !user_permissions.contains(&DirectoryPermissionType::View) {
+                    if !user_permissions.contains(&DirectoryPermissionType::View) && !is_owner {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to view this file".to_string(),
@@ -1054,7 +1055,6 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
         
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
 
                     if !is_owner && !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -1136,8 +1136,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
         
-                    if !user_permissions.contains(&DirectoryPermissionType::View) {
+                    if !user_permissions.contains(&DirectoryPermissionType::View) && !is_owner {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to view this folder".to_string(),
@@ -1168,7 +1169,6 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         dest_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
 
                     if !is_owner && !dest_permissions.contains(&DirectoryPermissionType::Upload) &&
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -1298,7 +1298,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     if !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
-                       !dest_permissions.contains(&DirectoryPermissionType::Manage) {
+                       !dest_permissions.contains(&DirectoryPermissionType::Manage) && !is_owner {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to move files to the destination folder".to_string(),
@@ -1350,7 +1350,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             message: format!("Validation error: {}", validation_error.message),
                         });
                     }
-
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
 
                     // Get the folder ID from either resource_id or resource_path
                     let folder_id = payload.id;
@@ -1393,7 +1393,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     let has_move_permission = source_permissions.contains(&DirectoryPermissionType::Edit) ||
                                             source_permissions.contains(&DirectoryPermissionType::Manage);
         
-                    if !is_creator_with_upload && !has_move_permission {
+                    if !is_creator_with_upload && !has_move_permission && !is_owner {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to move this folder from its current location".to_string(),

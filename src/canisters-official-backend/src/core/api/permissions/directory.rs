@@ -55,6 +55,20 @@ pub async fn check_directory_permissions(
     resource_id: DirectoryResourceID,
     grantee_id: PermissionGranteeID,
 ) -> Vec<DirectoryPermissionType> {
+
+    let is_owner = OWNER_ID.with(|owner_id| UserID(grantee_id.to_string()) == *owner_id.borrow());
+
+    if is_owner {
+        return vec![
+            DirectoryPermissionType::View,
+            DirectoryPermissionType::Edit,
+            DirectoryPermissionType::Upload,
+            DirectoryPermissionType::Delete,
+            DirectoryPermissionType::Invite, 
+            DirectoryPermissionType::Manage, 
+        ];
+    }
+
     // First, build the list of resources to check by traversing up the hierarchy
     let resources_to_check = get_inherited_resources_list(resource_id.clone());
     
