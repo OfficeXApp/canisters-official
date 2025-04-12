@@ -7,7 +7,7 @@ struct CertifiedHttpResponse<'a> {
     certification: HttpCertification,
 }
 
-use crate::rest::giftcards::route::GIFTCARDS_LIST_PATH;
+use crate::rest::giftcards_refuel::route::GIFTCARDS_REFUEL_LIST_PATH;
 
 
 use ic_http_certification::{
@@ -31,7 +31,7 @@ const NOT_FOUND_PATH: &str = "";
 
 
 lazy_static! {
-    pub static ref APIKEYS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(GIFTCARDS_LIST_PATH);
+    pub static ref APIKEYS_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::exact(GIFTCARDS_REFUEL_LIST_PATH);
     static ref NOT_FOUND_TREE_PATH: HttpCertificationPath<'static> = HttpCertificationPath::wildcard(NOT_FOUND_PATH);
 
     static ref APIKEYS_CEL_EXPR_DEF: DefaultFullCelExpression<'static> = DefaultCelBuilder::full_certification()

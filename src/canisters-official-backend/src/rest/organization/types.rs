@@ -346,6 +346,8 @@ pub struct AboutDriveResponseData {
     pub owner: UserID,
     pub endpoint: String,
     pub canister_id: String,
+    pub daily_idle_cycle_burn_rate: String,
+    pub controllers: Vec<String>,
 }
 
 pub type AboutDriveResponse<'a> = ApiResponse<'a, AboutDriveResponseData>;
