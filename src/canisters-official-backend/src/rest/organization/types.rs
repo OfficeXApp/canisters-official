@@ -336,3 +336,18 @@ pub struct InboxOrgResponseData {
 }
 pub type InboxOrgResponse<'a> = ApiResponse<'a, InboxOrgResponseData>;
 
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AboutDriveResponseData {
+    pub gas_cycles: String,
+    pub organization_name: String,
+    pub organization_id: DriveID,
+    pub owner: UserID,
+    pub endpoint: String,
+    pub canister_id: String,
+    pub daily_idle_cycle_burn_rate: String,
+    pub controllers: Vec<String>,
+}
+
+pub type AboutDriveResponse<'a> = ApiResponse<'a, AboutDriveResponseData>;

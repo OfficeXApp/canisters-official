@@ -1,30 +1,30 @@
-// src/rest/giftcards/handler.rs
+// src/rest/giftcards_spawnorg/handler.rs
 
 pub mod giftcards_handlers {
     use std::{thread::sleep, time::Duration};
     use crate::core::api::helpers::is_local_environment;
     use crate::core::api::uuid::format_drive_id;
-    use crate::core::state::giftcards::types::DriveID;
-    use crate::core::state::giftcards::types::DriveRESTUrlEndpoint;
-    use crate::core::state::giftcards::types::FactorySpawnHistoryRecord;
-    use crate::core::state::giftcards::types::GiftcardID;
-    use crate::core::state::giftcards::types::Giftcard;
-    use crate::rest::giftcards::types::RedeemGiftcardData;
-    use crate::rest::giftcards::types::RedeemGiftcardResult;
-    use crate::rest::giftcards::types::SpawnInitArgs;
+    use crate::core::state::giftcards_spawnorg::types::DriveID;
+    use crate::core::state::giftcards_spawnorg::types::DriveRESTUrlEndpoint;
+    use crate::core::state::giftcards_spawnorg::types::FactorySpawnHistoryRecord;
+    use crate::core::state::giftcards_spawnorg::types::GiftcardSpawnOrgID;
+    use crate::core::state::giftcards_spawnorg::types::GiftcardSpawnOrg;
+    use crate::rest::giftcards_spawnorg::types::RedeemGiftcardSpawnOrgData;
+    use crate::rest::giftcards_spawnorg::types::RedeemGiftcardSpawnOrgResult;
+    use crate::rest::giftcards_spawnorg::types::SpawnInitArgs;
     use crate::{
         core::{
             api::uuid::{format_user_id, generate_uuidv4}, 
-            state::giftcards::{
-                    state::state::{HISTORICAL_GIFTCARDS, OWNER_ID, USER_TO_GIFTCARDS_HASHTABLE, GIFTCARD_BY_ID},
+            state::giftcards_spawnorg::{
+                    state::state::{HISTORICAL_GIFTCARDS_SPAWNORGS, OWNER_ID, USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE, GIFTCARD_SPAWNORG_BY_ID},
                     
                 }, 
             types::{IDPrefix, UserID}
         }, 
         debug_log, 
         rest::{
-            auth::{authenticate_request, create_auth_error_response}, giftcards::types::{
-                CreateGiftcardRequestBody, CreateGiftcardResponse, DeleteGiftcardRequestBody, DeleteGiftcardResponse, DeletedGiftcardData, ErrorResponse, GetGiftcardResponse, ListGiftcardsRequestBody, ListGiftcardsResponse, ListGiftcardsResponseData, RedeemGiftcardResponse, SortDirection, UpdateGiftcardRequestBody, UpdateGiftcardResponse, UpsertGiftcardRequestBody
+            auth::{authenticate_request, create_auth_error_response}, giftcards_spawnorg::types::{
+                CreateGiftcardSpawnOrgRequestBody, CreateGiftcardSpawnOrgResponse, DeleteGiftcardSpawnOrgRequestBody, DeleteGiftcardSpawnOrgResponse, DeletedGiftcardSpawnOrgData, ErrorResponse, GetGiftcardSpawnOrgResponse, ListGiftcardSpawnOrgsRequestBody, ListGiftcardSpawnOrgsResponse, ListGiftcardSpawnOrgsResponseData, RedeemGiftcardSpawnOrgResponse, SortDirection, UpdateGiftcardSpawnOrgRequestBody, UpdateGiftcardSpawnOrgResponse, UpsertGiftcardSpawnOrgRequestBody
             }
         }, 
     };
@@ -45,10 +45,10 @@ pub mod giftcards_handlers {
         };
 
         // Get the requested giftcard ID from params
-        let requested_id = GiftcardID(params.get("giftcard_id").unwrap().to_string());
+        let requested_id = GiftcardSpawnOrgID(params.get("giftcard_id").unwrap().to_string());
 
         // Get the requested giftcard
-        let giftcard = GIFTCARD_BY_ID.with(|store| {
+        let giftcard = GIFTCARD_SPAWNORG_BY_ID.with(|store| {
             store.borrow().get(&requested_id).cloned()
         });
 
@@ -63,12 +63,12 @@ pub mod giftcards_handlers {
             Some(v) => {
                 create_response(
                     StatusCode::OK,
-                    GetGiftcardResponse::ok(&v).encode()
+                    GetGiftcardSpawnOrgResponse::ok(&v).encode()
                 )
             },
             None => create_response(
                 StatusCode::NOT_FOUND,
-                ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
+                ErrorResponse::err(404, "GiftcardSpawnOrg not found".to_string()).encode()
             ),
         }
     }
@@ -91,7 +91,7 @@ pub mod giftcards_handlers {
 
         // Parse request body
         let body = request.body();
-        let request_body: ListGiftcardsRequestBody = match serde_json::from_slice(body) {
+        let request_body: ListGiftcardSpawnOrgsRequestBody = match serde_json::from_slice(body) {
             Ok(body) => body,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -122,7 +122,7 @@ pub mod giftcards_handlers {
 
 
         // Get total count from historical giftcards
-        let total_count = HISTORICAL_GIFTCARDS.with(|historical_ids| {
+        let total_count = HISTORICAL_GIFTCARDS_SPAWNORGS.with(|historical_ids| {
             historical_ids.borrow().len()
         });
 
@@ -130,7 +130,7 @@ pub mod giftcards_handlers {
         if total_count == 0 {
             return create_response(
                 StatusCode::OK,
-                ListGiftcardsResponse::ok(&ListGiftcardsResponseData {
+                ListGiftcardSpawnOrgsResponse::ok(&ListGiftcardSpawnOrgsResponseData {
                     items: vec![],
                     page_size: 0,
                     total: 0,
@@ -156,9 +156,9 @@ pub mod giftcards_handlers {
         let mut processed_count = 0;
         let mut end_index = start_index;
 
-        HISTORICAL_GIFTCARDS.with(|historical_ids| {
+        HISTORICAL_GIFTCARDS_SPAWNORGS.with(|historical_ids| {
             let historical_ids = historical_ids.borrow();
-            GIFTCARD_BY_ID.with(|store| {
+            GIFTCARD_SPAWNORG_BY_ID.with(|store| {
                 let store = store.borrow();
                 
                 match request_body.direction {
@@ -224,7 +224,7 @@ pub mod giftcards_handlers {
 
         create_response(
             StatusCode::OK,
-            ListGiftcardsResponse::ok(&ListGiftcardsResponseData {
+            ListGiftcardSpawnOrgsResponse::ok(&ListGiftcardSpawnOrgsResponseData {
                 items: filtered_giftcards.clone(),
                 page_size: filtered_giftcards.len(),
                 total: total_count,
@@ -250,7 +250,7 @@ pub mod giftcards_handlers {
         // Parse request body
         let body: &[u8] = request.body();
 
-        if let Ok(req) = serde_json::from_slice::<UpsertGiftcardRequestBody>(body) {
+        if let Ok(req) = serde_json::from_slice::<UpsertGiftcardSpawnOrgRequestBody>(body) {
             // Validate request body
             if let Err(validation_error) = req.validate_body() {
                 return create_response(
@@ -263,11 +263,11 @@ pub mod giftcards_handlers {
             }
 
             match req {
-                UpsertGiftcardRequestBody::Create(create_req) => {            
+                UpsertGiftcardSpawnOrgRequestBody::Create(create_req) => {            
                     // Create new giftcard
                     let current_time = ic_cdk::api::time();
-                    let new_giftcard = Giftcard {
-                        id: GiftcardID(generate_uuidv4(IDPrefix::Giftcard)),
+                    let new_giftcard = GiftcardSpawnOrg {
+                        id: GiftcardSpawnOrgID(generate_uuidv4(IDPrefix::GiftcardSpawnOrg)),
                         usd_revenue_cents: create_req.usd_revenue_cents,
                         note: create_req.note,
                         gas_cycles_included: create_req.gas_cycles_included,
@@ -276,38 +276,38 @@ pub mod giftcards_handlers {
                         redeemed: false,
                     };
             
-                    // Add to GIFTCARD_BY_ID
-                    GIFTCARD_BY_ID.with(|store| {
+                    // Add to GIFTCARD_SPAWNORG_BY_ID
+                    GIFTCARD_SPAWNORG_BY_ID.with(|store| {
                         store.borrow_mut().insert(new_giftcard.id.clone(), new_giftcard.clone());
                     });
             
-                    // Add to USER_TO_GIFTCARDS_HASHTABLE for the owner
+                    // Add to USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE for the owner
                     let owner_id = OWNER_ID.with(|id| id.borrow().clone());
-                    USER_TO_GIFTCARDS_HASHTABLE.with(|store| {
+                    USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE.with(|store| {
                         store.borrow_mut()
                             .entry(owner_id)
                             .or_insert_with(Vec::new)
                             .push(new_giftcard.id.clone());
                     });
                     
-                    // Add to HISTORICAL_GIFTCARDS
-                    crate::core::state::giftcards::state::state::HISTORICAL_GIFTCARDS.with(|giftcards| {
+                    // Add to HISTORICAL_GIFTCARDS_SPAWNORGS
+                    crate::core::state::giftcards_spawnorg::state::state::HISTORICAL_GIFTCARDS_SPAWNORGS.with(|giftcards| {
                         giftcards.borrow_mut().push(new_giftcard.id.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
-                        CreateGiftcardResponse::ok(&new_giftcard).encode()
+                        CreateGiftcardSpawnOrgResponse::ok(&new_giftcard).encode()
                     )  
                 },
-                UpsertGiftcardRequestBody::Update(update_req) => {
+                UpsertGiftcardSpawnOrgRequestBody::Update(update_req) => {
                     // Get the giftcard to update
-                    let giftcard_id = GiftcardID(update_req.id);
-                    let mut giftcard = match GIFTCARD_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
+                    let giftcard_id = GiftcardSpawnOrgID(update_req.id);
+                    let mut giftcard = match GIFTCARD_SPAWNORG_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
                         Some(v) => v,
                         None => return create_response(
                             StatusCode::NOT_FOUND,
-                            ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
+                            ErrorResponse::err(404, "GiftcardSpawnOrg not found".to_string()).encode()
                         ),
                     };
 
@@ -325,14 +325,14 @@ pub mod giftcards_handlers {
                         giftcard.external_id = external_id;
                     }
             
-                    // Update the giftcard in GIFTCARD_BY_ID
-                    GIFTCARD_BY_ID.with(|store| {
+                    // Update the giftcard in GIFTCARD_SPAWNORG_BY_ID
+                    GIFTCARD_SPAWNORG_BY_ID.with(|store| {
                         store.borrow_mut().insert(giftcard.id.clone(), giftcard.clone());
                     });
 
                     create_response(
                         StatusCode::OK,
-                        UpdateGiftcardResponse::ok(&giftcard).encode()
+                        UpdateGiftcardSpawnOrgResponse::ok(&giftcard).encode()
                     )
                 }
             }
@@ -363,7 +363,7 @@ pub mod giftcards_handlers {
         let body: &[u8] = request.body();
         
         debug_log!("Incoming request body: {}", String::from_utf8_lossy(request.body()));
-        let delete_request = match serde_json::from_slice::<DeleteGiftcardRequestBody>(body) {
+        let delete_request = match serde_json::from_slice::<DeleteGiftcardSpawnOrgRequestBody>(body) {
             Ok(req) => req,
             Err(_) => {
                 return create_response(
@@ -384,25 +384,25 @@ pub mod giftcards_handlers {
         }
 
         // Get the giftcard to be deleted
-        let giftcard_id = GiftcardID(delete_request.id.clone());
-        let _giftcard = match GIFTCARD_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
+        let giftcard_id = GiftcardSpawnOrgID(delete_request.id.clone());
+        let _giftcard = match GIFTCARD_SPAWNORG_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
             Some(v) => v,
             None => {
                 return create_response(
                     StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
+                    ErrorResponse::err(404, "GiftcardSpawnOrg not found".to_string()).encode()
                 )
             }
         };
 
-        // Remove from GIFTCARD_BY_ID
-        GIFTCARD_BY_ID.with(|store| {
+        // Remove from GIFTCARD_SPAWNORG_BY_ID
+        GIFTCARD_SPAWNORG_BY_ID.with(|store| {
             store.borrow_mut().remove(&giftcard_id);
         });
 
-        // Remove from USER_TO_GIFTCARDS_HASHTABLE
+        // Remove from USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE
         let owner_id = OWNER_ID.with(|id| id.borrow().clone());
-        USER_TO_GIFTCARDS_HASHTABLE.with(|store| {
+        USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
             if let Some(giftcard_ids) = store.get_mut(&owner_id) {
                 giftcard_ids.retain(|id| id != &giftcard_id);
@@ -413,13 +413,13 @@ pub mod giftcards_handlers {
             }
         });
         
-        // Note: We intentionally do NOT remove from HISTORICAL_GIFTCARDS
+        // Note: We intentionally do NOT remove from HISTORICAL_GIFTCARDS_SPAWNORGS
         // This preserves the historical record even if a giftcard is deleted
 
         // Return success response
         create_response(
             StatusCode::OK,
-            DeleteGiftcardResponse::ok(&DeletedGiftcardData {
+            DeleteGiftcardSpawnOrgResponse::ok(&DeletedGiftcardSpawnOrgData {
                 id: delete_request.id,
                 deleted: true
             }).encode()
@@ -438,7 +438,7 @@ pub mod giftcards_handlers {
         // Parse request body
         let body: &[u8] = request.body();
         
-        let redeem_request = match serde_json::from_slice::<RedeemGiftcardData>(body) {
+        let redeem_request = match serde_json::from_slice::<RedeemGiftcardSpawnOrgData>(body) {
             Ok(req) => req,
             Err(_) => {
                 return create_response(
@@ -458,12 +458,12 @@ pub mod giftcards_handlers {
     
         // Get the giftcard to be redeemed
         let giftcard_id = redeem_request.giftcard_id.clone();
-        let giftcard = match GIFTCARD_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
+        let giftcard = match GIFTCARD_SPAWNORG_BY_ID.with(|store| store.borrow().get(&giftcard_id).cloned()) {
             Some(v) => v,
             None => {
                 return create_response(
                     StatusCode::NOT_FOUND,
-                    ErrorResponse::err(404, "Giftcard not found".to_string()).encode()
+                    ErrorResponse::err(404, "GiftcardSpawnOrg not found".to_string()).encode()
                 )
             }
         };
@@ -472,7 +472,7 @@ pub mod giftcards_handlers {
         if giftcard.redeemed {
             return create_response(
                 StatusCode::BAD_REQUEST,
-                ErrorResponse::err(400, "Giftcard already redeemed".to_string()).encode()
+                ErrorResponse::err(400, "GiftcardSpawnOrg already redeemed".to_string()).encode()
             );
         }
     
@@ -506,7 +506,7 @@ pub mod giftcards_handlers {
         };
     
         // Create a record of the deployment
-        let version = crate::core::state::giftcards::state::state::VERSION.with(|v| v.borrow().clone());
+        let version = crate::core::state::giftcards_spawnorg::state::state::VERSION.with(|v| v.borrow().clone());
         
         // Get appropriate URL endpoint for the deployed canister
         let endpoint = match is_local_environment() {
@@ -536,31 +536,31 @@ pub mod giftcards_handlers {
         };
     
         // Update giftcard as redeemed
-        GIFTCARD_BY_ID.with(|store| {
+        GIFTCARD_SPAWNORG_BY_ID.with(|store| {
             let mut giftcard = giftcard.clone();
             giftcard.redeemed = true;
             store.borrow_mut().insert(giftcard_id.clone(), giftcard);
         });
     
         // Store the deployment history
-        crate::core::state::giftcards::state::state::DEPLOYMENTS_BY_GIFTCARD_ID.with(|records| {
+        crate::core::state::giftcards_spawnorg::state::state::DEPLOYMENTS_BY_GIFTCARD_SPAWNORG_ID.with(|records| {
             records.borrow_mut().insert(giftcard_id.clone(), history_record.clone());
         });
     
-        // Add to DRIVE_TO_GIFTCARD_HASHTABLE
-        crate::core::state::giftcards::state::state::DRIVE_TO_GIFTCARD_HASHTABLE.with(|map| {
+        // Add to DRIVE_TO_GIFTCARD_SPAWNORG_HASHTABLE
+        crate::core::state::giftcards_spawnorg::state::state::DRIVE_TO_GIFTCARD_SPAWNORG_HASHTABLE.with(|map| {
             map.borrow_mut().insert(format_drive_id(&deployed_canister.clone()), giftcard_id.clone());
         });
     
-        // Add to USER_TO_GIFTCARDS_HASHTABLE for the owner
-        USER_TO_GIFTCARDS_HASHTABLE.with(|store| {
+        // Add to USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE for the owner
+        USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE.with(|store| {
             store.borrow_mut()
                 .entry(owner_id.clone())
                 .or_insert_with(Vec::new)
                 .push(giftcard_id.clone());
         });
 
-        let redeem_giftcard_result = RedeemGiftcardResult {
+        let redeem_giftcard_result = RedeemGiftcardSpawnOrgResult {
             owner_id: owner_id,
             drive_id: format_drive_id(&deployed_canister),
             endpoint: endpoint,
@@ -570,7 +570,7 @@ pub mod giftcards_handlers {
         // Return success response
         create_response(
             StatusCode::OK,
-            RedeemGiftcardResponse::ok(&redeem_giftcard_result).encode()
+            RedeemGiftcardSpawnOrgResponse::ok(&redeem_giftcard_result).encode()
         )
     }
     

@@ -105,4 +105,7 @@ $ dfx canister deposit-cycles --network ic 2500000000000 <canister_id>
 # check status of deployed caniter
 $ dfx canister --network ic status <canister_id>
 $ dfx canister --network ic logs <canister_id>
+
+# add custom controller
+$ dfx canister update-settings --add-controller <controller_principal_id>  --all <canister_id>
 ```

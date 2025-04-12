@@ -4,7 +4,7 @@ use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use crate::{
     core::{
-        state::giftcards::types::{DriveID, DriveRESTUrlEndpoint, FactorySpawnHistoryRecord, Giftcard, GiftcardID}, 
+        state::giftcards_spawnorg::types::{DriveID, DriveRESTUrlEndpoint, FactorySpawnHistoryRecord, GiftcardSpawnOrg, GiftcardSpawnOrgID}, 
         types::{ICPPrincipalString, IDPrefix, UserID}
     }, 
     rest::types::{
@@ -31,7 +31,7 @@ impl Default for SortDirection {
 
 // Add pagination request body
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListGiftcardsRequestBody {
+pub struct ListGiftcardSpawnOrgsRequestBody {
     #[serde(default)]
     pub filters: String,
     #[serde(default = "default_page_size")]
@@ -45,7 +45,7 @@ fn default_page_size() -> usize {
     50
 }
 
-impl ListGiftcardsRequestBody {
+impl ListGiftcardSpawnOrgsRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate filters string length
         if self.filters.len() > 256 {
@@ -79,8 +79,8 @@ impl ListGiftcardsRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ListGiftcardsResponseData {
-    pub items: Vec<Giftcard>,
+pub struct ListGiftcardSpawnOrgsResponseData {
+    pub items: Vec<GiftcardSpawnOrg>,
     pub page_size: usize,
     pub total: usize,
     pub direction: SortDirection,
@@ -89,14 +89,14 @@ pub struct ListGiftcardsResponseData {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CreateGiftcardRequestBody {
+pub struct CreateGiftcardSpawnOrgRequestBody {
     pub action: UpsertActionTypeEnum,
     pub usd_revenue_cents: u64,
     pub note: String,
     pub gas_cycles_included: u64,
     pub external_id: String,
 }
-impl CreateGiftcardRequestBody {
+impl CreateGiftcardSpawnOrgRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         
         // validate gas_cycles_included (must be greater than 1T)
@@ -118,19 +118,19 @@ impl CreateGiftcardRequestBody {
         Ok(())
     }
 }
-pub type CreateGiftcardResponse<'a> = ApiResponse<'a, Giftcard>;
+pub type CreateGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, GiftcardSpawnOrg>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeleteGiftcardRequestBody {
+pub struct DeleteGiftcardSpawnOrgRequestBody {
     pub id: String,
 }
-impl DeleteGiftcardRequestBody {
+impl DeleteGiftcardSpawnOrgRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate id (must not be empty, up to 256 chars)
         validate_id_string(&self.id, "id")?;
         
         // Check if ID has the correct prefix
-        let api_key_prefix = IDPrefix::Giftcard.as_str();
+        let api_key_prefix = IDPrefix::GiftcardSpawnOrg.as_str();
         if !self.id.starts_with(api_key_prefix) {
             return Err(ValidationError {
                 field: "id".to_string(),
@@ -143,14 +143,14 @@ impl DeleteGiftcardRequestBody {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DeletedGiftcardData {
+pub struct DeletedGiftcardSpawnOrgData {
     pub id: String,
     pub deleted: bool
 }
-pub type DeleteGiftcardResponse<'a> = ApiResponse<'a, DeletedGiftcardData>;
+pub type DeleteGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, DeletedGiftcardSpawnOrgData>;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateGiftcardRequestBody {
+pub struct UpdateGiftcardSpawnOrgRequestBody {
     pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -162,13 +162,13 @@ pub struct UpdateGiftcardRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
 }
-impl UpdateGiftcardRequestBody {
+impl UpdateGiftcardSpawnOrgRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
-        // Validate id (must not be empty, up to 256 chars, and start with GiftcardID_ prefix)
+        // Validate id (must not be empty, up to 256 chars, and start with GiftcardSpawnOrgID_ prefix)
         validate_id_string(&self.id, "id")?;
         
         // Check if ID has the correct prefix
-        let api_key_prefix = IDPrefix::Giftcard.as_str();
+        let api_key_prefix = IDPrefix::GiftcardSpawnOrg.as_str();
         if !self.id.starts_with(api_key_prefix) {
             return Err(ValidationError {
                 field: "id".to_string(),
@@ -200,39 +200,39 @@ impl UpdateGiftcardRequestBody {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum UpsertGiftcardRequestBody {
-    Create(CreateGiftcardRequestBody),
-    Update(UpdateGiftcardRequestBody),
+pub enum UpsertGiftcardSpawnOrgRequestBody {
+    Create(CreateGiftcardSpawnOrgRequestBody),
+    Update(UpdateGiftcardSpawnOrgRequestBody),
 }
-impl UpsertGiftcardRequestBody {
+impl UpsertGiftcardSpawnOrgRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         match self {
-            UpsertGiftcardRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertGiftcardRequestBody::Update(update_req) => update_req.validate_body(),
+            UpsertGiftcardSpawnOrgRequestBody::Create(create_req) => create_req.validate_body(),
+            UpsertGiftcardSpawnOrgRequestBody::Update(update_req) => update_req.validate_body(),
         }
     }
 }
 
-pub type UpdateGiftcardResponse<'a> = ApiResponse<'a, Giftcard>;
-pub type ListGiftcardsResponse<'a> = ApiResponse<'a, ListGiftcardsResponseData>;
-pub type GetGiftcardResponse<'a> = ApiResponse<'a, Giftcard>;
+pub type UpdateGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, GiftcardSpawnOrg>;
+pub type ListGiftcardSpawnOrgsResponse<'a> = ApiResponse<'a, ListGiftcardSpawnOrgsResponseData>;
+pub type GetGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, GiftcardSpawnOrg>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedeemGiftcardData {
-    pub giftcard_id: GiftcardID,
+pub struct RedeemGiftcardSpawnOrgData {
+    pub giftcard_id: GiftcardSpawnOrgID,
     pub owner_icp_principal: String,
     pub owner_name: Option<String>,
     pub organization_name: Option<String>
 }
-impl RedeemGiftcardData {
+impl RedeemGiftcardSpawnOrgData {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate giftcard_id format
-        if !self.giftcard_id.0.starts_with(IDPrefix::Giftcard.as_str()) {
+        if !self.giftcard_id.0.starts_with(IDPrefix::GiftcardSpawnOrg.as_str()) {
             return Err(ValidationError {
                 field: "id".to_string(),
-                message: format!("Giftcard ID must start with '{}'", IDPrefix::Giftcard.as_str()),
+                message: format!("GiftcardSpawnOrg ID must start with '{}'", IDPrefix::GiftcardSpawnOrg.as_str()),
             });
         }
 
@@ -285,14 +285,14 @@ impl RedeemGiftcardData {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedeemGiftcardResult {
+pub struct RedeemGiftcardSpawnOrgResult {
     pub owner_id: UserID,
     pub drive_id: DriveID,
     pub endpoint: DriveRESTUrlEndpoint,
     pub redeem_code: String,
 }
 
-pub type RedeemGiftcardResponse<'a> = ApiResponse<'a, RedeemGiftcardResult>;
+pub type RedeemGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, RedeemGiftcardSpawnOrgResult>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct SpawnInitArgs {

@@ -60,7 +60,8 @@ pub enum IDPrefix {
     ApiKey,
     Drive,
     User,
-    Giftcard,
+    GiftcardSpawnOrg,
+    GiftcardRefuel
 }
 
 impl IDPrefix {
@@ -69,7 +70,8 @@ impl IDPrefix {
             IDPrefix::ApiKey => "ApiKey_",
             IDPrefix::Drive => "DriveID_",
             IDPrefix::User => "UserID_",
-            IDPrefix::Giftcard => "GiftcardID_",
+            IDPrefix::GiftcardSpawnOrg => "GiftcardSpawnOrgID_",
+            IDPrefix::GiftcardRefuel => "GiftcardRefuelID_",
         }
     }
 }
