@@ -3,6 +3,7 @@ use crate::debug_log;
 use crate::rest::router::{self, genroute};
 use crate::rest::types::RouteHandler;
 
+pub const ORG_ABOUT_PATH: &str =                    genroute!("/organization/about");
 pub const ORG_INBOX_PATH: &str =                    genroute!("/organization/inbox");
 pub const ORG_SNAPSHOT_PATH: &str =                 genroute!("/organization/snapshot");
 pub const ORG_REPLAY_PATH: &str =                   genroute!("/organization/replay");
@@ -18,6 +19,11 @@ type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
 pub fn init_routes() {
     let routes: &[HandlerEntry] = &[
+        (
+            "GET",
+            ORG_ABOUT_PATH,
+            |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::about_drive_handler(req, params)),
+        ),
         (
             "GET",
             ORG_SNAPSHOT_PATH,
