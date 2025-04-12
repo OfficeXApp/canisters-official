@@ -90,11 +90,12 @@ pub struct ListGiftcardSpawnOrgsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateGiftcardSpawnOrgRequestBody {
-    pub action: UpsertActionTypeEnum,
+    pub action: UpsertActionTypeEnum, 
     pub usd_revenue_cents: u64,
     pub note: String,
     pub gas_cycles_included: u64,
     pub external_id: String,
+    pub disk_auth_json: Option<String>,
 }
 impl CreateGiftcardSpawnOrgRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -161,6 +162,8 @@ pub struct UpdateGiftcardSpawnOrgRequestBody {
     pub gas_cycles_included: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disk_auth_json: Option<String>,
 }
 impl UpdateGiftcardSpawnOrgRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -290,6 +293,7 @@ pub struct RedeemGiftcardSpawnOrgResult {
     pub drive_id: DriveID,
     pub endpoint: DriveRESTUrlEndpoint,
     pub redeem_code: String,
+    pub disk_auth_json: Option<String>,
 }
 
 pub type RedeemGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, RedeemGiftcardSpawnOrgResult>;

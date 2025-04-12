@@ -7,7 +7,8 @@
 
 ## Urgent Next
 
-- [ ] Deposit Gas giftcard functionality in factory, and factory default storjweb3 bucket
+- [🔵] Deposit Gas giftcard functionality in factory, and factory default storjweb3 bucket
+
 - [🔵] Fix superswap user to also handle permissions updating
 
 - [ ] Add route type validation to throw error on unknown fields instead of panicking

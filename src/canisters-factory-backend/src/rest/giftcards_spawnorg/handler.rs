@@ -274,6 +274,7 @@ pub mod giftcards_handlers {
                         timestamp_ms: current_time,
                         external_id: create_req.external_id,
                         redeemed: false,
+                        disk_auth_json: create_req.disk_auth_json,
                     };
             
                     // Add to GIFTCARD_SPAWNORG_BY_ID
@@ -323,6 +324,9 @@ pub mod giftcards_handlers {
                     }
                     if let Some(external_id) = update_req.external_id {
                         giftcard.external_id = external_id;
+                    }
+                    if let Some(disk_auth_json) = update_req.disk_auth_json {
+                        giftcard.disk_auth_json = Some(disk_auth_json);
                     }
             
                     // Update the giftcard in GIFTCARD_SPAWNORG_BY_ID
@@ -565,6 +569,7 @@ pub mod giftcards_handlers {
             drive_id: format_drive_id(&deployed_canister),
             endpoint: endpoint,
             redeem_code: redeem_code,
+            disk_auth_json: giftcard.disk_auth_json,
         };
     
         // Return success response
