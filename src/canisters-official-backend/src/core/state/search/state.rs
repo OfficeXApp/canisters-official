@@ -12,13 +12,16 @@ pub mod state {
     use crate::core::api::permissions::system::check_system_permissions;
     use crate::core::state::directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata};
     use crate::core::state::directory::types::{DriveFullFilePath, FileID, FolderID};
+    use crate::core::state::disks::types::DiskID;
     use crate::core::state::drives::state::state::{DRIVES_BY_ID_HASHTABLE, DRIVE_ID};
-    use crate::core::state::drives::types::ExternalID;
+    use crate::core::state::drives::types::{DriveID, ExternalID};
+    use crate::core::state::groups::types::GroupID;
     use crate::core::state::permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
     use crate::core::state::search::types::{SearchResult, SearchResultResourceID, SearchCategoryEnum};
     use crate::core::state::contacts::state::state::{CONTACTS_BY_ID_HASHTABLE};
     use crate::core::state::disks::state::state::{DISKS_BY_ID_HASHTABLE};
     use crate::core::state::groups::state::state::{GROUPS_BY_ID_HASHTABLE};
+    use crate::core::types::{IDPrefix, UserID};
     use crate::rest::directory::types::DirectoryResourceID;
     
 
@@ -292,14 +295,17 @@ pub mod state {
                     }
                     
                     // Generate title and preview based on resource type
-                    let (title, preview) = generate_title_and_preview(&resource_id);
+                    let (title, preview, created_at, updated_at, metadata) = generate_title_and_preview(&resource_id);
                     
                     matches.push(SearchResult {
                         title,
                         preview,
                         score,
-                        resource_id,
+                        resource_id: resource_id.to_string(),
                         category,
+                        created_at,
+                        updated_at,
+                        metadata,
                     });
                 }
             }
@@ -327,7 +333,7 @@ pub mod state {
             let has_permission = match &result.category {
                 // Directory resources (files and folders)
                 SearchCategoryEnum::Files => {
-                    if let SearchResultResourceID::File(file_id) = &result.resource_id {
+                    if let SearchResultResourceID::File(file_id) = &SearchResultResourceID::File(FileID(result.resource_id.clone())) {
                         let resource_id = DirectoryResourceID::File(file_id.clone());
                         let permissions = check_directory_permissions(
                             resource_id.clone(),
@@ -339,7 +345,7 @@ pub mod state {
                     }
                 },
                 SearchCategoryEnum::Folders => {
-                    if let SearchResultResourceID::Folder(folder_id) = &result.resource_id {
+                    if let SearchResultResourceID::Folder(folder_id) = &SearchResultResourceID::Folder(FolderID(result.resource_id.clone())) {
                         let resource_id = DirectoryResourceID::Folder(folder_id.clone());
                         let permissions = check_directory_permissions(
                             resource_id.clone(),
@@ -353,7 +359,7 @@ pub mod state {
                 
                 // System resources
                 SearchCategoryEnum::Contacts => {
-                    if let SearchResultResourceID::Contact(user_id) = &result.resource_id {
+                    if let SearchResultResourceID::Contact(user_id) = &SearchResultResourceID::Contact(UserID(result.resource_id.clone())) {
                         let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(user_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
@@ -374,7 +380,7 @@ pub mod state {
                     }
                 },
                 SearchCategoryEnum::Disks => {
-                    if let SearchResultResourceID::Disk(disk_id) = &result.resource_id {
+                    if let SearchResultResourceID::Disk(disk_id) = &SearchResultResourceID::Disk(DiskID(result.resource_id.clone())) {
                         let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
@@ -395,7 +401,7 @@ pub mod state {
                     }
                 },
                 SearchCategoryEnum::Drives => {
-                    if let SearchResultResourceID::Drive(drive_id) = &result.resource_id {
+                    if let SearchResultResourceID::Drive(drive_id) = &SearchResultResourceID::Drive(DriveID(result.resource_id.clone())) {
                         let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
@@ -416,7 +422,7 @@ pub mod state {
                     }
                 },
                 SearchCategoryEnum::Groups => {
-                    if let SearchResultResourceID::Group(group_id) = &result.resource_id {
+                    if let SearchResultResourceID::Group(group_id) = &SearchResultResourceID::Group(GroupID(result.resource_id.clone())) {
                         let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
@@ -438,87 +444,100 @@ pub mod state {
                 },
                 // Handle the All category by checking the specific resource type
                 SearchCategoryEnum::All => {
-                    match &result.resource_id {
-                        SearchResultResourceID::File(file_id) => {
-                            let resource_id = DirectoryResourceID::File(file_id.clone());
-                            let permissions = check_directory_permissions(
-                                resource_id,
-                                grantee_id.clone()
-                            ).await;
-                            permissions.contains(&DirectoryPermissionType::View)
-                        },
-                        SearchResultResourceID::Folder(folder_id) => {
-                            let resource_id = DirectoryResourceID::Folder(folder_id.clone());
-                            let permissions = check_directory_permissions(
-                                resource_id,
-                                grantee_id.clone()
-                            ).await;
-                            permissions.contains(&DirectoryPermissionType::View)
-                        },
-                        SearchResultResourceID::Contact(user_id) => {
-                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(user_id.0.clone()));
-                            let permissions = check_system_permissions(
-                                resource_id,
-                                grantee_id.clone()
-                            );
-                            if !permissions.contains(&SystemPermissionType::View) {
-                                let table_permission = check_system_permissions(
-                                    SystemResourceID::Table(SystemTableEnum::Contacts),
-                                    grantee_id.clone()
-                                );
-                                table_permission.contains(&SystemPermissionType::View)
-                            } else {
-                                true
-                            }
-                        },
-                        SearchResultResourceID::Disk(disk_id) => {
-                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.0.clone()));
-                            let permissions = check_system_permissions(
-                                resource_id,
+                    // We need to determine the type of resource from the category or some other way
+                    // Since we can't directly match on result.resource_id as an enum, we need to use the category to guide our handling
+                    
+                    // First, try to infer the resource type from the ID format or metadata
+                    // This is a simplified approach - you might need a more robust way to determine the resource type
+                    if result.resource_id.starts_with(IDPrefix::File.as_str()) {
+                        // Handle as file
+                        let file_id = FileID(result.resource_id.clone());
+                        let resource_id = DirectoryResourceID::File(file_id);
+                        let permissions = check_directory_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        ).await;
+                        permissions.contains(&DirectoryPermissionType::View)
+                    } else if result.resource_id.starts_with(IDPrefix::Folder.as_str()) {
+                        // Handle as folder
+                        let folder_id = FolderID(result.resource_id.clone());
+                        let resource_id = DirectoryResourceID::Folder(folder_id);
+                        let permissions = check_directory_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        ).await;
+                        permissions.contains(&DirectoryPermissionType::View)
+                    } else if result.resource_id.starts_with(IDPrefix::User.as_str()) {
+                        // Handle as contact
+                        let user_id = UserID(result.resource_id.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(user_id.0.clone()));
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Contacts),
                                 grantee_id.clone()
                             );
-                            if !permissions.contains(&SystemPermissionType::View) {
-                                let table_permission = check_system_permissions(
-                                    SystemResourceID::Table(SystemTableEnum::Disks),
-                                    grantee_id.clone()
-                                );
-                                table_permission.contains(&SystemPermissionType::View)
-                            } else {
-                                true
-                            }
-                        },
-                        SearchResultResourceID::Drive(drive_id) => {
-                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive_id.0.clone()));
-                            let permissions = check_system_permissions(
-                                resource_id,
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else if result.resource_id.starts_with(IDPrefix::Disk.as_str()) {
+                        // Handle as disk
+                        let disk_id = DiskID(result.resource_id.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk_id.0.clone()));
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Disks),
                                 grantee_id.clone()
                             );
-                            if !permissions.contains(&SystemPermissionType::View) {
-                                let table_permission = check_system_permissions(
-                                    SystemResourceID::Table(SystemTableEnum::Drives),
-                                    grantee_id.clone()
-                                );
-                                table_permission.contains(&SystemPermissionType::View)
-                            } else {
-                                true
-                            }
-                        },
-                        SearchResultResourceID::Group(group_id) => {
-                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group_id.0.clone()));
-                            let permissions = check_system_permissions(
-                                resource_id,
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else if result.resource_id.starts_with(IDPrefix::Drive.as_str()) {
+                        // Handle as drive
+                        let drive_id = DriveID(result.resource_id.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive_id.0.clone()));
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Drives),
                                 grantee_id.clone()
                             );
-                            if !permissions.contains(&SystemPermissionType::View) {
-                                let table_permission = check_system_permissions(
-                                    SystemResourceID::Table(SystemTableEnum::Groups),
-                                    grantee_id.clone()
-                                );
-                                table_permission.contains(&SystemPermissionType::View)
-                            } else {
-                                true
-                            }
-                        },
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else if result.resource_id.starts_with(IDPrefix::Group.as_str()) {
+                        // Handle as group
+                        let group_id = GroupID(result.resource_id.clone());
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group_id.0.clone()));
+                        let permissions = check_system_permissions(
+                            resource_id,
+                            grantee_id.clone()
+                        );
+                        if !permissions.contains(&SystemPermissionType::View) {
+                            let table_permission = check_system_permissions(
+                                SystemResourceID::Table(SystemTableEnum::Groups),
+                                grantee_id.clone()
+                            );
+                            table_permission.contains(&SystemPermissionType::View)
+                        } else {
+                            true
+                        }
+                    } else {
+                        // Unknown resource type
+                        false
                     }
                 }
             };
@@ -532,89 +551,136 @@ pub mod state {
     }
     
     /// Helper function to generate title and preview for each resource type
-    fn generate_title_and_preview(resource_id: &SearchResultResourceID) -> (String, String) {
+    fn generate_title_and_preview(resource_id: &SearchResultResourceID) -> (String, String, u64, u64, Option<String>) {
         match resource_id {
             SearchResultResourceID::File(file_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
+                let mut created_at = 0;
+                let mut updated_at = 0;
+                let mut result_metadata: Option<String> = None;
                 
                 file_uuid_to_metadata.with(|map| {
                     if let Some(metadata) = map.get(file_id) {
                         // Extract filename from path
                         let path_parts: Vec<&str> = metadata.full_directory_path.0.split('/').collect();
                         title = path_parts.last().unwrap_or(&"").to_string();
-                        preview = metadata.full_directory_path.0.clone();
+                    
+                        if path_parts.len() >= 2 {
+                            // Get parent folder (second-to-last element) and filename (last element)
+                            let parent = path_parts.get(path_parts.len() - 2).unwrap_or(&"");
+                            let filename = path_parts.last().unwrap_or(&"");
+                            preview = format!("{}/{}", parent, filename);
+                        } else {
+                            // If there's no parent folder, just use the filename
+                            preview = title.clone();
+                        }
+
+                        created_at = metadata.created_at;
+                        updated_at = metadata.last_updated_date_ms;
+                        result_metadata = Some(format!("/{}/{}/{}", metadata.disk_type.clone(), metadata.disk_id.clone(), metadata.id.clone()));
                     }
                 });
                 
-                (title, preview)
+                (title, preview, created_at, updated_at, result_metadata)
             },
             SearchResultResourceID::Folder(folder_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
+                let mut created_at = 0;
+                let mut updated_at = 0;
+                let mut result_metadata: Option<String> = None;
                 
                 folder_uuid_to_metadata.with(|map| {
                     if let Some(metadata) = map.get(folder_id) {
-                        // Extract folder name from path
+                        title = metadata.name.clone();
+                        
                         let path_parts: Vec<&str> = metadata.full_directory_path.0.split('/').collect();
-                        title = path_parts.last().unwrap_or(&"").to_string();
-                        preview = metadata.full_directory_path.0.clone();
+                        if path_parts.len() >= 2 {
+                            // Get parent folder (second-to-last element) and current folder name (last element)
+                            let parent = path_parts.get(path_parts.len() - 2).unwrap_or(&"");
+                            let folder_name = path_parts.last().unwrap_or(&"");
+                            preview = format!("{}/{}", parent, folder_name);
+                        } else {
+                            // If there's no parent folder, just use the folder name
+                            preview = title.clone();
+                        }
+
+                        created_at = metadata.created_at;
+                        updated_at = metadata.last_updated_date_ms;
+                        result_metadata = Some(format!("/{}/{}/{}", metadata.disk_type.clone(), metadata.disk_id.clone(), metadata.id.clone()));
                     }
                 });
                 
-                (title, preview)
+                (title, preview, created_at, updated_at, result_metadata)
             },
             SearchResultResourceID::Contact(user_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
+                let mut created_at = 0;
+                let mut updated_at = 0;
                 
                 CONTACTS_BY_ID_HASHTABLE.with(|contacts| {
                     if let Some(contact) = contacts.borrow().get(user_id) {
                         title = contact.name.clone();
                         preview = contact.icp_principal.0.0.clone();
+                        created_at = contact.created_at;
+                        updated_at = contact.last_online_ms;
                     }
                 });
                 
-                (title, preview)
+                (title, preview, created_at, updated_at, None)
             },
             SearchResultResourceID::Disk(disk_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
+                let mut created_at = 0;
+                let mut updated_at = 0;
                 
                 DISKS_BY_ID_HASHTABLE.with(|disks| {
                     if let Some(disk) = disks.borrow().get(disk_id) {
                         title = disk.name.clone();
                         preview = disk.external_id.clone().unwrap_or(ExternalID("".to_string())).0;
+                        created_at = disk.created_at;
+                        updated_at = disk.created_at;
                     }
                 });
                 
-                (title, preview)
+                (title, preview, created_at, updated_at, None)
             },
             SearchResultResourceID::Drive(drive_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
+                let mut created_at = 0;
+                let mut updated_at = 0;
                 
                 DRIVES_BY_ID_HASHTABLE.with(|drives| {
                     if let Some(drive) = drives.borrow().get(drive_id) {
                         title = drive.name.clone();
                         preview = drive.icp_principal.0.0.clone();
+                        created_at = drive.created_at;
+                        updated_at = drive.created_at;
                     }
                 });
                 
-                (title, preview)
+                (title, preview, created_at, updated_at, None)
             },
             SearchResultResourceID::Group(group_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
+                let mut created_at = 0;
+                let mut updated_at = 0;
                 
                 GROUPS_BY_ID_HASHTABLE.with(|groups| {
                     if let Some(group) = groups.borrow().get(group_id) {
                         title = group.name.clone();
                         preview = group.drive_id.0.clone();
+                        created_at = group.created_at;
+                        updated_at = group.last_modified_at;
                     }
                 });
                 
-                (title, preview)
+                (title, preview, created_at, updated_at, None)
             },
         }
     }

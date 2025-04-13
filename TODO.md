@@ -7,9 +7,8 @@
 
 ## Urgent Next
 
-- [🔵] Deposit Gas giftcard functionality in factory, and factory default storjweb3 bucket
-
 - [🔵] Fix superswap user to also handle permissions updating
+- [ ] Audit the list handlers and inputs to be string based, not rust enum based (might need to audit all route types even)
 
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
@@ -155,3 +154,4 @@
 - [x] Breadcrumbs for ListDirectory & Get_File
 - [x] Query root folder of disk should give users shortcuts? or maybe that should be its own route --> `[TODO]@"Return Disk Shortcuts"`
 - [x] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE` --> in the end, we just let every disk have its own "shared with me"
+- [x] Deposit Gas giftcard functionality in factory, and factory default storjweb3 bucket
