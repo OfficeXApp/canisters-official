@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, convert_state_to_serializable, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4, webhooks::organization::{fire_org_inbox_new_notif_webhook, fire_superswap_user_webhook, get_org_inbox_webhooks, get_superswap_user_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, InboxNotifID, SpawnRedeemCode}}, group_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, groups::state::state::{is_group_admin, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, labels::{state::{add_label_to_resource, parse_label_resource_id, remove_label_from_resource, validate_label_value}, types::{LabelOperationResponse, LabelResourceID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{AboutDriveResponse, AboutDriveResponseData, ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, InboxOrgRequestBody, InboxOrgResponse, InboxOrgResponseData, RedeemOrgRequestBody, RedeemOrgResponse, RedeemOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, convert_state_to_serializable, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4, webhooks::organization::{fire_org_inbox_new_notif_webhook, fire_superswap_user_webhook, get_org_inbox_webhooks, get_superswap_user_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, InboxNotifID, SpawnRedeemCode}}, group_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, groups::state::state::{is_group_admin, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, labels::{state::{add_label_to_resource, parse_label_resource_id, remove_label_from_resource, validate_label_value}, types::{LabelOperationResponse, LabelResourceID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{AboutDriveResponse, AboutDriveResponseData, ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, InboxOrgRequestBody, InboxOrgResponse, InboxOrgResponseData, RedeemOrgRequestBody, RedeemOrgResponse, RedeemOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SearchSortByEnum, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
         
     };
     use candid::Principal;
@@ -258,6 +258,7 @@ pub mod drives_handlers {
         }
     }
 
+    
     pub async fn search_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {
@@ -285,7 +286,7 @@ pub mod drives_handlers {
             );
         }
     
-        // Check if search query is provided
+        // Check if search query is provided (already validated in validate_body, but double-checking)
         if request_body.query.trim().is_empty() {
             return create_response(
                 StatusCode::BAD_REQUEST,
@@ -293,12 +294,17 @@ pub mod drives_handlers {
             );
         }
     
-        // Use the categories from the request or default to All if empty
-        let categories = if request_body.categories.is_empty() {
-            Some(vec![SearchCategoryEnum::All])
-        } else {
-            Some(request_body.categories)
+        // Use the categories from the request or default to All if None or empty
+        let categories = match &request_body.categories {
+            Some(cats) if !cats.is_empty() => Some(cats.clone()),
+            _ => Some(vec![SearchCategoryEnum::All])
         };
+    
+        // Get page size with default if not provided
+        let page_size = request_body.page_size.unwrap_or_else(|| 50);
+    
+        // Get sort direction with default if not provided
+        let direction = request_body.direction.unwrap_or_default();
     
         // Perform the search using the search module
         let max_edit_distance = 2; // Allow up to 2 character edits for fuzzy matching
@@ -308,8 +314,27 @@ pub mod drives_handlers {
         let grantee_id = PermissionGranteeID::User(requester_api_key.user_id.clone());
         
         // Filter results based on permissions
-        let filtered_results = filter_search_results_by_permission(&search_results, &grantee_id, is_owner).await;
+        let mut filtered_results = filter_search_results_by_permission(&search_results, &grantee_id, is_owner).await;
         
+        // Sort results based on sort_by if provided
+        if let Some(sort_by) = &request_body.sort_by {
+            match sort_by {
+                SearchSortByEnum::CreatedAt => {
+                    // Sort by created_at timestamp
+                    filtered_results.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+                },
+                _ => {
+                    // Sort by updated_at timestamp
+                    filtered_results.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+                }
+            }
+        }
+    
+        // Reverse the sort if direction is Desc
+        if direction == SortDirection::Desc {
+            filtered_results.reverse();
+        }
+    
         // Get total count of filtered results
         let total_count = filtered_results.len();
     
@@ -321,14 +346,14 @@ pub mod drives_handlers {
                     items: vec![],
                     page_size: 0,
                     total: 0,
-                    direction: request_body.direction,
+                    direction,
                     cursor: None,
                 }).encode()
             );
         }
     
         // Parse cursor if provided
-        let start_cursor = if let Some(cursor) = request_body.cursor {
+        let start_cursor = if let Some(cursor) = &request_body.cursor {
             match cursor.parse::<usize>() {
                 Ok(idx) => Some(idx),
                 Err(_) => return create_response(
@@ -344,64 +369,23 @@ pub mod drives_handlers {
         let start_index = if let Some(cursor_idx) = start_cursor {
             cursor_idx.min(total_count - 1)
         } else {
-            match request_body.direction {
-                SortDirection::Asc => 0,
-                SortDirection::Desc => total_count - 1,
-            }
+            0  // Always start at index 0, the direction will handle whether to go forward or backward
         };
     
         // Create paginated results from filtered results
         let mut paginated_results = Vec::new();
-        let mut processed_count = 0;
         let mut end_index = start_index;  // Track where we ended for cursor calculation
         
-        match request_body.direction {
-            SortDirection::Desc => {
-                // Newest first (highest index to lowest)
-                let mut current_idx = start_index;
-                while paginated_results.len() < request_body.page_size && current_idx < total_count {
-                    paginated_results.push(filtered_results[current_idx].clone());
-                    if current_idx == 0 {
-                        break;
-                    }
-                    current_idx -= 1;
-                    processed_count += 1;
-                }
-                end_index = current_idx;
-            },
-            SortDirection::Asc => {
-                // Oldest first (lowest index to highest)
-                let mut current_idx = start_index;
-                while paginated_results.len() < request_body.page_size && current_idx < total_count {
-                    paginated_results.push(filtered_results[current_idx].clone());
-                    current_idx += 1;
-                    processed_count += 1;
-                    if current_idx >= total_count {
-                        break;
-                    }
-                }
-                end_index = current_idx - 1;
-            }
-        }
+        // Calculate page end index
+        let end_bound = (start_index + page_size).min(total_count);
+        
+        // Get paginated slice
+        paginated_results = filtered_results[start_index..end_bound].to_vec();
+        end_index = end_bound - 1;
     
-        // Calculate next cursor based on direction and where we ended
-        let next_cursor = if paginated_results.len() >= request_body.page_size {
-            match request_body.direction {
-                SortDirection::Desc => {
-                    if end_index > 0 {
-                        Some(end_index.to_string())
-                    } else {
-                        None
-                    }
-                },
-                SortDirection::Asc => {
-                    if end_index < total_count - 1 {
-                        Some((end_index + 1).to_string())
-                    } else {
-                        None
-                    }
-                }
-            }
+        // Calculate next cursor based on whether there are more results
+        let next_cursor = if end_bound < total_count {
+            Some(end_bound.to_string())
         } else {
             None  // No more results available
         };
@@ -411,7 +395,7 @@ pub mod drives_handlers {
             items: paginated_results.clone(),
             page_size: paginated_results.len(),
             total: total_count,
-            direction: request_body.direction,
+            direction,
             cursor: next_cursor,
         };
     
@@ -420,8 +404,8 @@ pub mod drives_handlers {
             SearchDriveResponse::ok(&response_data).encode()
         )
     }
-    
-    
+
+
     pub async fn reindex_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
         let requester_api_key = match authenticate_request(request) {

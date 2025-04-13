@@ -62,11 +62,17 @@ pub enum SearchSortByEnum {
     CreatedAt,
     #[serde(rename = "UPDATED_AT")]
     UpdatedAt,
+    #[serde(rename = "SCORE")]
+    Score,
+    #[serde(rename = "RELEVANCE")]
+    Relevance,
+    #[serde(rename = "ALPHABETICAL")]
+    Alphabetical,
 }
 
 impl Default for SearchSortByEnum {
     fn default() -> Self {
-        SearchSortByEnum::UpdatedAt
+        SearchSortByEnum::CreatedAt
     }
 }
 
@@ -74,14 +80,13 @@ impl Default for SearchSortByEnum {
 pub struct SearchDriveRequestBody {
     pub query: String,
     #[serde(default)]
-    pub categories: Vec<SearchCategoryEnum>,
-    #[serde(default = "default_page_size")]
-    pub page_size: usize,
+    pub categories: Option<Vec<SearchCategoryEnum>>,
+    pub page_size: Option<usize>,
     pub cursor: Option<String>,
     #[serde(default)]
-    pub sort_by: SearchSortByEnum,
+    pub sort_by: Option<SearchSortByEnum>,
     #[serde(default)]
-    pub direction: SortDirection,
+    pub direction: Option<SortDirection>,
 }
 impl SearchDriveRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -100,12 +105,14 @@ impl SearchDriveRequestBody {
             });
         }
 
-        // Validate page_size is reasonable
-        if self.page_size == 0 || self.page_size > 1000 {
-            return Err(ValidationError {
-                field: "page_size".to_string(),
-                message: "Page size must be between 1 and 1000".to_string(),
-            });
+        // Validate page_size is reasonable if it's provided
+        if let Some(page_size) = self.page_size {
+            if page_size == 0 || page_size > 1000 {
+                return Err(ValidationError {
+                    field: "page_size".to_string(),
+                    message: "Page size must be between 1 and 1000".to_string(),
+                });
+            }
         }
 
         // Validate cursor strings if present
@@ -117,7 +124,6 @@ impl SearchDriveRequestBody {
                 });
             }
         }
-
 
         Ok(())
     }
