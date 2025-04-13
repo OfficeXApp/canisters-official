@@ -323,7 +323,12 @@ pub mod group_invites_handlers {
 
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
         let (invitee_id, redeem_code) = if let Some(invitee_user_id) = create_req.invitee_id {
-            (GroupInviteeID::User(UserID(invitee_user_id)), None)
+            // check if invitee_id === "PUBLIC"
+            if invitee_user_id == "PUBLIC" {
+                (GroupInviteeID::Public, Some("PUBLIC".to_string()))
+            } else {
+                (GroupInviteeID::User(UserID(invitee_user_id)), None)
+            }
         } else {
             let _placeholder_id = PlaceholderGroupInviteeID(
                 generate_uuidv4(IDPrefix::PlaceholderGroupInviteeID)
