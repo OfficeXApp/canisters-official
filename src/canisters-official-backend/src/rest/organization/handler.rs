@@ -925,8 +925,10 @@ pub mod drives_handlers {
             if let Some(api_key_ids) = map.borrow().get(&owner_id) {
                 if !api_key_ids.is_empty() {
                     crate::core::state::api_keys::state::state::APIKEYS_BY_ID_HASHTABLE.with(|id_map| {
-                        if let Some(api_key) = id_map.borrow().get(&api_key_ids[0]) {
-                            admin_api_key = api_key.value.0.clone();
+                        if let Some(first_key_id) = api_key_ids.keys.first() {
+                            if let Some(api_key) = id_map.borrow().get(first_key_id) {
+                                admin_api_key = api_key.value.0.clone();
+                            }
                         }
                     });
                 }

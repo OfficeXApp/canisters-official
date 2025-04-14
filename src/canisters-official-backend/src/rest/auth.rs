@@ -2,7 +2,7 @@ use candid::Principal;
 use ed25519_dalek::SigningKey;
 // src/rest/auth.rs
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use crate::{core::{api::uuid::format_user_id, state::api_keys::{state::state::{debug_state,APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log, rest::helpers::update_last_online_at};
+use crate::{core::{api::uuid::format_user_id, state::api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue, AuthJsonDecoded, AuthTypeEnum}}, types::UserID}, debug_log, rest::helpers::update_last_online_at};
 use crate::rest::api_keys::types::ErrorResponse;
 use ic_types::crypto::AlgorithmId;
 use bip39::{Mnemonic, Language};
@@ -203,7 +203,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
             
             // Look up the API key ID using the value
             let api_key_id = APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
-                store.borrow().get(&api_key_value).cloned()
+                store.borrow().get(&api_key_value).map(|data| data.clone())
             });
             
             if let Some(api_key_id) = api_key_id {
@@ -211,7 +211,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                 
                 // Look up the full API key using the ID
                 let full_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-                    store.borrow().get(&api_key_id).cloned()
+                    store.borrow().get(&api_key_id).map(|key| key.clone())
                 });
                 
                 // Check if key exists and validate expiration/revocation

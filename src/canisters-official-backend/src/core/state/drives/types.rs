@@ -140,7 +140,7 @@ pub struct StateDiffRecord {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord, CandidType)]
 pub struct ExternalID(pub String);
 impl fmt::Display for ExternalID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -149,7 +149,7 @@ impl fmt::Display for ExternalID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord, CandidType)]
 pub struct ExternalPayload(pub String);
 impl fmt::Display for ExternalPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

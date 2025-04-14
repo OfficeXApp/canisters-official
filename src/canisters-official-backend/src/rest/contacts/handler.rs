@@ -3,7 +3,7 @@
 
 pub mod contacts_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_api_key, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_superswap_user_webhook, get_superswap_user_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInvite, GroupInviteID, GroupInviteeID, GroupRole}}, groups::state::state::{DEFAULT_EVERYONE_GROUP, GROUPS_BY_ID_HASHTABLE}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, RedeemContactResponse, RedeemContactResponseBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{format_user_id, generate_api_key, generate_uuidv4, mark_claimed_uuid}, webhooks::organization::{fire_superswap_user_webhook, get_superswap_user_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInvite, GroupInviteID, GroupInviteeID, GroupRole}}, groups::state::state::{DEFAULT_EVERYONE_GROUP, GROUPS_BY_ID_HASHTABLE}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, contacts::types::{ CreateContactRequestBody, CreateContactResponse, DeleteContactRequest, DeleteContactResponse, DeletedContactData, ErrorResponse, GetContactResponse, ListContactsRequestBody, ListContactsResponse, ListContactsResponseData, RedeemContactRequestBody, RedeemContactResponse, RedeemContactResponseBody, UpdateContactRequest, UpdateContactRequestBody, UpdateContactResponse}, webhooks::types::SortDirection}
         
     };
     use crate::core::state::contacts::{
@@ -817,10 +817,17 @@ pub mod contacts_handlers {
         
                 // 3. Add to USERS_APIKEYS_HASHTABLE
                 USERS_APIKEYS_HASHTABLE.with(|store| {
-                    store.borrow_mut()
-                        .entry(new_api_key.user_id.clone())
-                        .or_insert_with(Vec::new)
-                        .push(new_api_key.id.clone());
+                    let mut store_mut = store.borrow_mut();
+                    
+                    if let Some(existing_list) = store_mut.get(&new_api_key.user_id) {
+                        // Clone and modify the existing list
+                        let mut updated_list = existing_list.clone();
+                        updated_list.add(new_api_key.id.clone());
+                        store_mut.insert(new_api_key.user_id.clone(), updated_list);
+                    } else {
+                        // Create new list with this key
+                        store_mut.insert(new_api_key.user_id.clone(), ApiKeyIDList::with_key(new_api_key.id.clone()));
+                    }
                 });
                 
                 create_response(

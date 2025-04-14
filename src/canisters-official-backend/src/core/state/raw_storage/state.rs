@@ -7,7 +7,7 @@ use ic_stable_structures::{
 use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use crate::core::state::raw_storage::types::{ChunkId, FileChunk};
+use crate::{core::state::raw_storage::types::{ChunkId, FileChunk}, MEMORY_MANAGER};
 
 use super::types::{ChunkIdList, CHUNK_SIZE};
 
@@ -55,9 +55,6 @@ impl Storable for FileChunk {
 }
 
 thread_local! {
-    pub(crate) static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = 
-        RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
-
     pub(crate) static CHUNKS: RefCell<StableBTreeMap<ChunkId, FileChunk, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(CHUNKS_MEMORY_ID))

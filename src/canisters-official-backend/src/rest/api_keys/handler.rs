@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_uuidv4, mark_claimed_uuid}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyFE, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_api_key, generate_uuidv4, mark_claimed_uuid}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{ApiKeyFE, CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, UpdateApiKeyRequestBody, UpdateApiKeyResponse}, auth::{authenticate_request, create_auth_error_response}}, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
@@ -28,7 +28,7 @@ pub mod apikeys_handlers {
 
         // Get the requested API key
         let api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&requested_id).cloned()
+            store.borrow().get(&requested_id).map(|key| key.clone())
         });
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
@@ -115,7 +115,7 @@ pub mod apikeys_handlers {
 
         // Get the list of API key IDs for the user
         let api_key_ids = USERS_APIKEYS_HASHTABLE.with(|store| {
-            store.borrow().get(&requested_user_id).cloned()
+            store.borrow().get(&requested_user_id).map(|data| data.clone())
         });
 
         match api_key_ids {
@@ -227,10 +227,21 @@ pub mod apikeys_handlers {
 
         // 3. Add to USERS_APIKEYS_HASHTABLE
         USERS_APIKEYS_HASHTABLE.with(|store| {
-            store.borrow_mut()
-                .entry(new_api_key.user_id.clone())
-                .or_insert_with(Vec::new)
-                .push(new_api_key.id.clone());
+            let mut store_mut = store.borrow_mut();
+            
+            // Check if the user already has API keys
+            if let Some(mut existing_list) = store_mut.get(&new_api_key.user_id) {
+                // Clone and modify the existing list
+                let mut updated_list = existing_list.clone();
+                updated_list.add(new_api_key.id.clone());
+                
+                // Insert the updated list
+                store_mut.insert(new_api_key.user_id.clone(), updated_list);
+            } else {
+                // Create new list with this key
+                let new_list = ApiKeyIDList::with_key(new_api_key.id.clone());
+                store_mut.insert(new_api_key.user_id.clone(), new_list);
+            }
         });
 
         update_external_id_mapping(
@@ -278,7 +289,7 @@ pub mod apikeys_handlers {
 
         // Get the API key to update
         let api_key_id = ApiKeyID(update_req.id);
-        let mut api_key = match APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&api_key_id).cloned()) {
+        let mut api_key = match APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&api_key_id).map(|key| key.clone())) {
             Some(key) => key,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -338,7 +349,7 @@ pub mod apikeys_handlers {
 
         // Get the updated API key
         let updated_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&api_key.id.clone()).cloned()
+            store.borrow().get(&api_key.id.clone()).map(|key| key.clone())
         });
 
         update_external_id_mapping(
@@ -406,7 +417,7 @@ pub mod apikeys_handlers {
 
        // Get the API key to be deleted
         let api_key_to_delete = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&ApiKeyID(delete_request.id.to_string())).cloned()
+            store.borrow().get(&ApiKeyID(delete_request.id.to_string())).map(|key| key.clone())
         });
 
         let api_key = match api_key_to_delete {
@@ -458,12 +469,20 @@ pub mod apikeys_handlers {
 
         // 3. Remove from USERS_APIKEYS_HASHTABLE
         USERS_APIKEYS_HASHTABLE.with(|store| {
-            let mut store = store.borrow_mut();
-            if let Some(api_key_ids) = store.get_mut(&api_key.user_id) {
-                api_key_ids.retain(|id| id != &api_key.id);
+            let mut store_mut = store.borrow_mut();
+            
+            // Check if the user has any API keys
+            if let Some(existing_list) = store_mut.get(&api_key.user_id) {
+                // Clone and modify the list
+                let mut updated_list = existing_list.clone();
+                updated_list.remove(&api_key.id);
+                
                 // If this was the last API key for the user, remove the user entry
-                if api_key_ids.is_empty() {
-                    store.remove(&api_key.user_id);
+                if updated_list.is_empty() {
+                    store_mut.remove(&api_key.user_id);
+                } else {
+                    // Otherwise update with the new list
+                    store_mut.insert(api_key.user_id.clone(), updated_list);
                 }
             }
         });

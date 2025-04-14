@@ -203,10 +203,11 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::ApiKey(id) => {
             APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     // Add labels field if not already present
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
@@ -381,8 +382,9 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
         LabelResourceID::ApiKey(id) => {
             APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
+                    store.insert(id.clone(), resource);
                 }
             });
         },

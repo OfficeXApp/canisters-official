@@ -1,12 +1,32 @@
 
+use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/api_keys/types.rs
 use serde_diff::{Diff, SerdeDiff};
 use serde::{Deserialize, Serialize};
 use crate::core::{types::UserID};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct ApiKeyID(pub String);
+
+impl Storable for ApiKeyID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize ApiKeyID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize ApiKeyID")
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
 pub struct ApiKeyValue(pub String);

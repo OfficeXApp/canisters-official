@@ -32,7 +32,7 @@ impl fmt::Display for LabelID {
 }
 
 // LabelStringValue is the actual text of the label
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord, CandidType)]
 pub struct LabelStringValue(pub String);
 
 impl fmt::Display for LabelStringValue {
