@@ -9,6 +9,7 @@ pub mod state {
     use crate::core::api::replay::diff::update_checksum_for_state_diff;
     use crate::core::api::uuid::format_drive_id;
     use crate::core::api::uuid::generate_uuidv4;
+    use crate::core::state::contacts::state::state::CONTACTS_BY_TIME_LIST;
     use crate::core::state::drives::types::Drive;
     use crate::core::state::drives::types::DriveID;
     use crate::core::state::drives::types::DriveRESTUrlEndpoint;
@@ -196,11 +197,15 @@ pub mod state {
             }
         });
 
-        crate::core::state::contacts::state::state::CONTACTS_BY_TIME_LIST.with(|store| {
+        CONTACTS_BY_TIME_LIST.with(|store| {
             let mut time_list = store.borrow_mut();
             for i in 0..time_list.len() {
-                if time_list[i] == old_user_id {
-                    time_list[i] = new_user_id.clone();
+                // get() returns a cloned value, not a reference, so no need to dereference
+                if let Some(user_id) = time_list.get(i) {
+                    if user_id == old_user_id {
+                        // set() expects a reference, so pass &new_user_id
+                        time_list.set(i, &new_user_id);
+                    }
                 }
             }
         });

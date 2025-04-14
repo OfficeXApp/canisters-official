@@ -124,10 +124,58 @@ pub fn snapshot_entire_state() -> EntireState {
             hashmap
         }),
         // Contacts
-        CONTACTS_BY_ID_HASHTABLE: CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| store.borrow().clone()),
-        CONTACTS_BY_TIME_LIST: CONTACTS_BY_TIME_LIST.with(|store| store.borrow().clone()),
-        HISTORY_SUPERSWAP_USERID: HISTORY_SUPERSWAP_USERID.with(|store| store.borrow().clone()),
+        CONTACTS_BY_ID_HASHTABLE: CONTACTS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        CONTACTS_BY_TIME_LIST: CONTACTS_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
+        HISTORY_SUPERSWAP_USERID: HISTORY_SUPERSWAP_USERID.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
         // Directory
         folder_uuid_to_metadata: folder_uuid_to_metadata.with(|store| store.clone()),
         file_uuid_to_metadata: file_uuid_to_metadata.with(|store| store.clone()),
@@ -338,13 +386,56 @@ pub fn apply_entire_state(state: EntireState) {
     
     // Contacts
     CONTACTS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.CONTACTS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.CONTACTS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     CONTACTS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.CONTACTS_BY_TIME_LIST;
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.CONTACTS_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
+    });
+    HISTORY_SUPERSWAP_USERID.with(|store| {
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.HISTORY_SUPERSWAP_USERID {
+            btree.insert(key, value);
+        }
     });
     
     // Directory

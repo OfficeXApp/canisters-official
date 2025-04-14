@@ -35,7 +35,7 @@ pub mod contacts_handlers {
 
         // Get the contact
         let contact = CONTACTS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&contact_id).cloned()
+            store.borrow().get(&contact_id).map(|data| data.clone())
         });
 
         // Check permissions if not owner
@@ -143,7 +143,7 @@ pub mod contacts_handlers {
         };
     
         // Get total count
-        let total_count = CONTACTS_BY_TIME_LIST.with(|list| list.borrow().len());
+        let total_count = CONTACTS_BY_TIME_LIST.with(|list| list.borrow().len() as usize);
     
         // If there are no contacts, return early
         if total_count == 0 {
@@ -191,7 +191,7 @@ pub mod contacts_handlers {
                         // Newest first
                         let mut current_idx = start_index;
                         while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(contact) = id_store.get(&time_index[current_idx]) {
+                            if let Some(contact) = id_store.get(&time_index.get(current_idx as u64).unwrap_or_else(|| panic!("Index out of bounds"))) {
                                 let can_view = is_owner || has_table_permission || {
                                     let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(contact.id.to_string()));
                                     let permissions = check_system_permissions(
@@ -217,7 +217,7 @@ pub mod contacts_handlers {
                         // Oldest first
                         let mut current_idx = start_index;
                         while filtered_contacts.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(contact) = id_store.get(&time_index[current_idx]) {
+                            if let Some(contact) = id_store.get(&time_index.get(current_idx as u64).unwrap_or_else(|| panic!("Index out of bounds"))) {
                                 let can_view = is_owner || has_table_permission || {
                                     let resource_id = SystemResourceID::Record(SystemRecordIDEnum::User(contact.id.to_string()));
                                     let permissions = check_system_permissions(
@@ -384,7 +384,7 @@ pub mod contacts_handlers {
         });
 
         CONTACTS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().push(contact_id.clone());
+            store.borrow_mut().push(&contact_id);
         });
 
         update_external_id_mapping(None, contact.external_id.clone(), Some(contact_id.to_string()));
@@ -489,7 +489,7 @@ pub mod contacts_handlers {
         let contact_id = update_req.id;
                     
         // Get existing contact
-        let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
+        let mut contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).map(|data| data.clone())) {
             Some(contact) => contact,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -617,7 +617,7 @@ pub mod contacts_handlers {
 
         let contact_id = delete_request.id.clone();
 
-        let contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).cloned()) {
+        let contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&contact_id).map(|data| data.clone())) {
             Some(contact) => contact,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -648,7 +648,25 @@ pub mod contacts_handlers {
         });
 
         CONTACTS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &UserID(contact_id.to_string()));
+            let mut new_vec = Vec::new();
+            let mut time_list = store.borrow_mut();
+            
+            for i in 0..time_list.len() {
+                if let Some(id) = time_list.get(i) {
+                    if id != UserID(contact_id.to_string()) {
+                        new_vec.push(id.clone());
+                    }
+                }
+            }
+            
+            // Clear and rebuild the StableVec
+            while time_list.len() > 0 {
+                time_list.pop();
+            }
+            
+            for id in new_vec {
+                time_list.push(&id);
+            }
         });
 
         // Get and remove user's invites
@@ -729,7 +747,7 @@ pub mod contacts_handlers {
         let redeem_code = redeem_request.redeem_code.clone();
 
         // Check for existence of current user contact and redeem token match
-        let current_contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&current_user_id).cloned()) {
+        let current_contact = match CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&current_user_id).map(|data| data.clone())) {
             Some(contact) => contact,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -749,8 +767,10 @@ pub mod contacts_handlers {
             Ok(update_count) => {
                 // Update the redeem token to None
                 CONTACTS_BY_ID_HASHTABLE.with(|store| {
-                    if let Some(contact) = store.borrow_mut().get_mut(&new_user_id) {
+                    let mut store_ref = store.borrow_mut();
+                    if let Some(mut contact) = store_ref.get(&new_user_id).map(|data| data.clone()) {
                         contact.redeem_code = None;
+                        store_ref.insert(new_user_id.clone(), contact);
                     }
                 });
 

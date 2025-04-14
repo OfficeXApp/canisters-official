@@ -80,7 +80,7 @@ impl GroupInvite {
         let (invitee_name, invitee_avatar) = match group_invite.clone().invitee_id {
             GroupInviteeID::User(user_id) => {
                 let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                    .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                    .with(|contacts| contacts.borrow().get(&user_id.clone()));
                 if let Some(contact) = contact_opt {
                     (contact.name, contact.avatar)
                 } else {

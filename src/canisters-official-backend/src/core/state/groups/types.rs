@@ -52,7 +52,7 @@ impl Group {
                     GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the name
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).map(|data| data.clone()));
                         if let Some(contact) = contact_opt {
                             contact.name
                         } else {
@@ -65,7 +65,7 @@ impl Group {
                     GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the avatar
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).map(|data| data.clone()));
                         if let Some(contact) = contact_opt {
                             contact.avatar
                         } else {
@@ -78,7 +78,7 @@ impl Group {
                     GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the last_active
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).map(|data| data.clone()));
                         if let Some(contact) = contact_opt {
                             contact.last_online_ms
                         } else {
