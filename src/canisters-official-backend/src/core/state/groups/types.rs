@@ -1,3 +1,4 @@
+use candid::CandidType;
 // src/core/state/groups/types.rs
 use serde::{Serialize, Deserialize};
 use std::fmt;
@@ -8,10 +9,10 @@ use serde_diff::{SerdeDiff};
 use std::iter::Iterator;
 use super::state::state::is_group_admin;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct GroupID(pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct Group {
     pub id: GroupID,
     pub name: String,

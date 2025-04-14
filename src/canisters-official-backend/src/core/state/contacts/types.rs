@@ -1,3 +1,4 @@
+use candid::CandidType;
 // src/core/state/contacts/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
@@ -10,7 +11,7 @@ use crate::{core::{api::permissions::system::check_system_permissions, state::{d
 // popover: pub/priv note, email, evm/icp, labels
 // filters: search by name/icp/email, filter by labels, groups, sort by last_online_ms, created_at
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct Contact {
     pub id: UserID,
     pub name: String,

@@ -1,3 +1,4 @@
+use candid::CandidType;
 // src/core/state/permissions/types.rs
 use serde::{Serialize, Deserialize};
 use std::fmt;
@@ -10,7 +11,7 @@ use crate::{core::{
     }, types::{IDPrefix, UserID}
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct DirectoryPermissionID(pub String);
 
 impl fmt::Display for DirectoryPermissionID {
@@ -19,7 +20,7 @@ impl fmt::Display for DirectoryPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct PlaceholderPermissionGranteeID(pub String);
 
 impl fmt::Display for PlaceholderPermissionGranteeID {
@@ -28,7 +29,7 @@ impl fmt::Display for PlaceholderPermissionGranteeID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryPermissionType {
     View,
@@ -52,7 +53,7 @@ impl fmt::Display for DirectoryPermissionType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum PermissionGranteeID {
     Public,
     User(UserID),
@@ -72,7 +73,7 @@ impl fmt::Display for PermissionGranteeID {
 pub const PUBLIC_GRANTEE_ID: &str = "PUBLIC";
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct DirectoryPermission {
     pub id: DirectoryPermissionID,
     pub resource_id: DirectoryResourceID,
@@ -218,7 +219,7 @@ impl DirectoryPermission {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct SystemPermissionID(pub String);
 
 impl fmt::Display for SystemPermissionID {
@@ -227,7 +228,7 @@ impl fmt::Display for SystemPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemPermissionType {
     Create,
@@ -237,7 +238,7 @@ pub enum SystemPermissionType {
     Invite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemTableEnum {
     Drives,
@@ -267,7 +268,7 @@ impl fmt::Display for SystemTableEnum {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum SystemRecordIDEnum {
     Drive(String),        // DriveID_xxx
     Disk(String),         // DiskID_xxx
@@ -296,7 +297,7 @@ impl fmt::Display for SystemRecordIDEnum {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum SystemResourceID {
     Table(SystemTableEnum),
     Record(SystemRecordIDEnum), // Stores the full ID like "DiskID_123"
@@ -311,7 +312,7 @@ impl fmt::Display for SystemResourceID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct SystemPermission {
     pub id: SystemPermissionID,
     pub resource_id: SystemResourceID,
@@ -495,7 +496,7 @@ impl SystemPermission {
 }
 
 // LabelStringValuePrefix definition
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct LabelStringValuePrefix(pub String);
 
 impl fmt::Display for LabelStringValuePrefix {
@@ -505,14 +506,14 @@ impl fmt::Display for LabelStringValuePrefix {
 }
 
 // The main metadata container
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct PermissionMetadata {
     pub metadata_type: PermissionMetadataTypeEnum, // Using existing enum but not assuming table connection
     pub content: PermissionMetadataContent,
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PermissionMetadataTypeEnum {
     Labels,
@@ -530,7 +531,7 @@ impl fmt::Display for PermissionMetadataTypeEnum {
 
 
 // Define an enum for different types of metadata
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum PermissionMetadataContent {
     Labels(LabelStringValuePrefix),
     DirectoryPassword(String),

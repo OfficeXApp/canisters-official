@@ -1,10 +1,11 @@
 
 // src/core/state/types.rs
 use std::fmt;
+use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use serde_diff::{Diff, SerdeDiff};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType   )]
 pub struct PublicKeyICP(pub String);
 
 impl fmt::Display for PublicKeyICP {
@@ -14,7 +15,7 @@ impl fmt::Display for PublicKeyICP {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ICPPrincipalString(pub PublicKeyICP);
 
 impl fmt::Display for ICPPrincipalString {
@@ -24,7 +25,7 @@ impl fmt::Display for ICPPrincipalString {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct PublicKeyEVM(pub String);
 
 impl fmt::Display for PublicKeyEVM {
@@ -34,7 +35,7 @@ impl fmt::Display for PublicKeyEVM {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ClientSuggestedUUID(pub String);
 
 impl fmt::Display for ClientSuggestedUUID {
@@ -43,7 +44,7 @@ impl fmt::Display for ClientSuggestedUUID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct UserID(pub String);
 
 impl fmt::Display for UserID {
@@ -64,7 +65,7 @@ impl UserID {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum IDPrefix {
     File,
     Folder,
@@ -115,7 +116,7 @@ impl IDPrefix {
 
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum AuthPrefixEnum {
     ApiKey,
     Signature,
@@ -129,7 +130,7 @@ impl AuthPrefixEnum {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ParsedAuth {
     pub auth_type: AuthPrefixEnum,
     pub value: String,

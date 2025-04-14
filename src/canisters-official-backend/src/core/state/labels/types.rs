@@ -1,6 +1,7 @@
 // src/core/state/labels/types.rs
 
 use std::fmt;
+use candid::CandidType;
 use serde::{Serialize, Deserialize};
 use serde_diff::SerdeDiff;
 
@@ -21,7 +22,7 @@ use crate::{core::{
 use super::state::LABELS_BY_VALUE_HASHTABLE;
 
 // LabelID is the unique identifier for a label
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct LabelID(pub String);
 
 impl fmt::Display for LabelID {
@@ -31,7 +32,7 @@ impl fmt::Display for LabelID {
 }
 
 // LabelStringValue is the actual text of the label
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct LabelStringValue(pub String);
 
 impl fmt::Display for LabelStringValue {
@@ -41,7 +42,7 @@ impl fmt::Display for LabelStringValue {
 }
 
 // HexColorString represents a color in hex format
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct HexColorString(pub String);
 
 impl fmt::Display for HexColorString {
@@ -52,7 +53,7 @@ impl fmt::Display for HexColorString {
 
 // The main Label type that represents a label definition
 // We also dont redact labels here, for convinience. if we find this is a security issue, we can redact labels here too
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct Label {
     pub id: LabelID,
     pub value: LabelStringValue,
@@ -100,7 +101,7 @@ impl Label {
 
 
 // LabelResourceID represents any resource that can be labelged
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum LabelResourceID {
     ApiKey(ApiKeyID),
     Contact(UserID),
@@ -155,14 +156,14 @@ impl LabelResourceID {
 }
 
 // Request and response types for label operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct CreateLabelRequest {
     pub value: String,
     pub description: Option<String>,
     pub color: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct UpdateLabelRequest {
     pub id: String,
     pub value: Option<String>,
@@ -170,13 +171,13 @@ pub struct UpdateLabelRequest {
     pub color: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub enum UpsertLabelRequest {
     Create(CreateLabelRequest),
     Update(UpdateLabelRequest),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct LabelResourceRequest {
     pub label_id: String,
     pub resource_id: String,
@@ -190,14 +191,14 @@ pub struct LabelOperationResponse {
     pub label: Option<Label>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct ListLabelsRequest {
     pub query: Option<String>,
     pub page_size: Option<usize>,
     pub cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, CandidType)]
 pub struct ListLabelsResponse {
     pub items: Vec<Label>,
     pub page_size: usize,
@@ -205,18 +206,18 @@ pub struct ListLabelsResponse {
     pub cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DeleteLabelRequest {
     pub id: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DeleteLabelResponse {
     pub success: bool,
     pub id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct GetLabelResourcesRequest {
     pub label_id: String,
     pub resource_type: Option<String>,
@@ -224,7 +225,7 @@ pub struct GetLabelResourcesRequest {
     pub cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct GetLabelResourcesResponse {
     pub label_id: String,
     pub resources: Vec<LabelResourceID>,

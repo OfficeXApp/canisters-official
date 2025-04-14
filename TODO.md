@@ -7,6 +7,8 @@
 
 ## Urgent Next
 
+- [🔵] Figure out how to cleanly update past Drive canisters spawned from factory, including factory canister and revising what else should be in snapshot_state
+
 - [🔵] Fix superswap user to also handle permissions updating
 - [ ] Audit the list handlers and inputs to be string based, not rust enum based (might need to audit all route types even)
 
@@ -42,7 +44,6 @@
 
 ## Backlog
 
-- [ ] Figure out how to cleanly update past Drive canisters spawned from factory
 - [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
 - [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)

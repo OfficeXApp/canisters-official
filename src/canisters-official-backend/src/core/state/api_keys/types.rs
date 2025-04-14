@@ -1,14 +1,15 @@
 
+use candid::CandidType;
 // src/core/state/api_keys/types.rs
 use serde_diff::{Diff, SerdeDiff};
 use serde::{Deserialize, Serialize};
 use crate::{core::{api::permissions::system::check_system_permissions, state::{contacts::state::state::CONTACTS_BY_ID_HASHTABLE, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::UserID}, rest::api_keys::types::ApiKeyFE};
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ApiKeyID(pub String);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ApiKeyValue(pub String);
 
 
@@ -20,7 +21,7 @@ impl fmt::Display for ApiKey {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ApiKey {
     pub id: ApiKeyID,
     pub value: ApiKeyValue,
@@ -93,43 +94,43 @@ impl fmt::Display for ApiKeyValue {
 
 
     
-#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AuthTypeEnum {
     Signature,
-    Api_Key
+    ApiKey
 }
 impl fmt::Display for AuthTypeEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AuthTypeEnum::Signature => write!(f, "SIGNATURE"),
-            AuthTypeEnum::Api_Key => write!(f, "API_KEY"),
+            AuthTypeEnum::ApiKey => write!(f, "API_KEY"),
         }
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, CandidType)]
 #[serde(untagged)]
 pub enum AuthJsonDecoded {
     Signature(SignatureAuthProof),
-    Api_Key(ApiKeyProof),
+    ApiKey(ApiKeyProof),
 }
 
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, CandidType)]
 pub struct ApiKeyProof {
     pub auth_type: AuthTypeEnum,
     pub value: ApiKeyValue,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, CandidType)]
 pub struct SignatureAuthProof {
     pub auth_type: AuthTypeEnum,
     pub challenge: SignatureAuthChallenge,
     pub signature: Vec<u8>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, CandidType)]
 pub struct SignatureAuthChallenge {
     pub timestamp_ms: u64,
     pub drive_canister_id: String,

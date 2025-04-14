@@ -1,6 +1,7 @@
 
 // src/rest/directory/types.rs
 use std::{collections::HashMap, fmt};
+use candid::CandidType;
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
 use crate::{core::{state::{directory::types::{DriveClippedFilePath, DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, raw_storage::types::UploadStatus}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
@@ -14,7 +15,7 @@ use serde_diff::{SerdeDiff};
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct FileRecordFE {
     #[serde(flatten)] 
     pub file: FileRecord,
@@ -52,7 +53,7 @@ impl FileRecordFE {
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct FolderRecordFE {
     #[serde(flatten)] 
     pub folder: FolderRecord,
@@ -90,7 +91,7 @@ impl FolderRecordFE {
 
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, CandidType)]
 pub struct SearchDirectoryRequest {
     pub query_string: String,
 }
@@ -116,7 +117,7 @@ impl SearchDirectoryRequest {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct ListDirectoryRequest {
     pub folder_id: Option<String>,
     pub path: Option<String>,
@@ -182,7 +183,7 @@ impl ListDirectoryRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DirectoryListResponse {
     pub folders: Vec<FolderRecordFE>,
     pub files: Vec<FileRecordFE>,
@@ -193,7 +194,7 @@ pub struct DirectoryListResponse {
     pub permission_previews: Vec<DirectoryPermissionType>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct FilePathBreadcrumb {
     pub resource_id: String,
     pub resource_name: String,
@@ -203,14 +204,14 @@ fn default_page_size() -> usize {
     50
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DiskUploadResponse {
     pub url: String,
     pub fields: HashMap<String, String>,
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, CandidType)]
 pub struct UploadChunkRequest {
     pub file_id: String,
     pub chunk_index: u32,
@@ -218,13 +219,13 @@ pub struct UploadChunkRequest {
     pub total_chunks: u32
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct UploadChunkResponse {
     pub chunk_id: String,
     pub bytes_received: usize
 }
 
-#[derive(Debug, Clone, Deserialize)] 
+#[derive(Debug, Clone, Deserialize, CandidType)] 
 pub struct CompleteUploadRequest {
     pub file_id: String,
     pub filename: String
@@ -241,7 +242,7 @@ impl CompleteUploadRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct CompleteUploadResponse {
     pub file_id: String,
     pub size: usize,
@@ -250,7 +251,7 @@ pub struct CompleteUploadResponse {
 }
 
 
-#[derive(serde::Serialize, Deserialize)]
+#[derive(serde::Serialize, Deserialize, CandidType)]
 pub struct FileMetadataResponse {
     pub file_id: String,
     pub total_size: usize,
@@ -265,7 +266,7 @@ pub type ErrorResponse<'a> = DirectoryResponse<'a, ()>;
 
 
 
-#[derive(Debug, Clone, Deserialize)] 
+#[derive(Debug, Clone, Deserialize, CandidType)] 
 pub struct ClientSideUploadRequest {
     pub disk_id: String,
     pub folder_path: String,
@@ -287,7 +288,7 @@ impl ClientSideUploadRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct ClientSideUploadResponse {
     pub signature: String,
 }
@@ -429,13 +430,13 @@ impl DirectoryAction {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawDirectoryAction {
     action: DirectoryActionEnum,
     payload: Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, CandidType)]
 pub struct DirectoryActionOutcomeID(pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -578,13 +579,13 @@ impl Serialize for DirectoryAction {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DirectoryActionError {
     pub code: i32,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryActionEnum {
     GetFile,
@@ -604,7 +605,7 @@ pub enum DirectoryActionEnum {
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, CandidType)]
 pub enum FileConflictResolutionEnum {
     REPLACE,
     KEEP_BOTH,
@@ -624,7 +625,7 @@ impl fmt::Display for FileConflictResolutionEnum {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum DirectoryResourceID {
     File(FileID),
     Folder(FolderID),
@@ -649,7 +650,7 @@ impl DirectoryResourceID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub enum DirectoryActionPayload {
     GetFile(GetFilePayload),
     GetFolder(GetFolderPayload),
@@ -666,7 +667,7 @@ pub enum DirectoryActionPayload {
     RestoreTrash(RestoreTrashPayload),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct GetFilePayload {
     pub id: FileID,
@@ -690,7 +691,7 @@ impl GetFilePayload {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct GetFolderPayload {
     pub id: FolderID,
@@ -716,7 +717,7 @@ impl GetFolderPayload {
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFilePayload {
     pub id: Option<ClientSuggestedUUID>, 
@@ -785,7 +786,7 @@ impl CreateFilePayload {
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFolderPayload {
     pub id: Option<ClientSuggestedUUID>,
@@ -841,7 +842,7 @@ impl CreateFolderPayload {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateFilePayload {
     pub id: FileID,
@@ -890,7 +891,7 @@ impl UpdateFilePayload {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateFolderPayload {
     pub id: FolderID,
@@ -938,7 +939,7 @@ impl UpdateFolderPayload {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteFilePayload {
     pub id: FileID,
@@ -954,7 +955,7 @@ impl DeleteFilePayload {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteFolderPayload {
     pub id: FolderID,
@@ -970,7 +971,7 @@ impl DeleteFolderPayload {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct CopyFilePayload {
     pub id: FileID,
@@ -1017,7 +1018,7 @@ impl CopyFilePayload {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct CopyFolderPayload {
     pub id: FolderID,
@@ -1064,7 +1065,7 @@ impl CopyFolderPayload {
     }
 }
 
-#[derive(Debug, Clone,Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct MoveFilePayload {
     pub id: FileID,
@@ -1104,7 +1105,7 @@ impl MoveFilePayload {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct MoveFolderPayload {
     pub id: FolderID,
@@ -1145,7 +1146,7 @@ impl MoveFolderPayload {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct RestoreTrashPayload {
     pub id: String, // FileID or FolderID
@@ -1174,13 +1175,13 @@ impl RestoreTrashPayload {
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct GetFileResponse {
     pub file: FileRecordFE,
     pub breadcrumbs: Vec<FilePathBreadcrumb>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct GetFolderResponse {
     pub folder: FolderRecordFE,
     pub breadcrumbs: Vec<FilePathBreadcrumb>,
@@ -1188,7 +1189,7 @@ pub struct GetFolderResponse {
 
 
 // Response types remain the same as before
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 #[serde(untagged)]
 pub enum DirectoryActionResult {
     GetFile(GetFileResponse),
@@ -1209,26 +1210,26 @@ pub enum DirectoryActionResult {
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct CreateFileResponse {
     pub file: FileRecordFE,
     pub upload: DiskUploadResponse,
     pub notes: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct CreateFolderResponse {
     pub notes: String,
     pub folder: FolderRecordFE,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DeleteFileResponse {
     pub file_id: FileID,
     pub path_to_trash: DriveFullFilePath,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DeleteFolderResponse {
     pub folder_id: FolderID,
     pub path_to_trash: DriveFullFilePath, // if empty then its permanently deleted
@@ -1239,13 +1240,13 @@ pub struct DeleteFolderResponse {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct RestoreTrashResponse {
     pub restored_files: Vec<FileID>,
     pub restored_folders: Vec<FolderID>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, CandidType)]
 pub struct DirectoryResourcePermissionFE {
     pub permission_id: String,
     pub grant_type: String,

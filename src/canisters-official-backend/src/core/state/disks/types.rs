@@ -1,3 +1,4 @@
+use candid::CandidType;
 // src/core/state/disks/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
@@ -6,7 +7,7 @@ use std::fmt;
 use crate::{core::{api::permissions::system::check_system_permissions, state::{directory::types::FolderID, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::UserID}, rest::{disks::types::DiskFE, labels::types::LabelFE}};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct DiskID(pub String);
 impl fmt::Display for DiskID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -14,7 +15,7 @@ impl fmt::Display for DiskID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct Disk {
     pub id: DiskID,
     pub name: String,
@@ -59,7 +60,7 @@ impl Disk {
 }
 
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, SerdeDiff)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DiskTypeEnum {
     BrowserCache,
@@ -81,7 +82,7 @@ impl fmt::Display for DiskTypeEnum {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct AwsBucketAuth {
     pub(crate) endpoint: String,
     pub(crate) access_key: String,

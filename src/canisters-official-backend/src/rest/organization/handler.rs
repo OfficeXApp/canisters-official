@@ -130,7 +130,7 @@ pub mod drives_handlers {
 
         let snapshot = snapshot_entire_state();
 
-        debug_log!("snapshot {:?}", snapshot);
+        debug_log!(">> snapshot {:?}", snapshot);
 
         let serializable_state = convert_state_to_serializable(&snapshot);
 

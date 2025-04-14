@@ -14,9 +14,9 @@ use super::types::{ChunkIdList, CHUNK_SIZE};
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 
 // Define memory IDs for different storage types
-const CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(0);
-const FILE_CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(1);
-const FILE_META_MEMORY_ID: MemoryId = MemoryId::new(2);
+const CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(1);
+const FILE_CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(2);
+const FILE_META_MEMORY_ID: MemoryId = MemoryId::new(3);
 
 // Implement Storable for our types
 impl Storable for ChunkId {

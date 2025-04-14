@@ -1,5 +1,6 @@
 use std::fmt;
 
+use candid::CandidType;
 // src/core/state/group_invites/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
@@ -13,7 +14,7 @@ use crate::core::types::{UserID};
 use crate::rest::group_invites::types::GroupInviteFE;
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct GroupInviteID(pub String);
 impl fmt::Display for GroupInviteID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -21,7 +22,7 @@ impl fmt::Display for GroupInviteID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct GroupInvite {
     pub id: GroupInviteID,
     pub group_id: GroupID,
@@ -128,7 +129,7 @@ impl GroupInvite {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GroupRole {
     Admin,
@@ -136,7 +137,7 @@ pub enum GroupRole {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct PlaceholderGroupInviteeID(pub String);
 impl fmt::Display for PlaceholderGroupInviteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -145,7 +146,7 @@ impl fmt::Display for PlaceholderGroupInviteeID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum GroupInviteeID {
     User(UserID),
     PlaceholderGroupInvitee(PlaceholderGroupInviteeID),

@@ -1,12 +1,13 @@
 // src/core/state/webhooks/types.rs
 use std::fmt;
+use candid::CandidType;
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use crate::{core::{api::permissions::system::check_system_permissions, state::{directory::types::{FileID, FolderID}, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::{IDPrefix, UserID}}, rest::webhooks::types::WebhookFE};
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct Webhook {
     pub id: WebhookID,
     pub name: String,
@@ -55,7 +56,7 @@ impl Webhook {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct WebhookID(pub String);
 impl fmt::Display for WebhookID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -64,7 +65,7 @@ impl fmt::Display for WebhookID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct WebhookAltIndexID(pub String);
 impl fmt::Display for WebhookAltIndexID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -112,7 +113,7 @@ impl WebhookAltIndexID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SerdeDiff, CandidType)]
 #[serde(rename_all = "snake_case")]
 pub enum WebhookEventLabel {
     #[serde(rename = "file.viewed")]

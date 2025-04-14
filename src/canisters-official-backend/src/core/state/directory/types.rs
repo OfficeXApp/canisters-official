@@ -1,5 +1,6 @@
 use std::fmt;
 
+use candid::CandidType;
 // src/core/state/directory/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
@@ -7,7 +8,7 @@ use serde_diff::{SerdeDiff};
 use crate::{core::{api::permissions::{directory::{check_directory_permissions, derive_directory_breadcrumbs}, system::check_system_permissions}, state::{disks::types::{DiskID, DiskTypeEnum}, drives::{state::state::OWNER_ID, types::{DriveID, ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, raw_storage::types::UploadStatus}, types::{ICPPrincipalString, UserID}}, rest::directory::types::{DirectoryResourceID, FileRecordFE, FolderRecordFE}};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct FolderID(pub String);
 impl fmt::Display for FolderID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -15,7 +16,7 @@ impl fmt::Display for FolderID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct FileID(pub String);
 impl fmt::Display for FileID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -23,7 +24,7 @@ impl fmt::Display for FileID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct DriveFullFilePath(pub String);
 impl fmt::Display for DriveFullFilePath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -32,7 +33,7 @@ impl fmt::Display for DriveFullFilePath {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct DriveClippedFilePath(pub String);
 impl fmt::Display for DriveClippedFilePath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -43,7 +44,7 @@ impl fmt::Display for DriveClippedFilePath {
 
 
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff, CandidType)]
 pub struct FolderRecord {
     pub(crate) id: FolderID,
     pub(crate) name: String,
@@ -111,7 +112,7 @@ impl FolderRecord {
 
 
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff, CandidType)]
 pub struct FileRecord {
     pub(crate) id: FileID,
     pub(crate) name: String,
@@ -195,7 +196,7 @@ impl FileRecord {
 
 
 
-#[derive(Serialize, Deserialize, Debug, SerdeDiff)]
+#[derive(Serialize, Deserialize, Debug, SerdeDiff, CandidType)]
 pub struct PathTranslationResponse {
     pub folder: Option<FolderRecord>,
     pub file: Option<FileRecord>,
@@ -204,7 +205,7 @@ pub struct PathTranslationResponse {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ShareTrackID(pub String);
 
 impl fmt::Display for ShareTrackID {
@@ -214,7 +215,7 @@ impl fmt::Display for ShareTrackID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum ShareTrackResourceID {
     File(FileID),
     Folder(FolderID)
