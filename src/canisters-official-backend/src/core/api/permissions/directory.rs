@@ -350,7 +350,7 @@ pub async fn derive_directory_breadcrumbs(
                     // Add the parent folder only if user has permission
                     if let Some(folder_metadata) = folder_uuid_to_metadata.get(&file_metadata.parent_folder_uuid) {
                         if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
-                            let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                            let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).map(|d| d.clone()));
                             if let Some(disk) = disk {
                                 breadcrumbs.push_front(FilePathBreadcrumb {
                                     resource_id: folder_metadata.id.clone().to_string(),
@@ -402,7 +402,7 @@ pub async fn derive_directory_breadcrumbs(
             }
             
             if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
-                let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).map(|d| d.clone()));
                 if let Some(disk) = disk {
                     breadcrumbs.push_front(FilePathBreadcrumb {
                         resource_id: folder_metadata.id.clone().to_string(),
@@ -444,7 +444,7 @@ pub async fn derive_directory_breadcrumbs(
             Some(folder_metadata) => {
 
                 if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
-                    let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                    let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).map(|d| d.clone()));
                     if let Some(disk) = disk {
                         breadcrumbs.push_front(FilePathBreadcrumb {
                             resource_id: folder_metadata.id.clone().to_string(),

@@ -172,7 +172,7 @@ pub mod drive {
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
                 .get(&disk_id)
-                .cloned()
+                .map(|d| d.clone())
         }).ok_or_else(|| "Disk not found".to_string())?;
 
 
@@ -233,7 +233,7 @@ pub mod drive {
                                 let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                                     map.borrow()
                                         .get(&disk_id)
-                                        .cloned()
+                                        .map(|d| d.clone())
                                 }).ok_or_else(|| "Disk not found".to_string())?;
     
                                 // Example using an "existing file" upload.
@@ -361,7 +361,7 @@ pub mod drive {
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
                 .get(&disk_id)
-                .cloned()
+                .map(|d| d.clone())
         }).ok_or_else(|| "Disk not found".to_string())?;
     
     
@@ -472,7 +472,7 @@ pub mod drive {
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
                 .get(&disk_id)
-                .cloned()
+                .map(|d| d.clone())
         }).ok_or_else(|| "Disk not found".to_string())?;
         
         debug_log!("sanitized_path: {}", sanitized_path);
@@ -1025,7 +1025,7 @@ pub mod drive {
             let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                 map.borrow()
                     .get(&source_file.disk_id)
-                    .cloned()
+                    .map(|d| d.clone())
             }).ok_or_else(|| "Disk not found".to_string())?;
 
             let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
@@ -1354,7 +1354,7 @@ pub mod drive {
                         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                             map.borrow()
                                 .get(&disk_id)
-                                .cloned()
+                                .map(|d| d.clone())
                         }).ok_or_else(|| "Disk not found".to_string())?;
                         let root_folder = folder_uuid_to_metadata
                             .get(&disk.root_folder.clone())
@@ -1461,7 +1461,7 @@ pub mod drive {
                         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                             map.borrow()
                                 .get(&disk_id)
-                                .cloned()
+                                .map(|d| d.clone())
                         }).ok_or_else(|| "Disk not found".to_string())?;
                         let root_folder = folder_uuid_to_metadata
                             .get(&disk.root_folder.clone())

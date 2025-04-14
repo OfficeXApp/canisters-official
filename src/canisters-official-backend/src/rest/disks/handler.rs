@@ -3,10 +3,11 @@
 
 pub mod disks_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{disks::{state::state::{ensure_disk_root_and_trash_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskRequestBody, CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskRequestBody, UpdateDiskResponse}, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::validate_auth_json, permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{disks::{state::state::{ensure_disk_root_and_trash_folder, DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST, DISKS_BY_TIME_MEMORY_ID}, types::{AwsBucketAuth, Disk, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, disks::types::{ CreateDiskRequestBody, CreateDiskResponse, DeleteDiskRequest, DeleteDiskResponse, DeletedDiskData, ErrorResponse, GetDiskResponse, ListDisksRequestBody, ListDisksResponse, ListDisksResponseData, UpdateDiskRequestBody, UpdateDiskResponse}, webhooks::types::SortDirection}, MEMORY_MANAGER
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+    use ic_stable_structures::{StableVec};
     use matchit::Params;
     use serde::Deserialize;
     #[derive(Deserialize, Default)]
@@ -30,7 +31,7 @@ pub mod disks_handlers {
 
         // Get the disk
         let disk = DISKS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&disk_id).cloned()
+            store.borrow().get(&disk_id).map(|d| d.clone())
         });
 
         // Check permissions if not owner
@@ -124,7 +125,7 @@ pub mod disks_handlers {
         };
     
         // Get total count
-        let total_count = DISKS_BY_TIME_LIST.with(|list| list.borrow().len());
+        let total_count = DISKS_BY_TIME_LIST.with(|list| list.borrow().len()) as usize;
     
         // If there are no disks, return early
         if total_count == 0 {
@@ -170,19 +171,21 @@ pub mod disks_handlers {
                     SortDirection::Desc => {
                         let mut current_idx = start_index;
                         while filtered_disks.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(disk) = id_store.get(&time_index[current_idx]) {
-                                // Check if user has permission to view this specific disk
-                                let can_view = is_owner || has_table_permission || {
-                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk.id.to_string()));
-                                    let permissions = check_system_permissions(
-                                        resource_id,
-                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                                    );
-                                    permissions.contains(&SystemPermissionType::View)
-                                };
-    
-                                if can_view && request_body.filters.is_empty() {
-                                    filtered_disks.push(disk.clone());
+                            if let Some(disk_id) = time_index.get(current_idx as u64) {
+                                if let Some(disk) = id_store.get(&disk_id) {
+                                    // Check if user has permission to view this specific disk
+                                    let can_view = is_owner || has_table_permission || {
+                                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk.id.to_string()));
+                                        let permissions = check_system_permissions(
+                                            resource_id,
+                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                        );
+                                        permissions.contains(&SystemPermissionType::View)
+                                    };
+        
+                                    if can_view && request_body.filters.is_empty() {
+                                        filtered_disks.push(disk.clone());
+                                    }
                                 }
                             }
                             if current_idx == 0 {
@@ -196,19 +199,21 @@ pub mod disks_handlers {
                     SortDirection::Asc => {
                         let mut current_idx = start_index;
                         while filtered_disks.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(disk) = id_store.get(&time_index[current_idx]) {
-                                // Check if user has permission to view this specific disk
-                                let can_view = is_owner || has_table_permission || {
-                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk.id.to_string()));
-                                    let permissions = check_system_permissions(
-                                        resource_id,
-                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                                    );
-                                    permissions.contains(&SystemPermissionType::View)
-                                };
-    
-                                if can_view && request_body.filters.is_empty() {
-                                    filtered_disks.push(disk.clone());
+                            if let Some(disk_id) = time_index.get(current_idx as u64) {
+                                if let Some(disk) = id_store.get(&disk_id) {
+                                    // Check if user has permission to view this specific disk
+                                    let can_view = is_owner || has_table_permission || {
+                                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Disk(disk.id.to_string()));
+                                        let permissions = check_system_permissions(
+                                            resource_id,
+                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                        );
+                                        permissions.contains(&SystemPermissionType::View)
+                                    };
+        
+                                    if can_view && request_body.filters.is_empty() {
+                                        filtered_disks.push(disk.clone());
+                                    }
                                 }
                             }
                             current_idx += 1;
@@ -354,7 +359,7 @@ pub mod disks_handlers {
         });
 
         DISKS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().push(disk_id.clone());
+            store.borrow_mut().push(&disk_id.clone());
         });
         mark_claimed_uuid(&disk_id.clone().to_string());
 
@@ -397,7 +402,7 @@ pub mod disks_handlers {
         let disk_id = DiskID(update_req.id);
                     
         // Get existing disk
-        let mut disk = match DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&disk_id).cloned()) {
+        let mut disk = match DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&disk_id).map(|d| d.clone())) {
             Some(disk) => disk,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -524,7 +529,7 @@ pub mod disks_handlers {
 
         // Get disk for external ID cleanup
         let disk = DISKS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&disk_id).cloned()
+            store.borrow().get(&disk_id).map(|d| d.clone())
         });
 
         // Remove from main stores
@@ -532,8 +537,25 @@ pub mod disks_handlers {
             store.borrow_mut().remove(&disk_id);
         });
 
+        // For removing items from DISKS_BY_TIME_LIST
         DISKS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &disk_id);
+            let mut new_vec = StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DISKS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize new StableVec");
+            
+            // Copy all items except the one to be deleted
+            let store_ref = store.borrow();
+            for i in 0..store_ref.len() {
+                if let Some(id) = store_ref.get(i) {
+                    if id != disk_id {
+                        new_vec.push(&id);
+                    }
+                }
+            }
+            
+            // Replace the old vector with the new one
+            drop(store_ref);
+            *store.borrow_mut() = new_vec;
         });
 
         // Remove from external ID mappings

@@ -679,7 +679,7 @@ pub mod drive_internals {
             resource_id: "shared-with-me".to_string(),
             resource_name: "Shared with me".to_string(),
         });
-        let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&disk_id).cloned());
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&disk_id).map(|d| d.clone()));
         if let Some(disk) = disk {
             breadcrumbs.push_front(FilePathBreadcrumb {
                 resource_id: disk.root_folder.clone().to_string(),

@@ -467,7 +467,7 @@ pub mod directorys_handlers {
     
         // 3. Get disk info to access AWS credentials
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
-            map.borrow().get(&file_meta.disk_id).cloned()
+            map.borrow().get(&file_meta.disk_id).map(|d| d.clone())
         });
     
         let disk = match disk {

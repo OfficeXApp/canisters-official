@@ -182,8 +182,32 @@ pub fn snapshot_entire_state() -> EntireState {
         full_folder_path_to_uuid: full_folder_path_to_uuid.with(|store| store.clone()),
         full_file_path_to_uuid: full_file_path_to_uuid.with(|store| store.clone()),
         // Disks
-        DISKS_BY_ID_HASHTABLE: DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        DISKS_BY_TIME_LIST: DISKS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        DISKS_BY_ID_HASHTABLE: DISKS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DISKS_BY_TIME_LIST: DISKS_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
         // Drives
         DRIVES_BY_ID_HASHTABLE: DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
         DRIVES_BY_TIME_LIST: DRIVES_BY_TIME_LIST.with(|store| store.borrow().clone()),
@@ -453,11 +477,31 @@ pub fn apply_entire_state(state: EntireState) {
     });
     
     // Disks
-    DISKS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DISKS_BY_ID_HASHTABLE;
+    DISKS_BY_ID_HASHTABLE.with(|store| { 
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DISKS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
-    DISKS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.DISKS_BY_TIME_LIST;
+    DISKS_BY_TIME_LIST.with(|store| { 
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.DISKS_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
     });
     
     // Drives
