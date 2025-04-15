@@ -1,7 +1,8 @@
 // src/core/state/labels/types.rs
 
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Serialize, Deserialize};
 use serde_diff::SerdeDiff;
 
@@ -22,7 +23,7 @@ use crate::{core::{
 use super::state::LABELS_BY_VALUE_HASHTABLE;
 
 // LabelID is the unique identifier for a label
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 pub struct LabelID(pub String);
 
 impl fmt::Display for LabelID {
@@ -30,6 +31,26 @@ impl fmt::Display for LabelID {
         write!(f, "{}", self.0)
     }
 }
+
+impl Storable for LabelID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize LabelID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize LabelID")
+    }
+}
+
 
 // LabelStringValue is the actual text of the label
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord, CandidType)]
@@ -40,9 +61,28 @@ impl fmt::Display for LabelStringValue {
         write!(f, "{}", self.0)
     }
 }
+impl Storable for LabelStringValue {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize LabelStringValue");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize LabelStringValue")
+    }
+}
+
 
 // HexColorString represents a color in hex format
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord, CandidType)]
 pub struct HexColorString(pub String);
 
 impl fmt::Display for HexColorString {
@@ -53,7 +93,7 @@ impl fmt::Display for HexColorString {
 
 // The main Label type that represents a label definition
 // We also dont redact labels here, for convinience. if we find this is a security issue, we can redact labels here too
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Label {
     pub id: LabelID,
     pub value: LabelStringValue,
@@ -67,6 +107,25 @@ pub struct Label {
     pub labels: Vec<LabelStringValue>,  // Labels can be labelged too
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
+}
+
+impl Storable for Label {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize Label");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize Label")
+    }
 }
 
 impl Label {
@@ -101,7 +160,7 @@ impl Label {
 
 
 // LabelResourceID represents any resource that can be labelged
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 pub enum LabelResourceID {
     ApiKey(ApiKeyID),
     Contact(UserID),
@@ -237,7 +296,7 @@ pub struct GetLabelResourcesResponse {
 pub fn redact_label(label_value: LabelStringValue, user_id: UserID) -> Option<LabelStringValue> {
     // Get the label ID from the value
     let label_id = LABELS_BY_VALUE_HASHTABLE.with(|store| {
-        store.borrow().get(&label_value).cloned()
+        store.borrow().get(&label_value).clone()
     });
     
     if let Some(label_id) = label_id {
@@ -306,7 +365,7 @@ pub fn redact_group_previews(group_preview: ContactGroupInvitePreview, user_id: 
     );
 
     let group = match crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
-        .with(|groups| groups.borrow().get(group_id).cloned()) {
+        .with(|groups| groups.borrow().get(group_id).clone()) {
         Some(group) => group,
         None => return None
     };

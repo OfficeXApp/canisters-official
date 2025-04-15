@@ -1,6 +1,6 @@
 // src/core/api/webhooks/directory.rs
 
-use crate::{core::state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}}, rest::webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}};
+use crate::{core::state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookIDList}}}, rest::webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData}};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -26,15 +26,17 @@ pub fn get_active_file_webhooks(
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
             .get(&WebhookAltIndexID(file_id.0.clone()))
-            .cloned()
-            .unwrap_or_default()
+            .map(|list| list.clone())
+            .unwrap_or(WebhookIDList {
+                webhooks: [].to_vec()
+            })
     });
 
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
         all_webhooks.extend(
-            webhook_ids.into_iter()
-                .filter_map(|id| store.get(&id).cloned())
+            webhook_ids.webhooks.into_iter()
+                .filter_map(|id| store.get(&id).clone())
                 .filter(|webhook| webhook.active && webhook.event == event)
         );
     });
@@ -85,15 +87,17 @@ pub fn get_active_file_webhooks(
             let parent_webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
                 store.borrow()
                     .get(&WebhookAltIndexID(folder_id.0.clone()))
-                    .cloned()
-                    .unwrap_or_default()
+                    .map(|list| list.clone())
+                    .unwrap_or(WebhookIDList {
+                        webhooks: [].to_vec()
+                    })
             });
 
             WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
                 let store = store.borrow();
                 all_webhooks.extend(
-                    parent_webhook_ids.into_iter()
-                        .filter_map(|id| store.get(&id).cloned())
+                    parent_webhook_ids.webhooks.into_iter()
+                        .filter_map(|id| store.get(&id).clone())
                         .filter(|webhook| webhook.active && webhook.event == event)
                 );
             });
@@ -119,15 +123,17 @@ pub fn get_active_folder_webhooks(
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
             .get(&WebhookAltIndexID(folder_id.0.clone()))
-            .cloned()
-            .unwrap_or_default()
+            .map(|list| list.clone())
+            .unwrap_or(WebhookIDList {
+                webhooks: [].to_vec()
+            })
     });
 
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
         all_webhooks.extend(
-            webhook_ids.into_iter()
-                .filter_map(|id| store.get(&id).cloned())
+            webhook_ids.webhooks.into_iter()
+                .filter_map(|id| store.get(&id).clone())
                 .filter(|webhook| webhook.active && webhook.event == event)
         );
     });
@@ -178,15 +184,18 @@ pub fn get_active_folder_webhooks(
             let parent_webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
                 store.borrow()
                     .get(&WebhookAltIndexID(parent_id.0.clone()))
-                    .cloned()
-                    .unwrap_or_default()
+                    .map(|list| list.clone())
+                    .unwrap_or(WebhookIDList {
+                        webhooks: [].to_vec()
+                    })
             });
 
             WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
                 let store = store.borrow();
                 all_webhooks.extend(
-                    parent_webhook_ids.into_iter()
-                        .filter_map(|id| store.get(&id).cloned())
+                    parent_webhook_ids.webhooks
+                        .into_iter()
+                        .filter_map(|id| store.get(&id).clone())
                         .filter(|webhook| webhook.active && webhook.event == event)
                 );
             });

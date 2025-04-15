@@ -221,7 +221,7 @@ impl Storable for StateChecksum {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct DriveRESTUrlEndpoint(pub String);
 impl fmt::Display for DriveRESTUrlEndpoint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

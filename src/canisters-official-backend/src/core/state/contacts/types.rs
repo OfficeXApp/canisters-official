@@ -66,7 +66,7 @@ impl Contact {
             .filter_map(|group_id| {
                 // Get the group data
                 let group_opt = crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
-                    .with(|groups| groups.borrow().get(group_id).cloned());
+                    .with(|groups| groups.borrow().get(group_id).clone());
                 
                 if let Some(group) = group_opt {
                     // Find user's invite in this group

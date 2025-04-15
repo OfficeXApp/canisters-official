@@ -11,7 +11,7 @@ use crate::{core::{
     }, types::{IDPrefix, UserID}
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct DirectoryPermissionID(pub String);
 
 impl fmt::Display for DirectoryPermissionID {
@@ -20,7 +20,7 @@ impl fmt::Display for DirectoryPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct PlaceholderPermissionGranteeID(pub String);
 
 impl fmt::Display for PlaceholderPermissionGranteeID {
@@ -29,7 +29,7 @@ impl fmt::Display for PlaceholderPermissionGranteeID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryPermissionType {
     View,
@@ -219,7 +219,7 @@ impl DirectoryPermission {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 pub struct SystemPermissionID(pub String);
 
 impl fmt::Display for SystemPermissionID {
@@ -228,7 +228,7 @@ impl fmt::Display for SystemPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemPermissionType {
     Create,

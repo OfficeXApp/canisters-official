@@ -257,7 +257,7 @@ impl UpdateWebhookRequestBody {
             
             // Check if this is an inbox webhook by finding it
             let webhook_id = WebhookID(self.id.clone());
-            let webhook = WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned());
+            let webhook = WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).clone());
             
             if let Some(webhook) = webhook {
                 if webhook.event == WebhookEventLabel::OrganizationInboxNewNotif && !filters.is_empty() {

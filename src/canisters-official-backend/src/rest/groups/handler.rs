@@ -3,10 +3,11 @@
 
 pub mod groups_handlers {
     use crate::{
-        core::{api::{internals::drive_internals::is_user_in_group, permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInvite}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, groups::types::{CreateGroupRequestBody, CreateGroupResponse, DeleteGroupRequestBody, DeleteGroupResponse, DeletedGroupData, ErrorResponse, GetGroupResponse, ListGroupsRequestBody, ListGroupsResponse, ListGroupsResponseData, UpdateGroupRequestBody, UpdateGroupResponse, ValidateGroupRequestBody, ValidateGroupResponse, ValidateGroupResponseData}, types::ApiResponse, webhooks::types::SortDirection}
+        core::{api::{internals::drive_internals::is_user_in_group, permissions::{self, system::check_system_permissions}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInvite}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST, GROUPS_BY_TIME_MEMORY_ID}, types::{Group, GroupID}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{IDPrefix, PublicKeyICP}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, groups::types::{CreateGroupRequestBody, CreateGroupResponse, DeleteGroupRequestBody, DeleteGroupResponse, DeletedGroupData, ErrorResponse, GetGroupResponse, ListGroupsRequestBody, ListGroupsResponse, ListGroupsResponseData, UpdateGroupRequestBody, UpdateGroupResponse, ValidateGroupRequestBody, ValidateGroupResponse, ValidateGroupResponseData}, types::ApiResponse, webhooks::types::SortDirection}, MEMORY_MANAGER
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+    use ic_stable_structures::StableVec;
     use matchit::Params;
     use serde::Deserialize;
     #[derive(Deserialize, Default)]
@@ -43,7 +44,7 @@ pub mod groups_handlers {
         }
 
         let group = GROUPS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&id).cloned()
+            store.borrow().get(&id).clone()
         });
 
         match group {
@@ -101,21 +102,33 @@ pub mod groups_handlers {
     
         // Get all group IDs in time order
         let all_group_ids = GROUPS_BY_TIME_LIST.with(|store| {
-            store.borrow().clone()
+            let borrowed = store.borrow();
+            let mut group_ids = Vec::new();
+            for i in 0..borrowed.len() {
+                if let Some(id) = borrowed.get(i) {
+                    group_ids.push(id.clone());
+                }
+            }
+            group_ids
         });
     
         // Filter groups based on permissions and membership
-        let mut filtered_groups = Vec::new();
+        let mut filtered_groups_map: std::collections::HashMap<GroupID, Group> = std::collections::HashMap::new();
+
         for group_id in &all_group_ids {
+            // Skip if we've already added this group
+            if filtered_groups_map.contains_key(group_id) {
+                continue;
+            }
+            
             let group_opt = GROUPS_BY_ID_HASHTABLE.with(|groups| {
-                groups.borrow().get(group_id).cloned()
+                groups.borrow().get(group_id).clone()
             });
             
             if let Some(group) = group_opt {
-                // Check if user has permission to view this group
+                // Check permissions as before
                 let is_member = is_user_on_group(&requester_api_key.user_id, &group.id).await;
                 
-                // Check if user has specific permission for this group
                 let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Group(group.id.0.clone()));
                 let permissions = check_system_permissions(
                     resource_id,
@@ -125,10 +138,13 @@ pub mod groups_handlers {
                 let can_view = is_owner || has_table_permission || is_member || permissions.contains(&SystemPermissionType::View);
                 
                 if can_view {
-                    filtered_groups.push(group);
+                    filtered_groups_map.insert(group.id.clone(), group);
                 }
             }
         }
+
+        // Convert the HashMap values to a vector for sorting and pagination
+        let mut filtered_groups: Vec<Group> = filtered_groups_map.into_values().collect();
     
         // If there are no groups the user can access, return early
         if filtered_groups.is_empty() {
@@ -291,7 +307,7 @@ pub mod groups_handlers {
         });
 
         GROUPS_BY_TIME_LIST.with(|list| {
-            list.borrow_mut().push(group_id.clone());
+            list.borrow_mut().push(&group_id.clone());
         });
 
         mark_claimed_uuid(&group_id.clone().to_string());
@@ -353,7 +369,7 @@ pub mod groups_handlers {
         let group_id = GroupID(update_req.id);
         
         // Get existing group
-        let mut group = match GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&group_id).cloned()) {
+        let mut group = match GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&group_id).clone()) {
             Some(group) => group,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -463,7 +479,7 @@ pub mod groups_handlers {
         
     
         // Get group to verify it exists
-        let group = match GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&group_id).cloned()) {
+        let group = match GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&group_id).clone()) {
             Some(group) => group,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -478,7 +494,7 @@ pub mod groups_handlers {
         let invites_to_remove = INVITES_BY_ID_HASHTABLE.with(|store| {
             let store = store.borrow();
             group.member_invites.clone().iter()
-                .filter_map(|invite_id| store.get(invite_id).cloned())
+                .filter_map(|invite_id| store.get(invite_id).clone())
                 .collect::<Vec<GroupInvite>>()
         });
     
@@ -495,8 +511,11 @@ pub mod groups_handlers {
             let mut store = store.borrow_mut();
             // For each invite we're removing, update the corresponding user's invite list
             for invite in &invites_to_remove {
-                if let Some(user_invites) = store.get_mut(&invite.invitee_id) {
-                    user_invites.retain(|id| !group.member_invites.contains(id));
+                if let Some(user_invites) = store.get(&invite.invitee_id) {
+                    // Clone the list, filter it, and insert it back
+                    let mut updated_invites = user_invites.clone();
+                    updated_invites.invites.retain(|id| !group.member_invites.contains(id));
+                    store.insert(invite.invitee_id.clone(), updated_invites);
                 }
             }
         });
@@ -507,11 +526,24 @@ pub mod groups_handlers {
         });
     
         // Remove group from GROUPS_BY_TIME_LIST
-        GROUPS_BY_TIME_LIST.with(|list| {
-            let mut list = list.borrow_mut();
-            if let Some(pos) = list.iter().position(|id| *id == group_id) {
-                list.remove(pos);
+        GROUPS_BY_TIME_LIST.with(|store| {
+            let mut new_vec = StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(GROUPS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize new StableVec");
+            
+            // Copy all items except the one to be deleted
+            let store_ref = store.borrow();
+            for i in 0..store_ref.len() {
+                if let Some(id) = store_ref.get(i) {
+                    if id != group_id {
+                        new_vec.push(&id);
+                    }
+                }
             }
+            
+            // Replace the old vector with the new one
+            drop(store_ref);
+            *store.borrow_mut() = new_vec;
         });
 
         update_external_id_mapping(old_external_id, None, old_internal_id);

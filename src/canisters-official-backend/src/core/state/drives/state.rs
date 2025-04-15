@@ -23,7 +23,11 @@ pub mod state {
     use crate::core::state::drives::types::StateChecksum;
     use crate::core::state::drives::types::DriveStateDiffString;
     use crate::core::state::drives::types::StringVec;
+    use crate::core::state::group_invites::state::state::INVITES_BY_ID_HASHTABLE;
     use crate::core::state::group_invites::types::GroupInviteeID;
+    use crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE;
+    use crate::core::state::groups::types::GroupID;
+    use crate::core::state::webhooks::state::state::WEBHOOKS_BY_ID_HASHTABLE;
     use crate::core::state::webhooks::types::WebhookAltIndexID;
     use crate::core::types::ICPPrincipalString;
     use crate::core::types::IDPrefix;
@@ -422,17 +426,29 @@ pub mod state {
                 map.insert(new_invitee.clone(), invite_ids.clone());
                 
                 // Update the individual invites
-                crate::core::state::group_invites::state::state::INVITES_BY_ID_HASHTABLE.with(|invites| {
+                INVITES_BY_ID_HASHTABLE.with(|invites| {
                     let mut invites = invites.borrow_mut();
-                    for invite_id in &invite_ids {
-                        if let Some(invite) = invites.get_mut(invite_id) {
+                    for invite_id in &invite_ids.invites {
+                        // Get and clone the invite
+                        if let Some(mut invite) = invites.get(invite_id).clone() {
+                            let mut modified = false;
+                            
+                            // Make modifications to the cloned value
                             if invite.inviter_id == old_user_id {
                                 invite.inviter_id = new_user_id.clone();
+                                modified = true;
                                 count += 1;
                             }
+                            
                             if invite.invitee_id == GroupInviteeID::User(old_user_id.clone()) {
                                 invite.invitee_id = GroupInviteeID::User(new_user_id.clone());
+                                modified = true;
                                 count += 1;
+                            }
+                            
+                            // If we made changes, insert the modified value back
+                            if modified {
+                                invites.insert(invite_id.clone(), invite);
                             }
                         }
                     }
@@ -445,14 +461,21 @@ pub mod state {
         });
     
         // 9. Update GROUPS_BY_TIME_LIST (Groups where user is the owner)
-        update_count += crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE.with(|groups| {
+        update_count += GROUPS_BY_ID_HASHTABLE.with(|groups| {
             let mut groups = groups.borrow_mut();
             let mut count = 0;
             
-            for group in groups.values_mut() {
-                if group.owner == old_user_id {
-                    group.owner = new_user_id.clone();
-                    count += 1;
+            // First collect all the keys that need to be updated
+            let all_keys: Vec<GroupID> = groups.iter().map(|(k, _)| k.clone()).collect();
+            
+            // Then process each entry
+            for key in all_keys {
+                if let Some(mut group) = groups.get(&key).clone() {
+                    if group.owner == old_user_id {
+                        group.owner = new_user_id.clone();
+                        groups.insert(key, group);
+                        count += 1;
+                    }
                 }
             }
             
@@ -471,12 +494,14 @@ pub mod state {
                 alt_index_map.insert(WebhookAltIndexID(new_user_id.0.clone()), webhook_ids.clone());
                 
                 // Update the webhook objects themselves
-                crate::core::state::webhooks::state::state::WEBHOOKS_BY_ID_HASHTABLE.with(|webhooks_map| {
+                WEBHOOKS_BY_ID_HASHTABLE.with(|webhooks_map| {
                     let mut webhooks_map = webhooks_map.borrow_mut();
                     
-                    for webhook_id in webhook_ids {
-                        if let Some(webhook) = webhooks_map.get_mut(&webhook_id) {
+                    for webhook_id in webhook_ids.webhooks {
+                        // Get the webhook, modify it, and insert it back
+                        if let Some(mut webhook) = webhooks_map.get(&webhook_id).clone() {
                             webhook.alt_index = WebhookAltIndexID(new_user_id.0.clone());
+                            webhooks_map.insert(webhook_id, webhook);
                             count += 1;
                         }
                     }

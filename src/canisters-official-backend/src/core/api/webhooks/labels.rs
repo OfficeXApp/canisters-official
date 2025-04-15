@@ -1,10 +1,6 @@
 // src/core/api/webhooks/labels.rs
 
-use crate::core::{
-    state::webhooks::types::{Webhook, WebhookEventLabel, WebhookAltIndexID},
-    state::labels::types::{LabelID, Label},
-    state::webhooks::state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE},
-};
+use crate::core::state::{labels::types::{Label, LabelID}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookIDList}}};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -24,14 +20,14 @@ pub fn get_active_label_webhooks(label_id: &LabelID, event: WebhookEventLabel) -
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
             .get(&WebhookAltIndexID(label_id.0.clone()))
-            .cloned()
-            .unwrap_or_default()
+            .map(|list| list.clone())
+            .unwrap_or_else(|| WebhookIDList { webhooks: Vec::new() }) 
     });
 
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
-        webhook_ids.into_iter()
-            .filter_map(|id| store.get(&id).cloned())
+        webhook_ids.iter()  
+            .filter_map(|id| store.get(id).clone())
             .filter(|webhook| webhook.active && webhook.event == event)
             .collect()
     })

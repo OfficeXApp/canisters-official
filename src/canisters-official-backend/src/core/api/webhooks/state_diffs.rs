@@ -20,14 +20,14 @@ pub fn get_active_state_diff_webhooks() -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
             .get(&WebhookAltIndexID(WebhookAltIndexID::state_diffs_slug().to_string()))
-            .cloned()
+            .clone()
             .unwrap_or_default()
     });
 
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
-        webhook_ids.into_iter()
-            .filter_map(|id| store.get(&id).cloned())
+        webhook_ids.webhooks.into_iter()
+            .filter_map(|id| store.get(&id).clone())
             .filter(|webhook| webhook.active && webhook.event == WebhookEventLabel::DriveStateDiffs)
             .collect()
     })

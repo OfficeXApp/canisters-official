@@ -9,22 +9,12 @@ pub mod labels_handlers {
                 uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::labels::{fire_label_webhook, get_active_label_webhooks}
             },
             state::{
-                drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, 
-                permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, 
-                labels::{
+                drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, labels::{
                     state::{
-                        add_label_to_resource, 
-                        parse_label_resource_id, 
-                        remove_label_from_resource, 
-                        update_label_string_value, 
-                        validate_color, 
-                        validate_label_value, 
-                        LABELS_BY_ID_HASHTABLE, 
-                        LABELS_BY_TIME_LIST, 
-                        LABELS_BY_VALUE_HASHTABLE
+                        add_label_to_resource, parse_label_resource_id, remove_label_from_resource, update_label_string_value, validate_color, validate_label_value, LABELS_BY_ID_HASHTABLE, LABELS_BY_TIME_LIST, LABELS_BY_TIME_MEMORY_ID, LABELS_BY_VALUE_HASHTABLE
                     }, 
                     types::{HexColorString, Label, LabelID, LabelResourceID, LabelStringValue}
-                }, webhooks::types::WebhookEventLabel
+                }, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel
             }, 
             types::IDPrefix
         }, 
@@ -32,14 +22,15 @@ pub mod labels_handlers {
         rest::{
             auth::{authenticate_request, create_auth_error_response}, 
             labels::types::{
-                CreateLabelRequestBody, CreateLabelResponse, DeleteLabelRequest, DeleteLabelResponse, DeletedLabelData, ErrorResponse, GetLabelResponse, ListLabelsRequestBody, ListLabelsResponse, ListLabelsResponseData, LabelOperationResponse, LabelResourceRequest, LabelResourceResponse, UpdateLabelRequestBody, UpdateLabelResponse
+                CreateLabelRequestBody, CreateLabelResponse, DeleteLabelRequest, DeleteLabelResponse, DeletedLabelData, ErrorResponse, GetLabelResponse, LabelOperationResponse, LabelResourceRequest, LabelResourceResponse, ListLabelsRequestBody, ListLabelsResponse, ListLabelsResponseData, UpdateLabelRequestBody, UpdateLabelResponse
             }, 
-            webhooks::types::{SortDirection, LabelWebhookData}
-        }
+            webhooks::types::{LabelWebhookData, SortDirection}
+        }, MEMORY_MANAGER
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
+    use ic_stable_structures::StableVec;
 
     #[derive(Deserialize, Default)]
     struct ListQueryParams {
@@ -64,7 +55,7 @@ pub mod labels_handlers {
             true => {
                 let label_id = LabelID(label_str);
                 LABELS_BY_ID_HASHTABLE.with(|store| {
-                    store.borrow().get(&label_id).cloned()
+                    store.borrow().get(&label_id).clone()
                 })
             },
             // It's a LabelStringValue
@@ -75,7 +66,7 @@ pub mod labels_handlers {
                     if let Some(label_id) = store.borrow().get(&label_value) {
                         // Then use the label ID to get the full label
                         LABELS_BY_ID_HASHTABLE.with(|id_store| {
-                            id_store.borrow().get(label_id).cloned()
+                            id_store.borrow().get(&label_id).clone()
                         })
                     } else {
                         None
@@ -200,31 +191,34 @@ pub mod labels_handlers {
                 let id_store = id_store.borrow();
                 
                 for idx in 0..time_index.len() {
-                    if let Some(label) = id_store.get(&time_index[idx]) {
-                        // Check resource-level permissions
-                        let can_view = is_owner || has_table_permission || {
-                            // Check specific permissions for this label
-                            let label_id = &label.id;
-                            let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Label(label_id.0.clone()));
-                            let permissions = check_system_resource_permissions_labels(
-                                &resource_id,
-                                &PermissionGranteeID::User(requester_api_key.user_id.clone()),
-                                &label.value.0
-                            );
-                            
-                            permissions.contains(&SystemPermissionType::View)
-                        };
-                        
-                        if can_view {
-                            // Apply prefix filter if provided
-                            let meets_prefix_filter = if let Some(prefix) = &request_body.filters.prefix {
-                                label.value.0.to_lowercase().starts_with(&prefix.to_lowercase())
-                            } else {
-                                true
+                    // Replace time_index[idx] with time_index.get(idx)
+                    if let Some(label_id) = time_index.get(idx) {
+                        if let Some(label) = id_store.get(&label_id) {
+                            // Check resource-level permissions
+                            let can_view = is_owner || has_table_permission || {
+                                // Check specific permissions for this label
+                                let label_id = &label.id;
+                                let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Label(label_id.0.clone()));
+                                let permissions = check_system_resource_permissions_labels(
+                                    &resource_id,
+                                    &PermissionGranteeID::User(requester_api_key.user_id.clone()),
+                                    &label.value.0
+                                );
+                                
+                                permissions.contains(&SystemPermissionType::View)
                             };
                             
-                            if meets_prefix_filter {
-                                all_filtered_labels.push((idx, label.clone()));
+                            if can_view {
+                                // Apply prefix filter if provided
+                                let meets_prefix_filter = if let Some(prefix) = &request_body.filters.prefix {
+                                    label.value.0.to_lowercase().starts_with(&prefix.to_lowercase())
+                                } else {
+                                    true
+                                };
+                                
+                                if meets_prefix_filter {
+                                    all_filtered_labels.push((idx, label.clone()));
+                                }
                             }
                         }
                     }
@@ -259,11 +253,11 @@ pub mod labels_handlers {
             match request_body.direction {
                 SortDirection::Asc => {
                     // Find position in sorted labels where index >= the cursor value
-                    all_filtered_labels.iter().position(|(idx, _)| *idx >= index).unwrap_or(0)
+                    all_filtered_labels.iter().position(|(idx, _)| *idx >= index as u64).unwrap_or(0)
                 },
                 SortDirection::Desc => {
                     // Find position in sorted labels where index <= the cursor value
-                    all_filtered_labels.iter().position(|(idx, _)| *idx <= index).unwrap_or(0)
+                    all_filtered_labels.iter().position(|(idx, _)| *idx <= index as u64).unwrap_or(0)
                 },
             }
         } else {
@@ -418,7 +412,7 @@ pub mod labels_handlers {
         });
 
         LABELS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().push(label_id.clone());
+            store.borrow_mut().push(&label_id);
         });
         mark_claimed_uuid(&label_id.clone().to_string());
 
@@ -461,7 +455,7 @@ pub mod labels_handlers {
         let label_id = LabelID(update_req.id.clone());
                     
         // Get existing label
-        let mut label = match LABELS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&label_id).cloned()) {
+        let mut label = match LABELS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&label_id).clone()) {
             Some(label) => label,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -603,7 +597,7 @@ pub mod labels_handlers {
 
         // Check if label exists
         let label = LABELS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&label_id).cloned()
+            store.borrow().get(&label_id).clone()
         });
         
         let label = match label {
@@ -650,7 +644,23 @@ pub mod labels_handlers {
         });
 
         LABELS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &label_id);
+            let mut new_vec = StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(LABELS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize new StableVec");
+            
+            // Copy all items except the one to be deleted
+            let store_ref = store.borrow();
+            for i in 0..store_ref.len() {
+                if let Some(id) = store_ref.get(i) {
+                    if id != label_id {
+                        new_vec.push(&id);
+                    }
+                }
+            }
+            
+            // Replace the old vector with the new one
+            drop(store_ref);
+            *store.borrow_mut() = new_vec;
         });
 
         update_external_id_mapping(old_external_id, None, old_internal_id);
@@ -700,7 +710,7 @@ pub mod labels_handlers {
 
         // Parse the label ID
         let label_id = match LABELS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&LabelID(label_request.label_id.clone())).cloned()
+            store.borrow().get(&LabelID(label_request.label_id.clone())).clone()
         }) {
             Some(label) => label.id,
             None => return create_response(
@@ -727,7 +737,7 @@ pub mod labels_handlers {
         // }).unwrap();
 
         // check if label exists, throw bad request if not
-        let label = match LABELS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&label_id).cloned()) {
+        let label = match LABELS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&label_id).clone()) {
             Some(label) => label,
             None => return create_response(
                 StatusCode::BAD_REQUEST,

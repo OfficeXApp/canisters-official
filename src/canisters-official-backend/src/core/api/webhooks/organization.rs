@@ -1,7 +1,7 @@
 // src/core/api/webhooks/group_invites.rs
 
 use crate::{core::{
-    state::{group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel}}},
+    state::{group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookIDList}}},
     types::UserID,
 }, debug_log, rest::organization::types::InboxOrgRequestBody};
 use crate::rest::webhooks::types::{
@@ -23,14 +23,14 @@ pub fn get_superswap_user_webhooks(event: WebhookEventLabel) -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
             .get(&WebhookAltIndexID::superswap_user_slug())
-            .cloned()
+            .map(|list| list.webhooks.clone())
             .unwrap_or_default()
     });
 
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
-        webhook_ids.into_iter()
-            .filter_map(|id| store.get(&id).cloned())
+        webhook_ids.iter()
+            .filter_map(|id| store.get(id).clone())
             .filter(|webhook| webhook.active && webhook.event == event)
             .collect()
     })
@@ -40,16 +40,16 @@ pub fn get_superswap_user_webhooks(event: WebhookEventLabel) -> Vec<Webhook> {
 pub fn get_org_inbox_webhooks(topic: Option<&String>) -> Vec<Webhook> {
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
-            .get(&WebhookAltIndexID::inbox_new_notif_slug())
-            .cloned()
-            .unwrap_or_default()
+            .get(&WebhookAltIndexID::superswap_user_slug())
+            .map(|list| list.clone())  
+            .unwrap_or_else(|| WebhookIDList { webhooks: Vec::new() })
     });
 
 
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
-        webhook_ids.into_iter()
-            .filter_map(|id| store.get(&id).cloned())
+        webhook_ids.webhooks.into_iter()
+            .filter_map(|id| store.get(&id).clone())
             .filter(|webhook| {
                 
                 if !webhook.active || webhook.event != WebhookEventLabel::OrganizationInboxNewNotif {

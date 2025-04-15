@@ -514,18 +514,17 @@ pub mod drive_internals {
             return true;
         }
     
-        // Check active invites for the user
-        INVITES_BY_ID_HASHTABLE.with(|invites| {
-            // Get all user's invites
-            let user_invites = USERS_INVITES_LIST_HASHTABLE.with(|user_invites| {
-                user_invites.borrow()
-                    .get(&GroupInviteeID::User(user_id.clone()))
-                    .cloned()
-                    .unwrap_or_default()
-            });
+        // Get all user's invites first (outside the other with block)
+        let user_invites = USERS_INVITES_LIST_HASHTABLE.with(|user_invites| {
+            user_invites.borrow()
+                .get(&GroupInviteeID::User(user_id.clone()))
+                .map(|list| list.clone())
+                .unwrap_or_default()
+        });
     
-            // Check if any of the user's invites are active for this group
-            let now = ic_cdk::api::time();
+        // Now check if any of the user's invites are active for this group
+        let now = ic_cdk::api::time();
+        INVITES_BY_ID_HASHTABLE.with(|invites| {
             user_invites.iter().any(|invite_id| {
                 if let Some(invite) = invites.borrow().get(invite_id) {
                     // Check if invite is for this group
@@ -568,7 +567,7 @@ pub mod drive_internals {
             invites
                 .borrow()
                 .get(&GroupInviteeID::User(user_id.clone()))
-                .cloned()
+                .map(|list| list.invites.clone())
                 .unwrap_or_default()
                 .into_iter()
                 .filter_map(|invite_id| {

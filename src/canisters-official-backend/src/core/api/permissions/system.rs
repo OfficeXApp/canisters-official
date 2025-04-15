@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, groups::{state::state::{is_user_on_local_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::GroupID}, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}}, types::UserID};
+use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, groups::{state::state::{is_user_on_local_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::GroupID}, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}}, types::UserID}, debug_log};
 
 use super::directory::parse_permission_grantee_id;
 
@@ -86,16 +86,24 @@ pub fn check_system_permissions(
     // If the grantee is a user, also check group permissions
     if let PermissionGranteeID::User(user_id) = &grantee_id {
         // Check all groups the user is a member of (using GROUPS_BY_TIME_LIST)
-        crate::core::state::groups::state::state::GROUPS_BY_TIME_LIST.with(|group_list| {
+        GROUPS_BY_TIME_LIST.with(|group_list| {
+            
+            
             for group_id in group_list.borrow().iter() {
-                // Use the existing is_user_on_local_group function
-                if crate::core::state::groups::state::state::is_user_on_local_group(user_id, &crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned().unwrap())) {
-                    // Add this group's permissions
-                    let group_permissions = check_system_resource_permissions(
-                        &resource_id,
-                        &PermissionGranteeID::Group(group_id.clone()),
-                    );
-                    all_permissions.extend(group_permissions);
+                // Check if the group exists in the hashtable
+                let group_exists = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().contains_key(&group_id));
+                
+                if group_exists {
+                    if let Some(group) = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(&group_id).clone()) {
+                        if is_user_on_local_group(user_id, &group) {
+                            // Add this group's permissions
+                            let group_permissions = check_system_resource_permissions(
+                                &resource_id,
+                                &PermissionGranteeID::Group(group_id.clone()),
+                            );
+                            all_permissions.extend(group_permissions);
+                        }
+                    }
                 }
             }
         });
@@ -236,7 +244,7 @@ pub fn check_system_resource_permissions_labels(
         GROUPS_BY_TIME_LIST.with(|group_list| {
             for group_id in group_list.borrow().iter() {
                 // Use the existing is_user_on_local_group function
-                if is_user_on_local_group(user_id, &GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned().unwrap())) {
+                if is_user_on_local_group(user_id, &GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(&group_id).clone().unwrap())) {
                     // Add this group's permissions
                     let group_permissions = check_system_resource_permissions_labels_internal(
                         resource_id,
