@@ -1,7 +1,8 @@
 
 // src/core/state/drives/types.rs
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use crate::{core::{api::permissions::system::check_system_permissions, state::{permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::{ICPPrincipalString, PublicKeyICP, UserID}}, rest::drives::types::DriveFE};
@@ -9,13 +10,33 @@ use crate::{core::{api::permissions::system::check_system_permissions, state::{p
 use super::state::state::OWNER_ID;
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct DriveID(pub String);
 impl fmt::Display for DriveID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
+
+impl Storable for DriveID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize DriveID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize DriveID")
+    }
+}
+
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
@@ -41,6 +62,26 @@ pub struct Drive {
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
 }   
+
+impl Storable for Drive {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize Drive");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize Drive")
+    }
+}
+
 
 impl Drive {
 
@@ -76,6 +117,31 @@ impl Drive {
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct SpawnRedeemCode(pub String);
 
+impl Storable for SpawnRedeemCode {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize SpawnRedeemCode");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize SpawnRedeemCode")
+    }
+}
+impl fmt::Display for SpawnRedeemCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
 // Define a struct to track deployment history
 #[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct FactorySpawnHistoryRecord {
@@ -83,6 +149,26 @@ pub struct FactorySpawnHistoryRecord {
     pub drive_id: DriveID,
     pub endpoint: String,
 }
+
+impl Storable for FactorySpawnHistoryRecord {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize FactorySpawnHistoryRecord");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize FactorySpawnHistoryRecord")
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct DriveStateDiffID(pub String);
@@ -115,6 +201,26 @@ impl fmt::Display for StateChecksum {
     }
 }
 
+impl Storable for StateChecksum {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize StateChecksum");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize StateChecksum")
+    }
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct DriveRESTUrlEndpoint(pub String);
 impl fmt::Display for DriveRESTUrlEndpoint {
@@ -122,6 +228,26 @@ impl fmt::Display for DriveRESTUrlEndpoint {
         write!(f, "{}", self.0)
     }
 }
+
+impl Storable for DriveRESTUrlEndpoint {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize DriveRESTUrlEndpoint");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize DriveRESTUrlEndpoint")
+    }
+}
+
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
@@ -148,11 +274,122 @@ impl fmt::Display for ExternalID {
     }
 }
 
+impl Storable for ExternalID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize ExternalID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize ExternalID")
+    }
+}
+
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord, CandidType)]
 pub struct ExternalPayload(pub String);
 impl fmt::Display for ExternalPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl Storable for ExternalPayload {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize ExternalPayload");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize ExternalPayload")
+    }
+}
+
+
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize, SerdeDiff)]
+pub struct StringVec {
+    pub items: Vec<String>,
+}
+
+impl StringVec {
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+    
+    pub fn with_item(item: String) -> Self {
+        Self { items: vec![item] }
+    }
+    
+    pub fn push(&mut self, item: String) {
+        self.items.push(item);
+    }
+    
+    pub fn retain<F>(&mut self, f: F) 
+    where 
+        F: FnMut(&String) -> bool 
+    {
+        self.items.retain(f);
+    }
+    
+    pub fn contains(&self, item: &str) -> bool {
+        self.items.iter().any(|i| i == item)
+    }
+    
+    pub fn iter(&self) -> impl Iterator<Item = &String> {
+        self.items.iter()
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+}
+
+// Implement conversion between Vec<String> and StringVec
+impl From<Vec<String>> for StringVec {
+    fn from(items: Vec<String>) -> Self {
+        Self { items }
+    }
+}
+
+impl From<StringVec> for Vec<String> {
+    fn from(list: StringVec) -> Self {
+        list.items
+    }
+}
+
+// Implement Storable for StringVec
+impl Storable for StringVec {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 1024, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize StringVec");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize StringVec")
     }
 }

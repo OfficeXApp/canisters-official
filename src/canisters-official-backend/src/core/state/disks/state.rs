@@ -35,11 +35,11 @@ pub mod state {
 
 
         let owner_id = OWNER_ID.with(|owner_id| {
-            owner_id.clone()
+            owner_id.borrow().get().clone()
         });
         let (root_folder, trash_folder) = ensure_disk_root_and_trash_folder(
             &current_canister_disk_id.clone(),
-            &owner_id.borrow().clone(),
+            &owner_id,
             &DRIVE_ID.with(|id| id.clone()),
             DiskTypeEnum::IcpCanister
         );

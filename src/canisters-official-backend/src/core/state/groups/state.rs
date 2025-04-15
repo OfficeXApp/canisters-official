@@ -23,7 +23,7 @@ pub mod state {
     pub fn init_default_group() {
         let admin_invite_id = GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite));
         let group_id = DEFAULT_EVERYONE_GROUP.with(|group_id| group_id.borrow().clone());
-        let owner_id = OWNER_ID.with(|owner_id| owner_id.borrow().clone());
+        let owner_id = OWNER_ID.with(|owner_id| owner_id.borrow().get().clone());
         let current_time = ic_cdk::api::time() / 1_000_000;
         let default_group = Group {
             id: group_id.clone(),
@@ -37,7 +37,7 @@ pub mod state {
             created_at: current_time.clone(),
             last_modified_at: current_time.clone(),
             drive_id: DRIVE_ID.with(|drive_id| drive_id.clone()),
-            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
+            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
             labels: Vec::new(),
             external_id: None,
             external_payload: None,
@@ -191,7 +191,7 @@ pub mod state {
         
         if let Some(group) = group_opt {
             // If it's our own drive's group, use local validation
-            if group.endpoint_url == URL_ENDPOINT.with(|url| url.borrow().clone()) {
+            if group.endpoint_url == URL_ENDPOINT.with(|url| url.borrow().get().clone()) {
                 return is_user_on_local_group(user_id, &group);
             }
     

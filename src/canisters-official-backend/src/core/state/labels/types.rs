@@ -242,7 +242,7 @@ pub fn redact_label(label_value: LabelStringValue, user_id: UserID) -> Option<La
     
     if let Some(label_id) = label_id {
         // Check if the user is the owner
-        let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| user_id == owner_id.borrow().get().clone());
         
         if is_owner {
             // Owner sees everything, no redaction needed
@@ -285,7 +285,7 @@ pub fn redact_group_previews(group_preview: ContactGroupInvitePreview, user_id: 
     let group_id = &group_preview.group_id;
     
     // Check if the user is the owner
-    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+    let is_owner = OWNER_ID.with(|owner_id| user_id == owner_id.borrow().get().clone());
     
     if is_owner {
         // Owner sees everything, no redaction needed

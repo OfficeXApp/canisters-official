@@ -39,7 +39,7 @@ pub mod permissions_handlers {
         // 4. Verify access rights using helper function
         match &permission {
             Some(p) => {
-                let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+                let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
                 
                 if !can_user_access_directory_permission(&requester_api_key.user_id, p, is_owner) {
                     return create_auth_error_response();
@@ -111,7 +111,7 @@ pub mod permissions_handlers {
         };
     
         // 3. Check if requester is authorized to check these permissions
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         let is_authorized = if is_owner {
             true
         } else {
@@ -185,7 +185,7 @@ pub mod permissions_handlers {
         };
     
         // 3. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
         let resource_id = match parse_directory_resource_id(&request_body.filters.resource_id.to_string()) {
             Ok(id) => id,
@@ -381,7 +381,7 @@ pub mod permissions_handlers {
         }
     
         // 6. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
         let mut allowed_permission_types = if is_owner {
             // Owner can grant any permission
@@ -538,7 +538,7 @@ pub mod permissions_handlers {
 
     
         // 6. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
         let mut allowed_permission_types = if is_owner {
             // Owner can grant any permission
@@ -672,7 +672,7 @@ pub mod permissions_handlers {
         };
     
         // 4. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         let is_granter = permission.granted_by == requester_api_key.user_id;
         
         // Check manage permissions on the resource and all its parents
@@ -906,7 +906,7 @@ pub mod permissions_handlers {
             permissions.borrow().get(&permission_id).cloned()
         });
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         // 4. First check table-level permission
         if !check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::View, is_owner) {
             return create_auth_error_response();
@@ -915,7 +915,7 @@ pub mod permissions_handlers {
         // 4. Verify access rights
         match &permission {
             Some(p) => {
-                let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+                let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
                 
                 if !can_user_access_system_permission(&requester_api_key.user_id, p, is_owner) {
                     return create_auth_error_response();
@@ -959,7 +959,7 @@ pub mod permissions_handlers {
         };
     
         // 3. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
         // Check table-level permissions if not owner
         if !is_owner {
@@ -1269,7 +1269,7 @@ pub mod permissions_handlers {
         };
     
         // 5. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
     
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
@@ -1392,7 +1392,7 @@ pub mod permissions_handlers {
         }
     
         // 5. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
     
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
@@ -1515,7 +1515,7 @@ pub mod permissions_handlers {
         let old_internal_id = permission.id.clone().to_string();
     
         // 4. Check authorization
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         let is_granter = permission.granted_by == requester_api_key.user_id;
         let has_table_permission = check_permissions_table_access(&requester_api_key.user_id, SystemPermissionType::Delete, is_owner);
     
@@ -1664,7 +1664,7 @@ pub mod permissions_handlers {
         };
     
         // 5. Check if requester is authorized to check these permissions
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         let is_authorized = if is_owner {
             true
         } else {

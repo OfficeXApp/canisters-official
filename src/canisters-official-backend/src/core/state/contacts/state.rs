@@ -47,7 +47,7 @@ pub mod state {
     pub fn init_default_owner_contact(name: Option<String>) {
         debug_log!("Initializing default owner contact...");
 
-        let owner_id = OWNER_ID.with(|id| id.borrow().clone());
+        let owner_id = OWNER_ID.with(|id| id.borrow().get().clone());
         // extract icp principal by removing the prefix IDPrefix::User
         let owner_icp_principal = owner_id.to_icp_principal_string();
 

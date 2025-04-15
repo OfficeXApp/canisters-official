@@ -32,7 +32,7 @@ impl WebhookFE {
     pub fn redacted(&self, user_id: &UserID) -> Self {
         let mut redacted = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| user_id.clone() == owner_id.borrow().get().clone());
         let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
 
         // Most sensitive

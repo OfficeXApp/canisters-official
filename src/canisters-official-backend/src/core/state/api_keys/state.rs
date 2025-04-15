@@ -40,7 +40,7 @@ pub mod state {
         let default_key = ApiKey {
             id: ApiKeyID(generate_uuidv4(IDPrefix::ApiKey)),
             value: ApiKeyValue(generate_api_key()),
-            user_id: OWNER_ID.with(|id| id.borrow().clone()),
+            user_id: OWNER_ID.with(|id| id.borrow().get().clone()),
             name: "Default Admin Key".to_string(),
             private_note: None,
             created_at: ic_cdk::api::time(),

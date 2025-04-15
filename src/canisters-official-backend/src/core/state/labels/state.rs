@@ -61,7 +61,7 @@ pub fn validate_uuid4_string_with_prefix(prefix_uuid_string: &str, prefix: IDPre
 
     // Check if UUID has already been claimed
     crate::core::state::drives::state::state::UUID_CLAIMED.with(|claimed| {
-        if claimed.borrow().contains_key(uuid_str) {
+        if claimed.borrow().contains_key(&uuid_str.to_string()) {
             Err(ValidationError {
                 field: "uuid".to_string(),
                 message: "UUID has already been claimed".to_string(),
@@ -257,9 +257,10 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::Drive(id) => {
             DRIVES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    if !resource.labels.iter().any(|t| t == label_value) {
-                        resource.labels.push(label_value.clone());
+                if let Some(mut drive) = store.get(id) {
+                    if !drive.labels.iter().any(|t| t == label_value) {
+                        drive.labels.push(label_value.clone());
+                        store.insert(id.clone(), drive);
                     }
                 }
             });
@@ -427,8 +428,11 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
         LabelResourceID::Drive(id) => {
             DRIVES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    resource.labels.retain(|t| t != label_value);
+                if let Some(mut drive) = store.get(id) {
+                    if !drive.labels.iter().any(|t| t == label_value) {
+                        drive.labels.push(label_value.clone());
+                        store.insert(id.clone(), drive);
+                    }
                 }
             });
         },

@@ -35,7 +35,7 @@ pub mod webhooks_handlers {
 
 
         // Only owner can access webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         if !is_owner {
             let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
             let record_permissions = check_system_permissions(
@@ -78,7 +78,7 @@ pub mod webhooks_handlers {
         };
     
         // Check if user is owner (for optimization)
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
         let has_table_permission = if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);
@@ -316,7 +316,7 @@ pub mod webhooks_handlers {
         };
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -414,7 +414,7 @@ pub mod webhooks_handlers {
         };
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -537,7 +537,7 @@ pub mod webhooks_handlers {
         let webhook_id = WebhookID(delete_request.id.clone());
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         if !is_owner {
             let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
             let record_permissions = check_system_permissions(

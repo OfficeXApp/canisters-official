@@ -109,11 +109,11 @@ fn initialize_canister(args: Option<InitArgs>) {
 
                 // Verify the values were set correctly
                 crate::core::state::drives::state::state::OWNER_ID.with(|id| {
-                    debug_log!("After init, owner_id is: {}", id.borrow().0);
+                    debug_log!("After init, owner_id is: {}", id.borrow().get().clone());
                 });
                 
                 crate::core::state::drives::state::state::SPAWN_REDEEM_CODE.with(|code| {
-                    debug_log!("After init, spawn_redeem_code is: {}", code.borrow().0);
+                    debug_log!("After init, spawn_redeem_code is: {}", code.borrow().get().clone());
                 });
 
                 init_default_admin_apikey();

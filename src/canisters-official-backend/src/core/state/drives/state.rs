@@ -2,9 +2,13 @@
 // src/core/state/drives/state.rs
 
 pub mod state {
-    use std::cell::Cell;
     use std::cell::RefCell;
-    use std::collections::HashMap;
+    use ic_stable_structures::memory_manager::MemoryId;
+    use ic_stable_structures::StableBTreeMap;
+    use ic_stable_structures::StableVec;
+    use ic_stable_structures::StableCell;
+    use ic_stable_structures::DefaultMemoryImpl;
+
     use crate::core::api::helpers::get_appropriate_url_endpoint;
     use crate::core::api::replay::diff::update_checksum_for_state_diff;
     use crate::core::api::uuid::format_drive_id;
@@ -18,6 +22,7 @@ pub mod state {
     use crate::core::state::drives::types::SpawnRedeemCode;
     use crate::core::state::drives::types::StateChecksum;
     use crate::core::state::drives::types::DriveStateDiffString;
+    use crate::core::state::drives::types::StringVec;
     use crate::core::state::group_invites::types::GroupInviteeID;
     use crate::core::state::webhooks::types::WebhookAltIndexID;
     use crate::core::types::ICPPrincipalString;
@@ -25,30 +30,135 @@ pub mod state {
     use crate::core::types::PublicKeyEVM;
     use crate::core::types::{UserID,PublicKeyICP};
     use crate::debug_log;
+    use crate::MEMORY_MANAGER;
+
+    type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+
+    pub const VERSION_MEMORY_ID: MemoryId = MemoryId::new(13);
+    pub const DRIVE_STATE_CHECKSUM_MEMORY_ID: MemoryId = MemoryId::new(14);
+    pub const DRIVE_STATE_TIMESTAMP_MEMORY_ID: MemoryId = MemoryId::new(15);
+    pub const OWNER_ID_MEMORY_ID: MemoryId = MemoryId::new(16);
+    pub const URL_ENDPOINT_MEMORY_ID: MemoryId = MemoryId::new(17);
+    pub const TRANSFER_OWNER_ID_MEMORY_ID: MemoryId = MemoryId::new(18);
+    pub const SPAWN_REDEEM_CODE_MEMORY_ID: MemoryId = MemoryId::new(19);
+    pub const SPAWN_NOTE_MEMORY_ID: MemoryId = MemoryId::new(20);
+    pub const NONCE_UUID_GENERATED_MEMORY_ID: MemoryId = MemoryId::new(21);
+    pub const RECENT_DEPLOYMENTS_MEMORY_ID: MemoryId = MemoryId::new(22);
+    pub const DRIVES_MEMORY_ID: MemoryId = MemoryId::new(23);
+    pub const DRIVES_BY_TIME_MEMORY_ID: MemoryId = MemoryId::new(24);
+    pub const EXTERNAL_ID_MAPPINGS_MEMORY_ID: MemoryId = MemoryId::new(25);
+    pub const UUID_CLAIMED_MEMORY_ID: MemoryId = MemoryId::new(26);
+    pub const NONCE_UUID_MEMORY_ID: MemoryId = MemoryId::new(27);
+
 
     thread_local! { 
         // self info - immutable
         pub(crate) static DRIVE_ID: DriveID = format_drive_id(&ic_cdk::api::id().to_text());
         pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
-        pub(crate) static VERSION: RefCell<String> = RefCell::new("OfficeX.Beta.0.0.1".to_string());
-        pub(crate) static DRIVE_STATE_CHECKSUM: RefCell<StateChecksum> = RefCell::new(StateChecksum("genesis".to_string()));
-        pub(crate) static DRIVE_STATE_TIMESTAMP_NS: Cell<u64> = Cell::new(ic_cdk::api::time());
+        
+        // Convert configuration values to stable cells
+        pub(crate) static VERSION: RefCell<StableCell<String, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(VERSION_MEMORY_ID)),
+                "OfficeX.Beta.0.0.1".to_string()
+            ).expect("Failed to initialize VERSION")
+        );
+        
+        pub(crate) static DRIVE_STATE_CHECKSUM: RefCell<StableCell<StateChecksum, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DRIVE_STATE_CHECKSUM_MEMORY_ID)),
+                StateChecksum("genesis".to_string())
+            ).expect("Failed to initialize DRIVE_STATE_CHECKSUM")
+        );
+        
+        pub(crate) static DRIVE_STATE_TIMESTAMP_NS: RefCell<StableCell<u64, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DRIVE_STATE_TIMESTAMP_MEMORY_ID)),
+                ic_cdk::api::time()
+            ).expect("Failed to initialize DRIVE_STATE_TIMESTAMP_NS")
+        );
         // self info - mutable
-        pub(crate) static OWNER_ID: RefCell<UserID> = RefCell::new(UserID("Anonymous_Owner".to_string()));
-        pub(crate) static URL_ENDPOINT: RefCell<DriveRESTUrlEndpoint> = RefCell::new(DriveRESTUrlEndpoint(format!("https://{}.icp0.io", CANISTER_ID.with(|id| id.0.clone()))));
-        pub(crate) static TRANSFER_OWNER_ID: RefCell<UserID> = RefCell::new(UserID("".to_string()));
-        // hashtables
-        pub(crate) static DRIVES_BY_ID_HASHTABLE: RefCell<HashMap<DriveID, Drive>> = RefCell::new(HashMap::new());
-        pub(crate) static DRIVES_BY_TIME_LIST: RefCell<Vec<DriveID>> = RefCell::new(Vec::new());
-        // external id tracking
-        pub(crate) static NONCE_UUID_GENERATED: RefCell<u128> = RefCell::new(0);
-        pub(crate) static EXTERNAL_ID_MAPPINGS: RefCell<HashMap<ExternalID, Vec<String>>> = RefCell::new(HashMap::new());
-        pub(crate) static UUID_CLAIMED: RefCell<HashMap<String, bool>> = RefCell::new(HashMap::new()); // tracks client generated uuids to prevent collisions
-        // factory spawn tracking
-        pub(crate) static RECENT_DEPLOYMENTS: RefCell<Vec<FactorySpawnHistoryRecord>> = RefCell::new(Vec::new());
-        pub(crate) static SPAWN_NOTE: RefCell<String> = RefCell::new("".to_string());
-        pub(crate) static SPAWN_REDEEM_CODE: RefCell<SpawnRedeemCode> = RefCell::new(SpawnRedeemCode("".to_string()));
+        // Convert important user-related settings to stable cells
+        pub(crate) static OWNER_ID: RefCell<StableCell<UserID, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(OWNER_ID_MEMORY_ID)),
+                UserID("Anonymous_Owner".to_string())
+            ).expect("Failed to initialize OWNER_ID")
+        );
+        
+        pub(crate) static URL_ENDPOINT: RefCell<StableCell<DriveRESTUrlEndpoint, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(URL_ENDPOINT_MEMORY_ID)),
+                DriveRESTUrlEndpoint(format!("https://{}.icp0.io", CANISTER_ID.with(|id| id.0.clone())))
+            ).expect("Failed to initialize URL_ENDPOINT")
+        );
+        
+        pub(crate) static TRANSFER_OWNER_ID: RefCell<StableCell<UserID, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(TRANSFER_OWNER_ID_MEMORY_ID)),
+                UserID("".to_string())
+            ).expect("Failed to initialize TRANSFER_OWNER_ID")
+        );
+        // Convert HashMap to StableBTreeMap for drives by ID
+        pub(crate) static DRIVES_BY_ID_HASHTABLE: RefCell<StableBTreeMap<DriveID, Drive, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DRIVES_MEMORY_ID))
+            )
+        );
+        
+        // Convert Vec to StableVec for drives by time
+        pub(crate) static DRIVES_BY_TIME_LIST: RefCell<StableVec<DriveID, Memory>> = RefCell::new(
+            StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DRIVES_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize DRIVES_BY_TIME_LIST")
+        );
+        
+        // Convert simple counter to StableCell
+        pub(crate) static NONCE_UUID_GENERATED: RefCell<StableCell<u128, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(NONCE_UUID_MEMORY_ID)),
+                0
+            ).expect("Failed to initialize NONCE_UUID_GENERATED")
+        );
+        
+        // Convert HashMap to StableBTreeMap for external ID mappings
+        pub(crate) static EXTERNAL_ID_MAPPINGS: RefCell<StableBTreeMap<ExternalID, StringVec, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(EXTERNAL_ID_MAPPINGS_MEMORY_ID))
+            )
+        );
+        
+        // Convert HashMap to StableBTreeMap for UUID claims
+        pub(crate) static UUID_CLAIMED: RefCell<StableBTreeMap<String, bool, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(UUID_CLAIMED_MEMORY_ID))
+            )
+        );
+        
+        // Convert Vec to StableVec for deployment history
+        pub(crate) static RECENT_DEPLOYMENTS: RefCell<StableVec<FactorySpawnHistoryRecord, Memory>> = RefCell::new(
+            StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(RECENT_DEPLOYMENTS_MEMORY_ID))
+            ).expect("Failed to initialize RECENT_DEPLOYMENTS")
+        );
+        
+        // Convert String to StableCell
+        pub(crate) static SPAWN_NOTE: RefCell<StableCell<String, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(SPAWN_NOTE_MEMORY_ID)),
+                "".to_string()
+            ).expect("Failed to initialize SPAWN_NOTE")
+        );
+        
+        // Convert SpawnRedeemCode to StableCell
+        pub(crate) static SPAWN_REDEEM_CODE: RefCell<StableCell<SpawnRedeemCode, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(SPAWN_REDEEM_CODE_MEMORY_ID)),
+                SpawnRedeemCode("".to_string())
+            ).expect("Failed to initialize SPAWN_REDEEM_CODE")
+        );
     }
+
 
     pub fn init_self_drive(
         owner_id: UserID,
@@ -58,31 +168,31 @@ pub mod state {
     ) {
         debug_log!("Setting owner_id: {}", owner_id.0);
         OWNER_ID.with(|id| {
-            *id.borrow_mut() = owner_id.clone();
-            debug_log!("Confirmed owner_id set to: {}", id.borrow().0);
+            id.borrow_mut().set(owner_id.clone());
+            debug_log!("Confirmed owner_id set to: {}", id.borrow().get().0);
         });
         
         // Set spawn redeem code if provided
         let code = spawn_redeem_code.unwrap_or_else(|| "DEFAULT_SPAWN_REDEEM_CODE".to_string());
         debug_log!("Setting spawn redeem code to: {}", code);
         SPAWN_REDEEM_CODE.with(|c| {
-            *c.borrow_mut() = SpawnRedeemCode(code.clone());
-            debug_log!("Confirmed spawn redeem code set to: {}", c.borrow().0);
+            c.borrow_mut().set(SpawnRedeemCode(code.clone()));
+            debug_log!("Confirmed spawn redeem code set to: {}", c.borrow().get().0);
         });
         
         // Set spawn note if provided
         let note = note.unwrap_or_else(|| "".to_string());
         debug_log!("Setting spawn note to: {}", note);
         SPAWN_NOTE.with(|n| {
-            *n.borrow_mut() = note.clone();
+            n.borrow_mut().set(note.clone());
         });
 
         // Handle the URL endpoint
         let endpoint = get_appropriate_url_endpoint();
         debug_log!("Setting URL endpoint to: {}", endpoint);
         URL_ENDPOINT.with(|url| {
-            *url.borrow_mut() = DriveRESTUrlEndpoint(endpoint);
-            debug_log!("Confirmed URL endpoint set to: {}", url.borrow().0);
+            url.borrow_mut().set(DriveRESTUrlEndpoint(endpoint));
+            debug_log!("Confirmed URL endpoint set to: {}", url.borrow().get().0);
         });
         
         // Use provided nickname or default
@@ -95,7 +205,7 @@ pub mod state {
             public_note: Some("".to_string()),
             private_note: Some("".to_string()),
             icp_principal: ICPPrincipalString(PublicKeyICP(ic_cdk::api::id().to_text())),
-            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
+            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
             last_indexed_ms: None,
             labels: vec![],
             external_id: None,
@@ -108,7 +218,7 @@ pub mod state {
         });
 
         DRIVES_BY_TIME_LIST.with(|list| {
-            list.borrow_mut().push(self_drive.id.clone());
+            list.borrow_mut().push(&self_drive.id);
         });
 
         update_checksum_for_state_diff(DriveStateDiffString("".to_string()));
@@ -128,13 +238,16 @@ pub mod state {
             
             // Handle removal of old external ID mapping if it exists
             if let Some(old_id) = old_external_id {
-                if let Some(ids) = mappings_mut.get_mut(&old_id) {
+                if let Some(ids) = mappings_mut.get(&old_id) {
+                    let mut ids_clone = ids.clone();
                     // Remove the internal_id from the old mapping
-                    ids.retain(|id| id != internal_id.as_ref().unwrap());
+                    ids_clone.retain(|id| id != internal_id.as_ref().unwrap());
                     
                     // If the vector is now empty, remove the mapping entirely
-                    if ids.is_empty() {
+                    if ids_clone.is_empty() {
                         mappings_mut.remove(&old_id);
+                    } else {
+                        mappings_mut.insert(old_id, ids_clone);
                     }
                 }
             }
@@ -142,15 +255,11 @@ pub mod state {
             // Handle adding new external ID mapping if it exists
             let internal_id = internal_id.unwrap();
             if let Some(new_id) = new_external_id {
-                mappings_mut
-                    .entry(new_id)
-                    .and_modify(|ids| {
-                        // Only add if it's not already in the list
-                        if !ids.contains(&internal_id) {
-                            ids.push(internal_id.clone());
-                        }
-                    })
-                    .or_insert_with(|| vec![internal_id.clone()]);
+                let mut ids = mappings_mut.get(&new_id).unwrap_or_else(|| StringVec { items: vec![] }).clone();
+                if !ids.items.contains(&internal_id) {
+                    ids.items.push(internal_id.clone());
+                }
+                mappings_mut.insert(new_id, ids);
             }
         });
         
