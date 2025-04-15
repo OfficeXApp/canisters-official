@@ -25,7 +25,7 @@ pub mod groups_handlers {
         let id = GroupID(params.get("group_id").unwrap().to_string());
 
         // Only owner can read groups for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         // Check table-level permissions for Groups table
         let permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Groups),
@@ -89,7 +89,7 @@ pub mod groups_handlers {
         };
     
         // Check if user is the system owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
         // Check table-level permissions for Groups table
         let has_table_permission = check_system_permissions(
@@ -226,7 +226,7 @@ pub mod groups_handlers {
         };
 
         // Only owner can create/update groups for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -275,7 +275,7 @@ pub mod groups_handlers {
             drive_id: DRIVE_ID.with(|id| id.clone()),
             endpoint_url: DriveRESTUrlEndpoint(
                 create_req.endpoint_url
-                    .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
+                    .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().get().0.clone()))
                     .trim_end_matches('/')
                     .to_string()
             ),
@@ -318,7 +318,7 @@ pub mod groups_handlers {
         };
 
         // Only owner can create/update groups for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -443,7 +443,7 @@ pub mod groups_handlers {
         let group_id = GroupID(delete_request.id.clone());
     
         // Only owner can delete groups for now
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         // Check table-level permissions for Groups table
         let table_permissions = check_system_permissions(
             SystemResourceID::Table(SystemTableEnum::Groups),

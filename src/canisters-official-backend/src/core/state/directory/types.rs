@@ -147,7 +147,7 @@ impl FileRecord {
     pub async fn cast_fe(&self, user_id: &UserID) -> FileRecordFE {
         let mut file = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow().get());
 
         // Get user's system permissions for this contact record
         let resource_id = DirectoryResourceID::File(file.id.clone());

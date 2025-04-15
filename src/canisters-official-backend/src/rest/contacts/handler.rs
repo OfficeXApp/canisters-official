@@ -28,7 +28,7 @@ pub mod contacts_handlers {
         
 
         // Only owner can access contact.private_note
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Get contact ID from params
         let contact_id = UserID(params.get("contact_id").unwrap().to_string());
@@ -90,7 +90,7 @@ pub mod contacts_handlers {
         };
         
         // Check if the requester is the owner (who has full access)
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
         // Check table-level permissions
         let has_table_permission = if !is_owner {
@@ -303,7 +303,7 @@ pub mod contacts_handlers {
         };
         
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -393,7 +393,7 @@ pub mod contacts_handlers {
 
         // Add the contact to the default "Everyone" group if it exists
         let default_group_id = DEFAULT_EVERYONE_GROUP.with(|group_id| group_id.borrow().clone());
-        let owner_id = OWNER_ID.with(|owner_id| owner_id.borrow().clone());
+        let owner_id = OWNER_ID.with(|owner_id| owner_id.borrow().get().clone());
         
         // Check if the default group still exists
         let group_exists = GROUPS_BY_ID_HASHTABLE.with(|groups| {
@@ -469,7 +469,7 @@ pub mod contacts_handlers {
         };
         
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
       
 
         // Parse request body
@@ -589,7 +589,7 @@ pub mod contacts_handlers {
         };
         
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
     
 
         let prestate = snapshot_prestate();
@@ -717,7 +717,7 @@ pub mod contacts_handlers {
         };
         
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         let prestate = snapshot_prestate();
 

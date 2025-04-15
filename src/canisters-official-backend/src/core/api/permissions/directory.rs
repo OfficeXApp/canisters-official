@@ -56,7 +56,7 @@ pub async fn check_directory_permissions(
     grantee_id: PermissionGranteeID,
 ) -> Vec<DirectoryPermissionType> {
 
-    let is_owner = OWNER_ID.with(|owner_id| UserID(grantee_id.to_string()) == *owner_id.borrow());
+    let is_owner = OWNER_ID.with(|owner_id| UserID(grantee_id.to_string()) == *owner_id.borrow().get());
 
     if is_owner {
         return vec![
@@ -316,7 +316,7 @@ pub async fn derive_directory_breadcrumbs(
     // Create a vector to hold our breadcrumbs
     let mut breadcrumbs = VecDeque::new();
 
-    let is_owner = OWNER_ID.with(|id| &id.borrow().clone() == &user_id);
+    let is_owner = OWNER_ID.with(|id| &id.borrow().get().clone() == &user_id);
     
     // Get the initial folder ID based on the resource type
     let initial_folder_id = match &resource_id {

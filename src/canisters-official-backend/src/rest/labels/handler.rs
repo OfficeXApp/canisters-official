@@ -55,7 +55,7 @@ pub mod labels_handlers {
         };
 
         // Only owner can access private label info
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Get label ID from params
         let label_str = params.get("label_id").unwrap().to_string();
@@ -130,7 +130,7 @@ pub mod labels_handlers {
         };
     
         // Check if the requester is the owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
     
         // Parse request body
         let body = request.body();
@@ -323,7 +323,7 @@ pub mod labels_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -445,7 +445,7 @@ pub mod labels_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -580,7 +580,7 @@ pub mod labels_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -679,7 +679,7 @@ pub mod labels_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();

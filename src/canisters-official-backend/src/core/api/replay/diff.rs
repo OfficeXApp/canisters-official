@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::core::state::api_keys::types::ApiKeyIDList;
 use crate::core::state::contacts::state::state::HISTORY_SUPERSWAP_USERID;
-use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS, NONCE_UUID_GENERATED, RECENT_DEPLOYMENTS, SPAWN_NOTE, SPAWN_REDEEM_CODE, UUID_CLAIMED};
-use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, FactorySpawnHistoryRecord, SpawnRedeemCode, StateChecksum, StateDiffRecord};
+use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS, NONCE_UUID_GENERATED, RECENT_DEPLOYMENTS, SPAWN_NOTE, SPAWN_REDEEM_CODE, UUID_CLAIMED, VERSION};
+use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, FactorySpawnHistoryRecord, SpawnRedeemCode, StateChecksum, StateDiffRecord, StringVec};
 use crate::core::types::{ICPPrincipalString, PublicKeyEVM};
 use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}}, disks::{state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupInvite}}, groups::{state::state::{GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
 
@@ -18,6 +18,7 @@ pub struct EntireState {
     // About
     DRIVE_ID: DriveID,
     CANISTER_ID: PublicKeyICP,
+    VERSION: String,
     OWNER_ID: UserID,
     URL_ENDPOINT: DriveRESTUrlEndpoint,
     DRIVE_STATE_TIMESTAMP_NS: u64,
@@ -73,15 +74,52 @@ pub fn snapshot_entire_state() -> EntireState {
         // About
         DRIVE_ID: DRIVE_ID.with(|drive_id| drive_id.clone()),
         CANISTER_ID: CANISTER_ID.with(|canister_id| canister_id.clone()),
-        OWNER_ID: OWNER_ID.with(|owner_id| owner_id.borrow().clone()),
-        URL_ENDPOINT: URL_ENDPOINT.with(|url| url.borrow().clone()),
-        DRIVE_STATE_TIMESTAMP_NS: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()),
-        EXTERNAL_ID_MAPPINGS: EXTERNAL_ID_MAPPINGS.with(|store| store.borrow().clone()),
-        RECENT_DEPLOYMENTS: RECENT_DEPLOYMENTS.with(|store| store.borrow().clone()),
-        SPAWN_REDEEM_CODE: SPAWN_REDEEM_CODE.with(|store| store.borrow().clone()),
-        SPAWN_NOTE: SPAWN_NOTE.with(|store| store.borrow().clone()),
-        UUID_CLAIMED: UUID_CLAIMED.with(|store| store.borrow().clone()),
-        NONCE_UUID_GENERATED: NONCE_UUID_GENERATED.with(|store| store.borrow().clone()),
+        VERSION: VERSION.with(|version| version.borrow().get().clone()),
+        OWNER_ID: OWNER_ID.with(|owner_id| owner_id.borrow().get().clone()),
+        URL_ENDPOINT: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
+        DRIVE_STATE_TIMESTAMP_NS: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.borrow().get().clone()),
+        EXTERNAL_ID_MAPPINGS: EXTERNAL_ID_MAPPINGS.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap, converting StringVec to Vec<String>
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.items.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        RECENT_DEPLOYMENTS: RECENT_DEPLOYMENTS.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
+        SPAWN_REDEEM_CODE: SPAWN_REDEEM_CODE.with(|store| store.borrow().get().clone()),
+        SPAWN_NOTE: SPAWN_NOTE.with(|store| store.borrow().get().clone()),
+        UUID_CLAIMED: UUID_CLAIMED.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value);
+                }
+            }
+            
+            hashmap
+        }),
+        NONCE_UUID_GENERATED: NONCE_UUID_GENERATED.with(|store| store.borrow().get().clone()),
         // Api Keys
         APIKEYS_BY_VALUE_HASHTABLE: APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
             let btree = store.borrow();
@@ -209,8 +247,32 @@ pub fn snapshot_entire_state() -> EntireState {
             vec
         }),
         // Drives
-        DRIVES_BY_ID_HASHTABLE: DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        DRIVES_BY_TIME_LIST: DRIVES_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        DRIVES_BY_ID_HASHTABLE: DRIVES_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DRIVES_BY_TIME_LIST: DRIVES_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
         // Permissions
         DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
         DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE: DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
@@ -254,7 +316,7 @@ pub fn snapshot_poststate(before_snapshot: Option<EntireState>, notes: Option<St
             match diff_entire_state(before_snapshot, after_snapshot) {
                 Some((forward_diff, backward_diff)) => {
                     // Calculate forward checksum
-                    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone());
+                    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().get().clone());
                     let forward_checksum = calculate_new_checksum(&prev_checksum, &forward_diff);
                     
                     // Calculate backward checksum
@@ -262,12 +324,12 @@ pub fn snapshot_poststate(before_snapshot: Option<EntireState>, notes: Option<St
                     
                     // Update current state checksum to forward checksum
                     DRIVE_STATE_CHECKSUM.with(|cs| {
-                        *cs.borrow_mut() = forward_checksum.clone();
+                        cs.borrow_mut().set(forward_checksum.clone());
                     });
                     
                     // Update timestamp
                     DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
-                        ts.set(ic_cdk::api::time());
+                        ts.borrow_mut().set(ic_cdk::api::time());
                     });
                     
                     fire_state_diff_webhooks(
@@ -344,12 +406,12 @@ pub fn apply_state_diff(diff_data: &DriveStateDiffString, expected_checksum: &St
     
     // Update stored checksum
     DRIVE_STATE_CHECKSUM.with(|cs| {
-        *cs.borrow_mut() = new_checksum.clone();
+        cs.borrow_mut().set(new_checksum.clone());
     });
     
     // Update timestamp
     DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
-        ts.set(ic_cdk::api::time());
+        ts.borrow_mut().set(ic_cdk::api::time());
     });
 
     Ok(new_checksum)
@@ -358,13 +420,25 @@ pub fn apply_state_diff(diff_data: &DriveStateDiffString, expected_checksum: &St
 pub fn apply_entire_state(state: EntireState) {
     
     OWNER_ID.with(|store| {
-        *store.borrow_mut() = state.OWNER_ID;
+        store.borrow_mut().set(state.OWNER_ID);
     });
+    
     URL_ENDPOINT.with(|store| {
-        *store.borrow_mut() = state.URL_ENDPOINT;
+        store.borrow_mut().set(state.URL_ENDPOINT);
     });
+    
     EXTERNAL_ID_MAPPINGS.with(|store| {
-        *store.borrow_mut() = state.EXTERNAL_ID_MAPPINGS;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap, converting Vec<String> to StringVec
+        for (key, values) in state.EXTERNAL_ID_MAPPINGS {
+            btree.insert(key, StringVec { items: values });
+        }
     });
     
     // Api Keys
@@ -506,10 +580,31 @@ pub fn apply_entire_state(state: EntireState) {
     
     // Drives
     DRIVES_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DRIVES_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DRIVES_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
+    
     DRIVES_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.DRIVES_BY_TIME_LIST;
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.DRIVES_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
     });
     
     // Permissions
@@ -569,7 +664,7 @@ pub fn apply_entire_state(state: EntireState) {
 // Update checksum based on a diff
 pub fn update_checksum_for_state_diff(diff_string: DriveStateDiffString) {
     // Get previous checksum
-    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().0.clone());
+    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().get().0.clone());
     
     // Input for hash includes previous checksum and new diff
     let input = format!("{}:{}", prev_checksum, diff_string);
@@ -579,12 +674,12 @@ pub fn update_checksum_for_state_diff(diff_string: DriveStateDiffString) {
     
     // Update stored checksum
     DRIVE_STATE_CHECKSUM.with(|cs| {
-        *cs.borrow_mut() = StateChecksum(new_checksum);
+        cs.borrow_mut().set(StateChecksum(new_checksum));
     });
     
     // Update timestamp
     DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
-        ts.set(ic_cdk::api::time());
+        ts.borrow_mut().set(ic_cdk::api::time());
     });
 }
 
@@ -637,12 +732,12 @@ pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<Dr
     }
     
     // Determine direction by checking timestamps
-    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
+    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.borrow().get().clone());
     let is_reverse = diffs[0].timestamp_ns < current_timestamp;
     
     // Backup current state and checksum
     let backup_state = snapshot_entire_state();
-    let original_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone());
+    let original_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().get().clone());
     
     // Sort diffs appropriately for the direction
     let mut sorted_diffs = diffs.to_vec();
@@ -672,7 +767,7 @@ pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<Dr
             // Chain validation failed - rollback
             apply_entire_state(backup_state);
             DRIVE_STATE_CHECKSUM.with(|cs| {
-                *cs.borrow_mut() = original_checksum.clone();
+                cs.borrow_mut().set(original_checksum.clone());
             });
             
             return Err(format!(
@@ -692,7 +787,7 @@ pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<Dr
                 // Application error - rollback
                 apply_entire_state(backup_state);
                 DRIVE_STATE_CHECKSUM.with(|cs| {
-                    *cs.borrow_mut() = original_checksum.clone();
+                    cs.borrow_mut().set(original_checksum.clone());
                 });
                 
                 return Err(format!("Failed to apply diff {}: {}", diff.id, e));

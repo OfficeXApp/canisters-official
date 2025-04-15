@@ -42,7 +42,8 @@ pub fn fire_state_diff_webhooks(
 ) {
     let drive_state_diff_id = DriveStateDiffID(generate_uuidv4(IDPrefix::DriveStateDiffID));
     // we skip mark_claimed_uuid as that will be responsibility of the webhook, and we generaete this drive_state_diff_id on the fly anyways
-    let timestamp_ns = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
+    let timestamp_ns = DRIVE_STATE_TIMESTAMP_NS.with(|ts| *ts.borrow().get());
+
     let webhooks = get_active_state_diff_webhooks();
     
     for webhook in webhooks {
@@ -58,13 +59,13 @@ pub fn fire_state_diff_webhooks(
                 after: Some(WebhookResourceData::StateDiffs(DriveStateDiffWebhookData{ 
                     data: StateDiffRecord {
                         id: drive_state_diff_id.clone(),
-                        timestamp_ns: timestamp_ns,
+                        timestamp_ns: timestamp_ns.clone(),
                         implementation: DriveStateDiffImplementationType::RustIcpCanister,
                         diff_forward: forward_diff.clone(),
                         diff_backward: backward_diff.clone(),
                         notes: notes.clone(),
                         drive_id: DRIVE_ID.with(|id| id.clone()),
-                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
+                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
                         checksum_forward: forward_checksum.clone(),
                         checksum_backward: backward_checksum.clone(),
                     }

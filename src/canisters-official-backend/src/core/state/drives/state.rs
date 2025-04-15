@@ -77,7 +77,6 @@ pub mod state {
                 ic_cdk::api::time()
             ).expect("Failed to initialize DRIVE_STATE_TIMESTAMP_NS")
         );
-        // self info - mutable
         // Convert important user-related settings to stable cells
         pub(crate) static OWNER_ID: RefCell<StableCell<UserID, Memory>> = RefCell::new(
             StableCell::init(

@@ -55,7 +55,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
 
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
         
                     // User needs at least View permission to get file details
                     if !is_owner && !user_permissions.contains(&DirectoryPermissionType::View) {
@@ -112,7 +112,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         resource_name: file.name.clone(),
                         drive_id: DRIVE_ID.with(|id| id.clone()),
                         timestamp_ms: ic_cdk::api::time() / 1_000_000,
-                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
+                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
                         metadata: None
                     };
                     fire_directory_webhook(
@@ -183,7 +183,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
 
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
         
                     if !is_owner && !user_permissions.contains(&DirectoryPermissionType::View) {
                         return Err(DirectoryActionErrorInfo {
@@ -240,7 +240,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         resource_name: folder.name.clone(),
                         drive_id: DRIVE_ID.with(|id| id.clone()),
                         timestamp_ms: ic_cdk::api::time() / 1_000_000,
-                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
+                        endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
                         metadata: None
                     };
                     fire_directory_webhook(
@@ -303,7 +303,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
 
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
         
                     if !is_owner && !user_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !user_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -394,7 +394,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         });
                     }
 
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                     // Get parent folder ID where the new folder will be created
                     let parent_folder_id = payload.parent_folder_uuid;
@@ -542,7 +542,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     let has_edit_permission = user_permissions.contains(&DirectoryPermissionType::Edit) ||
                                             user_permissions.contains(&DirectoryPermissionType::Manage);
 
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                     if !is_owner && !is_creator_with_upload && !has_edit_permission {
                         return Err(DirectoryActionErrorInfo {
@@ -692,7 +692,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     let has_edit_permission = user_permissions.contains(&DirectoryPermissionType::Edit) ||
                                             user_permissions.contains(&DirectoryPermissionType::Manage);
 
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                     if !is_owner && !is_creator_with_upload && !has_edit_permission {
                         return Err(DirectoryActionErrorInfo {
@@ -830,7 +830,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                     let has_delete_permission = user_permissions.contains(&DirectoryPermissionType::Delete) ||
                                               user_permissions.contains(&DirectoryPermissionType::Manage);
         
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                     if !is_owner && !is_creator_with_upload && !has_delete_permission {
                         return Err(DirectoryActionErrorInfo {
@@ -932,7 +932,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     let has_delete_permission = user_permissions.contains(&DirectoryPermissionType::Delete) ||
                                               user_permissions.contains(&DirectoryPermissionType::Manage);
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                     if !is_owner && !is_creator_with_upload && !has_delete_permission {
                         return Err(DirectoryActionErrorInfo {
@@ -1021,7 +1021,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) && !is_owner {
                         return Err(DirectoryActionErrorInfo {
@@ -1136,7 +1136,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         source_resource_id,
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
         
                     if !user_permissions.contains(&DirectoryPermissionType::View) && !is_owner {
                         return Err(DirectoryActionErrorInfo {
@@ -1262,7 +1262,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     let has_move_permission = source_permissions.contains(&DirectoryPermissionType::Edit) ||
                                             source_permissions.contains(&DirectoryPermissionType::Manage);
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                     if !is_owner && !is_creator_with_upload && !has_move_permission {
                         return Err(DirectoryActionErrorInfo {
@@ -1350,7 +1350,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             message: format!("Validation error: {}", validation_error.message),
                         });
                     }
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                     // Get the folder ID from either resource_id or resource_path
                     let folder_id = payload.id;
@@ -1425,7 +1425,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
 
-                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
         
                     if !is_owner && !dest_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !dest_permissions.contains(&DirectoryPermissionType::Edit) &&
@@ -1527,7 +1527,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         let has_restore_permission = folder_permissions.contains(&DirectoryPermissionType::Edit) ||
                                                   folder_permissions.contains(&DirectoryPermissionType::Manage);
         
-                        let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                        let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                         if !is_owner && !is_creator_with_upload && !has_restore_permission {
                             return Err(DirectoryActionErrorInfo {
@@ -1607,7 +1607,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 file_permissions.contains(&DirectoryPermissionType::Upload);
                             let has_restore_permission = file_permissions.contains(&DirectoryPermissionType::Edit) ||
                                                     file_permissions.contains(&DirectoryPermissionType::Manage);
-                            let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow());
+                            let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
 
                             if !is_owner && !is_creator_with_upload && !has_restore_permission {
                                 return Err(DirectoryActionErrorInfo {

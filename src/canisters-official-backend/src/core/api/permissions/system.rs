@@ -114,7 +114,7 @@ fn check_system_resource_permissions(
 
     // check if grantee_id is OWNER_ID, and if so then just return all permissions
     if let PermissionGranteeID::User(user_id) = grantee_id {
-        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow().get());
         if is_owner {
             let mut owner_permissions = HashSet::new();
             owner_permissions.insert(SystemPermissionType::Create);

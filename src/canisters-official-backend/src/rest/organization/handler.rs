@@ -3,7 +3,7 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, convert_state_to_serializable, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4, webhooks::organization::{fire_org_inbox_new_notif_webhook, fire_superswap_user_webhook, get_org_inbox_webhooks, get_superswap_user_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, InboxNotifID, SpawnRedeemCode}}, group_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, groups::state::state::{is_group_admin, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, labels::{state::{add_label_to_resource, parse_label_resource_id, remove_label_from_resource, validate_label_value}, types::{LabelOperationResponse, LabelResourceID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{AboutDriveResponse, AboutDriveResponseData, ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, InboxOrgRequestBody, InboxOrgResponse, InboxOrgResponseData, RedeemOrgRequestBody, RedeemOrgResponse, RedeemOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SearchSortByEnum, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, convert_state_to_serializable, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::generate_uuidv4, webhooks::organization::{fire_org_inbox_new_notif_webhook, fire_superswap_user_webhook, get_org_inbox_webhooks, get_superswap_user_webhooks}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{superswap_userid, update_external_id_mapping, CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, SPAWN_NOTE, SPAWN_REDEEM_CODE, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload, InboxNotifID, SpawnRedeemCode}}, group_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, groups::state::state::{is_group_admin, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, labels::{state::{add_label_to_resource, parse_label_resource_id, remove_label_from_resource, validate_label_value}, types::{LabelOperationResponse, LabelResourceID}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::{SearchCategoryEnum, SearchResult}, webhooks::types::WebhookEventLabel}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, organization::types::{AboutDriveResponse, AboutDriveResponseData, ErrorResponse, ExternalIDsDriveRequestBody, ExternalIDsDriveResponse, ExternalIDsDriveResponseData, ExternalIDvsInternalIDMaps, GetWhoAmIResponse, InboxOrgRequestBody, InboxOrgResponse, InboxOrgResponseData, RedeemOrgRequestBody, RedeemOrgResponse, RedeemOrgResponseData, ReindexDriveRequestBody, ReindexDriveResponse, ReindexDriveResponseData, ReplayDriveRequestBody, ReplayDriveResponse, ReplayDriveResponseData, SearchDriveRequestBody, SearchDriveResponse, SearchDriveResponseData, SearchSortByEnum, SuperswapUserIDRequestBody, SuperswapUserIDResponse, SuperswapUserIDResponseData, TransferOwnershipDriveRequestBody, TransferOwnershipDriveResponse, TransferOwnershipResponseData, TransferOwnershipStatusEnum, WhoAmIReport}, webhooks::types::SortDirection}
         
     };
     use candid::Principal;
@@ -21,7 +21,7 @@ pub mod drives_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
 
         // Get the drive ID
@@ -64,8 +64,8 @@ pub mod drives_handlers {
         });
         
         let drive_id = DRIVE_ID.with(|id| id.clone());
-        let owner = OWNER_ID.with(|owner| owner.borrow().clone());
-        let endpoint = URL_ENDPOINT.with(|url| url.borrow().0.clone());
+        let owner = OWNER_ID.with(|owner| owner.borrow().get().clone());
+        let endpoint = URL_ENDPOINT.with(|url| url.borrow().get().0.clone());
         let canister_id = CANISTER_ID.with(|id| id.0.clone());
         
         // Get current cycle balance
@@ -170,7 +170,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
     
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         if !is_owner {
             return create_auth_error_response();
         }
@@ -215,7 +215,7 @@ pub mod drives_handlers {
                         .unwrap_or_default();
                     
                     // Determine direction for logging
-                    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
+                    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| *ts.borrow().get());
                     let direction_str = if replay_request.diffs[0].timestamp_ns < current_timestamp {
                         "backward"
                     } else {
@@ -237,10 +237,10 @@ pub mod drives_handlers {
                 
                 // Prepare response data
                 let response_data = ReplayDriveResponseData {
-                    timestamp_ns: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()),
+                    timestamp_ns: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.borrow().get().clone()),
                     diffs_applied: applied_count,
                     checkpoint_diff_id: last_diff_id,
-                    final_checksum: DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone()),
+                    final_checksum: DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().get().clone()),
                 };
                 
                 create_response(
@@ -267,7 +267,7 @@ pub mod drives_handlers {
         };
     
         // Check if user is owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
         // Parse request body
         let body = request.body();
@@ -373,7 +373,7 @@ pub mod drives_handlers {
         };
     
         // Create paginated results from filtered results
-        let mut paginated_results = Vec::new();
+        let mut paginated_results: Vec<SearchResult> = Vec::new();
         let mut end_index = start_index;  // Track where we ended for cursor calculation
         
         // Calculate page end index
@@ -381,6 +381,7 @@ pub mod drives_handlers {
         
         // Get paginated slice
         paginated_results = filtered_results[start_index..end_bound].to_vec();
+        
         end_index = end_bound - 1;
     
         // Calculate next cursor based on whether there are more results
@@ -414,7 +415,7 @@ pub mod drives_handlers {
         };
     
         // Check if user is owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
         // Get drive ID
         let drive_id = DRIVE_ID.with(|drive_id| drive_id.clone());
@@ -517,7 +518,7 @@ pub mod drives_handlers {
         };
     
         // Check if user is owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
         // If not owner, check for View permissions:
         // 1. On the entire Drives table, OR
@@ -579,7 +580,7 @@ pub mod drives_handlers {
                         success: true,
                         message: "External ID found".to_string(),
                         external_id: external_id.clone(),
-                        internal_ids: internal_ids.clone(),
+                        internal_ids: internal_ids.items.clone(),
                     }
                 } else {
                     ExternalIDvsInternalIDMaps {
@@ -616,7 +617,7 @@ pub mod drives_handlers {
         };
     
         // Verify that the requester is the current owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         if !is_owner {
             return create_response(
                 StatusCode::UNAUTHORIZED,
@@ -656,7 +657,7 @@ pub mod drives_handlers {
         let one_day_ms: u64 = 24 * 60 * 60 * 1_000; // 24 hours in milliseconds
     
         let (status, ready_ms) = TRANSFER_OWNER_ID.with(|transfer_owner_id| {
-            let current_transfer = transfer_owner_id.borrow().0.clone();
+            let current_transfer = transfer_owner_id.borrow().get().0.clone();
             
             // Check if there's an existing transfer request
             if !current_transfer.is_empty() {
@@ -669,10 +670,12 @@ pub mod drives_handlers {
                         if existing_owner_id == next_owner_id && current_timestamp_ms - transfer_timestamp_ms > one_day_ms {
                             // Complete the transfer
                             OWNER_ID.with(|owner_id| {
-                                *owner_id.borrow_mut() = UserID(next_owner_id.clone());
+                                owner_id.borrow_mut().set(UserID(next_owner_id.clone()));
                             });
                             // Clear the transfer request
-                            *transfer_owner_id.borrow_mut() = UserID("".to_string());
+                            TRANSFER_OWNER_ID.with(|transfer_owner_id| {
+                                transfer_owner_id.borrow_mut().set(UserID("".to_string()));
+                            });
                             return (TransferOwnershipStatusEnum::Completed, current_timestamp_ms);
                         }
                     }
@@ -681,7 +684,9 @@ pub mod drives_handlers {
     
             // Set or update the transfer request
             let new_transfer_value = format!("{}::{}", next_owner_id, current_timestamp_ms);
-            *transfer_owner_id.borrow_mut() = UserID(new_transfer_value);
+            TRANSFER_OWNER_ID.with(|transfer_owner_id| {
+                transfer_owner_id.borrow_mut().set(UserID(new_transfer_value));
+            });
             
             // Calculate ready time in milliseconds
             let ready_time_ms = current_timestamp_ms + one_day_ms;
@@ -726,7 +731,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
     
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
     
         // Get organization ID from params
         let param_org_id = params.get("organization_id").unwrap().to_string();
@@ -794,7 +799,7 @@ pub mod drives_handlers {
         };
     
         // Check if user is owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
         match is_owner {
             true => {
@@ -893,7 +898,7 @@ pub mod drives_handlers {
         }
     
         // Check if redeem code exists and hasn't been redeemed yet
-        let stored_redeem_code = SPAWN_REDEEM_CODE.with(|code| code.borrow().0.clone());
+        let stored_redeem_code = SPAWN_REDEEM_CODE.with(|code| code.borrow().get().0.clone());
         
         // Check if the code has already been redeemed (empty string)
         if stored_redeem_code.is_empty() {
@@ -914,11 +919,11 @@ pub mod drives_handlers {
         // Get the necessary drive data
         let drive_id = DRIVE_ID.with(|id| id.clone());
         let canister_id = CANISTER_ID.with(|id| id.0.clone());
-        let endpoint_url = URL_ENDPOINT.with(|url| url.borrow().0.clone());
-        let spawn_note = SPAWN_NOTE.with(|note| note.borrow().clone());
+        let endpoint_url = URL_ENDPOINT.with(|url| url.borrow().get().0.clone());
+        let spawn_note = SPAWN_NOTE.with(|note| note.borrow().get().clone());
         
         // Get the owner's default admin API key
-        let owner_id = OWNER_ID.with(|id| id.borrow().clone());
+        let owner_id = OWNER_ID.with(|id| id.borrow().get().clone());
         let mut admin_api_key = String::new();
         
         crate::core::state::api_keys::state::state::USERS_APIKEYS_HASHTABLE.with(|map| {
@@ -949,9 +954,10 @@ pub mod drives_handlers {
     
         // Reset the redemption code to empty string (mark as redeemed)
         SPAWN_REDEEM_CODE.with(|code| {
-            *code.borrow_mut() = SpawnRedeemCode("".to_string());
+            code.borrow_mut().set(SpawnRedeemCode("".to_string()));
             debug_log!("Spawn redeem code has been used and reset");
         });
+        
     
         // Encode and return the response
         create_response(
@@ -987,7 +993,7 @@ pub mod drives_handlers {
 
     
         // Check if user is owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         
         // If not owner, check for View permissions:
         // 1. On the entire Drives table, OR

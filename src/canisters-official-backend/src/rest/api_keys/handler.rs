@@ -31,7 +31,7 @@ pub mod apikeys_handlers {
             store.borrow().get(&requested_id).map(|key| key.clone())
         });
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         let is_own_key = match &api_key {
             Some(key) => requester_api_key.user_id == key.user_id,
             None => false
@@ -96,7 +96,7 @@ pub mod apikeys_handlers {
         // 1. The requester's API key must belong to the owner
         // 2. Or the requester must be requesting their own API keys
         // 3. Or the requester must have View permission on the API keys table
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         let is_own_keys = requester_api_key.user_id == requested_user_id;
 
         if !is_owner && !is_own_keys {
@@ -167,7 +167,7 @@ pub mod apikeys_handlers {
         }
 
         // Determine what user_id to use for the new key
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
                     
         // Check system permission to create if not owner
         if !is_owner {
@@ -299,7 +299,7 @@ pub mod apikeys_handlers {
         let old_external_id = api_key.external_id.clone();
         let old_internal_id = Some(api_key.id.to_string());
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         let is_own_key = requester_api_key.user_id == api_key.user_id;
 
         // Check system permission to update if not owner or own key
@@ -436,7 +436,7 @@ pub mod apikeys_handlers {
         // 1. The requester's API key must belong to the owner
         // 2. Or the requester must be deleting their own API key
         // 3. Or the requester must have Delete permission on this API key record
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         let is_own_key = requester_api_key.user_id == api_key.user_id;
 
         if !is_owner && !is_own_key {

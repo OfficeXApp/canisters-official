@@ -465,7 +465,7 @@ pub mod group_invites_handlers {
         };
         
         // Check if user is authorized (owner or admin)
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         let is_authorized = is_owner || 
         INVITES_BY_ID_HASHTABLE.with(|store| {
             store.borrow()
