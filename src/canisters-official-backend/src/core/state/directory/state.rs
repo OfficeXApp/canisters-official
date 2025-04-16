@@ -5,10 +5,21 @@ pub mod state {
     use std::collections::HashMap;
     use std::ops::Deref;
 
+    use ic_stable_structures::memory_manager::MemoryId;
+    use ic_stable_structures::{StableBTreeMap, DefaultMemoryImpl};
+
     use crate::core::state::{
-        directory::types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID},
-        templates::types::{TemplateID, TemplateItem},
+        directory::types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}
     };
+    use crate::MEMORY_MANAGER;
+
+    type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+    
+    // Memory IDs for each data structure
+    pub const FOLDER_UUID_TO_METADATA_MEMORY_ID: MemoryId = MemoryId::new(40);
+    pub const FILE_UUID_TO_METADATA_MEMORY_ID: MemoryId = MemoryId::new(41);
+    pub const FULL_FOLDER_PATH_TO_UUID_MEMORY_ID: MemoryId = MemoryId::new(42);
+    pub const FULL_FILE_PATH_TO_UUID_MEMORY_ID: MemoryId = MemoryId::new(43);
 
     // Wrapper types that implement Deref
     pub struct FolderMap;
@@ -18,14 +29,14 @@ pub mod state {
 
     impl FolderMap {
         pub fn get(&self, key: &FolderID) -> Option<FolderRecord> {
-            folder_uuid_to_metadata_inner.with(|map| map.borrow().get(key).cloned())
+            folder_uuid_to_metadata_inner.with(|map| map.borrow().get(key))
         }
 
         pub fn insert(&self, key: FolderID, value: FolderRecord) {
             folder_uuid_to_metadata_inner.with(|map| map.borrow_mut().insert(key, value));
         }
 
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<FolderID, FolderRecord>) -> R) -> R {
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut StableBTreeMap<FolderID, FolderRecord, Memory>) -> R) -> R {
             folder_uuid_to_metadata_inner.with(|map| f(&mut map.borrow_mut()))
         }
     
@@ -37,21 +48,21 @@ pub mod state {
             folder_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
         }
 
-        pub fn with<R>(&self, f: impl FnOnce(&HashMap<FolderID, FolderRecord>) -> R) -> R {
+        pub fn with<R>(&self, f: impl FnOnce(&StableBTreeMap<FolderID, FolderRecord, Memory>) -> R) -> R {
             folder_uuid_to_metadata_inner.with(|map| f(&map.borrow()))
         }
     }
 
     impl FileMap {
         pub fn get(&self, key: &FileID) -> Option<FileRecord> {
-            file_uuid_to_metadata_inner.with(|map| map.borrow().get(key).cloned())
+            file_uuid_to_metadata_inner.with(|map| map.borrow().get(key))
         }
 
         pub fn insert(&self, key: FileID, value: FileRecord) {
             file_uuid_to_metadata_inner.with(|map| map.borrow_mut().insert(key, value));
         }
 
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<FileID, FileRecord>) -> R) -> R {
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut StableBTreeMap<FileID, FileRecord, Memory>) -> R) -> R {
             file_uuid_to_metadata_inner.with(|map| f(&mut map.borrow_mut()))
         }
     
@@ -63,21 +74,21 @@ pub mod state {
             file_uuid_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
         }
         
-        pub fn with<R>(&self, f: impl FnOnce(&HashMap<FileID, FileRecord>) -> R) -> R {
+        pub fn with<R>(&self, f: impl FnOnce(&StableBTreeMap<FileID, FileRecord, Memory>) -> R) -> R {
             file_uuid_to_metadata_inner.with(|map| f(&map.borrow()))
         }
     }
 
     impl FolderPathMap {
         pub fn get(&self, key: &DriveFullFilePath) -> Option<FolderID> {
-            full_folder_path_to_uuid_inner.with(|map| map.borrow().get(key).cloned())
+            full_folder_path_to_uuid_inner.with(|map| map.borrow().get(key))
         }
 
         pub fn insert(&self, key: DriveFullFilePath, value: FolderID) {
             full_folder_path_to_uuid_inner.with(|map| map.borrow_mut().insert(key, value));
         }
 
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<DriveFullFilePath, FolderID>) -> R) -> R {
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut StableBTreeMap<DriveFullFilePath, FolderID, Memory>) -> R) -> R {
             full_folder_path_to_uuid_inner.with(|map| f(&mut map.borrow_mut()))
         }
 
@@ -89,21 +100,21 @@ pub mod state {
             full_folder_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
         }
 
-        pub fn with<R>(&self, f: impl FnOnce(&HashMap<DriveFullFilePath, FolderID>) -> R) -> R {
+        pub fn with<R>(&self, f: impl FnOnce(&StableBTreeMap<DriveFullFilePath, FolderID, Memory>) -> R) -> R {
             full_folder_path_to_uuid_inner.with(|map| f(&map.borrow()))
         }
     }
 
     impl FilePathMap {
         pub fn get(&self, key: &DriveFullFilePath) -> Option<FileID> {
-            full_file_path_to_uuid_inner.with(|map| map.borrow().get(key).cloned())
+            full_file_path_to_uuid_inner.with(|map| map.borrow().get(key))
         }
 
         pub fn insert(&self, key: DriveFullFilePath, value: FileID) {
             full_file_path_to_uuid_inner.with(|map| map.borrow_mut().insert(key, value));
         }
 
-        pub fn with_mut<R>(&self, f: impl FnOnce(&mut HashMap<DriveFullFilePath, FileID>) -> R) -> R {
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut StableBTreeMap<DriveFullFilePath, FileID, Memory>) -> R) -> R {
             full_file_path_to_uuid_inner.with(|map| f(&mut map.borrow_mut()))
         }
     
@@ -115,17 +126,40 @@ pub mod state {
             full_file_path_to_uuid_inner.with(|map| map.borrow_mut().remove(key))
         }
 
-        pub fn with<R>(&self, f: impl FnOnce(&HashMap<DriveFullFilePath, FileID>) -> R) -> R {
+        pub fn with<R>(&self, f: impl FnOnce(&StableBTreeMap<DriveFullFilePath, FileID, Memory>) -> R) -> R {
             full_file_path_to_uuid_inner.with(|map| f(&map.borrow()))
         }
     }
 
     // Private thread_local storage
     thread_local! {
-        static folder_uuid_to_metadata_inner: RefCell<HashMap<FolderID, FolderRecord>> = RefCell::new(HashMap::new());
-        static file_uuid_to_metadata_inner: RefCell<HashMap<FileID, FileRecord>> = RefCell::new(HashMap::new());
-        static full_folder_path_to_uuid_inner: RefCell<HashMap<DriveFullFilePath, FolderID>> = RefCell::new(HashMap::new());
-        static full_file_path_to_uuid_inner: RefCell<HashMap<DriveFullFilePath, FileID>> = RefCell::new(HashMap::new());
+        // Replace HashMap with StableBTreeMap for folders by ID
+        static folder_uuid_to_metadata_inner: RefCell<StableBTreeMap<FolderID, FolderRecord, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(FOLDER_UUID_TO_METADATA_MEMORY_ID))
+            )
+        );
+        
+        // Replace HashMap with StableBTreeMap for files by ID
+        static file_uuid_to_metadata_inner: RefCell<StableBTreeMap<FileID, FileRecord, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(FILE_UUID_TO_METADATA_MEMORY_ID))
+            )
+        );
+        
+        // Replace HashMap with StableBTreeMap for folder paths to IDs
+        static full_folder_path_to_uuid_inner: RefCell<StableBTreeMap<DriveFullFilePath, FolderID, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(FULL_FOLDER_PATH_TO_UUID_MEMORY_ID))
+            )
+        );
+        
+        // Replace HashMap with StableBTreeMap for file paths to IDs
+        static full_file_path_to_uuid_inner: RefCell<StableBTreeMap<DriveFullFilePath, FileID, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(FULL_FILE_PATH_TO_UUID_MEMORY_ID))
+            )
+        );
     }
 
     // Public instances with original names

@@ -1,12 +1,6 @@
 // src/core/api/webhooks/group_invites.rs
 
-use crate::core::{
-    state::webhooks::types::{Webhook, WebhookEventLabel, WebhookAltIndexID},
-    state::groups::state::state::GROUPS_BY_ID_HASHTABLE,
-    state::webhooks::state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE},
-    state::groups::types::{GroupID, Group},
-    state::group_invites::types::GroupInvite,
-};
+use crate::core::state::{group_invites::types::GroupInvite, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookIDList}}};
 use crate::rest::webhooks::types::{
     WebhookEventPayload, 
     WebhookEventData, 
@@ -26,14 +20,15 @@ pub fn get_active_group_invite_webhooks(group_id: &GroupID, event: WebhookEventL
     let webhook_ids = WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
         store.borrow()
             .get(&WebhookAltIndexID(group_id.0.clone()))
-            .cloned()
-            .unwrap_or_default()
+            .map(|list| list.clone())
+            .unwrap_or(WebhookIDList { webhooks: [].to_vec() })
     });
 
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
         let store = store.borrow();
-        webhook_ids.into_iter()
-            .filter_map(|id| store.get(&id).cloned())
+        webhook_ids.webhooks
+            .into_iter()
+            .filter_map(|id| store.get(&id).clone())
             .filter(|webhook| webhook.active && webhook.event == event)
             .collect()
     })

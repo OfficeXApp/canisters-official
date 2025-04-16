@@ -3,24 +3,50 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use ic_stable_structures::{memory_manager::MemoryId, StableBTreeMap, StableVec, DefaultMemoryImpl};
+
 use crate::{
     core::{
         api::{types::DirectoryIDError, uuid::generate_uuidv4},
         state::{
-            api_keys::{state::state::APIKEYS_BY_ID_HASHTABLE, types::ApiKeyID}, contacts::{state::state::CONTACTS_BY_ID_HASHTABLE, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::DiskID}, drives::{state::state::DRIVES_BY_ID_HASHTABLE, types::DriveID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionID, SystemPermissionID}}, labels::types::{LabelResourceID, LabelStringValue}, group_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::GroupInviteID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, webhooks::{state::state::WEBHOOKS_BY_ID_HASHTABLE, types::WebhookID}
+            api_keys::{state::state::APIKEYS_BY_ID_HASHTABLE, types::ApiKeyID}, contacts::{state::state::CONTACTS_BY_ID_HASHTABLE, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::DiskID}, drives::{state::state::DRIVES_BY_ID_HASHTABLE, types::DriveID}, group_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::GroupInviteID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, labels::types::{LabelResourceID, LabelStringValue}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionID, SystemPermissionID}}, webhooks::{state::state::WEBHOOKS_BY_ID_HASHTABLE, types::WebhookID}
         },
         types::{IDPrefix, UserID}
     },
-    debug_log, rest::types::ValidationError
+    debug_log, rest::types::ValidationError, MEMORY_MANAGER
 };
 
 use super::types::{HexColorString, Label, LabelID};
 
+
+type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+
+// Define memory IDs for each stable structure
+pub const LABELS_BY_ID_MEMORY_ID: MemoryId = MemoryId::new(34);
+pub const LABELS_BY_VALUE_MEMORY_ID: MemoryId = MemoryId::new(35);
+pub const LABELS_BY_TIME_MEMORY_ID: MemoryId = MemoryId::new(36);
+
 thread_local! {
-    // Map labels to resources
-    pub(crate) static LABELS_BY_ID_HASHTABLE: RefCell<HashMap<LabelID, Label>> = RefCell::new(HashMap::new());
-    pub(crate) static LABELS_BY_VALUE_HASHTABLE: RefCell<HashMap<LabelStringValue, LabelID>> = RefCell::new(HashMap::new());
-    pub(crate) static LABELS_BY_TIME_LIST: RefCell<Vec<LabelID>> = RefCell::new(Vec::new());
+    // Convert HashMap to StableBTreeMap for labels by ID
+    pub(crate) static LABELS_BY_ID_HASHTABLE: RefCell<StableBTreeMap<LabelID, Label, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(LABELS_BY_ID_MEMORY_ID))
+        )
+    );
+    
+    // Convert HashMap to StableBTreeMap for labels by value
+    pub(crate) static LABELS_BY_VALUE_HASHTABLE: RefCell<StableBTreeMap<LabelStringValue, LabelID, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(LABELS_BY_VALUE_MEMORY_ID))
+        )
+    );
+    
+    // Convert Vec to StableVec for labels by time
+    pub(crate) static LABELS_BY_TIME_LIST: RefCell<StableVec<LabelID, Memory>> = RefCell::new(
+        StableVec::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(LABELS_BY_TIME_MEMORY_ID))
+        ).expect("Failed to initialize LABELS_BY_TIME_LIST")
+    );
 }
 
 
@@ -61,7 +87,7 @@ pub fn validate_uuid4_string_with_prefix(prefix_uuid_string: &str, prefix: IDPre
 
     // Check if UUID has already been claimed
     crate::core::state::drives::state::state::UUID_CLAIMED.with(|claimed| {
-        if claimed.borrow().contains_key(uuid_str) {
+        if claimed.borrow().contains_key(&uuid_str.to_string()) {
             Err(ValidationError {
                 field: "uuid".to_string(),
                 message: "UUID has already been claimed".to_string(),
@@ -192,7 +218,7 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
             store.borrow_mut().insert(label_value.clone(), label_id.clone());
         });
         LABELS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().push(label_id.clone());
+            store.borrow_mut().push(&label_id.clone());
         });
     
         label_id
@@ -203,10 +229,11 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::ApiKey(id) => {
             APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     // Add labels field if not already present
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
@@ -214,29 +241,32 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::Contact(id) => {
             CONTACTS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
         },
         LabelResourceID::File(id) => {
             file_uuid_to_metadata.with_mut(|files| {
-                if let Some(resource) = files.get_mut(id) {
-                    if !resource.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
-                        resource.labels.push(LabelStringValue(label_value.0.clone()));
-                        resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = files.get(id) {
+                    if !record.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
+                        record.labels.push(LabelStringValue(label_value.0.clone()));
+                        record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                        files.insert(id.clone(), record); 
                     }
                 }
             });
         },
         LabelResourceID::Folder(id) => {
             folder_uuid_to_metadata.with_mut(|folders| {
-                if let Some(resource) = folders.get_mut(id) {
-                    if !resource.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
-                        resource.labels.push(LabelStringValue(label_value.0.clone()));
-                        resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = folders.get(id) {
+                    if !record.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
+                        record.labels.push(LabelStringValue(label_value.0.clone()));
+                        record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                        folders.insert(id.clone(), record); 
                     }
                 }
             });
@@ -244,9 +274,10 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::Disk(id) => {
             DISKS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
@@ -254,31 +285,38 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::Drive(id) => {
             DRIVES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    if !resource.labels.iter().any(|t| t == label_value) {
-                        resource.labels.push(label_value.clone());
+                if let Some(mut drive) = store.get(id) {
+                    if !drive.labels.iter().any(|t| t == label_value) {
+                        drive.labels.push(label_value.clone());
+                        store.insert(id.clone(), drive);
                     }
                 }
             });
         },
         LabelResourceID::DirectoryPermission(id) => {
+            // Adding a label to directory permission
             DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-                let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    if !resource.labels.iter().any(|t| t == label_value) {
-                        resource.labels.push(label_value.clone());
-                        resource.last_modified_at = ic_cdk::api::time();
+                let mut store_mut = store.borrow_mut();
+                if let Some(resource) = store_mut.get(id) {
+                    let mut updated_resource = resource.clone();
+                    if !updated_resource.labels.iter().any(|t| t == label_value) {
+                        updated_resource.labels.push(label_value.clone());
+                        updated_resource.last_modified_at = ic_cdk::api::time();
+                        store_mut.insert(id.clone(), updated_resource);
                     }
                 }
             });
         },
         LabelResourceID::SystemPermission(id) => {
+            // Adding a label to system permission
             SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-                let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    if !resource.labels.iter().any(|t| t == label_value) {
-                        resource.labels.push(label_value.clone());
-                        resource.last_modified_at = ic_cdk::api::time();
+                let mut store_mut = store.borrow_mut();
+                if let Some(resource) = store_mut.get(id) {
+                    let mut updated_resource = resource.clone();
+                    if !updated_resource.labels.iter().any(|t| t == label_value) {
+                        updated_resource.labels.push(label_value.clone());
+                        updated_resource.last_modified_at = ic_cdk::api::time();
+                        store_mut.insert(id.clone(), updated_resource);
                     }
                 }
             });
@@ -286,10 +324,11 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::GroupInvite(id) => {
             INVITES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
                         resource.last_modified_at = ic_cdk::api::time();
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
@@ -297,10 +336,11 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::Group(id) => {
             GROUPS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
                         resource.last_modified_at = ic_cdk::api::time();
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
@@ -308,9 +348,10 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::Webhook(id) => {
             WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
@@ -318,9 +359,10 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         LabelResourceID::Label(id) => {
             LABELS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
+                        store.insert(id.clone(), resource);
                     }
                 }
             });
@@ -330,9 +372,10 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
     // Add resource to the label's resource list
     LABELS_BY_ID_HASHTABLE.with(|store| {
         let mut store = store.borrow_mut();
-        if let Some(label) = store.get_mut(&label_id) {
+        if let Some(mut label) = store.get(&label_id) {
             if !label.resources.iter().any(|r| r == resource_id) {
                 label.resources.push(resource_id.clone());
+                store.insert(label_id.clone(), label);
             }
         }
     });
@@ -381,100 +424,118 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
         LabelResourceID::ApiKey(id) => {
             APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
+                    store.insert(id.clone(), resource);
                 }
             });
         },
         LabelResourceID::Contact(id) => {
             CONTACTS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
+                    store.insert(id.clone(), resource);
                 }
             });
         },
         LabelResourceID::File(id) => {
             file_uuid_to_metadata.with_mut(|files| {
-                if let Some(resource) = files.get_mut(id) {
-                    resource.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
-                    resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = files.get(id) {
+                    record.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
+                    record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                    files.insert(id.clone(), record); 
                 }
             });
         },
         LabelResourceID::Folder(id) => {
             folder_uuid_to_metadata.with_mut(|folders| {
-                if let Some(resource) = folders.get_mut(id) {
-                    resource.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
-                    resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = folders.get(id) {
+                    record.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
+                    record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                    folders.insert(id.clone(), record); 
                 }
             });
         },
         LabelResourceID::Disk(id) => {
             DISKS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
+                    store.insert(id.clone(), resource);
                 }
             });
         },
         LabelResourceID::Drive(id) => {
             DRIVES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    resource.labels.retain(|t| t != label_value);
+                if let Some(mut drive) = store.get(id) {
+                    if !drive.labels.iter().any(|t| t == label_value) {
+                        drive.labels.push(label_value.clone());
+                        store.insert(id.clone(), drive);
+                    }
                 }
             });
         },
         LabelResourceID::DirectoryPermission(id) => {
+            // Removing a label from directory permission
             DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-                let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    resource.labels.retain(|t| t != label_value);
-                    resource.last_modified_at = ic_cdk::api::time();
+                let mut store_mut = store.borrow_mut();
+                if let Some(resource) = store_mut.get(id) {
+                    let mut updated_resource = resource.clone();
+                    updated_resource.labels.retain(|t| t != label_value);
+                    updated_resource.last_modified_at = ic_cdk::api::time();
+                    store_mut.insert(id.clone(), updated_resource);
                 }
             });
         },
         LabelResourceID::SystemPermission(id) => {
+            // Removing a label from system permission
             SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-                let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
-                    resource.labels.retain(|t| t != label_value);
-                    resource.last_modified_at = ic_cdk::api::time();
+                let mut store_mut = store.borrow_mut();
+                if let Some(resource) = store_mut.get(id) {
+                    let mut updated_resource = resource.clone();
+                    updated_resource.labels.retain(|t| t != label_value);
+                    updated_resource.last_modified_at = ic_cdk::api::time();
+                    store_mut.insert(id.clone(), updated_resource);
                 }
             });
         },
         LabelResourceID::GroupInvite(id) => {
             INVITES_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
                     resource.last_modified_at = ic_cdk::api::time();
+                    store.insert(id.clone(), resource);
                 }
             });
         },
         LabelResourceID::Group(id) => {
             GROUPS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
                     resource.last_modified_at = ic_cdk::api::time();
+                    store.insert(id.clone(), resource);
                 }
             });
         },
         LabelResourceID::Webhook(id) => {
             WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
+                    store.insert(id.clone(), resource);
                 }
             });
         },
         LabelResourceID::Label(id) => {
             LABELS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(resource) = store.get_mut(id) {
+                if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
+                    store.insert(id.clone(), resource);
                 }
             });
         },
@@ -482,23 +543,49 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
 
     // Remove resource from the label's resource list
     LABELS_BY_ID_HASHTABLE.with(|store| {
-        let mut store = store.borrow_mut();
-        if let Some(label) = store.get_mut(&label_id) {
-            label.resources.retain(|r| r != resource_id);
+        let store_ref = store.borrow();
+        if let Some(label) = store_ref.get(&label_id) { // Using label_id without &
+            // Create a modified copy
+            let mut updated_label = label.clone();
+            updated_label.resources.retain(|r| r != resource_id);
             
             // If this was the last resource using this label, we might want to clean up
-            // This is optional - you may prefer to keep empty labels for future use
-            if label.resources.is_empty() {
+            let is_empty = updated_label.resources.is_empty();
+            let label_value = updated_label.value.clone(); // Save for later use
+            
+            // Insert the updated copy back
+            drop(store_ref);
+            store.borrow_mut().insert(label_id.clone(), updated_label.clone());
+            
+            // Handle cleanup if needed
+            if is_empty {
                 debug_log!("Label '{}' no longer has any resources", label_value);
-                // Uncomment to delete empty labels
+                
+                // Remove from LABELS_BY_VALUE_HASHTABLE
                 LABELS_BY_VALUE_HASHTABLE.with(|v_store| {
-                    v_store.borrow_mut().remove(&label.value);
+                    v_store.borrow_mut().remove(&label_value);
                 });
+                
+                // Remove from LABELS_BY_TIME_LIST using the pattern from reference
                 LABELS_BY_TIME_LIST.with(|t_store| {
-                    let mut t_store = t_store.borrow_mut();
-                    if let Some(pos) = t_store.iter().position(|t| t == &label_id) {
-                        t_store.remove(pos);
+                    let mut new_vec = StableVec::init(
+                        MEMORY_MANAGER.with(|m| m.borrow().get(LABELS_BY_TIME_MEMORY_ID))
+                    ).expect("Failed to initialize new StableVec");
+                    
+                    // Copy all items except the one to be deleted
+                    let t_store_ref = t_store.borrow();
+                    
+                    for i in 0..t_store_ref.len() {
+                        if let Some(id) = t_store_ref.get(i) {
+                            if id != label_id { // Compare both as references
+                                new_vec.push(&id);
+                            }
+                        }
                     }
+                    
+                    // Replace the old vector with the new one
+                    drop(t_store_ref);
+                    *t_store.borrow_mut() = new_vec;
                 });
             }
         }
@@ -514,7 +601,7 @@ pub fn update_label_string_value(
 ) -> Result<(), String> {
     // Get the label to access its resources
     let label = LABELS_BY_ID_HASHTABLE.with(|store| {
-        store.borrow().get(label_id).cloned()
+        store.borrow().get(label_id).clone()
     });
     
     let label = match label {

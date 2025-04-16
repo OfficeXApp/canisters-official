@@ -1,5 +1,6 @@
 // src/rest/webhooks/types.rs
 
+use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use crate::core::api::uuid::ShareTrackHash;
 use crate::core::state::directory::types::{FileRecord, FolderRecord, ShareTrackID, ShareTrackResourceID};
@@ -20,7 +21,7 @@ use crate::rest::types::{validate_description, validate_external_id, validate_ex
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct WebhookFE {
     #[serde(flatten)] 
     pub webhook: Webhook,
@@ -31,7 +32,7 @@ impl WebhookFE {
     pub fn redacted(&self, user_id: &UserID) -> Self {
         let mut redacted = self.clone();
 
-        let is_owner = OWNER_ID.with(|owner_id| *user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| user_id.clone() == owner_id.borrow().get().clone());
         let has_edit_permissions = redacted.permission_previews.contains(&SystemPermissionType::Edit);
 
         // Most sensitive
@@ -56,7 +57,7 @@ impl WebhookFE {
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SortDirection {
     Asc,
@@ -71,7 +72,7 @@ impl Default for SortDirection {
 
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, CandidType)]
 pub struct ListWebhooksRequestBody {
     #[serde(default)]
     pub filters: String,
@@ -114,7 +115,7 @@ impl ListWebhooksRequestBody {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, CandidType)]
 pub struct ListWebhooksResponseData {
     pub items: Vec<WebhookFE>,
     pub page_size: usize,
@@ -124,7 +125,7 @@ pub struct ListWebhooksResponseData {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, CandidType)]
 #[serde(deny_unknown_fields)]
 pub struct CreateWebhookRequestBody {
     pub id: Option<ClientSuggestedUUID>,
@@ -215,7 +216,7 @@ impl CreateWebhookRequestBody {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, CandidType)]
 pub struct UpdateWebhookRequestBody {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -256,7 +257,7 @@ impl UpdateWebhookRequestBody {
             
             // Check if this is an inbox webhook by finding it
             let webhook_id = WebhookID(self.id.clone());
-            let webhook = WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned());
+            let webhook = WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).clone());
             
             if let Some(webhook) = webhook {
                 if webhook.event == WebhookEventLabel::OrganizationInboxNewNotif && !filters.is_empty() {
@@ -308,7 +309,7 @@ impl UpdateWebhookRequestBody {
 }
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, CandidType)]
 pub struct DeleteWebhookRequest {
     pub id: String,
 }
@@ -321,7 +322,7 @@ impl DeleteWebhookRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, CandidType)]
 pub struct DeletedWebhookData {
     pub id: WebhookID,
     pub deleted: bool
@@ -384,13 +385,13 @@ pub enum WebhookResourceData {
     OrgInboxNewNotif(InboxOrgRequestBody),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct GroupInviteWebhookData {
     pub group: Option<Group>,
     pub group_invite: Option<GroupInvite>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct LabelWebhookData {
     pub resource_id: LabelResourceID,
     pub label_id: LabelID,
@@ -398,7 +399,7 @@ pub struct LabelWebhookData {
     pub add: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct DriveStateDiffWebhookData {
     pub data: StateDiffRecord
 }
@@ -428,12 +429,12 @@ pub enum DirectoryWebhookData {
     ShareTracking(ShareTrackingWebhookData),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct FileWebhookData {
     pub file: Option<FileRecord>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct FolderWebhookData {
     pub folder: Option<FolderRecord>,
 }

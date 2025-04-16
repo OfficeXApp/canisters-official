@@ -3,11 +3,28 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{api::uuid::generate_uuidv4, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderID, FolderRecord}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::{state::state::{CANISTER_ID, DRIVE_ID, OWNER_ID}, types::{DriveID, ExternalID}}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
+    use ic_stable_structures::{memory_manager::MemoryId, BTreeMap, DefaultMemoryImpl, StableBTreeMap, StableVec};
+
+    use crate::{core::{api::uuid::generate_uuidv4, state::{directory::{state::state::{folder_uuid_to_metadata, full_folder_path_to_uuid}, types::{DriveFullFilePath, FolderID, FolderRecord}}, disks::types::{Disk, DiskID, DiskTypeEnum}, drives::{state::state::{DRIVE_ID, OWNER_ID}, types::{DriveID, ExternalID}}}, types::{IDPrefix, UserID}}, debug_log, MEMORY_MANAGER};
     
+    type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+    pub const DISKS_MEMORY_ID: MemoryId = MemoryId::new(11);
+    pub const DISKS_BY_TIME_MEMORY_ID: MemoryId = MemoryId::new(12);
+
     thread_local! {
-        pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<HashMap<DiskID, Disk>> = RefCell::new(HashMap::new());
-        pub(crate) static DISKS_BY_TIME_LIST: RefCell<Vec<DiskID>> = RefCell::new(Vec::new());
+        // Replace HashMap with StableBTreeMap for disks by ID
+        pub(crate) static DISKS_BY_ID_HASHTABLE: RefCell<StableBTreeMap<DiskID, Disk, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DISKS_MEMORY_ID))
+            )
+        );
+        
+        // Replace Vec with StableVec for disks by time list
+        pub(crate) static DISKS_BY_TIME_LIST: RefCell<StableVec<DiskID, Memory>> = RefCell::new(
+            StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DISKS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize DISKS_BY_TIME_LIST")
+        );
     }
 
     pub fn init_default_disks() {
@@ -18,11 +35,11 @@ pub mod state {
 
 
         let owner_id = OWNER_ID.with(|owner_id| {
-            owner_id.clone()
+            owner_id.borrow().get().clone()
         });
         let (root_folder, trash_folder) = ensure_disk_root_and_trash_folder(
             &current_canister_disk_id.clone(),
-            &owner_id.borrow().clone(),
+            &owner_id,
             &DRIVE_ID.with(|id| id.clone()),
             DiskTypeEnum::IcpCanister
         );
@@ -47,7 +64,7 @@ pub mod state {
         });
 
         DISKS_BY_TIME_LIST.with(|list| {
-            list.borrow_mut().push(default_canister_disk.id.clone());
+            list.borrow_mut().push(&default_canister_disk.id.clone());
         });
 
     }

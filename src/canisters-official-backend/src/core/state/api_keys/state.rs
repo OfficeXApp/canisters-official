@@ -3,44 +3,34 @@
 pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use crate::{core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, drives::state::state::OWNER_ID}, types::{IDPrefix, UserID}}, debug_log};
+    use ic_stable_structures::{memory_manager::MemoryId, StableBTreeMap, DefaultMemoryImpl};
+    use crate::{core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}, drives::state::state::OWNER_ID}, types::{IDPrefix, UserID}}, debug_log, MEMORY_MANAGER};
+
+    type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+    pub const APIKEYS_MEMORY_ID: MemoryId = MemoryId::new(4);
+    pub const APIKEYS_BY_VALUE_MEMORY_ID: MemoryId = MemoryId::new(5);
+    pub const USERS_APIKEYS_MEMORY_ID: MemoryId = MemoryId::new(6);
 
     thread_local! {
         // users pass in api key value, we O(1) lookup the api key id + O(1) lookup the api key
-        pub(crate) static APIKEYS_BY_VALUE_HASHTABLE: RefCell<HashMap<ApiKeyValue, ApiKeyID>> = RefCell::new(HashMap::new());
+        pub(crate) static APIKEYS_BY_VALUE_HASHTABLE: RefCell<StableBTreeMap<ApiKeyValue, ApiKeyID, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(APIKEYS_BY_VALUE_MEMORY_ID))
+            )
+        );
         // default is to use the api key id to lookup the api key
-        pub(crate) static APIKEYS_BY_ID_HASHTABLE: RefCell<HashMap<ApiKeyID, ApiKey>> = RefCell::new(HashMap::new());
+        // This will replace your HashMap, but keep the same name
+        pub(crate) static APIKEYS_BY_ID_HASHTABLE: RefCell<StableBTreeMap<ApiKeyID, ApiKey, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(APIKEYS_MEMORY_ID))
+            )
+        );
         // track in hashtable users list of ApiKeyIDs
-        pub(crate) static USERS_APIKEYS_HASHTABLE: RefCell<HashMap<UserID, Vec<ApiKeyID>>> = RefCell::new(HashMap::new());
-    }
-
-    // Helper functions to get debug string representations
-    pub fn debug_apikeys_by_value() -> String {
-        APIKEYS_BY_VALUE_HASHTABLE.with(|map| {
-            format!("{:#?}", map.borrow())
-        })
-    }
-
-    pub fn debug_apikeys_by_id() -> String {
-        APIKEYS_BY_ID_HASHTABLE.with(|map| {
-            format!("{:#?}", map.borrow())
-        })
-    }
-
-    pub fn debug_users_apikeys() -> String {
-        USERS_APIKEYS_HASHTABLE.with(|map| {
-            format!("{:#?}", map.borrow())
-        })
-    }
-
-    // Function to log all state
-    pub fn debug_state() -> String {
-        format!(
-            "State Debug:\n\nAPIKEYS_BY_VALUE:\n{}\n\nAPIKEYS_BY_ID:\n{}\n\nUSERS_APIKEYS:\n{}",
-            debug_apikeys_by_value(),
-            debug_apikeys_by_id(),
-            debug_users_apikeys()
-        )
+        pub(crate) static USERS_APIKEYS_HASHTABLE: RefCell<StableBTreeMap<UserID, ApiKeyIDList, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(USERS_APIKEYS_MEMORY_ID))
+            )
+        );
     }
 
     pub fn init_default_admin_apikey() {
@@ -50,7 +40,7 @@ pub mod state {
         let default_key = ApiKey {
             id: ApiKeyID(generate_uuidv4(IDPrefix::ApiKey)),
             value: ApiKeyValue(generate_api_key()),
-            user_id: OWNER_ID.with(|id| id.borrow().clone()),
+            user_id: OWNER_ID.with(|id| id.borrow().get().clone()),
             name: "Default Admin Key".to_string(),
             private_note: None,
             created_at: ic_cdk::api::time(),
@@ -73,7 +63,8 @@ pub mod state {
         });
 
         USERS_APIKEYS_HASHTABLE.with(|map| {
-            map.borrow_mut().insert(default_key.user_id.clone(), vec![default_key.id.clone()]);
+            let key_list = ApiKeyIDList::with_key(default_key.id.clone());
+            map.borrow_mut().insert(default_key.user_id.clone(), key_list);
         });
     }
 }

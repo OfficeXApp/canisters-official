@@ -3,24 +3,51 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
 
-    use crate::{core::{state::{contacts::types::Contact, drives::state::state::OWNER_ID}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log};
+    use ic_stable_structures::{memory_manager::MemoryId, BTreeMap, StableBTreeMap, StableVec, DefaultMemoryImpl, Vec};
+
+    use crate::{core::{state::{contacts::types::{Contact, ContactIDList}, drives::state::state::OWNER_ID}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, MEMORY_MANAGER};
     
+    type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+    pub const CONTACTS_MEMORY_ID: MemoryId = MemoryId::new(7); 
+    pub const CONTACTS_BY_ICP_MEMORY_ID: MemoryId = MemoryId::new(8);
+    pub const CONTACTS_BY_TIME_MEMORY_ID: MemoryId = MemoryId::new(9);
+    pub const HISTORY_SUPERSWAP_MEMORY_ID: MemoryId = MemoryId::new(10);
+
     thread_local! {
-        // default is to use the api key id to lookup the api key
-        pub(crate) static CONTACTS_BY_ID_HASHTABLE: RefCell<HashMap<UserID, Contact>> = RefCell::new(HashMap::new());
-        // default is to use the api key id to lookup the api key
-        pub(crate) static CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: RefCell<HashMap<ICPPrincipalString, UserID>> = RefCell::new(HashMap::new());
-        // track in hashtable users list of ApiKeyIDs
-        pub(crate) static CONTACTS_BY_TIME_LIST: RefCell<Vec<UserID>> = RefCell::new(Vec::new());
-        // superswap userid history
-        // HISTORY_SUPERSWAP_USERID: HashMap<OldUserID, CurrentUserID>
-        pub(crate) static HISTORY_SUPERSWAP_USERID: RefCell<HashMap<UserID, UserID>> = RefCell::new(HashMap::new());
+        // Replace HashMap with StableBTreeMap for contacts by ID
+        pub(crate) static CONTACTS_BY_ID_HASHTABLE: RefCell<StableBTreeMap<UserID, Contact, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(CONTACTS_MEMORY_ID))
+            )
+        );
+        
+        // Replace HashMap with StableBTreeMap for contacts by ICP principal
+        pub(crate) static CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: RefCell<StableBTreeMap<ICPPrincipalString, UserID, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(CONTACTS_BY_ICP_MEMORY_ID))
+            )
+        );
+        
+        // Replace Vec with StableVec for contacts by time list
+        pub(crate) static CONTACTS_BY_TIME_LIST: RefCell<StableVec<UserID, Memory>> = RefCell::new(
+            StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(CONTACTS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize CONTACTS_BY_TIME_LIST")
+        );
+        
+        // Replace HashMap with StableBTreeMap for superswap history
+        pub(crate) static HISTORY_SUPERSWAP_USERID: RefCell<StableBTreeMap<UserID, UserID, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(HISTORY_SUPERSWAP_MEMORY_ID))
+            )
+        );
     }
+
 
     pub fn init_default_owner_contact(name: Option<String>) {
         debug_log!("Initializing default owner contact...");
 
-        let owner_id = OWNER_ID.with(|id| id.borrow().clone());
+        let owner_id = OWNER_ID.with(|id| id.borrow().get().clone());
         // extract icp principal by removing the prefix IDPrefix::User
         let owner_icp_principal = owner_id.to_icp_principal_string();
 
@@ -62,7 +89,7 @@ pub mod state {
         });
 
         CONTACTS_BY_TIME_LIST.with(|list| {
-            list.borrow_mut().push(owner_id);
+            list.borrow_mut().push(&owner_id);
         });
     }
 }

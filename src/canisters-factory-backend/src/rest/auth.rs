@@ -158,7 +158,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
             
             // Look up the API key ID using the value
             let api_key_id = APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
-                store.borrow().get(&api_key_value).cloned()
+                store.borrow().get(&api_key_value).clone()
             });
             
             if let Some(api_key_id) = api_key_id {
@@ -166,7 +166,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                 
                 // Look up the full API key using the ID
                 let full_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-                    store.borrow().get(&api_key_id).cloned()
+                    store.borrow().get(&api_key_id).clone()
                 });
                 
                 // Check if key exists and validate expiration/revocation

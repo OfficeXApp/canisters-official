@@ -94,11 +94,12 @@ pub mod drive_internals {
             folder_uuid_to_metadata.insert(FolderID(trash_folder_uuid.clone()), trash_folder);
             
             // Add trash folder to root's subfolders
-            folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(root_folder) = map.get_mut(&root_uuid) {
-                    root_folder.subfolder_uuids.push(FolderID(trash_folder_uuid));
-                }
-            });
+folder_uuid_to_metadata.with_mut(|map| {
+    if let Some(mut root_folder) = map.get(&root_uuid) {
+        root_folder.subfolder_uuids.push(FolderID(trash_folder_uuid));
+        map.insert(root_uuid.clone(), root_folder);
+    }
+});
         }
 
         root_uuid
@@ -128,8 +129,9 @@ pub mod drive_internals {
             
             // Update folder metadata
             folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(subfolder) = map.get_mut(subfolder_id) {
+                if let Some(mut subfolder) = map.get(subfolder_id) {
                     subfolder.full_directory_path = new_subfolder_path.clone();
+                    map.insert(subfolder_id.clone(), subfolder);
                 }
             });
             
@@ -154,8 +156,9 @@ pub mod drive_internals {
             
             // Update file metadata
             file_uuid_to_metadata.with_mut(|map| {
-                if let Some(file) = map.get_mut(file_id) {
+                if let Some(mut file) = map.get(file_id) {
                     file.full_directory_path = new_file_path.clone();
+                    map.insert(file_id.clone(), file);
                 }
             });
             
@@ -248,10 +251,11 @@ pub mod drive_internals {
 
                 // Update parent folder's subfolder_uuids
                 folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(parent_folder) = map.get_mut(&parent_uuid) {
+                    if let Some(mut parent_folder) = map.get(&parent_uuid) {
                         if !parent_folder.subfolder_uuids.contains(&new_folder_uuid) {
                             parent_folder.subfolder_uuids.push(new_folder_uuid.clone());
                         }
+                        map.insert(parent_uuid.clone(), parent_folder);
                     }
                 });
 
@@ -289,7 +293,7 @@ pub mod drive_internals {
 
     pub fn update_folder_file_uuids(folder_uuid: &FolderID, file_uuid: &FileID, is_add: bool) {
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(folder_uuid) {
+            if let Some(mut folder) = map.get(folder_uuid) {
                 if is_add {
                     if !folder.file_uuids.contains(file_uuid) {
                         folder.file_uuids.push(file_uuid.clone());
@@ -297,6 +301,7 @@ pub mod drive_internals {
                 } else {
                     folder.file_uuids.retain(|uuid| uuid != file_uuid);
                 }
+                map.insert(folder_uuid.clone(), folder);
             }
         });
     }
@@ -514,18 +519,17 @@ pub mod drive_internals {
             return true;
         }
     
-        // Check active invites for the user
-        INVITES_BY_ID_HASHTABLE.with(|invites| {
-            // Get all user's invites
-            let user_invites = USERS_INVITES_LIST_HASHTABLE.with(|user_invites| {
-                user_invites.borrow()
-                    .get(&GroupInviteeID::User(user_id.clone()))
-                    .cloned()
-                    .unwrap_or_default()
-            });
+        // Get all user's invites first (outside the other with block)
+        let user_invites = USERS_INVITES_LIST_HASHTABLE.with(|user_invites| {
+            user_invites.borrow()
+                .get(&GroupInviteeID::User(user_id.clone()))
+                .map(|list| list.clone())
+                .unwrap_or_default()
+        });
     
-            // Check if any of the user's invites are active for this group
-            let now = ic_cdk::api::time();
+        // Now check if any of the user's invites are active for this group
+        let now = ic_cdk::api::time();
+        INVITES_BY_ID_HASHTABLE.with(|invites| {
             user_invites.iter().any(|invite_id| {
                 if let Some(invite) = invites.borrow().get(invite_id) {
                     // Check if invite is for this group
@@ -560,7 +564,7 @@ pub mod drive_internals {
             permissions
                 .borrow()
                 .get(&PermissionGranteeID::User(user_id.clone()))
-                .cloned()
+                .clone()
                 .unwrap_or_default()
         });
     
@@ -568,9 +572,9 @@ pub mod drive_internals {
             invites
                 .borrow()
                 .get(&GroupInviteeID::User(user_id.clone()))
-                .cloned()
+                .map(|list| list.invites.clone())
                 .unwrap_or_default()
-                .into_iter()
+                .into_iter()  // This is fine as it's working with a Vec<InviteID>
                 .filter_map(|invite_id| {
                     INVITES_BY_ID_HASHTABLE.with(|invites| {
                         invites
@@ -584,8 +588,10 @@ pub mod drive_internals {
                         permissions
                             .borrow()
                             .get(&PermissionGranteeID::Group(group_id))
-                            .cloned()
+                            .clone()  // Use cloned() instead of clone() here
                             .unwrap_or_default()
+                            .permissions  // Access the permissions field directly
+                            .into_iter()  // Now this works with Vec<DirectoryPermissionID>
                     })
                 })
                 .collect::<Vec<_>>()
@@ -595,21 +601,21 @@ pub mod drive_internals {
             permissions
                 .borrow()
                 .get(&PermissionGranteeID::Public)
-                .cloned()
+                .clone()
                 .unwrap_or_default()
         });
     
         // Combine all permissions
-        let mut all_permissions = user_permissions;
+        let mut all_permissions = user_permissions.permissions;
         all_permissions.extend(group_permissions);
-        all_permissions.extend(public_permissions);
+        all_permissions.extend(public_permissions.permissions);
     
         // Fetch actual permission records and filter by disk_id
         let mut permission_records = Vec::new();
     
         for permission_id in all_permissions {
             if let Some(record) = DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-                permissions.borrow().get(&permission_id).cloned()
+                permissions.borrow().get(&permission_id).clone()
             }) {
                 let resource_disk_matches = match &record.resource_id {
                     DirectoryResourceID::Folder(folder_id) => folder_uuid_to_metadata
@@ -679,7 +685,7 @@ pub mod drive_internals {
             resource_id: "shared-with-me".to_string(),
             resource_name: "Shared with me".to_string(),
         });
-        let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&disk_id).cloned());
+        let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&disk_id).map(|d| d.clone()));
         if let Some(disk) = disk {
             breadcrumbs.push_front(FilePathBreadcrumb {
                 resource_id: disk.root_folder.clone().to_string(),

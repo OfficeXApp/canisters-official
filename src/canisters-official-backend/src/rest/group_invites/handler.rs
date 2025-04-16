@@ -3,7 +3,7 @@
 
 pub mod group_invites_handlers {
     use crate::{
-        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::group_invites::{fire_group_invite_webhook, get_active_group_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupRole, PlaceholderGroupInviteeID}}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE}, types::GroupID}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, group_invites::types::{ CreateGroupInviteRequestBody, CreateGroup_InviteResponse, DeleteGroup_InviteRequest, DeleteGroup_InviteResponse, DeletedGroup_InviteData, ErrorResponse, GetGroup_InviteResponse, ListGroupInvitesRequestBody, ListGroupInvitesResponseData, ListGroup_InvitesResponse, RedeemGroupInviteRequest, RedeemGroupInviteResponseData, UpdateGroupInviteRequestBody, UpdateGroup_InviteRequest, UpdateGroup_InviteResponse}, groups::types::{ListGroupsRequestBody, ListGroupsResponseData}, webhooks::types::{GroupInviteWebhookData, SortDirection}}
+        core::{api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}, webhooks::group_invites::{fire_group_invite_webhook, get_active_group_invite_webhooks}}, state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteIDList, GroupInviteeID, GroupRole, PlaceholderGroupInviteeID}}, groups::{state::state::{is_user_on_group, GROUPS_BY_ID_HASHTABLE}, types::GroupID}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemResourceID, SystemTableEnum}, webhooks::types::WebhookEventLabel}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, group_invites::types::{ CreateGroupInviteRequestBody, CreateGroup_InviteResponse, DeleteGroup_InviteRequest, DeleteGroup_InviteResponse, DeletedGroup_InviteData, ErrorResponse, GetGroup_InviteResponse, ListGroupInvitesRequestBody, ListGroupInvitesResponseData, ListGroup_InvitesResponse, RedeemGroupInviteRequest, RedeemGroupInviteResponseData, UpdateGroupInviteRequestBody, UpdateGroup_InviteRequest, UpdateGroup_InviteResponse}, groups::types::{ListGroupsRequestBody, ListGroupsResponseData}, webhooks::types::{GroupInviteWebhookData, SortDirection}}
         
     };
     use crate::core::state::group_invites::{
@@ -22,7 +22,7 @@ pub mod group_invites_handlers {
         let invite_id = GroupInviteID(params.get("invite_id").unwrap().to_string());
         
         let invite = INVITES_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&invite_id).cloned()
+            store.borrow().get(&invite_id).clone()
         });
     
         match invite {
@@ -131,8 +131,7 @@ pub mod group_invites_handlers {
                 .map(|group| INVITES_BY_ID_HASHTABLE.with(|invite_store| {
                     let invites = invite_store.borrow();
                     group.member_invites.iter()
-                        .filter_map(|id| invites.get(id))
-                        .cloned()
+                        .filter_map(|id| invites.get(id).clone())
                         .collect::<Vec<_>>()
                 }))
                 .unwrap_or_default()
@@ -276,13 +275,13 @@ pub mod group_invites_handlers {
 
         let before_snap = GroupInviteWebhookData {
             group: GROUPS_BY_ID_HASHTABLE.with(|store| 
-                store.borrow().get(&group_id).cloned()
+                store.borrow().get(&group_id).clone()
             ),
             group_invite: None,
         };
 
         // Verify group exists and user has permission
-        let group = match GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&group_id).cloned()) {
+        let group = match GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&group_id).clone()) {
             Some(group) => group,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -367,7 +366,7 @@ pub mod group_invites_handlers {
         // Update group's invite lists
         GROUPS_BY_ID_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            if let Some(group) = store.get_mut(&group_id) {
+            if let Some(mut group) = store.get(&group_id).clone() {
                 match new_invite.role {
                     GroupRole::Admin => {
                         group.admin_invites.push(invite_id.clone());
@@ -375,15 +374,27 @@ pub mod group_invites_handlers {
                     },
                     GroupRole::Member => group.member_invites.push(invite_id.clone()),
                 }
+                // Insert the modified group back into the map
+                store.insert(group_id.clone(), group);
             }
         });
 
         // Update user's group invites
         USERS_INVITES_LIST_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            store.entry(new_invite.invitee_id.clone())
-                .or_insert_with(Vec::new)
-                .push(invite_id.clone());
+            let invitee_id = new_invite.invitee_id.clone();
+            
+            // Get the current list if it exists, or create a new empty one
+            let mut invite_list = match store.get(&invitee_id) {
+                Some(list) => list.clone(),
+                None => GroupInviteIDList { invites: Vec::new() }
+            };
+            
+            // Add the new invite
+            invite_list.invites.push(invite_id.clone());
+            
+            // Insert the updated list back
+            store.insert(invitee_id, invite_list);
         });
 
         mark_claimed_uuid(&invite_id.clone().to_string());
@@ -392,10 +403,10 @@ pub mod group_invites_handlers {
         if !active_webhooks.is_empty() {
             let after_snap = GroupInviteWebhookData {
                 group: GROUPS_BY_ID_HASHTABLE.with(|store| 
-                    store.borrow().get(&group_id).cloned()
+                    store.borrow().get(&group_id).clone()
                 ),
                 group_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
-                    store.borrow().get(&invite_id).cloned()
+                    store.borrow().get(&invite_id).clone()
                 ),
             };
 
@@ -448,7 +459,7 @@ pub mod group_invites_handlers {
 
         // Get existing invite
         let mut invite = match INVITES_BY_ID_HASHTABLE.with(|store| 
-            store.borrow().get(&invite_id).cloned()
+            store.borrow().get(&invite_id).clone()
         ) {
             Some(invite) => invite,
             None => return create_response(
@@ -459,13 +470,13 @@ pub mod group_invites_handlers {
         let active_webhooks = get_active_group_invite_webhooks(&invite.group_id, WebhookEventLabel::GroupInviteUpdated);
         let before_snap = GroupInviteWebhookData {
             group: GROUPS_BY_ID_HASHTABLE.with(|store| 
-                store.borrow().get(&invite.group_id).cloned()
+                store.borrow().get(&invite.group_id).clone()
             ),
             group_invite: Some(invite.clone()),
         };
         
         // Check if user is authorized (owner or admin)
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         let is_authorized = is_owner || 
         INVITES_BY_ID_HASHTABLE.with(|store| {
             store.borrow()
@@ -491,7 +502,7 @@ pub mod group_invites_handlers {
             if new_role != invite.role {
                 GROUPS_BY_ID_HASHTABLE.with(|store| {
                     let mut store = store.borrow_mut();
-                    if let Some(group) = store.get_mut(&invite.group_id) {
+                    if let Some(mut group) = store.get(&invite.group_id).clone() {
                         // Remove from old role's list
                         match invite.role {
                             GroupRole::Admin => {
@@ -524,6 +535,8 @@ pub mod group_invites_handlers {
                                 }
                             },
                         }
+                        // Insert the modified group back into the map
+                        store.insert(invite.group_id.clone(), group);
                     }
                 });
                 invite.role = new_role;
@@ -567,10 +580,10 @@ pub mod group_invites_handlers {
         if !active_webhooks.is_empty() {
             let after_snap = GroupInviteWebhookData {
                 group: GROUPS_BY_ID_HASHTABLE.with(|store| 
-                    store.borrow().get(&invite.group_id).cloned()
+                    store.borrow().get(&invite.group_id).clone()
                 ),
                 group_invite: INVITES_BY_ID_HASHTABLE.with(|store| 
-                    store.borrow().get(&invite_id).cloned()
+                    store.borrow().get(&invite_id).clone()
                 ),
             };
             fire_group_invite_webhook(
@@ -624,7 +637,7 @@ pub mod group_invites_handlers {
         }
     
         // Get invite to verify it exists
-        let invite = match INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&delete_req.id).cloned()) {
+        let invite = match INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&delete_req.id).clone()) {
             Some(invite) => invite,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -663,11 +676,16 @@ pub mod group_invites_handlers {
         // Update group's invite lists
         GROUPS_BY_ID_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            if let Some(group) = store.get_mut(&invite.group_id) {
+            if let Some(group) = store.get(&invite.group_id) {
+                let mut group = group.clone();
                 match invite.role {
                     GroupRole::Admin => {
                         if let Some(pos) = group.admin_invites.iter().position(|id| *id == delete_req.id) {
                             group.admin_invites.remove(pos);
+                        }
+                        // If it's an admin invite, also check and remove from member_invites if present
+                        if let Some(pos) = group.member_invites.iter().position(|id| *id == delete_req.id) {
+                            group.member_invites.remove(pos);
                         }
                     },
                     GroupRole::Member => {
@@ -676,15 +694,19 @@ pub mod group_invites_handlers {
                         }
                     },
                 }
+                // Insert the modified group back into the map
+                store.insert(invite.group_id.clone(), group);
             }
         });
         
         // Update user's group invites
         USERS_INVITES_LIST_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            if let Some(invites) = store.get_mut(&invite.invitee_id) {
-                if let Some(pos) = invites.iter().position(|id| *id == delete_req.id) {
-                    invites.remove(pos);
+            if let Some(mut invites) = store.get(&invite.invitee_id).clone() {
+                if let Some(pos) = invites.invites.iter().position(|id| *id == delete_req.id) {
+                    invites.invites.remove(pos);
+                    // Insert the modified invites list back
+                    store.insert(invite.invitee_id.clone(), invites);
                 }
             }
         });
@@ -737,7 +759,7 @@ pub mod group_invites_handlers {
     
         // Get existing invite
         let invite = match INVITES_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&invite_id).cloned()
+            store.borrow().get(&invite_id).clone()
         }) {
             Some(invite) => invite,
             None => return create_response(
@@ -800,16 +822,28 @@ pub mod group_invites_handlers {
             // Update user's group invites list with the new invite
             USERS_INVITES_LIST_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                store.entry(new_invite.invitee_id.clone())
-                    .or_insert_with(Vec::new)
-                    .push(new_invite_id.clone());
+                let invitee_id = new_invite.invitee_id.clone();
+                
+                // Get the current list if it exists, or create a new empty one
+                let mut invite_list = match store.get(&invitee_id) {
+                    Some(list) => list.clone(),
+                    None => GroupInviteIDList { invites: Vec::new() }
+                };
+                
+                // Add the new invite
+                invite_list.invites.push(new_invite_id.clone());
+                
+                // Insert the updated list back
+                store.insert(invitee_id, invite_list);
             });
     
             // Update group's member invites
             GROUPS_BY_ID_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                if let Some(group) = store.get_mut(&invite.group_id) {
-                    group.member_invites.push(new_invite_id.clone());
+                if let Some(group) = store.get(&invite.group_id) {
+                    let mut updated_group = group.clone();
+                    updated_group.member_invites.push(new_invite_id.clone());
+                    store.insert(invite.group_id.clone(), updated_group);
                 }
             });
     
@@ -855,9 +889,19 @@ pub mod group_invites_handlers {
             // Update user's group invites list
             USERS_INVITES_LIST_HASHTABLE.with(|store| {
                 let mut store = store.borrow_mut();
-                store.entry(updated_invite.invitee_id.clone())
-                    .or_insert_with(Vec::new)
-                    .push(invite_id.clone());
+                let invitee_id = updated_invite.invitee_id.clone();
+                
+                // Get the current list if it exists, or create a new empty one
+                let mut invite_list = match store.get(&invitee_id) {
+                    Some(list) => list.clone(),
+                    None => GroupInviteIDList { invites: Vec::new() }
+                };
+                
+                // Add the new invite
+                invite_list.invites.push(invite_id.clone());
+                
+                // Insert the updated list back
+                store.insert(invitee_id, invite_list);
             });
     
             snapshot_poststate(prestate, Some(

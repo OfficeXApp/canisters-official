@@ -50,12 +50,21 @@ pub mod state {
             
             // Update the Drive record to store the last_indexed_ms value
             DRIVE_ID.with(|drive_id| {
+                let drive_id_val = drive_id.clone(); // a copy of the key
                 DRIVES_BY_ID_HASHTABLE.with(|drives| {
-                    if let Some(drive) = drives.borrow_mut().get_mut(drive_id) {
+                    let mut map_ref = drives.borrow_mut();
+                    
+                    // Fetch a Drive (clone) from the stable map:
+                    if let Some(mut drive) = map_ref.get(&drive_id_val) {
+                        // Update the Drive in regular memory
                         drive.last_indexed_ms = Some(current_time_ms);
+            
+                        // Reinsert into the stable map
+                        map_ref.insert(drive_id_val, drive);
                     }
                 });
             });
+
         }
         
         result

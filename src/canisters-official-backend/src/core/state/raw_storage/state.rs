@@ -7,16 +7,16 @@ use ic_stable_structures::{
 use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use crate::core::state::raw_storage::types::{ChunkId, FileChunk};
+use crate::{core::state::raw_storage::types::{ChunkId, FileChunk}, MEMORY_MANAGER};
 
 use super::types::{ChunkIdList, CHUNK_SIZE};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 
 // Define memory IDs for different storage types
-const CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(0);
-const FILE_CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(1);
-const FILE_META_MEMORY_ID: MemoryId = MemoryId::new(2);
+const CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(1);
+const FILE_CHUNKS_MEMORY_ID: MemoryId = MemoryId::new(2);
+const FILE_META_MEMORY_ID: MemoryId = MemoryId::new(3);
 
 // Implement Storable for our types
 impl Storable for ChunkId {
@@ -55,9 +55,6 @@ impl Storable for FileChunk {
 }
 
 thread_local! {
-    pub(crate) static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = 
-        RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
-
     pub(crate) static CHUNKS: RefCell<StableBTreeMap<ChunkId, FileChunk, Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(CHUNKS_MEMORY_ID))

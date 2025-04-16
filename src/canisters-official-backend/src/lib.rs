@@ -12,6 +12,14 @@ use rest::{router, types::validate_icp_principal};
 use candid::{CandidType, Decode, Encode};
 
 
+
+use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
+use ic_stable_structures::{DefaultMemoryImpl, StableCell, Storable}; // Import Storable
+
+type Memory = VirtualMemory<DefaultMemoryImpl>;
+
+const INITIALIZED_FLAG_MEMORY_ID: MemoryId = MemoryId::new(0);
+
 // change this to false for production
 pub static LOCAL_DEV_MODE: bool = true;
 
@@ -27,7 +35,30 @@ pub struct InitArgs {
 
 // Track if we've already initialized to prevent double initialization
 thread_local! {
-    static INITIALIZED: RefCell<bool> = RefCell::new(false);
+
+    // The memory manager is used for simulating multiple memories.
+    pub(crate) static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
+        RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
+
+    // Stable Cell for the INITIALIZED flag. Uses MemoryId(0).
+    // We store a u8: 0 = false, 1 = true, as bool support might vary or have quirks.
+    // Alternatively, you could create a custom struct/enum that implements Storable.
+    // Using `bool` directly *should* work if it implements Storable (which it does via candid).
+    // Let's try with bool first for clarity, but u8 is a safe fallback.
+    static INITIALIZED_FLAG: RefCell<StableCell<bool, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(INITIALIZED_FLAG_MEMORY_ID)),
+            false // Default value if the cell is newly created (e.g., first deployment)
+        ).expect("Failed to initialize StableCell for INITIALIZED_FLAG")
+    );
+
+    // --- Other State (potentially also using stable structures) ---
+    // Example: If you were to move other state to stable structures
+    // static CONTACTS: RefCell<StableBTreeMap<UserID, Contact, Memory>> = RefCell::new(
+    //     StableBTreeMap::init(
+    //         MEMORY_MANAGER.with(|m| m.borrow().get(CONTACTS_MEMORY_ID)),
+    //     )
+    // );
 }
 
 
@@ -37,19 +68,22 @@ fn init() {
     let args = ic_cdk::api::call::arg_data::<(Option<InitArgs>,)>(ic_cdk::api::call::ArgDecoderConfig::default()).0;
     debug_log!("INIT FUNCTION - Args extracted, calling initialize_canister...");
     initialize_canister(args);
+
+
+    debug_log!("Initializing routes...");
+    router::init_routes();
+    
     debug_log!("INIT FUNCTION COMPLETED");
 }
 
 
 fn initialize_canister(args: Option<InitArgs>) {
+
+
+    debug_log!("Initializing canister...");
     // Check if we've already initialized to prevent re-initialization
-    let already_initialized = INITIALIZED.with(|initialized| {
-        if *initialized.borrow() {
-            true
-        } else {
-            *initialized.borrow_mut() = true;
-            false
-        }
+    let already_initialized = INITIALIZED_FLAG.with(|flag_cell| {
+        *flag_cell.borrow().get() // Get the value from the stable cell
     });
 
     if already_initialized {
@@ -57,9 +91,6 @@ fn initialize_canister(args: Option<InitArgs>) {
         return;
     }
 
-    debug_log!("Initializing canister...");
-    router::init_routes();
-    
     // Process the arguments
     if let Some(init_args) = args {
         // Validate the owner ICP principal
@@ -78,17 +109,26 @@ fn initialize_canister(args: Option<InitArgs>) {
 
                 // Verify the values were set correctly
                 crate::core::state::drives::state::state::OWNER_ID.with(|id| {
-                    debug_log!("After init, owner_id is: {}", id.borrow().0);
+                    debug_log!("After init, owner_id is: {}", id.borrow().get().clone());
                 });
                 
                 crate::core::state::drives::state::state::SPAWN_REDEEM_CODE.with(|code| {
-                    debug_log!("After init, spawn_redeem_code is: {}", code.borrow().0);
+                    debug_log!("After init, spawn_redeem_code is: {}", code.borrow().get().clone());
                 });
 
                 init_default_admin_apikey();
                 init_default_owner_contact(init_args.owner_name);
                 init_default_disks();
                 init_default_group();
+
+                // **** SET THE STABLE FLAG TO TRUE ****
+                INITIALIZED_FLAG.with(|flag_cell| {
+                    flag_cell.borrow_mut()
+                        .set(true) // Set the flag to true in stable memory
+                        .expect("Failed to set INITIALIZED_FLAG to true in stable memory");
+                });
+                debug_log!("Initialization successful, stable flag set to true.");
+
             },
             Err(validation_error) => {
                 // Log and trap (abort) on invalid ICP principal
@@ -109,15 +149,22 @@ fn initialize_canister(args: Option<InitArgs>) {
 fn post_upgrade() {
     // No arguments on upgrade, just re-initialize routes
     debug_log!("Post-upgrade initialization...");
-    // Then check if we need to set up state
-    let needs_init = INITIALIZED.with(|initialized| !*initialized.borrow());
+
     
-    if needs_init {
-        // Either use arguments from upgrade call or fallback to defaults
-        let args = ic_cdk::api::call::arg_data::<(Option<InitArgs>,)>(ic_cdk::api::call::ArgDecoderConfig::default()).0;
-        initialize_canister(args);
-    } else {
+    debug_log!("Initializing routes...");
+    router::init_routes();
+    
+    // Then check if we need to set up state
+    let already_initialized = INITIALIZED_FLAG.with(|flag_cell| {
+        *flag_cell.borrow().get() // Get the value from the stable cell
+    });
+    
+    if already_initialized {
         debug_log!("Canister already initialized, skipping full initialization");
+    } else {
+         // Either use arguments from upgrade call or fallback to defaults
+         let args = ic_cdk::api::call::arg_data::<(Option<InitArgs>,)>(ic_cdk::api::call::ArgDecoderConfig::default()).0;
+         initialize_canister(args);
     }
 }
 

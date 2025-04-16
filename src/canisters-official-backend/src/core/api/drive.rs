@@ -172,7 +172,7 @@ pub mod drive {
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
                 .get(&disk_id)
-                .cloned()
+                .map(|d| d.clone())
         }).ok_or_else(|| "Disk not found".to_string())?;
 
 
@@ -233,7 +233,7 @@ pub mod drive {
                                 let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                                     map.borrow()
                                         .get(&disk_id)
-                                        .cloned()
+                                        .map(|d| d.clone())
                                 }).ok_or_else(|| "Disk not found".to_string())?;
     
                                 // Example using an "existing file" upload.
@@ -336,8 +336,9 @@ pub mod drive {
                 Some(FileConflictResolutionEnum::REPLACE) | Some(FileConflictResolutionEnum::KEEP_NEWER) => {
                     // Update the prior version's next_version pointer
                     file_uuid_to_metadata.with_mut(|map| {
-                        if let Some(existing_file) = map.get_mut(&existing_uuid) {
+                        if let Some(mut existing_file) = map.get(&existing_uuid) {
                             existing_file.next_version = Some(new_file_uuid.clone());
+                            map.insert(existing_uuid.clone(), existing_file);
                         }
                     });
                     
@@ -361,7 +362,7 @@ pub mod drive {
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
                 .get(&disk_id)
-                .cloned()
+                .map(|d| d.clone())
         }).ok_or_else(|| "Disk not found".to_string())?;
     
     
@@ -472,7 +473,7 @@ pub mod drive {
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
             map.borrow()
                 .get(&disk_id)
-                .cloned()
+                .map(|d| d.clone())
         }).ok_or_else(|| "Disk not found".to_string())?;
         
         debug_log!("sanitized_path: {}", sanitized_path);
@@ -550,10 +551,11 @@ pub mod drive {
     
         // Update the metadata with the correct expires_at value
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&new_folder_uuid) {
+            if let Some(mut folder) = map.get(&new_folder_uuid) {
                 folder.expires_at = expires_at;
+                map.insert(new_folder_uuid.clone(), folder);
             }
-        });        
+        });
     
         // Get and return the updated folder metadata
         folder_uuid_to_metadata
@@ -620,10 +622,11 @@ pub mod drive {
     
         // Update folder metadata using with_mut
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&folder_id) {
+            if let Some(mut folder) = map.get(&folder_id) {
                 folder.name = new_name;
                 folder.full_directory_path = DriveFullFilePath(new_folder_path.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(folder_id.clone(), folder);
             }
         });
     
@@ -642,11 +645,12 @@ pub mod drive {
             let parent_full_path = format!("{}::/{}/", storage_part, parent_path);
             if let Some(parent_uuid) = full_folder_path_to_uuid.get(&DriveFullFilePath(parent_full_path.clone())) {
                 folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(parent_folder) = map.get_mut(&parent_uuid) {
+                    if let Some(mut parent_folder) = map.get(&parent_uuid) {
                         if !parent_folder.subfolder_uuids.contains(&folder_id) {
                             parent_folder.subfolder_uuids.push(folder_id.clone());
                             ic_cdk::println!("Added folder UUID to parent folder's subfolder_uuids");
                         }
+                        map.insert(parent_uuid.clone(), parent_folder);
                     }
                 });
             } else {
@@ -704,7 +708,7 @@ pub mod drive {
     
         // Update file metadata
         file_uuid_to_metadata.with_mut(|map| {
-            if let Some(file) = map.get_mut(&file_id) {
+            if let Some(mut file) = map.get(&file_id) {
                 file.name = new_name.clone();
                 file.full_directory_path = DriveFullFilePath(new_path.clone());
                 file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
@@ -713,7 +717,7 @@ pub mod drive {
                     .next()
                     .unwrap_or("")
                     .to_string();
-                ic_cdk::println!("Updated file metadata: {:?}", file);
+                map.insert(file_id.clone(), file);
             }
         });
     
@@ -795,8 +799,9 @@ pub mod drive {
             // Remove from parent's subfolder list
             if let Some(parent_id) = folder.parent_folder_uuid {
                 folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(parent) = map.get_mut(&parent_id) {
+                    if let Some(mut parent) = map.get(&parent_id) {
                         parent.subfolder_uuids.retain(|id| id != folder_id);
+                        map.insert(parent_id, parent);
                     }
                 });
             }
@@ -819,7 +824,7 @@ pub mod drive {
                 let mut file_ids = Vec::new();
                 
                 folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(current_folder) = map.get_mut(&current_folder_id) {
+                    if let Some(mut current_folder) = map.get(&current_folder_id) {
                         if current_folder_id == *folder_id {
                             // Main folder gets the original parent path
                             current_folder.restore_trash_prior_folder_uuid = Some(folder.parent_folder_uuid.clone().unwrap());
@@ -827,19 +832,22 @@ pub mod drive {
                             // Subfolders keep their current path
                             current_folder.restore_trash_prior_folder_uuid = Some(current_folder.parent_folder_uuid.clone().unwrap());
                         }
-    
+                
                         // Add subfolders to stack
                         stack.extend(current_folder.subfolder_uuids.clone());
                         // Get the file IDs for processing after we release this borrow
                         file_ids = current_folder.file_uuids.clone();
+                        
+                        map.insert(current_folder_id.clone(), current_folder);
                     }
                 });
     
                 // Now set restore info for all files using file_uuid_to_metadata
                 for file_id in file_ids {
                     file_uuid_to_metadata.with_mut(|file_map| {
-                        if let Some(file) = file_map.get_mut(&file_id) {
+                        if let Some(mut file) = file_map.get(&file_id) {
                             file.restore_trash_prior_folder_uuid = Some(current_folder_id.clone());
+                            file_map.insert(file_id, file);
                         }
                     });
                 }
@@ -910,16 +918,18 @@ pub mod drive {
             // Handle version chain
             if let Some(prior_id) = &file.prior_version {
                 file_uuid_to_metadata.with_mut(|map| {
-                    if let Some(prior_file) = map.get_mut(prior_id) {
+                    if let Some(mut prior_file) = map.get(prior_id) {
                         prior_file.next_version = file.next_version.clone();
+                        map.insert(prior_id.clone(), prior_file);
                     }
                 });
             }
     
             if let Some(next_id) = &file.next_version {
                 file_uuid_to_metadata.with_mut(|map| {
-                    if let Some(next_file) = map.get_mut(next_id) {
+                    if let Some(mut next_file) = map.get(next_id) {
                         next_file.prior_version = file.prior_version.clone();
+                        map.insert(next_id.clone(), next_file);
                     }
                 });
             }
@@ -930,8 +940,9 @@ pub mod drive {
     
             // Remove from parent folder's file list
             folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(folder) = map.get_mut(&folder_uuid) {
+                if let Some(mut folder) = map.get(&folder_uuid) {
                     folder.file_uuids.retain(|id| id != file_id);
+                    map.insert(folder_uuid.clone(), folder);
                 }
             });
 
@@ -954,8 +965,9 @@ pub mod drive {
     
             // Set restore_trash_prior_folder_uuid BEFORE moving the file
             file_uuid_to_metadata.with_mut(|map| {
-                if let Some(file) = map.get_mut(file_id) {
+                if let Some(mut file) = map.get(file_id) {
                     file.restore_trash_prior_folder_uuid = Some(file.parent_folder_uuid.clone());
+                    map.insert(file_id.clone(), file);
                 }
             });
     
@@ -1025,7 +1037,7 @@ pub mod drive {
             let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                 map.borrow()
                     .get(&source_file.disk_id)
-                    .cloned()
+                    .map(|d| d.clone())
             }).ok_or_else(|| "Disk not found".to_string())?;
 
             let aws_auth: AwsBucketAuth = serde_json::from_str(&disk.auth_json
@@ -1065,9 +1077,10 @@ pub mod drive {
 
         // Update destination folder's file list
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&destination_folder.id) {
+            if let Some(mut folder) = map.get(&destination_folder.id) {
                 folder.file_uuids.push(new_file_uuid.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(destination_folder.id.clone(), folder);
             }
         });
 
@@ -1121,9 +1134,10 @@ pub mod drive {
     
         // Update destination folder's subfolder list
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&destination_folder.id) {
+            if let Some(mut folder) = map.get(&destination_folder.id) {
                 folder.subfolder_uuids.push(new_folder_uuid.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(destination_folder.id.clone(), folder);
             }
         });
     
@@ -1131,8 +1145,9 @@ pub mod drive {
         for subfolder_id in &source_folder.subfolder_uuids {
             if let Ok(copied_subfolder) = copy_folder(subfolder_id, &new_folder_metadata, file_conflict_resolution.clone(), None) {
                 folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(folder) = map.get_mut(&new_folder_uuid) {
+                    if let Some(mut folder) = map.get(&new_folder_uuid) {
                         folder.subfolder_uuids.push(copied_subfolder.id.clone());
+                        map.insert(new_folder_uuid.clone(), folder);
                     }
                 });
             }
@@ -1142,8 +1157,9 @@ pub mod drive {
         for file_id in &source_folder.file_uuids {
             if let Ok(copied_file) = copy_file(file_id, &new_folder_metadata, file_conflict_resolution.clone(), None) {
                 folder_uuid_to_metadata.with_mut(|map| {
-                    if let Some(folder) = map.get_mut(&new_folder_uuid) {
+                    if let Some(mut folder) = map.get(&new_folder_uuid) {
                         folder.file_uuids.push(copied_file.id.clone());
+                        map.insert(new_folder_uuid.clone(), folder);
                     }
                 });
             }
@@ -1188,11 +1204,12 @@ pub mod drive {
     
         // Update file metadata
         file_uuid_to_metadata.with_mut(|map| {
-            if let Some(file) = map.get_mut(file_id) {
+            if let Some(mut file) = map.get(file_id) {
                 file.name = final_name;
                 file.parent_folder_uuid = destination_folder.id.clone();
                 file.full_directory_path = DriveFullFilePath(final_path.clone());
                 file.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(file_id.clone(), file);
             }
         });
     
@@ -1201,17 +1218,19 @@ pub mod drive {
     
         // Remove file from source folder
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&source_folder_id) {
+            if let Some(mut folder) = map.get(&source_folder_id) {
                 folder.file_uuids.retain(|id| id != file_id);
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(source_folder_id.clone(), folder);
             }
         });
     
         // Add file to destination folder
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(&destination_folder.id) {
+            if let Some(mut folder) = map.get(&destination_folder.id) {
                 folder.file_uuids.push(file_id.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(destination_folder.id.clone(), folder);
             }
         });
     
@@ -1261,11 +1280,12 @@ pub mod drive {
         
         // Update folder metadata using with_mut.
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(folder) = map.get_mut(folder_id) {
+            if let Some(mut folder) = map.get(folder_id) {
                 folder.name = final_name.clone();
                 folder.parent_folder_uuid = Some(destination_folder.id.clone());
                 folder.full_directory_path = DriveFullFilePath(final_path.clone());
                 folder.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(folder_id.clone(), folder);
             }
         });
     
@@ -1281,18 +1301,20 @@ pub mod drive {
         // Remove folder from old parent's subfolder list.
         if let Some(old_parent_id) = &source_folder.parent_folder_uuid {
             folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(parent) = map.get_mut(old_parent_id) {
+                if let Some(mut parent) = map.get(old_parent_id) {
                     parent.subfolder_uuids.retain(|id| id != folder_id);
                     parent.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                    map.insert(old_parent_id.clone(), parent);
                 }
             });
         }
     
         // Add folder to new parent's subfolder list.
         folder_uuid_to_metadata.with_mut(|map| {
-            if let Some(new_parent) = map.get_mut(&destination_folder.id) {
+            if let Some(mut new_parent) = map.get(&destination_folder.id) {
                 new_parent.subfolder_uuids.push(folder_id.clone());
                 new_parent.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                map.insert(destination_folder.id.clone(), new_parent);
             }
         });
     
@@ -1354,7 +1376,7 @@ pub mod drive {
                         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                             map.borrow()
                                 .get(&disk_id)
-                                .cloned()
+                                .map(|d| d.clone())
                         }).ok_or_else(|| "Disk not found".to_string())?;
                         let root_folder = folder_uuid_to_metadata
                             .get(&disk.root_folder.clone())
@@ -1387,19 +1409,21 @@ pub mod drive {
                     // Process subfolders
                     for subfolder_id in &current_folder.subfolder_uuids {
                         folder_uuid_to_metadata.with_mut(|map| {
-                            if let Some(subfolder) = map.get_mut(subfolder_id) {
+                            if let Some(mut subfolder) = map.get(subfolder_id) {
                                 subfolder.restore_trash_prior_folder_uuid = None;
+                                map.insert(subfolder_id.clone(), subfolder);
                             }
                         });
                         restored_folders.push(subfolder_id.clone());
                         stack.push(subfolder_id.clone());
                     }
-
+            
                     // Process files
                     for file_id in &current_folder.file_uuids {
                         file_uuid_to_metadata.with_mut(|map| {
-                            if let Some(file) = map.get_mut(file_id) {
+                            if let Some(mut file) = map.get(file_id) {
                                 file.restore_trash_prior_folder_uuid = None;
+                                map.insert(file_id.clone(), file);
                             }
                         });
                         restored_files.push(file_id.clone());
@@ -1409,8 +1433,9 @@ pub mod drive {
 
             // Clear restore_trash_prior_folder_uuid for the main folder
             folder_uuid_to_metadata.with_mut(|map| {
-                if let Some(folder) = map.get_mut(&folder_id) {
+                if let Some(mut folder) = map.get(&folder_id) {
                     folder.restore_trash_prior_folder_uuid = None;
+                    map.insert(folder_id.clone(), folder);
                 }
             });
 
@@ -1461,7 +1486,7 @@ pub mod drive {
                         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
                             map.borrow()
                                 .get(&disk_id)
-                                .cloned()
+                                .map(|d| d.clone())
                         }).ok_or_else(|| "Disk not found".to_string())?;
                         let root_folder = folder_uuid_to_metadata
                             .get(&disk.root_folder.clone())
@@ -1488,8 +1513,9 @@ pub mod drive {
 
             // Clear restore_trash_prior_folder_uuid
             file_uuid_to_metadata.with_mut(|map| {
-                if let Some(file) = map.get_mut(&file_id) {
+                if let Some(mut file) = map.get(&file_id) {
                     file.restore_trash_prior_folder_uuid = None;
+                    map.insert(file_id.clone(), file);
                 }
             });
 

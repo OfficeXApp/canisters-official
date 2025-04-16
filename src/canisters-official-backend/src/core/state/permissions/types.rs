@@ -1,6 +1,8 @@
+use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/permissions/types.rs
 use serde::{Serialize, Deserialize};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use std::collections::HashSet;
 use serde_diff::{SerdeDiff};
 
@@ -10,8 +12,27 @@ use crate::{core::{
     }, types::{IDPrefix, UserID}
 }, rest::{directory::types::DirectoryResourceID, permissions::types::{DirectoryPermissionFE, SystemPermissionFE}}};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct DirectoryPermissionID(pub String);
+
+impl Storable for DirectoryPermissionID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize DirectoryPermissionID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize DirectoryPermissionID")
+    }
+}
 
 impl fmt::Display for DirectoryPermissionID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -19,7 +40,7 @@ impl fmt::Display for DirectoryPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct PlaceholderPermissionGranteeID(pub String);
 
 impl fmt::Display for PlaceholderPermissionGranteeID {
@@ -28,7 +49,7 @@ impl fmt::Display for PlaceholderPermissionGranteeID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DirectoryPermissionType {
     View,
@@ -52,12 +73,30 @@ impl fmt::Display for DirectoryPermissionType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub enum PermissionGranteeID {
     Public,
     User(UserID),
     Group(GroupID),
     PlaceholderDirectoryPermissionGrantee(PlaceholderPermissionGranteeID),
+}
+impl Storable for PermissionGranteeID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize PermissionGranteeID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize PermissionGranteeID")
+    }
 }
 impl fmt::Display for PermissionGranteeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -72,7 +111,7 @@ impl fmt::Display for PermissionGranteeID {
 pub const PUBLIC_GRANTEE_ID: &str = "PUBLIC";
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd, PartialEq, Eq)]
 pub struct DirectoryPermission {
     pub id: DirectoryPermissionID,
     pub resource_id: DirectoryResourceID,
@@ -92,6 +131,25 @@ pub struct DirectoryPermission {
     pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
+}
+
+impl Storable for DirectoryPermission {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize DirectoryPermission");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize DirectoryPermission")
+    }
 }
 
 impl DirectoryPermission {
@@ -218,8 +276,27 @@ impl DirectoryPermission {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 pub struct SystemPermissionID(pub String);
+
+impl Storable for SystemPermissionID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize SystemPermissionID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize SystemPermissionID")
+    }
+}
 
 impl fmt::Display for SystemPermissionID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -227,7 +304,7 @@ impl fmt::Display for SystemPermissionID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemPermissionType {
     Create,
@@ -237,14 +314,14 @@ pub enum SystemPermissionType {
     Invite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemTableEnum {
     Drives,
     Disks,
     Contacts,
     Groups,
-    Api_Keys,
+    ApiKeys,
     Permissions,
     Webhooks,
     Labels,
@@ -258,7 +335,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Disks => write!(f, "DISKS"),
             SystemTableEnum::Contacts => write!(f, "CONTACTS"),
             SystemTableEnum::Groups => write!(f, "GROUPS"),
-            SystemTableEnum::Api_Keys => write!(f, "API_KEYS"),
+            SystemTableEnum::ApiKeys => write!(f, "API_KEYS"),
             SystemTableEnum::Permissions => write!(f, "PERMISSIONS"), // special enum, there is no record based permission permission, only a system wide permission that can edit all permissions
             SystemTableEnum::Webhooks => write!(f, "WEBHOOKS"),
             SystemTableEnum::Labels => write!(f, "LABELS"),
@@ -267,7 +344,7 @@ impl fmt::Display for SystemTableEnum {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 pub enum SystemRecordIDEnum {
     Drive(String),        // DriveID_xxx
     Disk(String),         // DiskID_xxx
@@ -278,6 +355,25 @@ pub enum SystemRecordIDEnum {
     Webhook(String),      // WebhookID_xxx
     Label(String),          // LabelID_xxx
     Unknown(String), // General catch
+}
+
+impl Storable for SystemRecordIDEnum {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize SystemRecordIDEnum");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize SystemRecordIDEnum")
+    }
 }
 
 impl fmt::Display for SystemRecordIDEnum {
@@ -296,10 +392,28 @@ impl fmt::Display for SystemRecordIDEnum {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub enum SystemResourceID {
     Table(SystemTableEnum),
     Record(SystemRecordIDEnum), // Stores the full ID like "DiskID_123"
+}
+impl Storable for SystemResourceID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize SystemResourceID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize SystemResourceID")
+    }
 }
 
 impl fmt::Display for SystemResourceID {
@@ -311,7 +425,7 @@ impl fmt::Display for SystemResourceID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct SystemPermission {
     pub id: SystemPermissionID,
     pub resource_id: SystemResourceID,
@@ -329,6 +443,25 @@ pub struct SystemPermission {
     pub metadata: Option<PermissionMetadata>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
+}
+
+impl Storable for SystemPermission {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize SystemPermission");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize SystemPermission")
+    }
 }
 
 impl SystemPermission {
@@ -495,7 +628,7 @@ impl SystemPermission {
 }
 
 // LabelStringValuePrefix definition
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct LabelStringValuePrefix(pub String);
 
 impl fmt::Display for LabelStringValuePrefix {
@@ -505,14 +638,14 @@ impl fmt::Display for LabelStringValuePrefix {
 }
 
 // The main metadata container
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub struct PermissionMetadata {
     pub metadata_type: PermissionMetadataTypeEnum, // Using existing enum but not assuming table connection
     pub content: PermissionMetadataContent,
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PermissionMetadataTypeEnum {
     Labels,
@@ -530,9 +663,157 @@ impl fmt::Display for PermissionMetadataTypeEnum {
 
 
 // Define an enum for different types of metadata
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd, PartialEq, Eq, Hash)]
 pub enum PermissionMetadataContent {
     Labels(LabelStringValuePrefix),
     DirectoryPassword(String),
     // Future types can be added here without breaking changes
 }
+
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize, SerdeDiff)]
+pub struct DirectoryPermissionIDList {
+    pub permissions: Vec<DirectoryPermissionID>,
+}
+
+impl Default for DirectoryPermissionIDList {
+    fn default() -> Self {
+        Self { permissions: Vec::new() }
+    }
+}
+
+impl DirectoryPermissionIDList {
+    pub fn new() -> Self {
+        Self { permissions: Vec::new() }
+    }
+    
+    pub fn with_permission(permission_id: DirectoryPermissionID) -> Self {
+        Self { permissions: vec![permission_id] }
+    }
+    
+    pub fn add(&mut self, permission_id: DirectoryPermissionID) {
+        self.permissions.push(permission_id);
+    }
+    
+    pub fn remove(&mut self, permission_id: &DirectoryPermissionID) -> bool {
+        if let Some(pos) = self.permissions.iter().position(|k| k == permission_id) {
+            self.permissions.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn iter(&self) -> impl Iterator<Item = &DirectoryPermissionID> {
+        self.permissions.iter()
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.permissions.is_empty()
+    }
+}
+
+// From<Vec<DirectoryPermissionID>> for DirectoryPermissionIDList
+impl From<Vec<DirectoryPermissionID>> for DirectoryPermissionIDList {
+    fn from(permissions: Vec<DirectoryPermissionID>) -> Self {
+        Self { permissions }
+    }
+}
+
+// From<DirectoryPermissionIDList> for Vec<DirectoryPermissionID>
+impl From<DirectoryPermissionIDList> for Vec<DirectoryPermissionID> {
+    fn from(list: DirectoryPermissionIDList) -> Self {
+        list.permissions
+    }
+}
+
+
+impl Storable for DirectoryPermissionIDList {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 1024 * 4, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = candid::encode_one(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
+}
+
+// Same for SystemPermissionIDList
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize, SerdeDiff)]
+pub struct SystemPermissionIDList {
+    pub permissions: Vec<SystemPermissionID>,
+}
+
+impl SystemPermissionIDList {
+    pub fn new() -> Self {
+        Self { permissions: Vec::new() }
+    }
+    
+    pub fn with_permission(permission_id: SystemPermissionID) -> Self {
+        Self { permissions: vec![permission_id] }
+    }
+    
+    pub fn add(&mut self, permission_id: SystemPermissionID) {
+        self.permissions.push(permission_id);
+    }
+    
+    pub fn remove(&mut self, permission_id: &SystemPermissionID) -> bool {
+        if let Some(pos) = self.permissions.iter().position(|k| k == permission_id) {
+            self.permissions.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn iter(&self) -> impl Iterator<Item = &SystemPermissionID> {
+        self.permissions.iter()
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.permissions.is_empty()
+    }
+}
+
+// From<Vec<SystemPermissionID>> for SystemPermissionIDList
+impl From<Vec<SystemPermissionID>> for SystemPermissionIDList {
+    fn from(permissions: Vec<SystemPermissionID>) -> Self {
+        Self { permissions }
+    }
+}
+
+// From<SystemPermissionIDList> for Vec<SystemPermissionID>
+impl From<SystemPermissionIDList> for Vec<SystemPermissionID> {
+    fn from(list: SystemPermissionIDList) -> Self {
+        list.permissions
+    }
+}
+
+// default empty vec
+impl Default for SystemPermissionIDList {
+    fn default() -> Self {
+        Self { permissions: Vec::new() }
+    }
+}
+
+impl Storable for SystemPermissionIDList {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 1024 * 4, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = candid::encode_one(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
+}
+

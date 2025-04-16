@@ -8,7 +8,7 @@ pub mod webhooks_handlers {
         core::{
             api::{permissions::system::check_system_permissions, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}},
             state::{drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, webhooks::{
-                state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID}
+                state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST, WEBHOOKS_BY_TIME_MEMORY_ID}, types::{Webhook, WebhookAltIndexID, WebhookEventLabel, WebhookID, WebhookIDList}
             }}, types::IDPrefix
         },
         debug_log,
@@ -16,11 +16,12 @@ pub mod webhooks_handlers {
             auth::{authenticate_request, create_auth_error_response}, webhooks::types::{
                 CreateWebhookRequestBody, CreateWebhookResponse, DeleteWebhookRequest, DeleteWebhookResponse, DeletedWebhookData, ErrorResponse, GetWebhookResponse, ListWebhooksRequestBody, ListWebhooksResponse, ListWebhooksResponseData, SortDirection, UpdateWebhookRequestBody, UpdateWebhookResponse
             }
-        },
+        }, MEMORY_MANAGER,
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
+    use ic_stable_structures::StableVec;
 
     pub async fn get_webhook_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
@@ -35,7 +36,7 @@ pub mod webhooks_handlers {
 
 
         // Only owner can access webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         if !is_owner {
             let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
             let record_permissions = check_system_permissions(
@@ -54,7 +55,7 @@ pub mod webhooks_handlers {
 
         // Get the webhook
         let webhook = WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&webhook_id).cloned()
+            store.borrow().get(&webhook_id).clone()
         });
 
 
@@ -78,7 +79,7 @@ pub mod webhooks_handlers {
         };
     
         // Check if user is owner (for optimization)
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
         let has_table_permission = if !is_owner {
             let resource_id = SystemResourceID::Table(SystemTableEnum::Webhooks);
@@ -140,11 +141,11 @@ pub mod webhooks_handlers {
     
         // Determine starting point based on cursor
         let start_index = if let Some(cursor_idx) = start_cursor {
-            cursor_idx.min(total_count - 1)
+            cursor_idx.min((total_count - 1) as usize)
         } else {
             match request_body.direction {
                 SortDirection::Asc => 0,
-                SortDirection::Desc => total_count - 1,
+                SortDirection::Desc => (total_count - 1) as usize,
             }
         };
     
@@ -163,7 +164,7 @@ pub mod webhooks_handlers {
                 // First pass: Count total accessible records (for accurate pagination info)
                 if !is_owner {
                     for webhook_id in time_index.iter() {
-                        if let Some(webhook) = id_store.get(webhook_id) {
+                        if let Some(webhook) = id_store.get(&webhook_id) {
                             // Check if user has permission to view this specific webhook
                             let resource_id = SystemResourceID::Record(
                                 SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
@@ -190,30 +191,32 @@ pub mod webhooks_handlers {
                     SortDirection::Desc => {
                         // Newest first
                         let mut current_idx = start_index;
-                        while filtered_webhooks.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(webhook) = id_store.get(&time_index[current_idx]) {
+                        while filtered_webhooks.len() < request_body.page_size && current_idx < total_count as usize {
+                            if let Some(webhook_id) = time_index.get(current_idx as u64) {
+                                if let Some(webhook) = id_store.get(&webhook_id) {
                                 // Check text filter first (cheaper operation)
                                 let passes_filter = request_body.filters.is_empty() || 
                                                    webhook.event.to_string().contains(&request_body.filters);
                                 
                                 if passes_filter {
-                                    // Then check permissions for this specific webhook
-                                    let has_permission = if is_owner {
-                                        true // Owner can access everything
-                                    } else {
-                                        let resource_id = SystemResourceID::Record(
-                                            SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
-                                        );
+                                        // Then check permissions for this specific webhook
+                                        let has_permission = if is_owner {
+                                            true // Owner can access everything
+                                        } else {
+                                            let resource_id = SystemResourceID::Record(
+                                                SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
+                                            );
+                                            
+                                            check_system_permissions(
+                                                resource_id,
+                                                PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                            ).contains(&SystemPermissionType::View)
+                                        };
                                         
-                                        check_system_permissions(
-                                            resource_id,
-                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                                        ).contains(&SystemPermissionType::View)
-                                    };
-                                    
-                                    if has_permission || has_table_permission {
-                                        viewed_count += 1;
-                                        filtered_webhooks.push(webhook.clone());
+                                        if has_permission || has_table_permission {
+                                            viewed_count += 1;
+                                            filtered_webhooks.push(webhook.clone());
+                                        }
                                     }
                                 }
                             }
@@ -229,37 +232,39 @@ pub mod webhooks_handlers {
                     SortDirection::Asc => {
                         // Oldest first
                         let mut current_idx = start_index;
-                        while filtered_webhooks.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(webhook) = id_store.get(&time_index[current_idx]) {
-                                // Check text filter first (cheaper operation)
-                                let passes_filter = request_body.filters.is_empty() || 
-                                                   webhook.event.to_string().contains(&request_body.filters);
-                                
-                                if passes_filter {
-                                    // Then check permissions for this specific webhook
-                                    let has_permission = if is_owner {
-                                        true // Owner can access everything
-                                    } else {
-                                        let resource_id = SystemResourceID::Record(
-                                            SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
-                                        );
-                                        
-                                        check_system_permissions(
-                                            resource_id,
-                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
-                                        ).contains(&SystemPermissionType::View)
-                                    };
+                        while filtered_webhooks.len() < request_body.page_size && current_idx < total_count as usize {
+                            if let Some(webhook_id) = time_index.get(current_idx as u64) {
+                                if let Some(webhook) = id_store.get(&webhook_id) {
+                                    // Check text filter first (cheaper operation)
+                                    let passes_filter = request_body.filters.is_empty() || 
+                                                    webhook.event.to_string().contains(&request_body.filters);
                                     
-                                    if has_permission || has_table_permission {
-                                        viewed_count += 1;
-                                        filtered_webhooks.push(webhook.clone());
+                                    if passes_filter {
+                                        // Then check permissions for this specific webhook
+                                        let has_permission = if is_owner {
+                                            true // Owner can access everything
+                                        } else {
+                                            let resource_id = SystemResourceID::Record(
+                                                SystemRecordIDEnum::Webhook(webhook.id.clone().to_string())
+                                            );
+                                            
+                                            check_system_permissions(
+                                                resource_id,
+                                                PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                            ).contains(&SystemPermissionType::View)
+                                        };
+                                        
+                                        if has_permission || has_table_permission {
+                                            viewed_count += 1;
+                                            filtered_webhooks.push(webhook.clone());
+                                        }
                                     }
                                 }
                             }
                             
                             current_idx += 1;
                             processed_count += 1;
-                            if current_idx >= total_count {
+                            if current_idx >= total_count as usize {
                                 break;
                             }
                         }
@@ -280,7 +285,7 @@ pub mod webhooks_handlers {
                     }
                 },
                 SortDirection::Asc => {
-                    if end_index < total_count - 1 {
+                    if end_index < total_count as usize - 1 {
                         Some((end_index + 1).to_string())
                     } else {
                         None
@@ -297,7 +302,7 @@ pub mod webhooks_handlers {
                 webhook.cast_fe(&requester_api_key.user_id)
             }).collect(),
             page_size: filtered_webhooks.len(),
-            total: total_accessible_count, // Use the count of accessible records
+            total: total_accessible_count as usize, // Use the count of accessible records
             direction: request_body.direction,
             cursor: next_cursor,
         };
@@ -316,7 +321,7 @@ pub mod webhooks_handlers {
         };
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -372,13 +377,16 @@ pub mod webhooks_handlers {
         // Update state tables – now storing a Vec<WebhookID> without removing others
         WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
             let mut store = store.borrow_mut();
-            store.entry(alt_index.clone())
-                .and_modify(|vec_ids| {
-                    if !vec_ids.contains(&webhook_id) {
-                        vec_ids.push(webhook_id.clone());
-                    }
-                })
-                .or_insert_with(|| vec![webhook_id.clone()]);
+            
+            if let Some(mut webhook_list) = store.get(&alt_index) {
+                if !webhook_list.contains(&webhook_id) {
+                    webhook_list.add(webhook_id.clone());
+                }
+                store.insert(alt_index.clone(), webhook_list);
+            } else {
+                let new_list = WebhookIDList::with_webhook(webhook_id.clone());
+                store.insert(alt_index.clone(), new_list);
+            }
         });
 
         WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
@@ -386,7 +394,7 @@ pub mod webhooks_handlers {
         });
 
         WEBHOOKS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().push(webhook_id.clone());
+            store.borrow_mut().push(&webhook_id.clone());
         });
 
         mark_claimed_uuid(&webhook_id.clone().to_string());
@@ -414,7 +422,7 @@ pub mod webhooks_handlers {
         };
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -430,7 +438,7 @@ pub mod webhooks_handlers {
         let webhook_id = WebhookID(update_req.id);
         
         // Get existing webhook
-        let mut webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {
+        let mut webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).clone()) {
             Some(hook) => hook,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -537,7 +545,7 @@ pub mod webhooks_handlers {
         let webhook_id = WebhookID(delete_request.id.clone());
 
         // Only owner can manage webhooks
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         if !is_owner {
             let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Webhook(webhook_id.to_string()));
             let record_permissions = check_system_permissions(
@@ -557,7 +565,7 @@ pub mod webhooks_handlers {
         let prestate = snapshot_prestate();
 
         // Get webhook to delete
-        let webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).cloned()) {
+        let webhook = match WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&webhook_id).clone()) {
             Some(hook) => hook,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -569,11 +577,15 @@ pub mod webhooks_handlers {
 
         // Remove from all hashtables
         WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
-            let mut map = store.borrow_mut();
-            if let Some(ids) = map.get_mut(&webhook.alt_index) {
-                ids.retain(|id| id != &webhook_id);
-                if ids.is_empty() {
-                    map.remove(&webhook.alt_index);
+            let mut store = store.borrow_mut();
+            
+            if let Some(mut webhook_list) = store.get(&webhook.alt_index) {
+                webhook_list.remove(&webhook_id); // Using the method you already defined
+                
+                if webhook_list.is_empty() {
+                    store.remove(&webhook.alt_index);
+                } else {
+                    store.insert(webhook.alt_index.clone(), webhook_list);
                 }
             }
         });
@@ -583,7 +595,33 @@ pub mod webhooks_handlers {
         });
 
         WEBHOOKS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &webhook_id);
+            let mut time_list = store.borrow_mut();
+            let length = time_list.len();
+            
+            // Create a new vector with the IDs to keep
+            let mut new_indices = Vec::new();
+            
+            // Find indices of entries to keep
+            for i in 0..length {
+                if let Some(id) = time_list.get(i) {
+                    if id != webhook_id {
+                        new_indices.push((i, id.clone()));
+                    }
+                }
+            }
+            
+            // Create a new StableVec
+            let mut new_time_list = StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(WEBHOOKS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize new WEBHOOKS_BY_TIME_LIST");
+            
+            // Add the IDs to the new list
+            for (_, id) in new_indices {
+                new_time_list.push(&id);
+            }
+            
+            // Replace the old list with the new one
+            *time_list = new_time_list;
         });
 
         update_external_id_mapping(old_external_id, None, old_internal_id);

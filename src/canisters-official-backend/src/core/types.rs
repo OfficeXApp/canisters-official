@@ -1,10 +1,12 @@
 
 // src/core/state/types.rs
-use std::fmt;
+use std::{borrow::Cow, fmt};
+use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize};
 use serde_diff::{Diff, SerdeDiff};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct PublicKeyICP(pub String);
 
 impl fmt::Display for PublicKeyICP {
@@ -13,8 +15,28 @@ impl fmt::Display for PublicKeyICP {
     }
 }
 
+impl Storable for PublicKeyICP {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize PublicKeyICP");
+        Cow::Owned(bytes)
+    }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize PublicKeyICP")
+    }
+}
+
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct ICPPrincipalString(pub PublicKeyICP);
 
 impl fmt::Display for ICPPrincipalString {
@@ -23,8 +45,28 @@ impl fmt::Display for ICPPrincipalString {
     }
 }
 
+impl Storable for ICPPrincipalString {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize ICPPrincipalString");
+        Cow::Owned(bytes)
+    }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize ICPPrincipalString")
+    }
+}
+
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct PublicKeyEVM(pub String);
 
 impl fmt::Display for PublicKeyEVM {
@@ -34,7 +76,7 @@ impl fmt::Display for PublicKeyEVM {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ClientSuggestedUUID(pub String);
 
 impl fmt::Display for ClientSuggestedUUID {
@@ -43,8 +85,28 @@ impl fmt::Display for ClientSuggestedUUID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct UserID(pub String);
+
+
+impl Storable for UserID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize UserID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize UserID")
+    }
+}
 
 impl fmt::Display for UserID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -64,7 +126,7 @@ impl UserID {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum IDPrefix {
     File,
     Folder,
@@ -115,7 +177,7 @@ impl IDPrefix {
 
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub enum AuthPrefixEnum {
     ApiKey,
     Signature,
@@ -129,7 +191,7 @@ impl AuthPrefixEnum {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct ParsedAuth {
     pub auth_type: AuthPrefixEnum,
     pub value: String,

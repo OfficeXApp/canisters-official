@@ -95,7 +95,7 @@ pub fn validate_unclaimed_uuid(id: &str) -> Result<(), ValidationError> {
     debug_log!("UUID_CLAIMED: {:?}", UUID_CLAIMED);
 
     // check that this id isnt already claimed
-    if UUID_CLAIMED.with(|claimed| claimed.borrow().contains_key(id)) {
+    if UUID_CLAIMED.with(|claimed| claimed.borrow().contains_key(&id.to_string())) {
         return Err(ValidationError {
             field: "id is not unique".to_string(),
             message: format!("{} is already claimed", id),

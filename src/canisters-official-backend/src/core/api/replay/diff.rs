@@ -5,9 +5,13 @@ use serde_diff::{Diff, SerdeDiff};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use crate::core::state::api_keys::types::ApiKeyIDList;
 use crate::core::state::contacts::state::state::HISTORY_SUPERSWAP_USERID;
-use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS, NONCE_UUID_GENERATED, RECENT_DEPLOYMENTS, SPAWN_NOTE, SPAWN_REDEEM_CODE, UUID_CLAIMED};
-use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, FactorySpawnHistoryRecord, SpawnRedeemCode, StateChecksum, StateDiffRecord};
+use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS, NONCE_UUID_GENERATED, RECENT_DEPLOYMENTS, SPAWN_NOTE, SPAWN_REDEEM_CODE, UUID_CLAIMED, VERSION};
+use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, FactorySpawnHistoryRecord, SpawnRedeemCode, StateChecksum, StateDiffRecord, StringVec};
+use crate::core::state::group_invites::types::GroupInviteIDList;
+use crate::core::state::permissions::types::{DirectoryPermissionIDList, SystemPermissionIDList};
+use crate::core::state::webhooks::types::WebhookIDList;
 use crate::core::types::{ICPPrincipalString, PublicKeyEVM};
 use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}}, disks::{state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupInvite}}, groups::{state::state::{GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
 
@@ -17,6 +21,7 @@ pub struct EntireState {
     // About
     DRIVE_ID: DriveID,
     CANISTER_ID: PublicKeyICP,
+    VERSION: String,
     OWNER_ID: UserID,
     URL_ENDPOINT: DriveRESTUrlEndpoint,
     DRIVE_STATE_TIMESTAMP_NS: u64,
@@ -29,7 +34,7 @@ pub struct EntireState {
     // Api Keys
     APIKEYS_BY_VALUE_HASHTABLE: HashMap<ApiKeyValue, ApiKeyID>,
     APIKEYS_BY_ID_HASHTABLE: HashMap<ApiKeyID, ApiKey>,
-    USERS_APIKEYS_HASHTABLE: HashMap<UserID, Vec<ApiKeyID>>,
+    USERS_APIKEYS_HASHTABLE: HashMap<UserID, ApiKeyIDList>,
     // Contacts
     CONTACTS_BY_ID_HASHTABLE: HashMap<UserID, Contact>,
     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: HashMap<ICPPrincipalString, UserID>,
@@ -72,54 +77,436 @@ pub fn snapshot_entire_state() -> EntireState {
         // About
         DRIVE_ID: DRIVE_ID.with(|drive_id| drive_id.clone()),
         CANISTER_ID: CANISTER_ID.with(|canister_id| canister_id.clone()),
-        OWNER_ID: OWNER_ID.with(|owner_id| owner_id.borrow().clone()),
-        URL_ENDPOINT: URL_ENDPOINT.with(|url| url.borrow().clone()),
-        DRIVE_STATE_TIMESTAMP_NS: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get()),
-        EXTERNAL_ID_MAPPINGS: EXTERNAL_ID_MAPPINGS.with(|store| store.borrow().clone()),
-        RECENT_DEPLOYMENTS: RECENT_DEPLOYMENTS.with(|store| store.borrow().clone()),
-        SPAWN_REDEEM_CODE: SPAWN_REDEEM_CODE.with(|store| store.borrow().clone()),
-        SPAWN_NOTE: SPAWN_NOTE.with(|store| store.borrow().clone()),
-        UUID_CLAIMED: UUID_CLAIMED.with(|store| store.borrow().clone()),
-        NONCE_UUID_GENERATED: NONCE_UUID_GENERATED.with(|store| store.borrow().clone()),
+        VERSION: VERSION.with(|version| version.borrow().get().clone()),
+        OWNER_ID: OWNER_ID.with(|owner_id| owner_id.borrow().get().clone()),
+        URL_ENDPOINT: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
+        DRIVE_STATE_TIMESTAMP_NS: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.borrow().get().clone()),
+        EXTERNAL_ID_MAPPINGS: EXTERNAL_ID_MAPPINGS.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap, converting StringVec to Vec<String>
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.items.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        RECENT_DEPLOYMENTS: RECENT_DEPLOYMENTS.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
+        SPAWN_REDEEM_CODE: SPAWN_REDEEM_CODE.with(|store| store.borrow().get().clone()),
+        SPAWN_NOTE: SPAWN_NOTE.with(|store| store.borrow().get().clone()),
+        UUID_CLAIMED: UUID_CLAIMED.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value);
+                }
+            }
+            
+            hashmap
+        }),
+        NONCE_UUID_GENERATED: NONCE_UUID_GENERATED.with(|store| store.borrow().get().clone()),
         // Api Keys
-        APIKEYS_BY_VALUE_HASHTABLE: APIKEYS_BY_VALUE_HASHTABLE.with(|store| store.borrow().clone()),
-        APIKEYS_BY_ID_HASHTABLE: APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        USERS_APIKEYS_HASHTABLE: USERS_APIKEYS_HASHTABLE.with(|store| store.borrow().clone()),
+        APIKEYS_BY_VALUE_HASHTABLE: APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        APIKEYS_BY_ID_HASHTABLE: APIKEYS_BY_ID_HASHTABLE.with(|store| {
+            // Convert StableBTreeMap to HashMap
+            let mut hashmap = HashMap::new();
+            let btree = store.borrow();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        USERS_APIKEYS_HASHTABLE: USERS_APIKEYS_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
         // Contacts
-        CONTACTS_BY_ID_HASHTABLE: CONTACTS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| store.borrow().clone()),
-        CONTACTS_BY_TIME_LIST: CONTACTS_BY_TIME_LIST.with(|store| store.borrow().clone()),
-        HISTORY_SUPERSWAP_USERID: HISTORY_SUPERSWAP_USERID.with(|store| store.borrow().clone()),
+        CONTACTS_BY_ID_HASHTABLE: CONTACTS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE: CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        CONTACTS_BY_TIME_LIST: CONTACTS_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
+        HISTORY_SUPERSWAP_USERID: HISTORY_SUPERSWAP_USERID.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
         // Directory
-        folder_uuid_to_metadata: folder_uuid_to_metadata.with(|store| store.clone()),
-        file_uuid_to_metadata: file_uuid_to_metadata.with(|store| store.clone()),
-        full_folder_path_to_uuid: full_folder_path_to_uuid.with(|store| store.clone()),
-        full_file_path_to_uuid: full_file_path_to_uuid.with(|store| store.clone()),
+        folder_uuid_to_metadata: folder_uuid_to_metadata.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        file_uuid_to_metadata: file_uuid_to_metadata.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        full_folder_path_to_uuid: full_folder_path_to_uuid.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        full_file_path_to_uuid: full_file_path_to_uuid.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
         // Disks
-        DISKS_BY_ID_HASHTABLE: DISKS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        DISKS_BY_TIME_LIST: DISKS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        DISKS_BY_ID_HASHTABLE: DISKS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DISKS_BY_TIME_LIST: DISKS_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
         // Drives
-        DRIVES_BY_ID_HASHTABLE: DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        DRIVES_BY_TIME_LIST: DRIVES_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        DRIVES_BY_ID_HASHTABLE: DRIVES_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DRIVES_BY_TIME_LIST: DRIVES_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
         // Permissions
-        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE: DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
-        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE: DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| store.borrow().clone()),
-        DIRECTORY_PERMISSIONS_BY_TIME_LIST: DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| store.borrow().clone()),
-        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
-        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| store.borrow().clone()),
-        SYSTEM_PERMISSIONS_BY_TIME_LIST: SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE: DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE: DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DIRECTORY_PERMISSIONS_BY_TIME_LIST: DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| {
+            store.borrow().permissions.clone()
+        }),
+        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        SYSTEM_PERMISSIONS_BY_TIME_LIST: SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| {
+            let list = store.borrow();
+            let mut vec = vec![];
+            for i in 0..list.len() {
+                if let Some(item) = list.get(i) {
+                    vec.push(item.clone());
+                }
+            }
+            vec
+        }),
+        
         // Group Invites
-        INVITES_BY_ID_HASHTABLE: INVITES_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        USERS_INVITES_LIST_HASHTABLE: USERS_INVITES_LIST_HASHTABLE.with(|store| store.borrow().clone()),
+        INVITES_BY_ID_HASHTABLE: INVITES_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        USERS_INVITES_LIST_HASHTABLE: USERS_INVITES_LIST_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.invites.clone());
+                }
+            }
+            
+            hashmap
+        }),
         // Groups
-        GROUPS_BY_ID_HASHTABLE: GROUPS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        GROUPS_BY_TIME_LIST: GROUPS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        GROUPS_BY_ID_HASHTABLE: GROUPS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        GROUPS_BY_TIME_LIST: GROUPS_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
         // Webhooks
-        WEBHOOKS_BY_ALT_INDEX_HASHTABLE: WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| store.borrow().clone()),
-        WEBHOOKS_BY_ID_HASHTABLE: WEBHOOKS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        WEBHOOKS_BY_TIME_LIST: WEBHOOKS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        WEBHOOKS_BY_ALT_INDEX_HASHTABLE: WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.webhooks.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        WEBHOOKS_BY_ID_HASHTABLE: WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        WEBHOOKS_BY_TIME_LIST: WEBHOOKS_BY_TIME_LIST.with(|store| {
+            let stable_vec = store.borrow();
+            let mut vec = Vec::new();
+            
+            // Iterate through all entries and add to Vec
+            for i in 0..stable_vec.len() {
+                if let Some(value) = stable_vec.get(i) {
+                    vec.push(value.clone());
+                }
+            }
+            
+            vec
+        }),
     }
 }
 
@@ -144,7 +531,7 @@ pub fn snapshot_poststate(before_snapshot: Option<EntireState>, notes: Option<St
             match diff_entire_state(before_snapshot, after_snapshot) {
                 Some((forward_diff, backward_diff)) => {
                     // Calculate forward checksum
-                    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone());
+                    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().get().clone());
                     let forward_checksum = calculate_new_checksum(&prev_checksum, &forward_diff);
                     
                     // Calculate backward checksum
@@ -152,12 +539,12 @@ pub fn snapshot_poststate(before_snapshot: Option<EntireState>, notes: Option<St
                     
                     // Update current state checksum to forward checksum
                     DRIVE_STATE_CHECKSUM.with(|cs| {
-                        *cs.borrow_mut() = forward_checksum.clone();
+                        cs.borrow_mut().set(forward_checksum.clone());
                     });
                     
                     // Update timestamp
                     DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
-                        ts.set(ic_cdk::api::time());
+                        ts.borrow_mut().set(ic_cdk::api::time());
                     });
                     
                     fire_state_diff_webhooks(
@@ -234,12 +621,12 @@ pub fn apply_state_diff(diff_data: &DriveStateDiffString, expected_checksum: &St
     
     // Update stored checksum
     DRIVE_STATE_CHECKSUM.with(|cs| {
-        *cs.borrow_mut() = new_checksum.clone();
+        cs.borrow_mut().set(new_checksum.clone());
     });
     
     // Update timestamp
     DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
-        ts.set(ic_cdk::api::time());
+        ts.borrow_mut().set(ic_cdk::api::time());
     });
 
     Ok(new_checksum)
@@ -248,125 +635,438 @@ pub fn apply_state_diff(diff_data: &DriveStateDiffString, expected_checksum: &St
 pub fn apply_entire_state(state: EntireState) {
     
     OWNER_ID.with(|store| {
-        *store.borrow_mut() = state.OWNER_ID;
+        store.borrow_mut().set(state.OWNER_ID);
     });
+    
     URL_ENDPOINT.with(|store| {
-        *store.borrow_mut() = state.URL_ENDPOINT;
+        store.borrow_mut().set(state.URL_ENDPOINT);
     });
+    
     EXTERNAL_ID_MAPPINGS.with(|store| {
-        *store.borrow_mut() = state.EXTERNAL_ID_MAPPINGS;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap, converting Vec<String> to StringVec
+        for (key, values) in state.EXTERNAL_ID_MAPPINGS {
+            btree.insert(key, StringVec { items: values });
+        }
     });
     
     // Api Keys
     APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.APIKEYS_BY_VALUE_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.APIKEYS_BY_VALUE_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     APIKEYS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.APIKEYS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.APIKEYS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     USERS_APIKEYS_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.USERS_APIKEYS_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.USERS_APIKEYS_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     
     // Contacts
     CONTACTS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.CONTACTS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.CONTACTS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     CONTACTS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.CONTACTS_BY_TIME_LIST;
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.CONTACTS_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
+    });
+    HISTORY_SUPERSWAP_USERID.with(|store| {
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.HISTORY_SUPERSWAP_USERID {
+            btree.insert(key, value);
+        }
     });
     
     // Directory
     folder_uuid_to_metadata.with_mut(|map| {
-        *map = state.folder_uuid_to_metadata;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.folder_uuid_to_metadata {
+            map.insert(key, value);
+        }
     });
     file_uuid_to_metadata.with_mut(|map| {
-        *map = state.file_uuid_to_metadata;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.file_uuid_to_metadata {
+            map.insert(key, value);
+        }
     });
+    
     full_folder_path_to_uuid.with_mut(|map| {
-        *map = state.full_folder_path_to_uuid;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.full_folder_path_to_uuid {
+            map.insert(key, value);
+        }
     });
     full_file_path_to_uuid.with_mut(|map| {
-        *map = state.full_file_path_to_uuid;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.full_file_path_to_uuid {
+            map.insert(key, value);
+        }
     });
     
     // Disks
-    DISKS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DISKS_BY_ID_HASHTABLE;
+    DISKS_BY_ID_HASHTABLE.with(|store| { 
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DISKS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
-    DISKS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.DISKS_BY_TIME_LIST;
+    DISKS_BY_TIME_LIST.with(|store| { 
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.DISKS_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
     });
     
     // Drives
     DRIVES_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DRIVES_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DRIVES_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
+    
     DRIVES_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.DRIVES_BY_TIME_LIST;
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.DRIVES_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
     });
     
     // Permissions
     DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE {
+            btree.insert(key, DirectoryPermissionIDList { permissions: value });
+        }
     });
     DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE {
+            btree.insert(key, DirectoryPermissionIDList { permissions: value });
+        }
     });
     DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_TIME_LIST;
+        let mut dir_perm_list = store.borrow_mut();
+        
+        // Clear existing entries
+        while dir_perm_list.permissions.len() > 0 {
+            dir_perm_list.permissions.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.DIRECTORY_PERMISSIONS_BY_TIME_LIST {
+            dir_perm_list.permissions.push(value);
+        }
     });
     SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.SYSTEM_PERMISSIONS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE {
+            btree.insert(key, SystemPermissionIDList { permissions: value });
+        }
     });
     SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE {
+            btree.insert(key, SystemPermissionIDList { permissions: value });
+        }
     });
     SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_TIME_LIST;
+        let mut sys_perm_list = store.borrow_mut();
+    
+        // Clear existing entries
+        while sys_perm_list.len() > 0 {
+            sys_perm_list.pop();
+        }
+    
+        // Insert new entries from Vec
+        for value in &state.SYSTEM_PERMISSIONS_BY_TIME_LIST {
+            sys_perm_list.push(value)
+                .expect("Failed to push system permission ID");
+        }
     });
+    
     
     // Group Invites
     INVITES_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.INVITES_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.INVITES_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     USERS_INVITES_LIST_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.USERS_INVITES_LIST_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.USERS_INVITES_LIST_HASHTABLE {
+            // Convert Vec<GroupInviteID> to GroupInviteIDList if needed
+            btree.insert(key, GroupInviteIDList { invites: value });
+        }
     });
     
     // Groups
     GROUPS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.GROUPS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.GROUPS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     GROUPS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.GROUPS_BY_TIME_LIST;
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.GROUPS_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
     });
     
     // Webhooks
     WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.WEBHOOKS_BY_ALT_INDEX_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.WEBHOOKS_BY_ALT_INDEX_HASHTABLE {
+            // Convert Vec<WebhookID> to WebhookIDList if needed
+            btree.insert(key, WebhookIDList { webhooks: value});
+        }
     });
     WEBHOOKS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.WEBHOOKS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.WEBHOOKS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     WEBHOOKS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.WEBHOOKS_BY_TIME_LIST;
+        let mut stable_vec = store.borrow_mut();
+        
+        // Clear existing entries
+        while stable_vec.len() > 0 {
+            stable_vec.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.WEBHOOKS_BY_TIME_LIST {
+            stable_vec.push(&value);
+        }
     });
 }
 
 // Update checksum based on a diff
 pub fn update_checksum_for_state_diff(diff_string: DriveStateDiffString) {
     // Get previous checksum
-    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().0.clone());
+    let prev_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().get().0.clone());
     
     // Input for hash includes previous checksum and new diff
     let input = format!("{}:{}", prev_checksum, diff_string);
@@ -376,12 +1076,12 @@ pub fn update_checksum_for_state_diff(diff_string: DriveStateDiffString) {
     
     // Update stored checksum
     DRIVE_STATE_CHECKSUM.with(|cs| {
-        *cs.borrow_mut() = StateChecksum(new_checksum);
+        cs.borrow_mut().set(StateChecksum(new_checksum));
     });
     
     // Update timestamp
     DRIVE_STATE_TIMESTAMP_NS.with(|ts| {
-        ts.set(ic_cdk::api::time());
+        ts.borrow_mut().set(ic_cdk::api::time());
     });
 }
 
@@ -434,12 +1134,12 @@ pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<Dr
     }
     
     // Determine direction by checking timestamps
-    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.get());
+    let current_timestamp = DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.borrow().get().clone());
     let is_reverse = diffs[0].timestamp_ns < current_timestamp;
     
     // Backup current state and checksum
     let backup_state = snapshot_entire_state();
-    let original_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().clone());
+    let original_checksum = DRIVE_STATE_CHECKSUM.with(|cs| cs.borrow().get().clone());
     
     // Sort diffs appropriately for the direction
     let mut sorted_diffs = diffs.to_vec();
@@ -469,7 +1169,7 @@ pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<Dr
             // Chain validation failed - rollback
             apply_entire_state(backup_state);
             DRIVE_STATE_CHECKSUM.with(|cs| {
-                *cs.borrow_mut() = original_checksum.clone();
+                cs.borrow_mut().set(original_checksum.clone());
             });
             
             return Err(format!(
@@ -489,7 +1189,7 @@ pub fn safely_apply_diffs(diffs: &[StateDiffRecord]) -> Result<(usize, Option<Dr
                 // Application error - rollback
                 apply_entire_state(backup_state);
                 DRIVE_STATE_CHECKSUM.with(|cs| {
-                    *cs.borrow_mut() = original_checksum.clone();
+                    cs.borrow_mut().set(original_checksum.clone());
                 });
                 
                 return Err(format!("Failed to apply diff {}: {}", diff.id, e));

@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, groups::{state::state::{is_user_on_local_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::GroupID}, permissions::{state::state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}}, types::UserID};
+use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{drives::state::state::OWNER_ID, groups::{state::state::{is_user_on_local_group, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::GroupID}, permissions::{state::{helpers::{get_system_permission_by_id, get_system_permission_ids_for_resource}, state::{SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE}}, types::{PermissionGranteeID, PermissionMetadataContent, PermissionMetadataTypeEnum, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum, PUBLIC_GRANTEE_ID}}}, types::UserID}, debug_log};
 
 use super::directory::parse_permission_grantee_id;
 
@@ -86,16 +86,24 @@ pub fn check_system_permissions(
     // If the grantee is a user, also check group permissions
     if let PermissionGranteeID::User(user_id) = &grantee_id {
         // Check all groups the user is a member of (using GROUPS_BY_TIME_LIST)
-        crate::core::state::groups::state::state::GROUPS_BY_TIME_LIST.with(|group_list| {
+        GROUPS_BY_TIME_LIST.with(|group_list| {
+            
+            
             for group_id in group_list.borrow().iter() {
-                // Use the existing is_user_on_local_group function
-                if crate::core::state::groups::state::state::is_user_on_local_group(user_id, &crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned().unwrap())) {
-                    // Add this group's permissions
-                    let group_permissions = check_system_resource_permissions(
-                        &resource_id,
-                        &PermissionGranteeID::Group(group_id.clone()),
-                    );
-                    all_permissions.extend(group_permissions);
+                // Check if the group exists in the hashtable
+                let group_exists = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().contains_key(&group_id));
+                
+                if group_exists {
+                    if let Some(group) = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(&group_id).clone()) {
+                        if is_user_on_local_group(user_id, &group) {
+                            // Add this group's permissions
+                            let group_permissions = check_system_resource_permissions(
+                                &resource_id,
+                                &PermissionGranteeID::Group(group_id.clone()),
+                            );
+                            all_permissions.extend(group_permissions);
+                        }
+                    }
                 }
             }
         });
@@ -112,9 +120,9 @@ fn check_system_resource_permissions(
 ) -> HashSet<SystemPermissionType> {
     let mut permissions_set = HashSet::new();
 
-    // check if grantee_id is OWNER_ID, and if so then just return all permissions
+    // Check if grantee_id is OWNER_ID, and if so then just return all permissions
     if let PermissionGranteeID::User(user_id) = grantee_id {
-        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| user_id == &*owner_id.borrow().get());
         if is_owner {
             let mut owner_permissions = HashSet::new();
             owner_permissions.insert(SystemPermissionType::Create);
@@ -126,65 +134,60 @@ fn check_system_resource_permissions(
         }
     }
     
-    // Get all permission IDs for this resource
-    SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-        if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
-            // Check each permission
-            SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
-                let permissions = permissions_by_id.borrow();
-                
-                for permission_id in permission_ids {
-                    if let Some(permission) = permissions.get(permission_id) {
-                        // Skip if permission is expired or not yet active
-                        let current_time = ic_cdk::api::time() as i64;
-                        if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
-                            continue;
+    // Get all permission IDs for this resource using helper
+    if let Some(permission_ids) = get_system_permission_ids_for_resource(resource_id) {
+        // Check each permission
+        for permission_id in &permission_ids.permissions {
+            // Get permission details using helper
+            if let Some(permission) = get_system_permission_by_id(permission_id) {
+                // Skip if permission is expired or not yet active
+                let current_time = (ic_cdk::api::time() / 1_000_000) as i64;
+                if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
+                    continue;
+                }
+                if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
+                    continue;
+                }
+
+                let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
+                    Ok(parsed_grantee) => parsed_grantee,
+                    Err(_) => continue, // Skip if parsing fails
+                };
+
+                // Check if permission applies to this grantee
+                let applies = match &permission_granted_to {
+                    // If permission is public, anyone can access
+                    PermissionGranteeID::Public => true,
+                    // For other types, just match the raw IDs since we don't validate type
+                    PermissionGranteeID::User(permission_user_id) => {
+                        if let PermissionGranteeID::User(request_user_id) = grantee_id {
+                            permission_user_id.0 == request_user_id.0
+                        } else {
+                            false
                         }
-                        if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
-                            continue;
+                    },
+                    PermissionGranteeID::Group(permission_group_id) => {
+                        if let PermissionGranteeID::Group(request_group_id) = grantee_id {
+                            permission_group_id.0 == request_group_id.0
+                        } else {
+                            false
                         }
-
-                        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
-                            Ok(parsed_grantee) => parsed_grantee,
-                            Err(_) => continue, // Skip if parsing fails
-                        };
-
-                        // Check if permission applies to this grantee
-                        let applies = match &permission_granted_to {
-                            // If permission is public, anyone can access
-                            PermissionGranteeID::Public => true,
-                            // For other types, just match the raw IDs since we don't validate type
-                            PermissionGranteeID::User(permission_user_id) => {
-                                if let PermissionGranteeID::User(request_user_id) = grantee_id {
-                                    permission_user_id.0 == request_user_id.0
-                                } else {
-                                    false
-                                }
-                            },
-                            PermissionGranteeID::Group(permission_group_id) => {
-                                if let PermissionGranteeID::Group(request_group_id) = grantee_id {
-                                    permission_group_id.0 == request_group_id.0
-                                } else {
-                                    false
-                                }
-                            },
-                            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
-                                if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
-                                    permission_link_id.0 == request_link_id.0
-                                } else {
-                                    false
-                                }
-                            }
-                        };
-
-                        if applies {
-                            permissions_set.extend(permission.permission_types.iter().cloned());
+                    },
+                    PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
+                        if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
+                            permission_link_id.0 == request_link_id.0
+                        } else {
+                            false
                         }
                     }
+                };
+
+                if applies {
+                    permissions_set.extend(permission.permission_types.iter().cloned());
                 }
-            });
+            }
         }
-    });
+    }
     
     permissions_set
 }
@@ -236,7 +239,7 @@ pub fn check_system_resource_permissions_labels(
         GROUPS_BY_TIME_LIST.with(|group_list| {
             for group_id in group_list.borrow().iter() {
                 // Use the existing is_user_on_local_group function
-                if is_user_on_local_group(user_id, &GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned().unwrap())) {
+                if is_user_on_local_group(user_id, &GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(&group_id).clone().unwrap())) {
                     // Add this group's permissions
                     let group_permissions = check_system_resource_permissions_labels_internal(
                         resource_id,
@@ -260,87 +263,82 @@ fn check_system_resource_permissions_labels_internal(
 ) -> HashSet<SystemPermissionType> {
     let mut permissions_set = HashSet::new();
     
-    // Get all permission IDs for this resource
-    SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-        if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
-            // Check each permission
-            SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
-                let permissions = permissions_by_id.borrow();
-                
-                for permission_id in permission_ids {
-                    if let Some(permission) = permissions.get(permission_id) {
-                        // Skip if permission is expired or not yet active
-                        let current_time = ic_cdk::api::time() as i64;
-                        if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
-                            continue;
+    // Get all permission IDs for this resource using helper
+    if let Some(permission_ids) = get_system_permission_ids_for_resource(resource_id) {
+        // Check each permission
+        for permission_id in &permission_ids.permissions {
+            // Get permission details using helper
+            if let Some(permission) = get_system_permission_by_id(permission_id) {
+                // Skip if permission is expired or not yet active
+                let current_time = (ic_cdk::api::time() / 1_000_000) as i64;
+                if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
+                    continue;
+                }
+                if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
+                    continue;
+                }
+
+                let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
+                    Ok(parsed_grantee) => parsed_grantee,
+                    Err(_) => continue, // Skip if parsing fails
+                };
+
+                // Check if permission applies to this grantee
+                let applies = match &permission_granted_to {
+                    // If permission is public, anyone can access
+                    PermissionGranteeID::Public => true,
+                    // For other types, just match the raw IDs since we don't validate type
+                    PermissionGranteeID::User(permission_user_id) => {
+                        if let PermissionGranteeID::User(request_user_id) = grantee_id {
+                            permission_user_id.0 == request_user_id.0
+                        } else {
+                            false
                         }
-                        if permission.begin_date_ms > 0 && permission.begin_date_ms > current_time {
-                            continue;
+                    },
+                    PermissionGranteeID::Group(permission_group_id) => {
+                        if let PermissionGranteeID::Group(request_group_id) = grantee_id {
+                            permission_group_id.0 == request_group_id.0
+                        } else {
+                            false
                         }
-
-                        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
-                            Ok(parsed_grantee) => parsed_grantee,
-                            Err(_) => continue, // Skip if parsing fails
-                        };
-
-                        // Check if permission applies to this grantee
-                        let applies = match &permission_granted_to {
-                            // If permission is public, anyone can access
-                            PermissionGranteeID::Public => true,
-                            // For other types, just match the raw IDs since we don't validate type
-                            PermissionGranteeID::User(permission_user_id) => {
-                                if let PermissionGranteeID::User(request_user_id) = grantee_id {
-                                    permission_user_id.0 == request_user_id.0
-                                } else {
-                                    false
-                                }
-                            },
-                            PermissionGranteeID::Group(permission_group_id) => {
-                                if let PermissionGranteeID::Group(request_group_id) = grantee_id {
-                                    permission_group_id.0 == request_group_id.0
-                                } else {
-                                    false
-                                }
-                            },
-                            PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
-                                if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
-                                    permission_link_id.0 == request_link_id.0
-                                } else {
-                                    false
-                                }
-                            }
-                        };
-
-                        if applies {
-                            // Check if there's metadata and it's a label prefix match
-                            let label_match = match &permission.metadata {
-                                Some(metadata) => {
-                                    if metadata.metadata_type == PermissionMetadataTypeEnum::Labels {
-                                        match &metadata.content {
-                                            PermissionMetadataContent::Labels(prefix) => {
-                                                // Case insensitive prefix check
-                                                label_string_value.to_lowercase()
-                                                    .starts_with(&prefix.0.to_lowercase())
-                                            },
-                                            _ => false
-                                        }
-                                    } else {
-                                        false
-                                    }
-                                },
-                                None => true
-                            };
-
-                            // If there's a label match, add the permission types
-                            if label_match {
-                                permissions_set.extend(permission.permission_types.iter().cloned());
-                            }
+                    },
+                    PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(permission_link_id) => {
+                        if let PermissionGranteeID::PlaceholderDirectoryPermissionGrantee(request_link_id) = grantee_id {
+                            permission_link_id.0 == request_link_id.0
+                        } else {
+                            false
                         }
                     }
+                };
+
+                if applies {
+                    // Check if there's metadata and it's a label prefix match
+                    let label_match = match &permission.metadata {
+                        Some(metadata) => {
+                            if metadata.metadata_type == PermissionMetadataTypeEnum::Labels {
+                                match &metadata.content {
+                                    PermissionMetadataContent::Labels(prefix) => {
+                                        // Case insensitive prefix check
+                                        label_string_value.to_lowercase()
+                                            .starts_with(&prefix.0.to_lowercase())
+                                    },
+                                    _ => false
+                                }
+                            } else {
+                                false
+                            }
+                        },
+                        None => true
+                    };
+
+                    // If there's a label match, add the permission types
+                    if label_match {
+                        permissions_set.extend(permission.permission_types.iter().cloned());
+                    }
                 }
-            });
+            }
         }
-    });
+    }
     
     permissions_set
 }

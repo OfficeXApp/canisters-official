@@ -1,3 +1,4 @@
+use candid::CandidType;
 use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/raw_storage/types.rs
 use serde::{Deserialize, Serialize};
@@ -5,7 +6,7 @@ use serde_diff::SerdeDiff;
 use std::{borrow::Cow, fmt};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, CandidType)]
 pub struct ChunkId(pub String);
 
 impl fmt::Display for ChunkId {
@@ -14,7 +15,7 @@ impl fmt::Display for ChunkId {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct FileChunk {
     pub id: ChunkId,
     pub file_id: String,
@@ -25,7 +26,7 @@ pub struct FileChunk {
 
 pub const CHUNK_SIZE: usize = 3 * 1024 * (1024 / 2); // 1.5MB chunks
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct ChunkIdList(pub Vec<ChunkId>);
 
 impl Storable for ChunkIdList {
@@ -47,7 +48,7 @@ impl Storable for ChunkIdList {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum UploadStatus {
     Queued,     // File is created but no chunks uploaded yet

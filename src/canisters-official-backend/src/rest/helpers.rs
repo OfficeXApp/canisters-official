@@ -59,10 +59,15 @@ pub fn parse_query_string(query: &str) -> std::collections::HashMap<String, Stri
 }
 
 pub fn update_last_online_at(userID: &UserID) {
-    // Update the last online time for the user if theres a contact
+    // Update the last online time for the user if there's a contact
     CONTACTS_BY_ID_HASHTABLE.with(|map| {
-        if let Some(contact) = map.borrow_mut().get_mut(userID) {
+        // First get a mutable borrow
+        let mut map_mut = map.borrow_mut();
+        
+        // Then check if the contact exists, get it, modify it, and insert it back
+        if let Some(mut contact) = map_mut.get(userID).map(|data| data.clone()) {
             contact.last_online_ms = ic_cdk::api::time() / 1_000_000;
+            map_mut.insert(userID.clone(), contact);
         }
     });
 }

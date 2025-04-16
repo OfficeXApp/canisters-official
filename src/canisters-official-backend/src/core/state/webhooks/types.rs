@@ -1,12 +1,14 @@
 // src/core/state/webhooks/types.rs
-use std::fmt;
+use std::{borrow::Cow, fmt};
+use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
 use crate::{core::{api::permissions::system::check_system_permissions, state::{directory::types::{FileID, FolderID}, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}}, types::{IDPrefix, UserID}}, rest::webhooks::types::WebhookFE};
 
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct Webhook {
     pub id: WebhookID,
     pub name: String,
@@ -21,6 +23,22 @@ pub struct Webhook {
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
     pub created_at: u64,
+}
+
+impl Storable for Webhook {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = candid::encode_one(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
 }
 
 impl Webhook {
@@ -55,7 +73,7 @@ impl Webhook {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct WebhookID(pub String);
 impl fmt::Display for WebhookID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -63,14 +81,46 @@ impl fmt::Display for WebhookID {
     }
 }
 
+impl Storable for WebhookID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = candid::encode_one(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct WebhookAltIndexID(pub String);
 impl fmt::Display for WebhookAltIndexID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
+
+impl Storable for WebhookAltIndexID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = candid::encode_one(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
+}
+
 
 impl WebhookAltIndexID {
     pub const ALL_FILES: &'static str = "ALL_FILES";
@@ -112,7 +162,7 @@ impl WebhookAltIndexID {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SerdeDiff, CandidType)]
 #[serde(rename_all = "snake_case")]
 pub enum WebhookEventLabel {
     #[serde(rename = "file.viewed")]
@@ -252,5 +302,88 @@ impl ToString for WebhookEventLabel {
             Self::OrganizationSuperswapUser => "organization.superswap_user",
             Self::OrganizationInboxNewNotif => "organization.inbox.new_mail",
         }.to_string()
+    }
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize, SerdeDiff)]
+pub struct WebhookIDList {
+    pub webhooks: Vec<WebhookID>,
+}
+
+impl WebhookIDList {
+    pub fn new() -> Self {
+        Self { webhooks: Vec::new() }
+    }
+    
+    pub fn with_webhook(webhook_id: WebhookID) -> Self {
+        Self { webhooks: vec![webhook_id] }
+    }
+    
+    pub fn add(&mut self, webhook_id: WebhookID) {
+        self.webhooks.push(webhook_id);
+    }
+    
+    pub fn remove(&mut self, webhook_id: &WebhookID) -> bool {
+        if let Some(pos) = self.webhooks.iter().position(|w| w == webhook_id) {
+            self.webhooks.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn iter(&self) -> impl Iterator<Item = &WebhookID> {
+        self.webhooks.iter()
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.webhooks.is_empty()
+    }
+    
+    pub fn contains(&self, webhook_id: &WebhookID) -> bool {
+        self.webhooks.contains(webhook_id)
+    }
+    
+    pub fn len(&self) -> usize {
+        self.webhooks.len()
+    }
+    
+    pub fn get(&self, index: usize) -> Option<&WebhookID> {
+        self.webhooks.get(index)
+    }
+}
+
+// Implement conversion between Vec<WebhookID> and WebhookIDList
+impl From<Vec<WebhookID>> for WebhookIDList {
+    fn from(webhooks: Vec<WebhookID>) -> Self {
+        Self { webhooks }
+    }
+}
+
+impl From<WebhookIDList> for Vec<WebhookID> {
+    fn from(list: WebhookIDList) -> Self {
+        list.webhooks
+    }
+}
+
+// Implement Storable for WebhookIDList
+impl Storable for WebhookIDList {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 1024 * 4, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = candid::encode_one(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
+}
+impl Default for WebhookIDList {
+    fn default() -> Self {
+        Self::new()
     }
 }

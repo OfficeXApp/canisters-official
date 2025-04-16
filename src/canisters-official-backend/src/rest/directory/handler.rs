@@ -54,7 +54,7 @@ pub mod directorys_handlers {
                     PermissionGranteeID::User(requester_api_key.user_id.clone())
                 ).await;
 
-                let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+                let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
                 // User needs at least View permission to list directory
                 if !is_owner && !user_permissions.contains(&DirectoryPermissionType::View) {
@@ -467,7 +467,7 @@ pub mod directorys_handlers {
     
         // 3. Get disk info to access AWS credentials
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
-            map.borrow().get(&file_meta.disk_id).cloned()
+            map.borrow().get(&file_meta.disk_id).map(|d| d.clone())
         });
     
         let disk = match disk {

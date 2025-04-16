@@ -1,6 +1,8 @@
+use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/groups/types.rs
 use serde::{Serialize, Deserialize};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use crate::{core::{
     api::permissions::system::check_system_permissions, state::{drives::{state::state::OWNER_ID, types::{DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::types::{redact_label, LabelStringValue}, group_invites::types::{GroupInviteID, GroupInviteeID, GroupRole}}, types::UserID
 }, rest::groups::types::{GroupFE, GroupMemberPreview}};
@@ -8,10 +10,30 @@ use serde_diff::{SerdeDiff};
 use std::iter::Iterator;
 use super::state::state::is_group_admin;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub struct GroupID(pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+impl Storable for GroupID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize GroupID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize GroupID")
+    }
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd, PartialEq, Eq)]
 pub struct Group {
     pub id: GroupID,
     pub name: String,
@@ -30,6 +52,25 @@ pub struct Group {
     pub external_payload: Option<ExternalPayload>,
 }
 
+impl Storable for Group {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 1024, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize Group");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize Group")
+    }
+}
+
 impl Group {
 
     pub fn cast_fe(&self, user_id: &UserID) -> GroupFE {
@@ -40,7 +81,7 @@ impl Group {
         for invite_id in &group.member_invites {
             // Get the invite data
             let invite_opt = crate::core::state::group_invites::state::state::INVITES_BY_ID_HASHTABLE
-                .with(|invites| invites.borrow().get(invite_id).cloned());
+                .with(|invites| invites.borrow().get(invite_id).clone());
             
             if let Some(invite) = invite_opt {
                 
@@ -51,7 +92,7 @@ impl Group {
                     GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the name
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).map(|data| data.clone()));
                         if let Some(contact) = contact_opt {
                             contact.name
                         } else {
@@ -64,7 +105,7 @@ impl Group {
                     GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the avatar
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).map(|data| data.clone()));
                         if let Some(contact) = contact_opt {
                             contact.avatar
                         } else {
@@ -77,7 +118,7 @@ impl Group {
                     GroupInviteeID::User(user_id) => {
                         // query the contacts hashtable by user_id to get the last_active
                         let contact_opt = crate::core::state::contacts::state::state::CONTACTS_BY_ID_HASHTABLE
-                            .with(|contacts| contacts.borrow().get(&user_id.clone()).cloned());
+                            .with(|contacts| contacts.borrow().get(&user_id.clone()).map(|data| data.clone()));
                         if let Some(contact) = contact_opt {
                             contact.last_online_ms
                         } else {

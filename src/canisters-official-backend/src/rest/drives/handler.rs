@@ -3,13 +3,35 @@
 
 pub mod drives_handlers {
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions}, system::{can_user_access_system_permission, check_system_permissions}}, replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_entire_state, snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{api_keys::state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, contacts::state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, directory::state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, disks::state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, drives::{state::state::{update_external_id_mapping, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_CHECKSUM, DRIVE_STATE_TIMESTAMP_NS, EXTERNAL_ID_MAPPINGS, OWNER_ID, TRANSFER_OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffID, ExternalID, ExternalPayload}}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE}, types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, search::types::SearchCategoryEnum, labels::{state::{add_label_to_resource, parse_label_resource_id, remove_label_from_resource, validate_label_value}, types::{LabelOperationResponse, LabelResourceID}}, group_invites::state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, groups::state::state::{is_group_admin, GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, drives::types::{CreateDriveRequestBody, CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveRequestBody, UpdateDriveResponse}, webhooks::types::SortDirection}
-        
+        core::{
+            api::{
+                permissions::{
+                    directory::check_directory_permissions,
+                    system::check_system_permissions
+                },
+                replay::diff::{apply_state_diff, safely_apply_diffs, snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid},
+            },
+            state::{
+                disks::state::state::DISKS_BY_TIME_MEMORY_ID, drives::{
+                    state::state::{
+                        update_external_id_mapping, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, OWNER_ID, URL_ENDPOINT
+                    },
+                    types::{Drive, DriveID, DriveRESTUrlEndpoint, ExternalID, ExternalPayload}
+                }, permissions::types::{
+                    PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum,
+                    SystemResourceID, SystemTableEnum
+                }
+            },
+            types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}
+        }, debug_log, rest::{
+            auth::{authenticate_request, create_auth_error_response},
+            drives::types::{
+                CreateDriveRequestBody, CreateDriveResponse, DeleteDriveRequest, DeleteDriveResponse, DeletedDriveData, ErrorResponse, GetDriveResponse, ListDrivesRequestBody, ListDrivesResponse, ListDrivesResponseData, UpdateDriveRequestBody, UpdateDriveResponse
+            }, webhooks::types::SortDirection
+        }, MEMORY_MANAGER
     };
-    use ic_types::crypto::canister_threshold_sig::PublicKey;
-    use serde_json::json;
-    use crate::core::state::search::state::state::{raw_query,filter_search_results_by_permission};
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+    use ic_stable_structures::{StableVec};
     use matchit::Params;
     use serde::Deserialize;
     #[derive(Deserialize, Default)]
@@ -25,14 +47,14 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Get drive ID from params
         let drive_id = DriveID(params.get("drive_id").unwrap().to_string());
 
         // Get the drive
         let drive = DRIVES_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&drive_id).cloned()
+            store.borrow().get(&drive_id).map(|d| d.clone())
         });
 
         if !is_owner {
@@ -77,7 +99,7 @@ pub mod drives_handlers {
         };
     
         // Check if the requester is the owner
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
     
         // Check table-level permissions if not owner
         let has_table_permission = if !is_owner {
@@ -144,11 +166,11 @@ pub mod drives_handlers {
     
         // Determine starting point based on cursor
         let start_index = if let Some(cursor_idx) = start_cursor {
-            cursor_idx.min(total_count - 1)
+            cursor_idx.min(total_count as usize - 1)
         } else {
             match request_body.direction {
-                SortDirection::Asc => 0,
-                SortDirection::Desc => total_count - 1,
+                SortDirection::Asc => 0_usize,
+                SortDirection::Desc => (total_count - 1) as usize,
             }
         };
     
@@ -172,20 +194,22 @@ pub mod drives_handlers {
                     SortDirection::Desc => {
                         // Newest first
                         let mut current_idx = start_index;
-                        while filtered_drives.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(drive) = id_store.get(&time_index[current_idx]) {
-                                // Check if user has permission to view this specific drive
-                                let can_view = is_owner || has_table_permission || {
-                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive.id.to_string()));
-                                    let permissions = check_system_permissions(
-                                        resource_id,
-                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                                    );
-                                    permissions.contains(&SystemPermissionType::View)
-                                };
-    
-                                if can_view && request_body.filters.is_empty() {
-                                    filtered_drives.push(drive.clone());
+                        while filtered_drives.len() < request_body.page_size && current_idx < (total_count as usize) {
+                            if let Some(drive_id) = time_index.get(current_idx.try_into().unwrap()) {
+                                if let Some(drive) = id_store.get(&drive_id) {
+                                    // Check if user has permission to view this specific drive
+                                    let can_view = is_owner || has_table_permission || {
+                                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive.id.to_string()));
+                                        let permissions = check_system_permissions(
+                                            resource_id,
+                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                        );
+                                        permissions.contains(&SystemPermissionType::View)
+                                    };
+        
+                                    if can_view && request_body.filters.is_empty() {
+                                        filtered_drives.push(drive.clone());
+                                    }
                                 }
                             }
                             if current_idx == 0 {
@@ -199,25 +223,27 @@ pub mod drives_handlers {
                     SortDirection::Asc => {
                         // Oldest first
                         let mut current_idx = start_index;
-                        while filtered_drives.len() < request_body.page_size && current_idx < total_count {
-                            if let Some(drive) = id_store.get(&time_index[current_idx]) {
-                                // Check if user has permission to view this specific drive
-                                let can_view = is_owner || has_table_permission || {
-                                    let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive.id.to_string()));
-                                    let permissions = check_system_permissions(
-                                        resource_id,
-                                        PermissionGranteeID::User(requester_api_key.user_id.clone())
-                                    );
-                                    permissions.contains(&SystemPermissionType::View)
-                                };
-    
-                                if can_view && request_body.filters.is_empty() {
-                                    filtered_drives.push(drive.clone());
+                        while filtered_drives.len() < request_body.page_size && current_idx < total_count as usize {
+                            if let Some(drive_id) = time_index.get(current_idx.try_into().unwrap()) {
+                                if let Some(drive) = id_store.get(&drive_id) {
+                                    // Check if user has permission to view this specific drive
+                                    let can_view = is_owner || has_table_permission || {
+                                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Drive(drive.id.to_string()));
+                                        let permissions = check_system_permissions(
+                                            resource_id,
+                                            PermissionGranteeID::User(requester_api_key.user_id.clone())
+                                        );
+                                        permissions.contains(&SystemPermissionType::View)
+                                    };
+        
+                                    if can_view && request_body.filters.is_empty() {
+                                        filtered_drives.push(drive.clone());
+                                    }
                                 }
                             }
                             current_idx += 1;
                             processed_count += 1;
-                            if current_idx >= total_count {
+                            if current_idx >= total_count as usize {
                                 break;
                             }
                         }
@@ -238,7 +264,7 @@ pub mod drives_handlers {
                     }
                 },
                 SortDirection::Asc => {
-                    if end_index < total_count - 1 {
+                    if end_index < (total_count as usize - 1) {
                         Some((end_index + 1).to_string())
                     } else {
                         None
@@ -255,10 +281,10 @@ pub mod drives_handlers {
         if !is_owner && !has_table_permission {
             if next_cursor.is_some() {
                 // If there are more results (next cursor exists), return batch size + 1
-                total_count_to_return = filtered_drives.len() + 1;
+                total_count_to_return = filtered_drives.len() as u64 + 1;
             } else {
                 // Otherwise, just return the batch size
-                total_count_to_return = filtered_drives.len();
+                total_count_to_return = filtered_drives.len() as u64;
             }
         }
     
@@ -268,7 +294,7 @@ pub mod drives_handlers {
                 drive.cast_fe(&requester_api_key.user_id)
             }).collect(),
             page_size: filtered_drives.len(),
-            total: total_count_to_return,
+            total: total_count_to_return.try_into().unwrap(),
             direction: request_body.direction,
             cursor: next_cursor,
         };
@@ -286,7 +312,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
        
 
         // Parse request body
@@ -329,7 +355,7 @@ pub mod drives_handlers {
             icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
             endpoint_url: DriveRESTUrlEndpoint(
                 create_req.endpoint_url
-                    .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().clone()).0)
+                    .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().get().0.clone()))
                     .trim_end_matches('/')
                     .to_string()
             ),
@@ -345,7 +371,7 @@ pub mod drives_handlers {
         });
 
         DRIVES_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().push(drive_id.clone());
+            store.borrow_mut().push(&drive_id.clone());
         });
 
         update_external_id_mapping(
@@ -376,7 +402,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
        
 
         // Parse request body
@@ -394,7 +420,7 @@ pub mod drives_handlers {
         let drive_id = DriveID(update_req.id);
                     
         // Get existing drive
-        let mut drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
+        let mut drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).map(|d|d.clone())) {
             Some(drive) => drive,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -474,7 +500,7 @@ pub mod drives_handlers {
             None => return create_auth_error_response(),
         };
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
 
         // Parse request body
         let body: &[u8] = request.body();
@@ -495,7 +521,7 @@ pub mod drives_handlers {
         }
 
         let drive_id = delete_request.id;
-        let drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).cloned()) {
+        let drive = match DRIVES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&drive_id).map(|d|d.clone())) {
             Some(drive) => drive,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -527,9 +553,25 @@ pub mod drives_handlers {
             store.borrow_mut().remove(&drive_id);
         });
 
-        // Remove from time list
+        // Remove from time list similar to DISKS_BY_TIME_LIST
         DRIVES_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().retain(|id| id != &drive_id);
+            let mut new_vec = StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DISKS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize new StableVec");
+            
+            // Copy all items except the one to be deleted
+            let store_ref = store.borrow();
+            for i in 0..store_ref.len() {
+                if let Some(id) = store_ref.get(i) {
+                    if id != drive_id {
+                        new_vec.push(&id);
+                    }
+                }
+            }
+            
+            // Replace the old vector with the new one
+            drop(store_ref);
+            *store.borrow_mut() = new_vec;
         });
 
         update_external_id_mapping(old_external_id, None, old_internal_id);

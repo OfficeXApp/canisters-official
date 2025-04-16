@@ -3,27 +3,49 @@ pub mod state {
     use std::cell::RefCell;
     use std::collections::HashMap;
     use ic_cdk::api::management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod};
+    use ic_stable_structures::{memory_manager::MemoryId, StableBTreeMap,StableCell,DefaultMemoryImpl, StableVec};
     use num_bigint::BigUint;
     use num_traits::FromPrimitive;
-    use crate::{core::{api::uuid::generate_uuidv4, state::{drives::state::state::{CANISTER_ID, DRIVE_ID, OWNER_ID}, group_invites::{state::state::USERS_INVITES_LIST_HASHTABLE, types::{GroupInvite, GroupRole}}, permissions::{state::state::{SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{PermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}}, types::IDPrefix}, debug_log, rest::groups::types::ValidateGroupResponseData};
+    use crate::{core::{api::uuid::generate_uuidv4, state::{drives::state::state::{DRIVE_ID, OWNER_ID}, group_invites::{state::state::USERS_INVITES_LIST_HASHTABLE, types::{GroupInvite, GroupInviteIDList, GroupRole}}, permissions::{state::{helpers::{add_system_permission_to_grantee, add_system_permission_to_resource, update_system_permissions_time_list}, state::{SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}}, types::{PermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}}, types::IDPrefix}, debug_log, rest::groups::types::ValidateGroupResponseData, MEMORY_MANAGER};
     use serde_json::json;
 
     use crate::core::{state::{drives::state::state::URL_ENDPOINT, group_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::{GroupInviteID, GroupInviteeID}}, groups::types::{Group, GroupID}}, types::UserID};
     
+    type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+
+    pub const GROUPS_BY_ID_MEMORY_ID: MemoryId = MemoryId::new(31);
+    pub const GROUPS_BY_TIME_MEMORY_ID: MemoryId = MemoryId::new(32);
+    pub const DEFAULT_EVERYONE_GROUP_MEMORY_ID: MemoryId = MemoryId::new(33);
+
     thread_local! {
-        // default is to use the api key id to lookup the api key
-        pub(crate) static GROUPS_BY_ID_HASHTABLE: RefCell<HashMap<GroupID, Group>> = RefCell::new(HashMap::new());
-        // track in hashtable users list of ApiKeyIDs
-        pub(crate) static GROUPS_BY_TIME_LIST: RefCell<Vec<GroupID>> = RefCell::new(Vec::new());
-        // default group id
-        pub(crate) static DEFAULT_EVERYONE_GROUP: RefCell<GroupID> = RefCell::new(GroupID(generate_uuidv4(IDPrefix::Group)));
+       // Convert HashMap to StableBTreeMap for groups by ID
+        pub(crate) static GROUPS_BY_ID_HASHTABLE: RefCell<StableBTreeMap<GroupID, Group, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(GROUPS_BY_ID_MEMORY_ID))
+            )
+        );
+        
+        // Convert Vec to StableVec for groups by time
+        pub(crate) static GROUPS_BY_TIME_LIST: RefCell<StableVec<GroupID, Memory>> = RefCell::new(
+            StableVec::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(GROUPS_BY_TIME_MEMORY_ID))
+            ).expect("Failed to initialize GROUPS_BY_TIME_LIST")
+        );
+        
+        // Convert RefCell<GroupID> to StableCell for default group
+        pub(crate) static DEFAULT_EVERYONE_GROUP: RefCell<StableCell<GroupID, Memory>> = RefCell::new(
+            StableCell::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(DEFAULT_EVERYONE_GROUP_MEMORY_ID)),
+                GroupID(generate_uuidv4(IDPrefix::Group))
+            ).expect("Failed to initialize DEFAULT_EVERYONE_GROUP")
+        );
     }
 
     // only call this after all other states have been initialized
     pub fn init_default_group() {
         let admin_invite_id = GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite));
-        let group_id = DEFAULT_EVERYONE_GROUP.with(|group_id| group_id.borrow().clone());
-        let owner_id = OWNER_ID.with(|owner_id| owner_id.borrow().clone());
+        let group_id = DEFAULT_EVERYONE_GROUP.with(|group_id| group_id.borrow().get().clone());
+        let owner_id = OWNER_ID.with(|owner_id| owner_id.borrow().get().clone());
         let current_time = ic_cdk::api::time() / 1_000_000;
         let default_group = Group {
             id: group_id.clone(),
@@ -37,7 +59,7 @@ pub mod state {
             created_at: current_time.clone(),
             last_modified_at: current_time.clone(),
             drive_id: DRIVE_ID.with(|drive_id| drive_id.clone()),
-            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
+            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
             labels: Vec::new(),
             external_id: None,
             external_payload: None,
@@ -48,7 +70,7 @@ pub mod state {
         });
 
         GROUPS_BY_TIME_LIST.with(|list| {
-            list.borrow_mut().push(default_group.id.clone());
+            list.borrow_mut().push(&default_group.id);
         });
 
         let admin_invite = GroupInvite {
@@ -76,8 +98,16 @@ pub mod state {
         let invitee_id = GroupInviteeID::User(owner_id.clone());
         USERS_INVITES_LIST_HASHTABLE.with(|users_invites| {
             let mut users_invites_ref = users_invites.borrow_mut();
-            let user_invites = users_invites_ref.entry(invitee_id).or_insert_with(Vec::new);
-            user_invites.push(admin_invite_id);
+            
+            // Get the current GroupInviteIDList if it exists, or create a new one
+            let mut invite_list = users_invites_ref.get(&invitee_id)
+                .map_or_else(|| GroupInviteIDList::new(), |list| list.clone());
+            
+            // Add the new invitation to the list
+            invite_list.add(admin_invite_id);  // Using add method instead of push
+            
+            // Store the updated list back in the hashtable
+            users_invites_ref.insert(invitee_id, invite_list);
         });
 
         let tables = [
@@ -120,23 +150,13 @@ pub mod state {
             });
             
             // Add to resource index
-            SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|resource_perms| {
-                let mut resource_perms_ref = resource_perms.borrow_mut();
-                let perms_list = resource_perms_ref.entry(resource_id).or_insert_with(Vec::new);
-                perms_list.push(perm_id.clone());
-            });
+            add_system_permission_to_resource(&resource_id, &perm_id);
             
             // Add to grantee index
-            SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_perms| {
-                let mut grantee_perms_ref = grantee_perms.borrow_mut();
-                let perms_list = grantee_perms_ref.entry(grantee_id).or_insert_with(Vec::new);
-                perms_list.push(perm_id.clone());
-            });
+            add_system_permission_to_grantee(&grantee_id, &perm_id);
             
             // Add to time-ordered list
-            SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|list| {
-                list.borrow_mut().push(perm_id);
-            });
+            update_system_permissions_time_list(&perm_id, true);
         }
     }
 
@@ -150,7 +170,7 @@ pub mod state {
 
                 // Check admin invites
                 for invite_id in &group.admin_invites {
-                    if let Some(invite) = INVITES_BY_ID_HASHTABLE.with(|invites| invites.borrow().get(invite_id).cloned()) {
+                    if let Some(invite) = INVITES_BY_ID_HASHTABLE.with(|invites| invites.borrow().get(invite_id).clone()) {
                         if invite.invitee_id == GroupInviteeID::User(user_id.clone()) {
                             let current_time = ic_cdk::api::time();
                             if invite.active_from <= current_time && 
@@ -173,7 +193,7 @@ pub mod state {
     
         // Check member invites (which includes admin invites)
         for invite_id in &group.member_invites {
-            if let Some(invite) = INVITES_BY_ID_HASHTABLE.with(|invites| invites.borrow().get(invite_id).cloned()) {
+            if let Some(invite) = INVITES_BY_ID_HASHTABLE.with(|invites| invites.borrow().get(invite_id).clone()) {
                 if invite.invitee_id == GroupInviteeID::User(user_id.clone()) {
                     let current_time = ic_cdk::api::time();
                     if invite.active_from <= current_time && 
@@ -187,11 +207,11 @@ pub mod state {
     }
 
     pub async fn is_user_on_group(user_id: &UserID, group_id: &GroupID) -> bool {
-        let group_opt: Option<Group> = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).cloned());
+        let group_opt: Option<Group> = GROUPS_BY_ID_HASHTABLE.with(|groups| groups.borrow().get(group_id).clone());
         
         if let Some(group) = group_opt {
             // If it's our own drive's group, use local validation
-            if group.endpoint_url == URL_ENDPOINT.with(|url| url.borrow().clone()) {
+            if group.endpoint_url == URL_ENDPOINT.with(|url| url.borrow().get().clone()) {
                 return is_user_on_local_group(user_id, &group);
             }
     

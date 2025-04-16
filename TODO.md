@@ -42,7 +42,6 @@
 
 ## Backlog
 
-- [ ] Figure out how to cleanly update past Drive canisters spawned from factory
 - [ ] Consider migrating internal state to `ic-stable-structures` for easy upgradeability, otherwise need to implement pre/post upgrade hooks
 - [ ] Migrate S3 secret key storage to safer VET keys https://x.com/DFINITYDev/status/1893198318781513878
 - [ ] Implement proxied aws/storj where users simply send ETH/SOL to us and we provide storage (might be a scope API key for S3?)
@@ -156,3 +155,4 @@
 - [x] Implement privacy filesystem `disk/shared_with_me_virtual_folder/shortcut123` where "shared_with_me_virtual_folder" is at root level ui-only folder with shortcuts to all the files/folders a user has access to. requires keeping track of user<>directorypermission perhaps using `DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE` --> in the end, we just let every disk have its own "shared with me"
 - [x] Deposit Gas giftcard functionality in factory, and factory default storjweb3 bucket
 - [x] Search functionality fix
+- [x] Figure out how to cleanly update past Drive canisters spawned from factory, including factory canister and revising what else should be in snapshot_state

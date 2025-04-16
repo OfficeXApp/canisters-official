@@ -1,12 +1,14 @@
+use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/disks/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 use crate::{core::{api::permissions::system::check_system_permissions, state::{directory::types::FolderID, drives::{state::state::OWNER_ID, types::{ExternalID, ExternalPayload}}, labels::types::{redact_label, LabelStringValue}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::UserID}, rest::{disks::types::DiskFE, labels::types::LabelFE}};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 pub struct DiskID(pub String);
 impl fmt::Display for DiskID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -14,7 +16,27 @@ impl fmt::Display for DiskID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+impl Storable for DiskID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize DiskID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize DiskID")
+    }
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Disk {
     pub id: DiskID,
     pub name: String,
@@ -28,6 +50,26 @@ pub struct Disk {
     pub trash_folder: FolderID,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
+}
+
+
+impl Storable for Disk {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize Disk");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize Disk")
+    }
 }
 
 
@@ -59,7 +101,7 @@ impl Disk {
 }
 
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, SerdeDiff)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, SerdeDiff, CandidType)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DiskTypeEnum {
     BrowserCache,
@@ -81,7 +123,7 @@ impl fmt::Display for DiskTypeEnum {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct AwsBucketAuth {
     pub(crate) endpoint: String,
     pub(crate) access_key: String,

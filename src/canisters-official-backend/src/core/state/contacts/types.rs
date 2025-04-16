@@ -1,3 +1,7 @@
+use std::borrow::Cow;
+
+use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 // src/core/state/contacts/types.rs
 use serde::{Serialize, Deserialize};
 use serde_diff::{SerdeDiff};
@@ -10,7 +14,7 @@ use crate::{core::{api::permissions::system::check_system_permissions, state::{d
 // popover: pub/priv note, email, evm/icp, labels
 // filters: search by name/icp/email, filter by labels, groups, sort by last_online_ms, created_at
 
-#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, Serialize, Deserialize, SerdeDiff, CandidType)]
 pub struct Contact {
     pub id: UserID,
     pub name: String,
@@ -33,6 +37,26 @@ pub struct Contact {
     pub last_online_ms: u64,
 }
 
+impl Storable for Contact {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize Contact");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize Contact")
+    }
+}
+
+
 impl Contact {
 
     pub fn cast_fe(&self, user_id: &UserID) -> ContactFE {
@@ -42,7 +66,7 @@ impl Contact {
             .filter_map(|group_id| {
                 // Get the group data
                 let group_opt = crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE
-                    .with(|groups| groups.borrow().get(group_id).cloned());
+                    .with(|groups| groups.borrow().get(group_id).clone());
                 
                 if let Some(group) = group_opt {
                     // Find user's invite in this group
@@ -102,4 +126,80 @@ impl Contact {
     }
 
     
+}
+
+
+
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize, SerdeDiff)]
+pub struct ContactIDList {
+    pub contacts: Vec<UserID>,
+}
+
+impl ContactIDList {
+    pub fn new() -> Self {
+        Self { contacts: Vec::new() }
+    }
+    
+    pub fn with_contact(contact_id: UserID) -> Self {
+        Self { contacts: vec![contact_id] }
+    }
+    
+    pub fn add(&mut self, contact_id: UserID) {
+        self.contacts.push(contact_id);
+    }
+    
+    pub fn remove(&mut self, contact_id: &UserID) -> bool {
+        if let Some(pos) = self.contacts.iter().position(|k| k == contact_id) {
+            self.contacts.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn get(&self, index: usize) -> Option<&UserID> {
+        self.contacts.get(index)
+    }
+    
+    pub fn len(&self) -> usize {
+        self.contacts.len()
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.contacts.is_empty()
+    }
+    
+    pub fn iter(&self) -> impl Iterator<Item = &UserID> {
+        self.contacts.iter()
+    }
+}
+
+// From<Vec<UserID>> for ContactIDList
+impl From<Vec<UserID>> for ContactIDList {
+    fn from(contacts: Vec<UserID>) -> Self {
+        Self { contacts }
+    }
+}
+
+// From<ContactIDList> for Vec<UserID>
+impl From<ContactIDList> for Vec<UserID> {
+    fn from(list: ContactIDList) -> Self {
+        list.contacts
+    }
+}
+
+impl Storable for ContactIDList {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 1024 * 4, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = candid::encode_one(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
 }

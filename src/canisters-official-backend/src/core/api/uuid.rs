@@ -21,8 +21,8 @@ pub fn generate_uuidv4(prefix: IDPrefix) -> String {
     
     // Get and increment the nonce
     let nonce = NONCE_UUID_GENERATED.with(|counter| {
-        let current = *counter.borrow();
-        *counter.borrow_mut() += 1;
+        let current = *counter.borrow().get(); // Get the current value
+        counter.borrow_mut().set(current + 1); // Set the incremented value
         current
     });
 
@@ -76,7 +76,7 @@ pub fn generate_api_key() -> String {
     let api_key_inner_value = hex::encode(hash);
 
     let api_key_proof = ApiKeyProof {
-        auth_type: AuthTypeEnum::Api_Key,
+        auth_type: AuthTypeEnum::ApiKey,
         value: ApiKeyValue(api_key_inner_value.to_string()),
     };
 

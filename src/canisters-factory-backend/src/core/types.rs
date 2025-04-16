@@ -1,10 +1,11 @@
 
 // src/core/state/types.rs
-use std::fmt;
+use std::{borrow::Cow, fmt};
+use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize};
 use serde_diff::{Diff, SerdeDiff};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord)]
 pub struct PublicKeyICP(pub String);
 
 impl fmt::Display for PublicKeyICP {
@@ -14,7 +15,7 @@ impl fmt::Display for PublicKeyICP {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord)]
 pub struct ICPPrincipalString(pub PublicKeyICP);
 
 impl fmt::Display for ICPPrincipalString {
@@ -34,8 +35,27 @@ impl fmt::Display for PublicKeyEVM {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, PartialOrd, Ord)]
 pub struct UserID(pub String);
+
+impl Storable for UserID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256 * 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize UserID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize UserID")
+    }
+}
 
 impl fmt::Display for UserID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

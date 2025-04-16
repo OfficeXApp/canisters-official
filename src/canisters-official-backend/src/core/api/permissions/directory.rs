@@ -2,7 +2,7 @@
 
 use std::collections::{HashSet, VecDeque};
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID}}, disks::state::state::DISKS_BY_ID_HASHTABLE, drives::state::state::OWNER_ID, groups::{state::state::is_user_on_group, types::GroupID}, permissions::{state::state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE, FilePathBreadcrumb}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID}}, disks::state::state::DISKS_BY_ID_HASHTABLE, drives::state::state::OWNER_ID, groups::{state::state::is_user_on_group, types::GroupID}, permissions::{state::{helpers::{get_directory_permission_by_id, get_directory_permission_ids_for_resource}, state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE, FilePathBreadcrumb}};
 
 
 // Check if a user can CRUD the permission record
@@ -56,7 +56,7 @@ pub async fn check_directory_permissions(
     grantee_id: PermissionGranteeID,
 ) -> Vec<DirectoryPermissionType> {
 
-    let is_owner = OWNER_ID.with(|owner_id| UserID(grantee_id.to_string()) == *owner_id.borrow());
+    let is_owner = OWNER_ID.with(|owner_id| UserID(grantee_id.to_string()) == *owner_id.borrow().get());
 
     if is_owner {
         return vec![
@@ -155,7 +155,7 @@ async fn check_directory_resource_permissions(
             DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
                 let permissions = permissions_by_id.borrow();
                 permission_ids.iter()
-                    .filter_map(|id| permissions.get(id).cloned())
+                    .filter_map(|id| permissions.get(id).clone())
                     .collect::<Vec<_>>()
             })
         } else {
@@ -263,47 +263,43 @@ pub fn parse_permission_grantee_id(id_str: &str) -> Result<PermissionGranteeID, 
 }
 
 // Add a helper function to get permissions for a resource
+// Add a helper function to get permissions for a resource
 pub fn preview_directory_permissions(
     resource_id: &DirectoryResourceID,
     user_id: &UserID,
 ) -> Vec<DirectoryResourcePermissionFE> {
-    
     // Get permission IDs for each permission type
     let mut resource_permissions = Vec::new();
     
-    DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-        if let Some(permission_ids) = permissions_by_resource.borrow().get(resource_id) {
-            DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
-                let permissions = permissions_by_id.borrow();
-                
-                for permission_id in permission_ids {
-                    if let Some(permission) = permissions.get(permission_id) {
-                        let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
-                            Ok(parsed_grantee) => parsed_grantee,
-                            Err(_) => continue,
-                        };
+    // Get all permission IDs for this resource using helper function
+    if let Some(permission_ids) = get_directory_permission_ids_for_resource(resource_id) {
+        for permission_id in &permission_ids.permissions {
+            // Get the permission details using helper function
+            if let Some(permission) = get_directory_permission_by_id(permission_id) {
+                let permission_granted_to = match parse_permission_grantee_id(&permission.granted_to.to_string()) {
+                    Ok(parsed_grantee) => parsed_grantee,
+                    Err(_) => continue,
+                };
 
-                        // Check if permission applies to this user
-                        let applies = match &permission_granted_to {
-                            PermissionGranteeID::Public => true,
-                            PermissionGranteeID::User(permission_user_id) => permission_user_id == user_id,
-                            PermissionGranteeID::Group(group_id) => is_user_in_group(user_id, group_id),
-                            _ => false
-                        };
+                // Check if permission applies to this user
+                let applies = match &permission_granted_to {
+                    PermissionGranteeID::Public => true,
+                    PermissionGranteeID::User(permission_user_id) => permission_user_id == user_id,
+                    PermissionGranteeID::Group(group_id) => is_user_in_group(user_id, group_id),
+                    _ => false
+                };
 
-                        if applies {
-                            for grant_type in &permission.permission_types {
-                                resource_permissions.push(DirectoryResourcePermissionFE {
-                                    permission_id: permission_id.clone().to_string(),
-                                    grant_type: grant_type.clone().to_string()
-                                });
-                            }
-                        }
+                if applies {
+                    for grant_type in &permission.permission_types {
+                        resource_permissions.push(DirectoryResourcePermissionFE {
+                            permission_id: permission_id.clone().to_string(),
+                            grant_type: grant_type.clone().to_string()
+                        });
                     }
                 }
-            });
+            }
         }
-    });
+    }
 
     resource_permissions
 }
@@ -316,7 +312,7 @@ pub async fn derive_directory_breadcrumbs(
     // Create a vector to hold our breadcrumbs
     let mut breadcrumbs = VecDeque::new();
 
-    let is_owner = OWNER_ID.with(|id| &id.borrow().clone() == &user_id);
+    let is_owner = OWNER_ID.with(|id| &id.borrow().get().clone() == &user_id);
     
     // Get the initial folder ID based on the resource type
     let initial_folder_id = match &resource_id {
@@ -350,7 +346,7 @@ pub async fn derive_directory_breadcrumbs(
                     // Add the parent folder only if user has permission
                     if let Some(folder_metadata) = folder_uuid_to_metadata.get(&file_metadata.parent_folder_uuid) {
                         if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
-                            let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                            let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).map(|d| d.clone()));
                             if let Some(disk) = disk {
                                 breadcrumbs.push_front(FilePathBreadcrumb {
                                     resource_id: folder_metadata.id.clone().to_string(),
@@ -402,7 +398,7 @@ pub async fn derive_directory_breadcrumbs(
             }
             
             if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
-                let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).map(|d| d.clone()));
                 if let Some(disk) = disk {
                     breadcrumbs.push_front(FilePathBreadcrumb {
                         resource_id: folder_metadata.id.clone().to_string(),
@@ -444,7 +440,7 @@ pub async fn derive_directory_breadcrumbs(
             Some(folder_metadata) => {
 
                 if (folder_metadata.full_directory_path == DriveFullFilePath(format!("{}::/", folder_metadata.disk_id.to_string()))) {
-                    let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).cloned());
+                    let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&folder_metadata.disk_id).map(|d| d.clone()));
                     if let Some(disk) = disk {
                         breadcrumbs.push_front(FilePathBreadcrumb {
                             resource_id: folder_metadata.id.clone().to_string(),
