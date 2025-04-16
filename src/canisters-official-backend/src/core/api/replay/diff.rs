@@ -217,10 +217,54 @@ pub fn snapshot_entire_state() -> EntireState {
             hashmap
         }),
         // Directory
-        folder_uuid_to_metadata: folder_uuid_to_metadata.with(|store| store.clone()),
-        file_uuid_to_metadata: file_uuid_to_metadata.with(|store| store.clone()),
-        full_folder_path_to_uuid: full_folder_path_to_uuid.with(|store| store.clone()),
-        full_file_path_to_uuid: full_file_path_to_uuid.with(|store| store.clone()),
+        folder_uuid_to_metadata: folder_uuid_to_metadata.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        file_uuid_to_metadata: file_uuid_to_metadata.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        full_folder_path_to_uuid: full_folder_path_to_uuid.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        full_file_path_to_uuid: full_file_path_to_uuid.with(|map| {
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in map.keys() {
+                if let Some(value) = map.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
         // Disks
         DISKS_BY_ID_HASHTABLE: DISKS_BY_ID_HASHTABLE.with(|store| {
             let btree = store.borrow();
@@ -624,16 +668,49 @@ pub fn apply_entire_state(state: EntireState) {
     
     // Directory
     folder_uuid_to_metadata.with_mut(|map| {
-        *map = state.folder_uuid_to_metadata;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.folder_uuid_to_metadata {
+            map.insert(key, value);
+        }
     });
     file_uuid_to_metadata.with_mut(|map| {
-        *map = state.file_uuid_to_metadata;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.file_uuid_to_metadata {
+            map.insert(key, value);
+        }
     });
+    
     full_folder_path_to_uuid.with_mut(|map| {
-        *map = state.full_folder_path_to_uuid;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.full_folder_path_to_uuid {
+            map.insert(key, value);
+        }
     });
     full_file_path_to_uuid.with_mut(|map| {
-        *map = state.full_file_path_to_uuid;
+        // Clear existing entries
+        for key in map.keys().collect::<Vec<_>>() {
+            map.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.full_file_path_to_uuid {
+            map.insert(key, value);
+        }
     });
     
     // Disks

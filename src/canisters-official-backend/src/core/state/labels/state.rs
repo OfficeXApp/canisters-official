@@ -251,20 +251,22 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
         },
         LabelResourceID::File(id) => {
             file_uuid_to_metadata.with_mut(|files| {
-                if let Some(resource) = files.get_mut(id) {
-                    if !resource.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
-                        resource.labels.push(LabelStringValue(label_value.0.clone()));
-                        resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = files.get(id) {
+                    if !record.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
+                        record.labels.push(LabelStringValue(label_value.0.clone()));
+                        record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                        files.insert(id.clone(), record); 
                     }
                 }
             });
         },
         LabelResourceID::Folder(id) => {
             folder_uuid_to_metadata.with_mut(|folders| {
-                if let Some(resource) = folders.get_mut(id) {
-                    if !resource.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
-                        resource.labels.push(LabelStringValue(label_value.0.clone()));
-                        resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = folders.get(id) {
+                    if !record.labels.iter().any(|t| &LabelStringValue(t.0.clone()) == label_value) {
+                        record.labels.push(LabelStringValue(label_value.0.clone()));
+                        record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                        folders.insert(id.clone(), record); 
                     }
                 }
             });
@@ -433,17 +435,19 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
         },
         LabelResourceID::File(id) => {
             file_uuid_to_metadata.with_mut(|files| {
-                if let Some(resource) = files.get_mut(id) {
-                    resource.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
-                    resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = files.get(id) {
+                    record.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
+                    record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                    files.insert(id.clone(), record); 
                 }
             });
         },
         LabelResourceID::Folder(id) => {
             folder_uuid_to_metadata.with_mut(|folders| {
-                if let Some(resource) = folders.get_mut(id) {
-                    resource.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
-                    resource.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                if let Some(mut record) = folders.get(id) {
+                    record.labels.retain(|t| &LabelStringValue(t.0.clone()) != label_value);
+                    record.last_updated_date_ms = ic_cdk::api::time() / 1_000_000;
+                    folders.insert(id.clone(), record); 
                 }
             });
         },

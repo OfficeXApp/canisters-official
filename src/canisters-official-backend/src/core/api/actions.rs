@@ -567,7 +567,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     // Update other metadata fields directly
                     file_uuid_to_metadata.with_mut(|map| {
-                        if let Some(file) = map.get_mut(&file_id) {
+                        if let Some(mut file) = map.get(&file_id) {
                             if let Some(labels) = payload.labels {
                                 file.labels = labels;
                             }
@@ -582,12 +582,10 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             
                             // Check external_payload size before creating
                             if let Some(ref external_payload) = payload.external_payload {
-                                
                                 file.external_payload = Some(ExternalPayload(external_payload.clone()));
-                                
                             }
 
-                            if (payload.external_id.is_some()) {
+                            if payload.external_id.is_some() {
                                 let new_external_id = Some(ExternalID(payload.external_id.unwrap_or("".to_string())));
                                 update_external_id_mapping(
                                     file.external_id.clone(),
@@ -596,6 +594,9 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 );
                                 file.external_id = new_external_id;
                             }
+                            
+                            // Insert the modified record back into the map
+                            map.insert(file_id.clone(), file);
                         }
                     });
 
@@ -716,7 +717,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
         
                     // Update other metadata fields directly
                     folder_uuid_to_metadata.with_mut(|map| {
-                        if let Some(folder) = map.get_mut(&folder_id) {
+                        if let Some(mut folder) = map.get(&folder_id) {
                             if let Some(labels) = payload.labels {
                                 folder.labels = labels;
                             }
@@ -728,11 +729,10 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
 
                             // Check external_payload size before creating
                             if let Some(ref external_payload) = payload.external_payload {
-                                
-                                    folder.external_payload = Some(ExternalPayload(external_payload.clone()));
-                                
+                                folder.external_payload = Some(ExternalPayload(external_payload.clone()));
                             }
-                            if (payload.external_id.is_some()) {
+                            
+                            if payload.external_id.is_some() {
                                 let new_external_id = Some(ExternalID(payload.external_id.unwrap_or("".to_string())));
                                 update_external_id_mapping(
                                     folder.external_id.clone(),
@@ -741,11 +741,14 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 );
                                 folder.external_id = new_external_id;
                             }
+                            
+                            // Insert the modified record back into the map
+                            map.insert(folder_id.clone(), folder);
                         }
                     });
         
                     // Get updated metadata to return
-                    match get_folder_by_id(folder_id) {
+                    match get_folder_by_id(folder_id.clone()) {
                         Ok(updated_folder) => {
                             let after_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
                                 folder: Some(updated_folder.clone()),
