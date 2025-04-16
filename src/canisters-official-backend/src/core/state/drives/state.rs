@@ -64,7 +64,7 @@ pub mod state {
         pub(crate) static VERSION: RefCell<StableCell<String, Memory>> = RefCell::new(
             StableCell::init(
                 MEMORY_MANAGER.with(|m| m.borrow().get(VERSION_MEMORY_ID)),
-                "OfficeX.Beta.0.0.2".to_string()
+                "OfficeX.Beta.0.0.1".to_string()
             ).expect("Failed to initialize VERSION")
         );
         

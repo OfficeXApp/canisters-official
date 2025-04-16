@@ -2,9 +2,10 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, giftcards_spawnorg::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, 
+        core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, APIKEYS_BY_VALUE_MEMORY_ID, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}}, giftcards_spawnorg::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, MEMORY_MANAGER, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+    use ic_stable_structures::StableBTreeMap;
     use matchit::Params;
     use serde::Deserialize;
     use crate::{core::state::giftcards_spawnorg::{state::state::{CANISTER_ID, VERSION, URL_ENDPOINT, DEPLOYMENTS_BY_GIFTCARD_SPAWNORG_ID, HISTORICAL_GIFTCARDS_SPAWNORGS, DRIVE_TO_GIFTCARD_SPAWNORG_HASHTABLE, USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE, GIFTCARD_SPAWNORG_BY_ID}, types::{DriveID}}};
@@ -32,10 +33,10 @@ pub mod apikeys_handlers {
 
         // Get the requested API key
         let api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&requested_id).cloned()
+            store.borrow().get(&requested_id).clone()
         });
 
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
         let is_own_key = match &api_key {
             Some(key) => requester_api_key.user_id == key.user_id,
             None => false
@@ -101,7 +102,7 @@ pub mod apikeys_handlers {
             let api_keys: Vec<ApiKey> = APIKEYS_BY_ID_HASHTABLE.with(|store| {
                 let store = store.borrow();
                 history.iter()
-                    .filter_map(|id| store.get(id))
+                    .filter_map(|id| store.get(&id))
                     .map(|key| ApiKey::from(key.clone()))
                     .collect()
             });
@@ -148,7 +149,7 @@ pub mod apikeys_handlers {
                 UpsertApiKeyRequestBody::Create(create_req) => {
             
                     // Determine what user_id to use for the new key
-                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
                     
                     // Check system permission to create if not owner
                     if !is_owner {
@@ -187,10 +188,13 @@ pub mod apikeys_handlers {
             
                     // 3. Add to USERS_APIKEYS_HASHTABLE
                     USERS_APIKEYS_HASHTABLE.with(|store| {
-                        store.borrow_mut()
-                            .entry(new_api_key.user_id.clone())
-                            .or_insert_with(Vec::new)
-                            .push(new_api_key.id.clone());
+                        let mut store_ref = store.borrow_mut();
+                        let mut key_list = match store_ref.get(&new_api_key.user_id) {
+                            Some(list) => list.clone(),
+                            None => ApiKeyIDList::new(),
+                        };
+                        key_list.keys.push(new_api_key.id.clone()); 
+                        store_ref.insert(new_api_key.user_id.clone(), key_list);
                     });
 
                     create_response(
@@ -202,7 +206,7 @@ pub mod apikeys_handlers {
             
                     // Get the API key to update
                     let api_key_id = ApiKeyID(update_req.id);
-                    let mut api_key = match APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&api_key_id).cloned()) {
+                    let mut api_key = match APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&api_key_id).clone()) {
                         Some(key) => key,
                         None => return create_response(
                             StatusCode::NOT_FOUND,
@@ -210,7 +214,7 @@ pub mod apikeys_handlers {
                         ),
                     };
 
-                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+                    let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
                     let is_own_key = requester_api_key.user_id == api_key.user_id;
 
                     // Check system permission to update if not owner or own key
@@ -237,7 +241,7 @@ pub mod apikeys_handlers {
 
                     // Get the updated API key
                     let updated_api_key = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-                        store.borrow().get(&api_key.id.clone()).cloned()
+                        store.borrow().get(&api_key.id.clone()).clone()
                     });
 
 
@@ -300,7 +304,7 @@ pub mod apikeys_handlers {
 
        // Get the API key to be deleted
         let api_key_to_delete = APIKEYS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&ApiKeyID(delete_request.id.to_string())).cloned()
+            store.borrow().get(&ApiKeyID(delete_request.id.to_string())).clone()
         });
 
         let api_key = match api_key_to_delete {
@@ -316,7 +320,8 @@ pub mod apikeys_handlers {
         // 1. The requester's API key must belong to the owner
         // 2. Or the requester must be deleting their own API key
         // 3. Or the requester must have Delete permission on this API key record
-        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
+        let owner_id = OWNER_ID.with(|id| (*id.borrow().get()).clone());
+        let is_owner = owner_id == requester_api_key.user_id;
         let is_own_key = requester_api_key.user_id == api_key.user_id;
 
         if !is_owner && !is_own_key {
@@ -335,12 +340,16 @@ pub mod apikeys_handlers {
 
         // 3. Remove from USERS_APIKEYS_HASHTABLE
         USERS_APIKEYS_HASHTABLE.with(|store| {
-            let mut store = store.borrow_mut();
-            if let Some(api_key_ids) = store.get_mut(&api_key.user_id) {
-                api_key_ids.retain(|id| id != &api_key.id);
+            let mut store_ref = store.borrow_mut();
+            if let Some(api_key_ids) = store_ref.get(&api_key.user_id) {
+                let mut updated_ids = api_key_ids.clone();
+                updated_ids.keys.retain(|id| id != &api_key.id); // Assuming ApiKeyIDList has a retain method
+                
                 // If this was the last API key for the user, remove the user entry
-                if api_key_ids.is_empty() {
-                    store.remove(&api_key.user_id);
+                if updated_ids.is_empty() { // Assuming ApiKeyIDList has an is_empty method
+                    store_ref.remove(&api_key.user_id);
+                } else {
+                    store_ref.insert(api_key.user_id.clone(), updated_ids);
                 }
             }
         });
@@ -375,22 +384,89 @@ pub mod apikeys_handlers {
         let state_snapshot = StateSnapshot {
             // System info
             canister_id: CANISTER_ID.with(|id| id.clone()),
-            version: VERSION.with(|v| v.borrow().clone()),
-            owner_id: OWNER_ID.with(|id| id.borrow().clone()),
-            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().clone()),
+            version: VERSION.with(|v| v.borrow().get().clone()),
+            owner_id: OWNER_ID.with(|id| id.borrow().get().clone()),
+            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
             
             // API keys state
-            apikeys_by_value: APIKEYS_BY_VALUE_HASHTABLE.with(|store| store.borrow().clone()),
-            apikeys_by_id: APIKEYS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-            users_apikeys: USERS_APIKEYS_HASHTABLE.with(|store| store.borrow().clone()),
-            apikeys_history: APIKEYS_BY_HISTORY.with(|store| store.borrow().clone()),
+            apikeys_by_value: APIKEYS_BY_VALUE_HASHTABLE.with(|store| {
+                let borrowed = store.borrow();
+                let mut result = std::collections::HashMap::new();
+                for (k, v) in borrowed.iter() {
+                    result.insert(k.clone(), v.clone());
+                }
+                result
+            }),
+            apikeys_by_id: APIKEYS_BY_ID_HASHTABLE.with(|store| {
+                let borrowed = store.borrow();
+                let mut result = std::collections::HashMap::new();
+                for (k, v) in borrowed.iter() {
+                    result.insert(k.clone(), v.clone());
+                }
+                result
+            }),
+            users_apikeys: USERS_APIKEYS_HASHTABLE.with(|store| {
+                let borrowed = store.borrow();
+                let mut result = std::collections::HashMap::new();
+                for (k, v) in borrowed.iter() {
+                    result.insert(k.clone(), v.keys.clone());
+                }
+                result
+            }),
+            apikeys_history: APIKEYS_BY_HISTORY.with(|vec| {
+                let borrowed = vec.borrow();
+                let mut result = Vec::new();
+                for i in 0..borrowed.len() {
+                    if let Some(item) = borrowed.get(i) {
+                        result.push(item.clone());
+                    }
+                }
+                result
+            }),
             
             // GiftcardSpawnOrg state
-            deployments_by_giftcard_id: DEPLOYMENTS_BY_GIFTCARD_SPAWNORG_ID.with(|store| store.borrow().clone()),
-            historical_giftcards: HISTORICAL_GIFTCARDS_SPAWNORGS.with(|store| store.borrow().clone()),
-            drive_to_giftcard_hashtable: DRIVE_TO_GIFTCARD_SPAWNORG_HASHTABLE.with(|store| store.borrow().clone()),
-            user_to_giftcards_hashtable: USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE.with(|store| store.borrow().clone()),
-            giftcard_by_id: GIFTCARD_SPAWNORG_BY_ID.with(|store| store.borrow().clone()),
+            deployments_by_giftcard_id: DEPLOYMENTS_BY_GIFTCARD_SPAWNORG_ID.with(|store| {
+                let borrowed = store.borrow();
+                let mut result = std::collections::HashMap::new();
+                for (k, v) in borrowed.iter() {
+                    result.insert(k.clone(), v.clone());
+                }
+                result
+            }),
+            historical_giftcards: HISTORICAL_GIFTCARDS_SPAWNORGS.with(|vec| {
+                let borrowed = vec.borrow();
+                let mut result = Vec::new();
+                for i in 0..borrowed.len() {
+                    if let Some(item) = borrowed.get(i) {
+                        result.push(item.clone());
+                    }
+                }
+                result
+            }),
+            drive_to_giftcard_hashtable: DRIVE_TO_GIFTCARD_SPAWNORG_HASHTABLE.with(|store| {
+                let borrowed = store.borrow();
+                let mut result = std::collections::HashMap::new();
+                for (k, v) in borrowed.iter() {
+                    result.insert(k.clone(), v.clone());
+                }
+                result
+            }),
+            user_to_giftcards_hashtable: USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE.with(|store| {
+                let borrowed = store.borrow();
+                let mut result = std::collections::HashMap::new();
+                for (k, v) in borrowed.iter() {
+                    result.insert(k.clone(), v.items.clone());
+                }
+                result
+            }),
+            giftcard_by_id: GIFTCARD_SPAWNORG_BY_ID.with(|store| {
+                let borrowed = store.borrow();
+                let mut result = std::collections::HashMap::new();
+                for (k, v) in borrowed.iter() {
+                    result.insert(k.clone(), v.clone());
+                }
+                result
+            }),
             
             // Add timestamp
             timestamp_ns: ic_cdk::api::time(),
