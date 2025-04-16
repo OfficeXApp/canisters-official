@@ -564,7 +564,7 @@ folder_uuid_to_metadata.with_mut(|map| {
             permissions
                 .borrow()
                 .get(&PermissionGranteeID::User(user_id.clone()))
-                .cloned()
+                .clone()
                 .unwrap_or_default()
         });
     
@@ -574,7 +574,7 @@ folder_uuid_to_metadata.with_mut(|map| {
                 .get(&GroupInviteeID::User(user_id.clone()))
                 .map(|list| list.invites.clone())
                 .unwrap_or_default()
-                .into_iter()
+                .into_iter()  // This is fine as it's working with a Vec<InviteID>
                 .filter_map(|invite_id| {
                     INVITES_BY_ID_HASHTABLE.with(|invites| {
                         invites
@@ -588,8 +588,10 @@ folder_uuid_to_metadata.with_mut(|map| {
                         permissions
                             .borrow()
                             .get(&PermissionGranteeID::Group(group_id))
-                            .cloned()
+                            .clone()  // Use cloned() instead of clone() here
                             .unwrap_or_default()
+                            .permissions  // Access the permissions field directly
+                            .into_iter()  // Now this works with Vec<DirectoryPermissionID>
                     })
                 })
                 .collect::<Vec<_>>()
@@ -599,21 +601,21 @@ folder_uuid_to_metadata.with_mut(|map| {
             permissions
                 .borrow()
                 .get(&PermissionGranteeID::Public)
-                .cloned()
+                .clone()
                 .unwrap_or_default()
         });
     
         // Combine all permissions
-        let mut all_permissions = user_permissions;
+        let mut all_permissions = user_permissions.permissions;
         all_permissions.extend(group_permissions);
-        all_permissions.extend(public_permissions);
+        all_permissions.extend(public_permissions.permissions);
     
         // Fetch actual permission records and filter by disk_id
         let mut permission_records = Vec::new();
     
         for permission_id in all_permissions {
             if let Some(record) = DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-                permissions.borrow().get(&permission_id).cloned()
+                permissions.borrow().get(&permission_id).clone()
             }) {
                 let resource_disk_matches = match &record.resource_id {
                     DirectoryResourceID::Folder(folder_id) => folder_uuid_to_metadata

@@ -5,7 +5,7 @@ pub mod permissions_handlers {
     use std::collections::HashSet;
 
     use crate::{
-        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, check_system_permissions, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, groups::state::state::{is_group_admin, is_user_on_group}, labels::types::redact_label, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResponse, CheckPermissionResult, CheckSystemPermissionResponse, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreatePermissionsResponse, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponse, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponse, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponse, DeleteSystemPermissionResponseData, ErrorResponse, GetPermissionResponse, GetSystemPermissionResponse, ListDirectoryPermissionsRequestBody, ListDirectoryPermissionsResponse, ListDirectoryPermissionsResponseData, ListSystemPermissionsRequestBody, ListSystemPermissionsRequestBodyFilters, ListSystemPermissionsResponse, ListSystemPermissionsResponseData, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponse, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponse, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdatePermissionsResponse, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponse, UpdateSystemPermissionsResponseData}, webhooks::types::SortDirection},
+        core::{api::{permissions::{directory::{can_user_access_directory_permission, check_directory_permissions, get_inherited_resources_list, has_directory_manage_permission, parse_directory_resource_id, parse_permission_grantee_id}, system::{can_user_access_system_permission, check_permissions_table_access, check_system_permissions, has_system_manage_permission}}, replay::diff::{snapshot_poststate, snapshot_prestate}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::DriveFullFilePath}, drives::{state::state::{update_external_id_mapping, OWNER_ID}, types::{ExternalID, ExternalPayload}}, groups::state::state::{is_group_admin, is_user_on_group}, labels::types::redact_label, permissions::{state::{helpers::{remove_system_permission_from_grantee, remove_system_permission_from_resource, update_system_permissions_time_list}, state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}}, types::{DirectoryPermission, DirectoryPermissionID, DirectoryPermissionIDList, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionIDList, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}}, types::{IDPrefix, UserID}}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response}, directory::types::DirectoryResourceID, permissions::types::{CheckPermissionResponse, CheckPermissionResult, CheckSystemPermissionResponse, CheckSystemPermissionResult, CreateDirectoryPermissionsRequestBody, CreateDirectoryPermissionsResponseData, CreatePermissionsResponse, CreateSystemPermissionsRequestBody, CreateSystemPermissionsResponse, CreateSystemPermissionsResponseData, DeletePermissionRequest, DeletePermissionResponse, DeletePermissionResponseData, DeleteSystemPermissionRequest, DeleteSystemPermissionResponse, DeleteSystemPermissionResponseData, ErrorResponse, GetPermissionResponse, GetSystemPermissionResponse, ListDirectoryPermissionsRequestBody, ListDirectoryPermissionsResponse, ListDirectoryPermissionsResponseData, ListSystemPermissionsRequestBody, ListSystemPermissionsRequestBodyFilters, ListSystemPermissionsResponse, ListSystemPermissionsResponseData, PermissionCheckRequest, RedeemPermissionRequest, RedeemPermissionResponse, RedeemPermissionResponseData, RedeemSystemPermissionRequest, RedeemSystemPermissionResponse, RedeemSystemPermissionResponseData, SystemPermissionCheckRequest, UpdateDirectoryPermissionsRequestBody, UpdateDirectoryPermissionsResponseData, UpdatePermissionsResponse, UpdateSystemPermissionsRequestBody, UpdateSystemPermissionsResponse, UpdateSystemPermissionsResponseData}, webhooks::types::SortDirection},
         
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -33,7 +33,7 @@ pub mod permissions_handlers {
         };
         // 3. Look up permission in state
         let permission = DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-            permissions.borrow().get(&permission_id).cloned()
+            permissions.borrow().get(&permission_id).clone()
         });
 
         // 4. Verify access rights using helper function
@@ -235,7 +235,8 @@ pub mod permissions_handlers {
                 let mut timed_ids: Vec<(u64, DirectoryPermissionID)> = Vec::new();
                 DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
                     let id_store = id_store.borrow();
-                    for id in &permission_ids {
+                    // Use iter() instead of &permission_ids
+                    for id in permission_ids.iter() {
                         if let Some(permission) = id_store.get(id) {
                             timed_ids.push((permission.created_at, id.clone()));
                         }
@@ -303,7 +304,7 @@ pub mod permissions_handlers {
                 .map(|permission| permission.cast_fe(user_id))
                 .collect(),
             page_size: filtered_permissions.len(),
-            total: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|h| h.borrow().len()), // Return total count of all permissions
+            total: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|h| h.borrow().len()) as usize, // Return total count of all permissions
             direction,
             cursor: next_cursor,
         };
@@ -459,21 +460,34 @@ pub mod permissions_handlers {
         });
 
         DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            permissions_by_resource.borrow_mut()
-                .entry(resource_id)
-                .or_insert_with(Vec::new)
-                .push(permission_id.clone());
+            let mut map = permissions_by_resource.borrow_mut();
+            if let Some(perm_list) = map.get(&resource_id) {
+                // Clone, then modify
+                let mut new_list = perm_list.clone();
+                new_list.add(permission_id.clone());
+                map.insert(resource_id.clone(), new_list);
+            } else {
+                // No list exists, create a new one
+                map.insert(resource_id.clone(), DirectoryPermissionIDList::with_permission(permission_id.clone()));
+            }
         });
-
+        
         DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            grantee_permissions.borrow_mut()
-                .entry(grantee_id)
-                .or_insert_with(Vec::new)
-                .push(permission_id.clone());
+            let mut map = grantee_permissions.borrow_mut();
+            if let Some(perm_list) = map.get(&grantee_id) {
+                // Clone, then modify
+                let mut new_list = perm_list.clone();
+                new_list.add(permission_id.clone());
+                map.insert(grantee_id.clone(), new_list);
+            } else {
+                // No list exists, create a new one
+                map.insert(grantee_id.clone(), DirectoryPermissionIDList::with_permission(permission_id.clone()));
+            }
         });
 
         DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-            permissions_by_time.borrow_mut().push(permission_id.clone());
+            let mut list = permissions_by_time.borrow_mut();
+            list.add(permission_id.clone());
         });
 
         mark_claimed_uuid(&permission_id.clone().to_string());
@@ -527,7 +541,7 @@ pub mod permissions_handlers {
         // UPDATE case
         let id = upsert_request.id;
         let mut existing_permission = match DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
-            permissions.borrow().get(&id).cloned()
+            permissions.borrow().get(&id).clone()
         ) {
             Some(permission) => permission,
             None => return create_response(
@@ -660,7 +674,7 @@ pub mod permissions_handlers {
     
         // 3. Check if permission exists and get it
         let permission = DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-            permissions.borrow().get(&delete_request.permission_id).cloned()
+            permissions.borrow().get(&delete_request.permission_id).clone()
         });
     
         let permission = match permission {
@@ -708,12 +722,25 @@ pub mod permissions_handlers {
         // Remove from DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE
         DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
             let mut permissions = permissions_by_resource.borrow_mut();
-            if let Some(permission_vec) = permissions.get_mut(&permission.resource_id) {
-                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
-                // If set is empty, remove the resource entry
-                if permission_vec.is_empty() {
-                    // Now we use our existing mutable borrow instead of creating a new one
+            if let Some(current_list) = permissions.get(&permission.resource_id) {
+                // Create a new list without the permission to delete
+                let mut updated_list = DirectoryPermissionIDList::new();
+                
+                // Copy all items except the one to be deleted
+                for i in 0..current_list.permissions.len() {
+                    if let Some(id) = current_list.permissions.get(i) {
+                        if id != &delete_request.permission_id {
+                            updated_list.add(id.clone());
+                        }
+                    }
+                }
+                
+                // If the updated list is empty, remove the entry
+                if updated_list.is_empty() {
                     permissions.remove(&permission.resource_id);
+                } else {
+                    // Otherwise, insert the updated list back
+                    permissions.insert(permission.resource_id.clone(), updated_list);
                 }
             }
         });
@@ -721,21 +748,46 @@ pub mod permissions_handlers {
         // Remove from DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE
         DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
             let mut permissions = grantee_permissions.borrow_mut();
-            if let Some(permission_vec) = permissions.get_mut(&permission.granted_to) {
-                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
-                // If set is empty, remove the grantee entry
-                if permission_vec.is_empty() {
+            if let Some(current_list) = permissions.get(&permission.granted_to) {
+                // Create a new list without the permission to delete
+                let mut updated_list = DirectoryPermissionIDList::new();
+                
+                // Copy all items except the one to be deleted
+                for i in 0..current_list.permissions.len() {
+                    if let Some(id) = current_list.permissions.get(i) {
+                        if id != &delete_request.permission_id {
+                            updated_list.add(id.clone());
+                        }
+                    }
+                }
+                
+                // If the updated list is empty, remove the entry
+                if updated_list.is_empty() {
                     permissions.remove(&permission.granted_to);
+                } else {
+                    // Otherwise, insert the updated list back
+                    permissions.insert(permission.granted_to.clone(), updated_list);
                 }
             }
         });
 
         // Remove from DIRECTORY_PERMISSIONS_BY_TIME_LIST
         DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-            let mut list = permissions_by_time.borrow_mut();
-            if let Some(pos) = list.iter().position(|id| *id == delete_request.permission_id) {
-                list.remove(pos);
+            let mut new_list = DirectoryPermissionIDList::new();
+            
+            // Copy all items except the one to be deleted
+            let list_ref = permissions_by_time.borrow();
+            for i in 0..list_ref.permissions.len() {
+                if let Some(id) = list_ref.permissions.get(i) {
+                    if id != &delete_request.permission_id {
+                        new_list.add(id.clone());
+                    }
+                }
             }
+            
+            // Replace the old list with the new one
+            drop(list_ref);
+            *permissions_by_time.borrow_mut() = new_list;
         });
     
         snapshot_poststate(prestate, Some(
@@ -783,7 +835,7 @@ pub mod permissions_handlers {
     
         // 3. Get existing permission
         let mut permission = match DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-            permissions.borrow().get(&permission_id).cloned()
+            permissions.borrow().get(&permission_id).clone()
         }) {
             Some(p) => p,
             None => return create_response(
@@ -858,12 +910,30 @@ pub mod permissions_handlers {
         // Update grantee permissions - remove old, add new
         DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
             let mut table = grantee_permissions.borrow_mut();
+            
             // Remove from old grantee's set
             table.remove(&old_grantee);
-            // Add to new grantee's set 
-            table.entry(new_grantee)
-                .or_insert_with(Vec::new)
-                .push(permission_id.clone());
+            
+            // Add to new grantee's set - need to get or create list
+            let mut new_grantee_list = match table.get(&new_grantee) {
+                Some(existing_list) => {
+                    // Clone the existing list
+                    let mut list_copy = DirectoryPermissionIDList::new();
+                    for i in 0..existing_list.permissions.len() {
+                        if let Some(id) = existing_list.permissions.get(i) {
+                            list_copy.add(id.clone());
+                        }
+                    }
+                    list_copy
+                },
+                None => DirectoryPermissionIDList::new()
+            };
+            
+            // Add the permission to the list
+            new_grantee_list.add(permission_id.clone());
+            
+            // Insert the updated list
+            table.insert(new_grantee, new_grantee_list);
         });
 
         snapshot_poststate(prestate, Some(
@@ -903,7 +973,7 @@ pub mod permissions_handlers {
     
         // 3. Look up permission in state
         let permission = SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-            permissions.borrow().get(&permission_id).cloned()
+            permissions.borrow().get(&permission_id).clone()
         });
 
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
@@ -1017,7 +1087,7 @@ pub mod permissions_handlers {
                             let mut timed_ids: Vec<(u64, SystemPermissionID)> = Vec::new();
                             SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
                                 let id_store = id_store.borrow();
-                                for id in &permission_ids {
+                                for id in &permission_ids.permissions {
                                     if let Some(permission) = id_store.get(id) {
                                         timed_ids.push((permission.created_at, id.clone()));
                                     }
@@ -1048,7 +1118,7 @@ pub mod permissions_handlers {
                                 SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
                                     if let Some(permission) = id_store.borrow().get(permission_id) {
                                         // Apply remaining filters
-                                        if passes_remaining_filters(permission, &request_body.filters, user_id, is_owner) {
+                                        if passes_remaining_filters(&permission, &request_body.filters, user_id, is_owner) {
                                             filtered_permissions.push(permission.clone());
                                         }
                                     }
@@ -1072,7 +1142,7 @@ pub mod permissions_handlers {
                 // Process all permissions in time order
                 SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|time_list| {
                     let time_list = time_list.borrow();
-                    let total_permissions = time_list.len();
+                    let total_permissions = time_list.len();  // Use len() instead of permissions.len()
                     
                     // Skip processing if no permissions
                     if total_permissions == 0 {
@@ -1086,14 +1156,14 @@ pub mod permissions_handlers {
                             let start = if let Some(c) = cursor {
                                 (total_permissions as isize - 1 - c as isize).max(0) as usize
                             } else {
-                                total_permissions - 1 // Start from newest
+                                (total_permissions - 1) as usize // Start from newest
                             };
                             (start, -1)
                         },
                         SortDirection::Asc => {
                             // For asc, we start from oldest (start of list) and go forwards
                             let start = if let Some(c) = cursor {
-                                c.min(total_permissions - 1)
+                                c.min(total_permissions as usize - 1)
                             } else {
                                 0 // Start from oldest
                             };
@@ -1104,22 +1174,24 @@ pub mod permissions_handlers {
                     // Process permissions with early exit conditions
                     SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|id_store| {
                         let id_store = id_store.borrow();
-                        let mut idx = start_idx;
+                        let mut idx = start_idx as u64;  // Convert to u64 here
                         
                         for _ in 0..page_size {
-                            if let Some(permission) = id_store.get(&time_list[idx]) {
-                                // Check if user has access to the resource
-                                if is_owner || has_system_manage_permission(user_id, &permission.resource_id) {
-                                    // Apply remaining filters
-                                    if passes_remaining_filters(permission, &request_body.filters, user_id, is_owner) {
-                                        filtered_permissions.push(permission.clone());
+                            if let Some(permission_id) = time_list.get(idx) {  // Now using u64
+                                if let Some(permission) = id_store.get(&permission_id) {
+                                    // Check if user has access to the resource
+                                    if is_owner || has_system_manage_permission(user_id, &permission.resource_id) {
+                                        // Apply remaining filters
+                                        if passes_remaining_filters(&permission, &request_body.filters, user_id, is_owner) {
+                                            filtered_permissions.push(permission.clone());
+                                        }
                                     }
                                 }
                             }
                             
                             // Move to next item based on direction
-                            let next_idx = (idx as isize + step) as usize;
-                            if next_idx >= total_permissions {
+                            let next_idx = (idx as isize + step as isize) as u64;  // Handle conversion carefully
+                            if next_idx >= total_permissions as u64 {
                                 break; // Reached the end
                             }
                             idx = next_idx;
@@ -1144,7 +1216,7 @@ pub mod permissions_handlers {
                 .map(|permission| permission.cast_fe(user_id))
                 .collect(),
             page_size: filtered_permissions.len(),
-            total: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|h| h.borrow().len()), // Return total count of all permissions
+            total: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|h| h.borrow().len()) as usize, // Return total count of all permissions
             cursor: next_cursor,
         };
     
@@ -1229,7 +1301,7 @@ pub mod permissions_handlers {
                     "DISKS" => SystemResourceID::Table(SystemTableEnum::Disks),
                     "CONTACTS" => SystemResourceID::Table(SystemTableEnum::Contacts),
                     "GROUPS" => SystemResourceID::Table(SystemTableEnum::Groups),
-                    "API_KEYS" => SystemResourceID::Table(SystemTableEnum::Api_Keys),
+                    "API_KEYS" => SystemResourceID::Table(SystemTableEnum::ApiKeys),
                     "PERMISSIONS" => SystemResourceID::Table(SystemTableEnum::Permissions),
                     "WEBHOOKS" => SystemResourceID::Table(SystemTableEnum::Webhooks),
                     "LABELS" => SystemResourceID::Table(SystemTableEnum::Labels),
@@ -1323,21 +1395,59 @@ pub mod permissions_handlers {
         });
 
         SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            permissions_by_resource.borrow_mut()
-                .entry(resource_id)
-                .or_insert_with(Vec::new)
-                .push(permission_id.clone());
+            let mut table = permissions_by_resource.borrow_mut();
+            
+            // Get or create list for this resource
+            let mut resource_list = match table.get(&resource_id) {
+                Some(existing_list) => {
+                    // Clone the existing list
+                    let mut list_copy = SystemPermissionIDList::new();
+                    for i in 0..existing_list.permissions.len() {
+                        if let Some(id) = existing_list.permissions.get(i) {
+                            list_copy.add(id.clone());
+                        }
+                    }
+                    list_copy
+                },
+                None => SystemPermissionIDList::new()
+            };
+            
+            // Add the permission to the list
+            resource_list.add(permission_id.clone());
+            
+            // Insert the updated list
+            table.insert(resource_id, resource_list);
         });
 
         SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            grantee_permissions.borrow_mut()
-                .entry(grantee_id)
-                .or_insert_with(Vec::new)
-                .push(permission_id.clone());
+            let mut table = grantee_permissions.borrow_mut();
+            
+            // Get or create list for this grantee
+            let mut grantee_list = match table.get(&grantee_id) {
+                Some(existing_list) => {
+                    // Clone the existing list
+                    let mut list_copy = SystemPermissionIDList::new();
+                    for i in 0..existing_list.permissions.len() {
+                        if let Some(id) = existing_list.permissions.get(i) {
+                            list_copy.add(id.clone());
+                        }
+                    }
+                    list_copy
+                },
+                None => SystemPermissionIDList::new()
+            };
+            
+            // Add the permission to the list
+            grantee_list.add(permission_id.clone());
+            
+            // Insert the updated list
+            table.insert(grantee_id, grantee_list);
         });
 
         SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-            permissions_by_time.borrow_mut().push(permission_id.clone());
+            permissions_by_time.borrow_mut()
+                .push(&permission_id.clone())
+                .expect("Failed to add permission to time list");
         });
 
         mark_claimed_uuid(&permission_id.clone().to_string());
@@ -1399,7 +1509,7 @@ pub mod permissions_handlers {
 
         let id = upsert_request.id;
         let mut existing_permission = match SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| 
-            permissions.borrow().get(&id).cloned()
+            permissions.borrow().get(&id).clone()
         ) {
             Some(permission) => permission,
             None => return create_response(
@@ -1500,7 +1610,7 @@ pub mod permissions_handlers {
     
         // 3. Check if permission exists and get it
         let permission = SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-            permissions.borrow().get(&delete_request.permission_id).cloned()
+            permissions.borrow().get(&delete_request.permission_id).clone()
         });
     
         let permission = match permission {
@@ -1533,44 +1643,16 @@ pub mod permissions_handlers {
         {SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
             permissions.borrow_mut().remove(&delete_request.permission_id);
         });}
+        
     
         debug_log!("Delete request resource_id {:?}", permission.resource_id.clone());
-        // Remove from SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE
-        {SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
-            let mut perms = permissions_by_resource.borrow_mut();
-            if let Some(permission_vec) = perms.get_mut(&permission.resource_id) {
-                *permission_vec = permission_vec.iter()
-                    .filter(|id| **id != delete_request.permission_id)
-                    .cloned()
-                    .collect();
-                
-                // Check if empty and remove it
-                if permission_vec.is_empty() {
-                    perms.remove(&permission.resource_id);
-                }
-            }
-        });}
+        remove_system_permission_from_resource(&permission.resource_id, &delete_request.permission_id);
     
         // Remove from SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE
-        {SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            if let Some(permission_vec) = grantee_permissions.borrow_mut().get_mut(&permission.granted_to) {
-                *permission_vec = permission_vec.iter().filter(|id| **id != delete_request.permission_id).cloned().collect();
-                // // If set is empty, remove the grantee entry (this panicks on error, already borrowed)
-                // if permission_vec.is_empty() {
-                //     grantee_permissions.borrow_mut().remove(&permission.granted_to);
-                // }
-            }
-        });}
+        remove_system_permission_from_grantee(&permission.granted_to, &delete_request.permission_id);
     
         // Remove from SYSTEM_PERMISSIONS_BY_TIME_LIST
-        {
-            SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
-                let mut list = permissions_by_time.borrow_mut();
-                if let Some(pos) = list.iter().position(|id| *id == delete_request.permission_id) {
-                    list.remove(pos);
-                }
-            });
-        }
+        update_system_permissions_time_list(&delete_request.permission_id, false);
 
         update_external_id_mapping(
             old_external_id,
@@ -1585,8 +1667,6 @@ pub mod permissions_handlers {
                 delete_request.permission_id.0
             ).to_string()
         ));
-
-        
 
         let final_permission = DeleteSystemPermissionResponseData {
             deleted_id: delete_request.permission_id,
@@ -1636,7 +1716,7 @@ pub mod permissions_handlers {
                     "CONTACTS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Contacts),
                     "GROUPS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Groups),
                     "WEBHOOKS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Webhooks),
-                    "API_KEYS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Api_Keys),
+                    "API_KEYS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::ApiKeys),
                     "PERMISSIONS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Permissions),
                     "LABELS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Labels),
                     "INBOX" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Inbox),
@@ -1734,7 +1814,7 @@ pub mod permissions_handlers {
     
         // 3. Get existing permission
         let mut permission = match SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
-            permissions.borrow().get(&permission_id).cloned()
+            permissions.borrow().get(&permission_id).clone()
         }) {
             Some(p) => p,
             None => return create_response(
@@ -1806,15 +1886,7 @@ pub mod permissions_handlers {
         });
     
         // Update grantee permissions - remove old, add new
-        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            let mut table = grantee_permissions.borrow_mut();
-            // Remove from old grantee's set
-            table.remove(&old_grantee);
-            // Add to new grantee's set
-            table.entry(new_grantee)
-                .or_insert_with(Vec::new)
-                .push(permission_id.clone());
-        });
+        remove_system_permission_from_grantee(&old_grantee, &permission_id);
 
         snapshot_poststate(prestate, Some(
             format!(

@@ -117,7 +117,7 @@ impl ApiKey {
             PermissionGranteeID::User(user_id.clone())
         );
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::Api_Keys),
+            SystemResourceID::Table(SystemTableEnum::ApiKeys),
             PermissionGranteeID::User(user_id.clone())
         );
         let permission_previews: Vec<SystemPermissionType> = record_permissions

@@ -10,6 +10,7 @@ use crate::core::state::contacts::state::state::HISTORY_SUPERSWAP_USERID;
 use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS, NONCE_UUID_GENERATED, RECENT_DEPLOYMENTS, SPAWN_NOTE, SPAWN_REDEEM_CODE, UUID_CLAIMED, VERSION};
 use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, FactorySpawnHistoryRecord, SpawnRedeemCode, StateChecksum, StateDiffRecord, StringVec};
 use crate::core::state::group_invites::types::GroupInviteIDList;
+use crate::core::state::permissions::types::{DirectoryPermissionIDList, SystemPermissionIDList};
 use crate::core::state::webhooks::types::WebhookIDList;
 use crate::core::types::{ICPPrincipalString, PublicKeyEVM};
 use crate::{core::{api::{webhooks::state_diffs::{fire_state_diff_webhooks, get_active_state_diff_webhooks}}, state::{api_keys::{state::state::{APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyValue}}, contacts::{state::state::{CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE, CONTACTS_BY_ID_HASHTABLE, CONTACTS_BY_TIME_LIST}, types::Contact}, directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}}, disks::{state::state::{DISKS_BY_ID_HASHTABLE, DISKS_BY_TIME_LIST}, types::{Disk, DiskID}}, drives::{state::state::{CANISTER_ID, DRIVES_BY_ID_HASHTABLE, DRIVES_BY_TIME_LIST, DRIVE_ID, DRIVE_STATE_TIMESTAMP_NS, OWNER_ID, URL_ENDPOINT}, types::{Drive, DriveID, DriveRESTUrlEndpoint, DriveStateDiffString}}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE, DIRECTORY_PERMISSIONS_BY_TIME_LIST, SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{DirectoryPermission, DirectoryPermissionID, PermissionGranteeID, SystemPermission, SystemPermissionID, SystemResourceID}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::{GroupInviteID, GroupInviteeID, GroupInvite}}, groups::{state::state::{GROUPS_BY_ID_HASHTABLE, GROUPS_BY_TIME_LIST}, types::{Group, GroupID}}, webhooks::{state::state::{WEBHOOKS_BY_ALT_INDEX_HASHTABLE, WEBHOOKS_BY_ID_HASHTABLE, WEBHOOKS_BY_TIME_LIST}, types::{Webhook, WebhookAltIndexID, WebhookID}}}, types::{PublicKeyICP, UserID}}, rest::directory::types::DirectoryResourceID};
@@ -320,14 +321,98 @@ pub fn snapshot_entire_state() -> EntireState {
             vec
         }),
         // Permissions
-        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE: DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
-        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE: DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| store.borrow().clone()),
-        DIRECTORY_PERMISSIONS_BY_TIME_LIST: DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| store.borrow().clone()),
-        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| store.borrow().clone()),
-        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| store.borrow().clone()),
-        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| store.borrow().clone()),
-        SYSTEM_PERMISSIONS_BY_TIME_LIST: SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| store.borrow().clone()),
+        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE: DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE: DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE: DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        DIRECTORY_PERMISSIONS_BY_TIME_LIST: DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| {
+            store.borrow().permissions.clone()
+        }),
+        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE: SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE: SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE: SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
+            let btree = store.borrow();
+            let mut hashmap = HashMap::new();
+            
+            // Iterate through all entries and add to HashMap
+            for key_ref in btree.keys() {
+                if let Some(value) = btree.get(&key_ref) {
+                    hashmap.insert(key_ref.clone(), value.permissions.clone());
+                }
+            }
+            
+            hashmap
+        }),
+        SYSTEM_PERMISSIONS_BY_TIME_LIST: SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| {
+            let list = store.borrow();
+            let mut vec = vec![];
+            for i in 0..list.len() {
+                if let Some(item) = list.get(i) {
+                    vec.push(item.clone());
+                }
+            }
+            vec
+        }),
+        
         // Group Invites
         INVITES_BY_ID_HASHTABLE: INVITES_BY_ID_HASHTABLE.with(|store| {
             let btree = store.borrow();
@@ -772,29 +857,111 @@ pub fn apply_entire_state(state: EntireState) {
     
     // Permissions
     DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE {
+            btree.insert(key, DirectoryPermissionIDList { permissions: value });
+        }
     });
     DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE {
+            btree.insert(key, DirectoryPermissionIDList { permissions: value });
+        }
     });
     DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.DIRECTORY_PERMISSIONS_BY_TIME_LIST;
+        let mut dir_perm_list = store.borrow_mut();
+        
+        // Clear existing entries
+        while dir_perm_list.permissions.len() > 0 {
+            dir_perm_list.permissions.pop();
+        }
+        
+        // Insert new entries from Vec
+        for value in state.DIRECTORY_PERMISSIONS_BY_TIME_LIST {
+            dir_perm_list.permissions.push(value);
+        }
     });
     SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_ID_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.SYSTEM_PERMISSIONS_BY_ID_HASHTABLE {
+            btree.insert(key, value);
+        }
     });
     SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE {
+            btree.insert(key, SystemPermissionIDList { permissions: value });
+        }
     });
     SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE;
+        let mut btree = store.borrow_mut();
+        
+        // Clear existing entries
+        for key in btree.keys().collect::<Vec<_>>() {
+            btree.remove(&key);
+        }
+        
+        // Insert new entries from HashMap
+        for (key, value) in state.SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE {
+            btree.insert(key, SystemPermissionIDList { permissions: value });
+        }
     });
     SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|store| {
-        *store.borrow_mut() = state.SYSTEM_PERMISSIONS_BY_TIME_LIST;
+        let mut sys_perm_list = store.borrow_mut();
+    
+        // Clear existing entries
+        while sys_perm_list.len() > 0 {
+            sys_perm_list.pop();
+        }
+    
+        // Insert new entries from Vec
+        for value in &state.SYSTEM_PERMISSIONS_BY_TIME_LIST {
+            sys_perm_list.push(value)
+                .expect("Failed to push system permission ID");
+        }
     });
+    
     
     // Group Invites
     INVITES_BY_ID_HASHTABLE.with(|store| {

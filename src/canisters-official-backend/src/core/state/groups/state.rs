@@ -6,7 +6,7 @@ pub mod state {
     use ic_stable_structures::{memory_manager::MemoryId, StableBTreeMap,StableCell,DefaultMemoryImpl, StableVec};
     use num_bigint::BigUint;
     use num_traits::FromPrimitive;
-    use crate::{core::{api::uuid::generate_uuidv4, state::{drives::state::state::{DRIVE_ID, OWNER_ID}, group_invites::{state::state::USERS_INVITES_LIST_HASHTABLE, types::{GroupInvite, GroupInviteIDList, GroupRole}}, permissions::{state::state::{SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}, types::{PermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}}, types::IDPrefix}, debug_log, rest::groups::types::ValidateGroupResponseData, MEMORY_MANAGER};
+    use crate::{core::{api::uuid::generate_uuidv4, state::{drives::state::state::{DRIVE_ID, OWNER_ID}, group_invites::{state::state::USERS_INVITES_LIST_HASHTABLE, types::{GroupInvite, GroupInviteIDList, GroupRole}}, permissions::{state::{helpers::{add_system_permission_to_grantee, add_system_permission_to_resource, update_system_permissions_time_list}, state::{SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE, SYSTEM_PERMISSIONS_BY_ID_HASHTABLE, SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE, SYSTEM_PERMISSIONS_BY_TIME_LIST}}, types::{PermissionGranteeID, SystemPermission, SystemPermissionID, SystemPermissionType, SystemResourceID, SystemTableEnum}}}, types::IDPrefix}, debug_log, rest::groups::types::ValidateGroupResponseData, MEMORY_MANAGER};
     use serde_json::json;
 
     use crate::core::{state::{drives::state::state::URL_ENDPOINT, group_invites::{state::state::INVITES_BY_ID_HASHTABLE, types::{GroupInviteID, GroupInviteeID}}, groups::types::{Group, GroupID}}, types::UserID};
@@ -150,23 +150,13 @@ pub mod state {
             });
             
             // Add to resource index
-            SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|resource_perms| {
-                let mut resource_perms_ref = resource_perms.borrow_mut();
-                let perms_list = resource_perms_ref.entry(resource_id).or_insert_with(Vec::new);
-                perms_list.push(perm_id.clone());
-            });
+            add_system_permission_to_resource(&resource_id, &perm_id);
             
             // Add to grantee index
-            SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_perms| {
-                let mut grantee_perms_ref = grantee_perms.borrow_mut();
-                let perms_list = grantee_perms_ref.entry(grantee_id).or_insert_with(Vec::new);
-                perms_list.push(perm_id.clone());
-            });
+            add_system_permission_to_grantee(&grantee_id, &perm_id);
             
             // Add to time-ordered list
-            SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|list| {
-                list.borrow_mut().push(perm_id);
-            });
+            update_system_permissions_time_list(&perm_id, true);
         }
     }
 

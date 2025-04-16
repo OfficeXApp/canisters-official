@@ -1,7 +1,8 @@
 
 // src/rest/directory/types.rs
-use std::{collections::HashMap, fmt};
+use std::{borrow::Cow, collections::HashMap, fmt};
 use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
 use crate::{core::{state::{directory::types::{DriveClippedFilePath, DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, raw_storage::types::UploadStatus}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
@@ -625,10 +626,28 @@ impl fmt::Display for FileConflictResolutionEnum {
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub enum DirectoryResourceID {
     File(FileID),
     Folder(FolderID),
+}
+impl Storable for DirectoryResourceID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize DirectoryResourceID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize DirectoryResourceID")
+    }
 }
 impl fmt::Display for DirectoryResourceID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

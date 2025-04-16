@@ -64,7 +64,7 @@ pub mod state {
         pub(crate) static VERSION: RefCell<StableCell<String, Memory>> = RefCell::new(
             StableCell::init(
                 MEMORY_MANAGER.with(|m| m.borrow().get(VERSION_MEMORY_ID)),
-                "OfficeX.Beta.0.0.1".to_string()
+                "OfficeX.Beta.0.0.2".to_string()
             ).expect("Failed to initialize VERSION")
         );
         
@@ -353,17 +353,23 @@ pub mod state {
             let old_grantee = crate::core::state::permissions::types::PermissionGranteeID::User(old_user_id.clone());
             let new_grantee = crate::core::state::permissions::types::PermissionGranteeID::User(new_user_id.clone());
             
-            if let Some(permission_ids) = map.remove(&old_grantee) {
-                // Associate them with the new user ID
-                map.insert(new_grantee.clone(), permission_ids.clone());
+            if let Some(permission_ids) = map.get(&old_grantee) {
+                // Clone the permission IDs
+                let permission_ids_clone = permission_ids.clone();
+                
+                // Remove from old user and add to new user
+                map.remove(&old_grantee);
+                map.insert(new_grantee.clone(), permission_ids_clone.clone());
                 
                 // Update the individual permissions
                 crate::core::state::permissions::state::state::DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|perms| {
-                    let mut perms = perms.borrow_mut();
-                    for permission_id in &permission_ids {
-                        if let Some(perm) = perms.get_mut(permission_id) {
-                            if perm.granted_by == old_user_id {
-                                perm.granted_by = new_user_id.clone();
+                    let mut perms_mut = perms.borrow_mut();
+                    for permission_id in &permission_ids_clone.permissions {
+                        if let Some(perm) = perms_mut.get(permission_id) {
+                            let mut updated_perm = perm.clone();
+                            if updated_perm.granted_by == old_user_id {
+                                updated_perm.granted_by = new_user_id.clone();
+                                perms_mut.insert(permission_id.clone(), updated_perm);
                                 count += 1;
                             }
                             
@@ -377,7 +383,7 @@ pub mod state {
             
             count
         });
-    
+
         // 7. Update System Permissions - optimize by using permission IDs
         update_count += crate::core::state::permissions::state::state::SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|map| {
             let mut map = map.borrow_mut();
@@ -387,17 +393,23 @@ pub mod state {
             let old_grantee = crate::core::state::permissions::types::PermissionGranteeID::User(old_user_id.clone());
             let new_grantee = crate::core::state::permissions::types::PermissionGranteeID::User(new_user_id.clone());
             
-            if let Some(permission_ids) = map.remove(&old_grantee) {
-                // Associate them with the new user ID
-                map.insert(new_grantee.clone(), permission_ids.clone());
+            if let Some(permission_ids) = map.get(&old_grantee) {
+                // Clone the permission IDs
+                let permission_ids_clone = permission_ids.clone();
+                
+                // Remove from old user and add to new user
+                map.remove(&old_grantee);
+                map.insert(new_grantee.clone(), permission_ids_clone.clone());
                 
                 // Update the individual permissions
                 crate::core::state::permissions::state::state::SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|perms| {
-                    let mut perms = perms.borrow_mut();
-                    for permission_id in &permission_ids {
-                        if let Some(perm) = perms.get_mut(permission_id) {
-                            if perm.granted_by == old_user_id {
-                                perm.granted_by = new_user_id.clone();
+                    let mut perms_mut = perms.borrow_mut();
+                    for permission_id in &permission_ids_clone.permissions {
+                        if let Some(perm) = perms_mut.get(permission_id) {
+                            let mut updated_perm = perm.clone();
+                            if updated_perm.granted_by == old_user_id {
+                                updated_perm.granted_by = new_user_id.clone();
+                                perms_mut.insert(permission_id.clone(), updated_perm);
                                 count += 1;
                             }
                             
