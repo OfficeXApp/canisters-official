@@ -4,7 +4,7 @@ use crate::rest::router::{self, genroute};
 use crate::rest::types::RouteHandler;
 
 
-pub const LABELS_GET_PATH: &str =         genroute!("/labels/get/{id}");
+pub const LABELS_GET_PATH: &str =         genroute!("/labels/get/{label_id}");
 pub const LABELS_LIST_PATH: &str =        genroute!("/labels/list");
 pub const LABELS_CREATE_PATH: &str =      genroute!("/labels/create");
 pub const LABELS_UPDATE_PATH: &str =      genroute!("/labels/update");
