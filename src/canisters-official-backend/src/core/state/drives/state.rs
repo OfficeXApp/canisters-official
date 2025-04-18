@@ -27,6 +27,7 @@ pub mod state {
     use crate::core::state::group_invites::types::GroupInviteeID;
     use crate::core::state::groups::state::state::GROUPS_BY_ID_HASHTABLE;
     use crate::core::state::groups::types::GroupID;
+    use crate::core::state::permissions::types::PermissionGranteeID;
     use crate::core::state::webhooks::state::state::WEBHOOKS_BY_ID_HASHTABLE;
     use crate::core::state::webhooks::types::WebhookAltIndexID;
     use crate::core::types::ICPPrincipalString;
@@ -364,16 +365,30 @@ pub mod state {
                 // Update the individual permissions
                 crate::core::state::permissions::state::state::DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|perms| {
                     let mut perms_mut = perms.borrow_mut();
-                    for permission_id in &permission_ids_clone.permissions {
-                        if let Some(perm) = perms_mut.get(permission_id) {
+                    
+                    // Get all keys in the hashtable
+                    let all_keys: Vec<crate::core::state::permissions::types::DirectoryPermissionID> = 
+                        perms_mut.iter().map(|(k, _)| k.clone()).collect();
+                    
+                    // Process each permission
+                    for key in all_keys {
+                        if let Some(perm) = perms_mut.get(&key) {
                             let mut updated_perm = perm.clone();
-                            if updated_perm.granted_by == old_user_id {
-                                updated_perm.granted_by = new_user_id.clone();
-                                perms_mut.insert(permission_id.clone(), updated_perm);
-                                count += 1;
+                            let mut modified = false;
+                            
+                            // Check if granted_to is a User type and matches old_user_id
+                            if let crate::core::state::permissions::types::PermissionGranteeID::User(user_id) = &updated_perm.granted_to {
+                                if *user_id == old_user_id {
+                                    updated_perm.granted_to = crate::core::state::permissions::types::PermissionGranteeID::User(new_user_id.clone());
+                                    modified = true;
+                                    count += 1;
+                                }
                             }
                             
-                            // The granted_to is already updated by moving the entry in the hashtable
+                            // If we made changes, insert the modified permission back
+                            if modified {
+                                perms_mut.insert(key, updated_perm);
+                            }
                         }
                     }
                 });
@@ -407,13 +422,22 @@ pub mod state {
                     for permission_id in &permission_ids_clone.permissions {
                         if let Some(perm) = perms_mut.get(permission_id) {
                             let mut updated_perm = perm.clone();
+                            
+                            // Check and update granted_by
                             if updated_perm.granted_by == old_user_id {
                                 updated_perm.granted_by = new_user_id.clone();
-                                perms_mut.insert(permission_id.clone(), updated_perm);
                                 count += 1;
                             }
                             
-                            // The granted_to is already updated by moving the entry in the hashtable
+                            if let PermissionGranteeID::User(user_id) = &updated_perm.granted_to {
+                                if *user_id == old_user_id {
+                                    let new_grantee = PermissionGranteeID::User(new_user_id.clone());
+                                    updated_perm.granted_to = new_grantee;
+                                    count += 1;
+                                }
+                            }
+                            
+                            perms_mut.insert(permission_id.clone(), updated_perm);
                         }
                     }
                 });
