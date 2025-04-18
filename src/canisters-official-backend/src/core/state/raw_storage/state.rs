@@ -7,7 +7,7 @@ use ic_stable_structures::{
 use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use crate::{core::state::raw_storage::types::{ChunkId, FileChunk}, MEMORY_MANAGER};
+use crate::{core::state::raw_storage::types::{ChunkId, FileChunk}, debug_log, MEMORY_MANAGER};
 
 use super::types::{ChunkIdList, CHUNK_SIZE};
 
@@ -110,4 +110,44 @@ pub fn store_filename(file_id: &str, filename: &str) {
     FILE_META.with(|fmeta| {
         fmeta.borrow_mut().insert(file_id.to_string(), filename.to_string());
     });
+}
+
+pub fn delete_file_data(file_id: &str) -> Result<(), String> {
+    // First get all chunk IDs for this file
+    let chunk_ids = FILE_CHUNKS.with(|file_chunks| {
+        file_chunks.borrow().get(&file_id.to_string())
+            .map(|chunks| chunks.0.clone())
+            .unwrap_or_default()
+    });
+    
+    // If there are no chunks, the file may not exist
+    if chunk_ids.is_empty() {
+        return Err(format!("No chunks found for file ID: {}", file_id));
+    }
+
+    debug_log!("Deleting file data for file ID: {}", file_id);
+    
+    // Delete each individual chunk
+    for chunk_id in &chunk_ids {
+        debug_log!("Deleting chunk: {}", chunk_id);
+        CHUNKS.with(|chunks| {
+            chunks.borrow_mut().remove(chunk_id);
+        });
+    }
+    
+    // Remove the file's entry from FILE_CHUNKS
+    FILE_CHUNKS.with(|file_chunks| {
+        debug_log!("Removing file entry from FILE_CHUNKS {}", file_id);
+        file_chunks.borrow_mut().remove(&file_id.to_string());
+    });
+    
+    // Remove file metadata
+    FILE_META.with(|fmeta| {
+        debug_log!("Removing file metadata for file ID: {}", file_id);
+        fmeta.borrow_mut().remove(&file_id.to_string());
+    });
+
+    debug_log!("File data deleted for file ID: {}", file_id);
+    
+    Ok(())
 }

@@ -49,7 +49,7 @@ pub mod state {
         let current_time = ic_cdk::api::time() / 1_000_000;
         let default_group = Group {
             id: group_id.clone(),
-            name: "All Contacts".to_string(),
+            name: "Group for All".to_string(),
             owner: owner_id.clone(),
             avatar: None,
             private_note: None,

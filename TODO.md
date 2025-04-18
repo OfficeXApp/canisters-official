@@ -156,3 +156,4 @@
 - [x] Deposit Gas giftcard functionality in factory, and factory default storjweb3 bucket
 - [x] Search functionality fix
 - [x] Figure out how to cleanly update past Drive canisters spawned from factory, including factory canister and revising what else should be in snapshot_state
+- [x] Delete file permanently should also remove from S3/STORJ/canister etc

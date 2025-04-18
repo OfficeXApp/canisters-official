@@ -914,6 +914,89 @@ pub mod drive {
             // Permanent deletion logic
             let file_path = file.full_directory_path.clone();
             let folder_uuid = file.parent_folder_uuid.clone();
+
+            // Get the S3 key for the file
+            let s3_key = format!("{}/{}.{}", file_id.0, file_id.0, file.extension);
+            
+            // Delete the file from the storage
+            let disk_type = file.disk_type.clone();
+            let disk_id = file.disk_id.clone();
+            
+            let disk_result = DISKS_BY_ID_HASHTABLE.with(|map| {
+                map.borrow()
+                    .get(&disk_id)
+                    .map(|d| d.clone())
+            });
+            
+            // Only attempt to delete from storage if we can get disk info and auth
+            match disk_type {
+                DiskTypeEnum::IcpCanister => {
+                    // For ICP canister storage, spawn a detached task to delete the raw data
+                    // This allows the main function to return quickly
+                    let file_id_clone = file_id.0.clone();
+                    ic_cdk::spawn(async move {
+                        match crate::core::state::raw_storage::state::delete_file_data(&file_id_clone) {
+                            Ok(_) => (),
+                            Err(e) => ic_cdk::println!("Warning: Failed to delete file data from canister: {}", e),
+                        }
+                    });
+                }
+                DiskTypeEnum::AwsBucket | DiskTypeEnum::StorjWeb3 => {
+                    // For cloud storage, we need auth details
+                    let disk_result = DISKS_BY_ID_HASHTABLE.with(|map| {
+                        map.borrow()
+                            .get(&disk_id)
+                            .map(|d| d.clone())
+                    });
+                    
+                    if let Some(disk) = disk_result {
+                        // Try to parse auth JSON if it exists
+                        if let Some(auth_json) = &disk.auth_json {
+                            let auth_result: Result<AwsBucketAuth, _> = serde_json::from_str(auth_json);
+                            
+                            if let Ok(auth) = auth_result {
+                                // Attempt to delete based on disk type
+                                match disk_type {
+                                    DiskTypeEnum::AwsBucket => {
+                                        // Spawn this as a detached future to avoid blocking
+                                        let auth_clone = auth.clone();
+                                        let s3_key_clone = s3_key.clone();
+                                        ic_cdk::spawn(async move {
+                                            match crate::core::api::disks::aws_s3::delete_s3_object(&s3_key_clone, &auth_clone).await {
+                                                Ok(_) => (),
+                                                Err(e) => ic_cdk::println!("Warning: Failed to delete S3 object: {}", e),
+                                            }
+                                        });
+                                    },
+                                    DiskTypeEnum::StorjWeb3 => {
+                                        // Spawn this as a detached future to avoid blocking
+                                        let auth_clone = auth.clone();
+                                        let s3_key_clone = s3_key.clone();
+                                        ic_cdk::spawn(async move {
+                                            match crate::core::api::disks::storj_web3::delete_storj_object(&s3_key_clone, &auth_clone).await {
+                                                Ok(_) => (),
+                                                Err(e) => ic_cdk::println!("Warning: Failed to delete Storj object: {}", e),
+                                            }
+                                        });
+                                    },
+                                    _ => {
+                                        ic_cdk::println!("Warning: Unexpected disk type in cloud storage branch: {:?}", disk_type);
+                                    },
+                                }
+                            } else {
+                                ic_cdk::println!("Warning: Failed to parse auth JSON: {:?}", auth_result.err());
+                            }
+                        } else {
+                            ic_cdk::println!("Warning: Missing auth JSON for cloud storage disk type: {:?}", disk_type);
+                        }
+                    } else {
+                        ic_cdk::println!("Warning: Failed to get disk info for ID: {:?}", disk_id);
+                    }
+                },
+                _ => {
+                    ic_cdk::println!("Warning: Unsupported disk type for deletion: {:?}", disk_type);
+                },
+            }
             
             // Handle version chain
             if let Some(prior_id) = &file.prior_version {
