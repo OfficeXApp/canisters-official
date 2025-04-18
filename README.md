@@ -40,6 +40,12 @@ or standalone backend in prod:
 $ dfx canister create canisters-official-backend && dfx build && dfx deploy --network ic canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 ```
 
+deposit gas cycles into dev canister
+
+```sh
+$ dfx canister deposit-cycles 20000000000000 <canister_id>
+```
+
 From clean start:
 
 ```sh

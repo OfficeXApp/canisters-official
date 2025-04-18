@@ -50,7 +50,7 @@ pub fn init_routes() {
             "GET",
             RAW_URL_PROXY_PATH,
             |req, params| Box::pin(crate::rest::directory::handler::directorys_handlers::get_raw_url_proxy_handler(req, params)),
-        )
+        ),
     ];
 
     for &(method, path, handler) in routes {

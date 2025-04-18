@@ -6,7 +6,7 @@ use ic_cdk::api::management_canister::http_request::{
 };
 use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
-use crate::{core::state::disks::types::AwsBucketAuth, rest::directory::types::DiskUploadResponse};
+use crate::{core::state::disks::types::AwsBucketAuth, debug_log, rest::directory::types::DiskUploadResponse};
 use num_traits::cast::ToPrimitive;
 
 //
@@ -382,4 +382,200 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
         .expect("HMAC can take key of any size");
     mac.update(data);
     mac.finalize().into_bytes().to_vec()
+}
+
+pub async fn delete_storj_object(
+    file_key: &str,
+    auth: &AwsBucketAuth,
+) -> Result<(), String> {
+    debug_log!("Deleting Storj object: {} using endpoint: {}", file_key, auth.endpoint);
+    
+    let endpoint = auth.endpoint.trim_end_matches('/');
+    let host = extract_host(endpoint);
+    
+    debug_log!("Host for signing: {}", host);
+    
+    let current_time = ic_cdk::api::time();
+    let date = format_date(current_time);
+    let date_time = format_datetime(current_time);
+    
+    // Build credential string (same as AWS)
+    let credential = format!("{}/{}/{}/s3/aws4_request", 
+        auth.access_key, date, auth.region);
+    
+    // Extract just the object key part without the bucket prefix
+    let object_key = if file_key.contains('/') {
+        if file_key.starts_with(&format!("{}/", auth.bucket)) {
+            // If file_key includes bucket name, remove it
+            &file_key[auth.bucket.len() + 1..]
+        } else {
+            file_key
+        }
+    } else {
+        file_key
+    };
+    
+    debug_log!("Object key for deletion: {}", object_key);
+    
+    // *** IMPORTANT CHANGE: Use the delete API with a query parameter ***
+    // Use a URL with a ?delete query parameter - this is the S3 convention for DeleteObject with POST
+    let url = format!("{}/{}/{}?delete", endpoint, auth.bucket, object_key);
+    debug_log!("Delete request URL: {}", url);
+    
+    // Create an XML body for the delete operation
+    // This is required for POSTing to the ?delete endpoint
+    let delete_body = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<Delete>
+  <Object>
+    <Key>{}</Key>
+  </Object>
+  <Quiet>true</Quiet>
+</Delete>"#, object_key);
+    
+    // Calculate content MD5 for the request body (required for POST operations)
+    let content_md5 = {
+        let digest = md5::compute(delete_body.as_bytes());
+        base64::engine::general_purpose::STANDARD.encode(digest.0)
+    };
+    
+    debug_log!("Content-MD5: {}", content_md5);
+    
+    // Canonical request includes query string now
+    let canonical_uri = format!("/{}/{}", auth.bucket, object_key);
+    let canonical_query_string = "delete=";
+    
+    // Headers now include Content-MD5 and Content-Type
+    let headers = vec![
+        HttpHeader {
+            name: "Host".to_string(),
+            value: host.clone(),
+        },
+        HttpHeader {
+            name: "Content-Type".to_string(),
+            value: "application/xml".to_string(),
+        },
+        HttpHeader {
+            name: "Content-MD5".to_string(),
+            value: content_md5.clone(),
+        },
+        HttpHeader {
+            name: "Content-Length".to_string(),
+            value: delete_body.len().to_string(),
+        },
+        HttpHeader {
+            name: "x-amz-date".to_string(),
+            value: date_time.clone(),
+        },
+        HttpHeader {
+            name: "x-amz-content-sha256".to_string(),
+            value: "UNSIGNED-PAYLOAD".to_string(),
+        },
+    ];
+    
+    // Create canonical headers string with all headers
+    let canonical_headers = format!(
+        "content-length:{}\ncontent-md5:{}\ncontent-type:application/xml\nhost:{}\nx-amz-content-sha256:UNSIGNED-PAYLOAD\nx-amz-date:{}\n",
+        delete_body.len(),
+        content_md5,
+        host,
+        date_time
+    );
+    
+    let signed_headers = "content-length;content-md5;content-type;host;x-amz-content-sha256;x-amz-date";
+
+    // Create canonical request for POST with ?delete parameter
+    let canonical_request = format!(
+        "POST\n{}\n{}\n{}\n{}\nUNSIGNED-PAYLOAD",
+        canonical_uri,
+        canonical_query_string,
+        canonical_headers,
+        signed_headers
+    );
+
+    debug_log!("Canonical request: {}", canonical_request);
+
+    // Create string to sign
+    let string_to_sign = format!(
+        "AWS4-HMAC-SHA256\n{}\n{}/{}/s3/aws4_request\n{}",
+        date_time,
+        date,
+        auth.region,
+        hex::encode(sha256_hash(canonical_request.as_bytes()))
+    );
+
+    debug_log!("String to sign: {}", string_to_sign);
+
+    // Calculate signature
+    let signing_key = derive_signing_key(&auth.secret_key, &date, &auth.region, "s3");
+    let signature = hex::encode(hmac_sha256(&signing_key, string_to_sign.as_bytes()));
+
+    // Create Authorization header
+    let authorization = format!(
+        "AWS4-HMAC-SHA256 Credential={},SignedHeaders={},Signature={}",
+        credential, signed_headers, signature
+    );
+
+    debug_log!("Authorization: {}", authorization);
+
+    // Add Authorization header to headers vec
+    let mut final_headers = headers;
+    final_headers.push(HttpHeader {
+        name: "Authorization".to_string(),
+        value: authorization,
+    });
+
+    // Log all headers for debugging
+    for header in &final_headers {
+        debug_log!("Header: {} = {}", header.name, header.value);
+    }
+    
+    // Create the HTTP request
+    let request = CanisterHttpRequestArgument {
+        url,
+        method: HttpMethod::POST, // Using POST with the ?delete query parameter
+        headers: final_headers,
+        body: Some(delete_body.into_bytes()), // Include the XML body
+        max_response_bytes: Some(4096),
+        transform: None,
+    };
+
+    // Make the HTTP request
+    let cycles: u128 = 100_000_000_000;
+    
+    debug_log!("Sending delete request...");
+    
+    match http_request(request, cycles).await {
+        Ok((response,)) => {
+            let status_u16: u16 = response.status.0.to_u64()
+                .and_then(|n| {
+                    if n <= u16::MAX as u64 {
+                        Some(n as u16)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(500);
+
+            debug_log!("Delete response status: {}", status_u16);
+            
+            let response_body = String::from_utf8_lossy(&response.body);
+            debug_log!("Delete response body: {}", response_body);
+            
+            // S3 DeleteObjects API returns 200 OK on success
+            if status_u16 >= 200 && status_u16 < 300 {
+                debug_log!("Object deleted successfully");
+                Ok(())
+            } else {
+                let error_msg = format!("S3 delete failed with status {}: {}", 
+                    status_u16, response_body);
+                debug_log!("Delete failed: {}", error_msg);
+                Err(error_msg)
+            }
+        },
+        Err((code, msg)) => {
+            let error_msg = format!("HTTP request failed: {:?} - {}", code, msg);
+            debug_log!("Delete request error: {}", error_msg);
+            Err(error_msg)
+        }
+    }
 }
