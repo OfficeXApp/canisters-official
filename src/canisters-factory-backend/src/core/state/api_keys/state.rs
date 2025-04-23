@@ -44,6 +44,14 @@ pub mod state {
         );
     }
 
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        APIKEYS_BY_VALUE_HASHTABLE.with(|_| {});
+        APIKEYS_BY_ID_HASHTABLE.with(|_| {});
+        USERS_APIKEYS_HASHTABLE.with(|_| {});
+        APIKEYS_BY_HISTORY.with(|_| {});
+    }
+
     // Helper functions to get debug string representations
     pub fn debug_apikeys_by_value() -> String {
         APIKEYS_BY_VALUE_HASHTABLE.with(|map| {

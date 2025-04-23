@@ -167,5 +167,14 @@ pub mod state {
     pub static file_uuid_to_metadata: FileMap = FileMap;
     pub static full_folder_path_to_uuid: FolderPathMap = FolderPathMap;
     pub static full_file_path_to_uuid: FilePathMap = FilePathMap;
+
+
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        folder_uuid_to_metadata_inner.with(|_| {});
+        file_uuid_to_metadata_inner.with(|_| {});
+        full_folder_path_to_uuid_inner.with(|_| {});
+        full_file_path_to_uuid_inner.with(|_| {});
+    }
 }
 

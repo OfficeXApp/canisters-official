@@ -648,6 +648,8 @@ pub mod giftcards_handlers {
         match create_canister(create_canister_arg, cycles_to_use).await {
             Ok((canister_id_record,)) => {
                 let drive_canister_id = canister_id_record.canister_id;
+
+                debug_log!("canister id deployed: {}", drive_canister_id);
                 
                 // Read WASM module from path
                 const DRIVE_WASM: &[u8] = include_bytes!("../../../../../target/wasm32-unknown-unknown/release/canisters_official_backend.wasm");

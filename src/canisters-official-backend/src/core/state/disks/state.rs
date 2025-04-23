@@ -27,6 +27,12 @@ pub mod state {
         );
     }
 
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        DISKS_BY_ID_HASHTABLE.with(|_| {});
+        DISKS_BY_TIME_LIST.with(|_| {});
+    }
+
     pub fn init_default_disks() {
 
         debug_log!("Initializing default admin api key...");

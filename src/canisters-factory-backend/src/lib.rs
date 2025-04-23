@@ -16,7 +16,7 @@ use ic_stable_structures::memory_manager::{MemoryId, VirtualMemory};
 
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = true;
+pub static LOCAL_DEV_MODE: bool = false;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
@@ -90,6 +90,12 @@ fn initialize_canister(args: Option<InitArgs>) {
             Ok(_) => {
                 // Convert ICP principal to UserID format
                 let owner_id = format_user_id(&init_args.owner);
+
+
+                // Initialize state stable structures
+                crate::core::state::api_keys::state::state::initialize();
+                crate::core::state::giftcards_spawnorg::state::state::initialize();
+                crate::core::state::giftcards_refuel::state::state::initialize();
                 
                 // Initialize the drive with all parameters
                 init_self_factory(
@@ -126,6 +132,8 @@ fn initialize_canister(args: Option<InitArgs>) {
 fn post_upgrade() {
     // No arguments on upgrade, just re-initialize routes
     debug_log!("Post-upgrade initialization...");
+
+    router::init_routes();
 
     // Then check if we need to set up state
     let already_initialized = INITIALIZED_FLAG.with(|flag_cell| {

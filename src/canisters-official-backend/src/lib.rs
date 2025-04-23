@@ -21,7 +21,7 @@ type Memory = VirtualMemory<DefaultMemoryImpl>;
 const INITIALIZED_FLAG_MEMORY_ID: MemoryId = MemoryId::new(0);
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = true;
+pub static LOCAL_DEV_MODE: bool = false;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
@@ -79,6 +79,10 @@ fn init() {
 
 fn initialize_canister(args: Option<InitArgs>) {
 
+    MEMORY_MANAGER.with(|_| {
+        // Accessing the memory manager forces it to initialize
+    });
+
 
     debug_log!("Initializing canister...");
     // Check if we've already initialized to prevent re-initialization
@@ -98,6 +102,19 @@ fn initialize_canister(args: Option<InitArgs>) {
             Ok(_) => {
                 // Convert ICP principal to UserID format
                 let owner_id = format_user_id(&init_args.owner);
+
+                // Initialize state stable structures
+                crate::core::state::api_keys::state::state::initialize();
+                crate::core::state::contacts::state::state::initialize();
+                crate::core::state::directory::state::state::initialize();
+                crate::core::state::disks::state::state::initialize();
+                crate::core::state::drives::state::state::initialize();
+                crate::core::state::group_invites::state::state::initialize();
+                crate::core::state::groups::state::state::initialize();
+                crate::core::state::labels::state::initialize();
+                crate::core::state::permissions::state::state::initialize();
+                crate::core::state::raw_storage::state::initialize();
+                crate::core::state::webhooks::state::state::initialize();
                 
                 // Initialize the drive with all parameters
                 init_self_drive(

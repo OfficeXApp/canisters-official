@@ -50,6 +50,14 @@ thread_local! {
 }
 
 
+pub fn initialize() {
+    // Force thread_locals in this module to initialize
+    LABELS_BY_ID_HASHTABLE.with(|_| {});
+    LABELS_BY_VALUE_HASHTABLE.with(|_| {});
+    LABELS_BY_TIME_LIST.with(|_| {});
+}
+
+
 pub fn validate_uuid4_string_with_prefix(prefix_uuid_string: &str, prefix: IDPrefix) -> Result<(), ValidationError> {
     let parts: Vec<&str> = prefix_uuid_string.split('_').collect();
     // check prefix portion

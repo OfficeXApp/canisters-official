@@ -74,6 +74,14 @@ thread_local! {
     );
 }
 
+
+pub fn initialize() {
+    // Force thread_locals in this module to initialize
+    CHUNKS.with(|_| {});
+    FILE_CHUNKS.with(|_| {});
+    FILE_META.with(|_| {});
+}
+
 pub fn store_chunk(chunk: FileChunk) {
     CHUNKS.with(|chunks| {
         chunks.borrow_mut().insert(chunk.id.clone(), chunk.clone());
