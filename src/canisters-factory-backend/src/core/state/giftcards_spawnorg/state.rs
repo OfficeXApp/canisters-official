@@ -96,6 +96,19 @@ pub mod state {
         );
     }
 
+
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        VERSION.with(|_| {});
+        OWNER_ID.with(|_| {});
+        URL_ENDPOINT.with(|_| {});
+        DEPLOYMENTS_BY_GIFTCARD_SPAWNORG_ID.with(|_| {});
+        HISTORICAL_GIFTCARDS_SPAWNORGS.with(|_| {});
+        DRIVE_TO_GIFTCARD_SPAWNORG_HASHTABLE.with(|_| {});
+        USER_TO_GIFTCARDS_SPAWNORG_HASHTABLE.with(|_| {});
+        GIFTCARD_SPAWNORG_BY_ID.with(|_| {});
+    }
+
     pub fn init_self_factory(
         owner_id: UserID,
     ) {

@@ -44,6 +44,14 @@ pub mod state {
     }
 
 
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        CONTACTS_BY_ID_HASHTABLE.with(|_| {});
+        CONTACTS_BY_ICP_PRINCIPAL_HASHTABLE.with(|_| {});
+        CONTACTS_BY_TIME_LIST.with(|_| {});
+        HISTORY_SUPERSWAP_USERID.with(|_| {});
+    }
+
     pub fn init_default_owner_contact(name: Option<String>) {
         debug_log!("Initializing default owner contact...");
 

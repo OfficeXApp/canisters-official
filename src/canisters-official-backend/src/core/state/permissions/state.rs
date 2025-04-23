@@ -82,7 +82,22 @@ pub mod state {
             ).expect("Failed to initialize SYSTEM_PERMISSIONS_BY_TIME_LIST")
         );
     }
+
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|_| {});
+        DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|_| {});
+        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|_| {});
+        DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|_| {});
+        SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|_| {});
+        SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|_| {});
+        SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|_| {});
+        SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|_| {});
+    }
+
 }
+
+
 
 // Helper functions for managing permissions state
 pub mod helpers {

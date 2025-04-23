@@ -41,6 +41,14 @@ pub mod state {
         );
     }
 
+
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        GROUPS_BY_ID_HASHTABLE.with(|_| {});
+        GROUPS_BY_TIME_LIST.with(|_| {});
+        DEFAULT_EVERYONE_GROUP.with(|_| {});
+    }
+
     // only call this after all other states have been initialized
     pub fn init_default_group() {
         let admin_invite_id = GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite));

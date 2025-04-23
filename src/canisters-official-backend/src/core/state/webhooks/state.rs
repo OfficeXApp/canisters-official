@@ -37,4 +37,12 @@ pub mod state {
         );
     }
 
+
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        WEBHOOKS_BY_ALT_INDEX_HASHTABLE.with(|_| {});
+        WEBHOOKS_BY_ID_HASHTABLE.with(|_| {});
+        WEBHOOKS_BY_TIME_LIST.with(|_| {});
+    }
+
 }

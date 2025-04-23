@@ -164,6 +164,24 @@ pub mod state {
     }
 
 
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        VERSION.with(|_| {});
+        DRIVE_STATE_CHECKSUM.with(|_| {});
+        DRIVE_STATE_TIMESTAMP_NS.with(|_| {});
+        OWNER_ID.with(|_| {});
+        URL_ENDPOINT.with(|_| {});
+        TRANSFER_OWNER_ID.with(|_| {});
+        DRIVES_BY_ID_HASHTABLE.with(|_| {});
+        DRIVES_BY_TIME_LIST.with(|_| {});
+        NONCE_UUID_GENERATED.with(|_| {});
+        EXTERNAL_ID_MAPPINGS.with(|_| {});
+        UUID_CLAIMED.with(|_| {});
+        RECENT_DEPLOYMENTS.with(|_| {});
+        SPAWN_NOTE.with(|_| {});
+        SPAWN_REDEEM_CODE.with(|_| {});
+    }
+
     pub fn init_self_drive(
         owner_id: UserID,
         title: Option<String>,

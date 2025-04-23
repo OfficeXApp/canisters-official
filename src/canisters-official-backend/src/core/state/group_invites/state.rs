@@ -36,6 +36,14 @@ pub mod state {
         );
     }
 
+
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        INVITES_BY_ID_HASHTABLE.with(|_| {});
+        INVITES_BY_TIME_LIST.with(|_| {});
+        USERS_INVITES_LIST_HASHTABLE.with(|_| {});
+    }
+
 }
 
 

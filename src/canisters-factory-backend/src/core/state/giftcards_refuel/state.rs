@@ -59,4 +59,12 @@ pub mod state {
     }
 
     
+    pub fn initialize() {
+        // Force thread_locals in this module to initialize
+        DEPLOYMENTS_BY_GIFTCARD_REFUEL_ID.with(|_| {});
+        HISTORICAL_GIFTCARDS_REFUELS.with(|_| {});
+        DRIVE_TO_GIFTCARD_REFUEL_HASHTABLE.with(|_| {});
+        USER_TO_GIFTCARDS_REFUEL_HASHTABLE.with(|_| {});
+        GIFTCARD_REFUEL_BY_ID.with(|_| {});
+    }
 }
