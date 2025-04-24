@@ -199,6 +199,7 @@ pub struct DirectoryListResponse {
 pub struct FilePathBreadcrumb {
     pub resource_id: String,
     pub resource_name: String,
+    pub visibility_preview: Vec<String>,
 }
 
 fn default_page_size() -> usize {

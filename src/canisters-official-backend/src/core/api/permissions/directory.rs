@@ -2,7 +2,7 @@
 
 use std::collections::{HashSet, VecDeque};
 
-use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID}}, disks::state::state::DISKS_BY_ID_HASHTABLE, drives::state::state::OWNER_ID, groups::{state::state::is_user_on_group, types::GroupID}, permissions::{state::{helpers::{get_directory_permission_by_id, get_directory_permission_ids_for_resource}, state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE, FilePathBreadcrumb}};
+use crate::{core::{api::{internals::drive_internals::is_user_in_group, types::DirectoryIDError}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID}}, disks::state::state::DISKS_BY_ID_HASHTABLE, drives::state::state::OWNER_ID, groups::{state::state::is_user_on_group, types::GroupID}, permissions::{state::{helpers::{get_directory_permission_by_id, get_directory_permission_ids_for_resource}, state::{DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}}, types::{BreadcrumbVisibilityPreview, DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::UserID}, rest::directory::types::{DirectoryResourceID, DirectoryResourcePermissionFE, FilePathBreadcrumb}};
 
 
 // Check if a user can CRUD the permission record
@@ -304,6 +304,93 @@ pub fn preview_directory_permissions(
     resource_permissions
 }
 
+pub fn derive_breadcrumb_visibility_previews(resource_id: DirectoryResourceID) -> Vec<String> {
+    // Set up our tracking flags
+    let mut public_can_view = false;
+    let mut public_can_modify = false;
+    let mut private_can_view = false;
+    let mut private_can_modify = false;
+    
+    // Get current time for permission validity check
+    let current_time_ms = ic_cdk::api::time() / 1_000_000; // Convert nanoseconds to milliseconds
+    
+    // Get permission IDs for this resource directly from the hashtable
+    let permission_ids = DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+        permissions_by_resource.borrow().get(&resource_id).clone()
+    });
+    
+    // Return empty vector if no permissions found
+    if permission_ids.is_none() {
+        return vec![];
+    }
+    
+    // Check each permission
+    if let Some(ids) = permission_ids {
+        for permission_id in ids.permissions {
+            // Get the permission details directly from the hashtable
+            let permission = DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions_by_id| {
+                permissions_by_id.borrow().get(&permission_id).clone()
+            });
+            
+            if let Some(permission) = permission {
+                // Check if permission is currently valid (within timeframe)
+                let is_active = (permission.begin_date_ms <= 0 || permission.begin_date_ms <= current_time_ms as i64) &&
+                               (permission.expiry_date_ms < 0 || permission.expiry_date_ms > current_time_ms as i64);
+                
+                if !is_active {
+                    continue; // Skip expired or not-yet-active permissions
+                }
+                
+                // Determine if this permission grants view or modify access
+                let has_view = permission.permission_types.contains(&DirectoryPermissionType::View);
+                let has_modify = permission.permission_types.contains(&DirectoryPermissionType::Upload) ||
+                                 permission.permission_types.contains(&DirectoryPermissionType::Edit) ||
+                                 permission.permission_types.contains(&DirectoryPermissionType::Delete) ||
+                                 permission.permission_types.contains(&DirectoryPermissionType::Manage);
+                
+                // Update flags based on grantee type
+                match &permission.granted_to {
+                    PermissionGranteeID::Public => {
+                        if has_view {
+                            public_can_view = true;
+                        }
+                        if has_modify {
+                            public_can_modify = true;
+                        }
+                    },
+                    _ => { // User, Group, or PlaceholderDirectoryPermissionGrantee
+                        if has_view {
+                            private_can_view = true;
+                        }
+                        if has_modify {
+                            private_can_modify = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Build result based on determined permissions
+    let mut results = Vec::new();
+    
+    // Prioritize modify over view (as modify implicitly includes view capabilities)
+    // And prioritize public over private for clarity in the UI
+    if public_can_modify {
+        results.push(BreadcrumbVisibilityPreview::PublicModify);
+    } else if public_can_view {
+        results.push(BreadcrumbVisibilityPreview::PublicView);
+    }
+    
+    if private_can_modify {
+        results.push(BreadcrumbVisibilityPreview::PrivateModify);
+    } else if private_can_view {
+        results.push(BreadcrumbVisibilityPreview::PrivateView);
+    }
+    
+    // convert to vec of strings
+    results.iter().map(|r| r.to_string()).collect()
+}
 
 pub async fn derive_directory_breadcrumbs(
     resource_id: DirectoryResourceID,
@@ -351,12 +438,14 @@ pub async fn derive_directory_breadcrumbs(
                                 breadcrumbs.push_front(FilePathBreadcrumb {
                                     resource_id: folder_metadata.id.clone().to_string(),
                                     resource_name: disk.name.clone(),
+                                    visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::Folder(folder_metadata.id.clone()))
                                 });
                             }
                         } else {
                             breadcrumbs.push_front(FilePathBreadcrumb {
                                 resource_id: folder_metadata.id.clone().to_string(),
                                 resource_name: folder_metadata.name.clone(),
+                                visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::Folder(folder_metadata.id.clone()))
                             });
                         }
                         
@@ -367,6 +456,7 @@ pub async fn derive_directory_breadcrumbs(
                 breadcrumbs.push_front(FilePathBreadcrumb {
                     resource_id: file_metadata.id.clone().to_string(),
                     resource_name: file_metadata.name.clone(),
+                    visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::File(file_metadata.id.clone()))
                 });
 
                 return breadcrumbs.into();
@@ -376,6 +466,7 @@ pub async fn derive_directory_breadcrumbs(
             breadcrumbs.push_front(FilePathBreadcrumb {
                 resource_id: file_metadata.id.clone().to_string(),
                 resource_name: file_metadata.name.clone(),
+                visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::File(file_metadata.id.clone()))
             });
             
             Some(file_metadata.parent_folder_uuid.clone())
@@ -403,12 +494,14 @@ pub async fn derive_directory_breadcrumbs(
                     breadcrumbs.push_front(FilePathBreadcrumb {
                         resource_id: folder_metadata.id.clone().to_string(),
                         resource_name: disk.name.clone(),
+                        visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::Folder(folder_metadata.id.clone()))
                     });
                 }
             } else {
                 breadcrumbs.push_front(FilePathBreadcrumb {
                     resource_id: folder_metadata.id.clone().to_string(),
                     resource_name: folder_metadata.name.clone(),
+                    visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::Folder(folder_metadata.id.clone()))
                 });
             }
             
@@ -445,12 +538,14 @@ pub async fn derive_directory_breadcrumbs(
                         breadcrumbs.push_front(FilePathBreadcrumb {
                             resource_id: folder_metadata.id.clone().to_string(),
                             resource_name: disk.name.clone(),
+                            visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::Folder(folder_metadata.id.clone()))
                         });
                     }
                 } else {
                     breadcrumbs.push_front(FilePathBreadcrumb {
                         resource_id: folder_metadata.id.clone().to_string(),
                         resource_name: folder_metadata.name.clone(),
+                        visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::Folder(folder_metadata.id.clone()))
                     });
                 }
                 // Stop if we've reached a folder with sovereign permissions
@@ -468,3 +563,4 @@ pub async fn derive_directory_breadcrumbs(
     // Convert from VecDeque to Vec and return
     breadcrumbs.into()
 }
+

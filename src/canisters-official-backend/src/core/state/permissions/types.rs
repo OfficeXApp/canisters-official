@@ -73,6 +73,29 @@ impl fmt::Display for DirectoryPermissionType {
     }
 }
 
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum BreadcrumbVisibilityPreview {
+    PublicView,
+    PrivateView,
+    PublicModify,
+    PrivateModify
+}
+// impl display
+impl fmt::Display for BreadcrumbVisibilityPreview {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BreadcrumbVisibilityPreview::PublicView => write!(f, "PUBLIC_VIEW"),
+            BreadcrumbVisibilityPreview::PrivateView => write!(f, "PRIVATE_VIEW"),
+            BreadcrumbVisibilityPreview::PublicModify => write!(f, "PUBLIC_MODIFY"),
+            BreadcrumbVisibilityPreview::PrivateModify => write!(f, "PRIVATE_MODIFY"),
+        }
+    }
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, Ord, PartialOrd)]
 pub enum PermissionGranteeID {
     Public,
