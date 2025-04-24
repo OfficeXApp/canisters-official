@@ -157,3 +157,4 @@
 - [x] Figure out how to cleanly update past Drive canisters spawned from factory, including factory canister and revising what else should be in snapshot_state
 - [x] Delete file permanently should also remove from S3/STORJ/canister etc
 - [x] Fix superswap user to also handle permissions updating
+- [x] Fix the 502 error on canisters-official-backend initial deployment. update works --> we must init stable state structs in lib.rs

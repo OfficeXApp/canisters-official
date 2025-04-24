@@ -93,7 +93,7 @@ $ dfx deploy canisters-official-backend-2
 ```sh
 # check ICP balance
 $ dfx ledger --network ic balance
-# check cycles balance
+# check cycles balancedfx ledger --network ic balance
 $ dfx wallet --network ic balance
 # get account_id for sending ICP tokens to (eg account_id="a641efb49f6febc41a84b7442770619b46693718db210889cefd6750848b2a36")
 $ dfx ledger account-id
@@ -106,7 +106,7 @@ $ dfx ledger top-up --network ic --amount 0.5 <wallet_id>
 $ dfx deploy canisters-factory-backend --network ic --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 
 # deposit 2.5T cycles into canister
-$ dfx canister deposit-cycles --network ic 2500000000000 <canister_id>
+$ dfx canister deposit-cycles --network ic 3500000000000 <canister_id>
 
 # check status of deployed caniter
 $ dfx canister --network ic status <canister_id>

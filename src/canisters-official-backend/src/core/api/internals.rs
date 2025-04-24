@@ -3,7 +3,7 @@ pub mod drive_internals {
     use std::collections::{HashSet, VecDeque};
 
     use crate::{
-        core::{api::{drive::drive::get_folder_by_id, helpers::get_appropriate_url_endpoint, types::{DirectoryError, DirectoryIDError}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::DRIVE_ID, types::{DriveID, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryListResponse, DirectoryResourceID, FileConflictResolutionEnum, FilePathBreadcrumb, ListDirectoryRequest}, 
+        core::{api::{drive::drive::get_folder_by_id, helpers::get_appropriate_url_endpoint, permissions::directory::derive_breadcrumb_visibility_previews, types::{DirectoryError, DirectoryIDError}, uuid::{generate_uuidv4, mark_claimed_uuid}}, state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid}, types::{DriveFullFilePath, FileID, FolderID, FolderRecord, PathTranslationResponse}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::DRIVE_ID, types::{DriveID, ExternalID, ExternalPayload}}, group_invites::{state::state::{INVITES_BY_ID_HASHTABLE, USERS_INVITES_LIST_HASHTABLE}, types::GroupInviteeID}, groups::{state::state::GROUPS_BY_ID_HASHTABLE, types::GroupID}, permissions::{state::state::{DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE, DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE, DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE}, types::{DirectoryPermission, DirectoryPermissionType, PermissionGranteeID, PlaceholderPermissionGranteeID, PUBLIC_GRANTEE_ID}}}, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::directory::types::{DirectoryListResponse, DirectoryResourceID, FileConflictResolutionEnum, FilePathBreadcrumb, ListDirectoryRequest}, 
         
     };
     
@@ -684,12 +684,14 @@ folder_uuid_to_metadata.with_mut(|map| {
         breadcrumbs.push_front(FilePathBreadcrumb {
             resource_id: "shared-with-me".to_string(),
             resource_name: "Shared with me".to_string(),
+            visibility_preview: vec![]
         });
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| map.borrow().get(&disk_id).map(|d| d.clone()));
         if let Some(disk) = disk {
             breadcrumbs.push_front(FilePathBreadcrumb {
                 resource_id: disk.root_folder.clone().to_string(),
                 resource_name: disk.name.clone(),
+                visibility_preview: derive_breadcrumb_visibility_previews(DirectoryResourceID::Folder(disk.root_folder.clone()))
             });
         }
     
