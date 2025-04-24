@@ -802,7 +802,11 @@ pub mod group_invites_handlers {
                 inviter_id: invite.inviter_id.clone(),
                 invitee_id: new_invitee,
                 role: GroupRole::Member, // Default to Member role when redeeming
-                note: invite.note.clone(),
+                note: if let Some(user_note) = &redeem_request.note {
+                    format!("Note from User: {}, Prior Original Note: {}", user_note, invite.note)
+                } else {
+                    invite.note.clone()
+                },
                 created_at: now,
                 last_modified_at: now,
                 active_from: invite.active_from,
@@ -880,6 +884,9 @@ pub mod group_invites_handlers {
             updated_invite.role = GroupRole::Member; // Default to Member role when redeeming
             updated_invite.last_modified_at = ic_cdk::api::time();
             updated_invite.redeem_code = None;
+            if let Some(user_note) = &redeem_request.note {
+                updated_invite.note = format!("Note from User: {}, Prior Original Note: {}", user_note, invite.note);
+            }
     
             // Update state
             INVITES_BY_ID_HASHTABLE.with(|store| {

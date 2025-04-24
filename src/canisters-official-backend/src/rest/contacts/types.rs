@@ -402,6 +402,7 @@ pub struct RedeemContactRequestBody {
     pub current_user_id: String,
     pub new_user_id: String,
     pub redeem_code: String,
+    pub note: Option<String>,
 }
 
 impl RedeemContactRequestBody {
