@@ -266,6 +266,7 @@ pub struct RedeemGroupInviteRequest {
     pub invite_id: String,
     pub user_id: String,
     pub redeem_code: String,
+    pub note: Option<String>,
 }
 impl RedeemGroupInviteRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {

@@ -809,6 +809,13 @@ pub mod contacts_handlers {
                     let mut store_ref = store.borrow_mut();
                     if let Some(mut contact) = store_ref.get(&new_user_id).map(|data| data.clone()) {
                         contact.redeem_code = None;
+                        if let Some(note) = &redeem_request.note {
+                            let updated_note = match contact.public_note {
+                                Some(original_note) => format!("Note from User: {}, Prior Original Note: {}", note, original_note),
+                                None => format!("Note from User: {}", note)
+                            };
+                            contact.public_note = Some(updated_note);
+                        }
                         store_ref.insert(new_user_id.clone(), contact);
                     }
                 });
