@@ -37,7 +37,7 @@ $ dfx canister create canisters-factory-backend && dfx build && dfx deploy --net
 or standalone backend in prod:
 
 ```sh
-$ dfx canister create canisters-official-backend && dfx build && dfx deploy --network ic canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+$ dfx canister --network ic create canisters-official-backend && dfx build && dfx deploy --network ic canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 ```
 
 deposit gas cycles into dev canister
@@ -106,7 +106,7 @@ $ dfx ledger top-up --network ic --amount 0.5 <wallet_id>
 $ dfx deploy canisters-factory-backend --network ic --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 
 # deposit 2.5T cycles into canister
-$ dfx canister deposit-cycles --network ic 3500000000000 <canister_id>
+$ dfx canister deposit-cycles --network ic 5000000000000 <canister_id>
 
 # check status of deployed caniter
 $ dfx canister --network ic status <canister_id>
@@ -114,4 +114,11 @@ $ dfx canister --network ic logs <canister_id>
 
 # add custom controller
 $ dfx canister update-settings --add-controller <controller_principal_id>  --all <canister_id>
+```
+
+Deleting canister to get cycles back:
+
+```sh
+$ dfx canister --network ic stop <canister_id>
+$ dfx canister --network ic delete <canister_id>
 ```
