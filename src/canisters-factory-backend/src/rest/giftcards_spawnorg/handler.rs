@@ -29,6 +29,7 @@ pub mod giftcards_handlers {
             }
         }, 
     };
+    use candid::Nat;
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use matchit::Params;
     use serde::Deserialize;
@@ -597,7 +598,8 @@ pub mod giftcards_handlers {
         )
     }
     
-    // Helper function to deploy a drive canister
+    
+    // Modified deploy_drive_canister function to use chunked code installation
     async fn deploy_drive_canister(
         owner_icp_principal: String, 
         title: Option<String>, 
@@ -607,23 +609,22 @@ pub mod giftcards_handlers {
         cycles: u64
     ) -> Result<String, String> {
         use ic_cdk::api::management_canister::main::{
-            create_canister, install_code, CanisterInstallMode, CreateCanisterArgument, InstallCodeArgument,
+            create_canister, install_chunked_code, CanisterInstallMode, CreateCanisterArgument, 
+            InstallChunkedCodeArgument, UploadChunkArgument,
         };
         use candid::{Encode, Principal};
-    
+
         // Convert owner ID to Principal
         let owner_principal = match Principal::from_text(&owner_icp_principal) {
             Ok(p) => p,
             Err(_) => return Err("Invalid owner ICP principal".to_string()),
         };
-    
+
         debug_log!("Creating drive for owner: {}", owner_icp_principal);
 
-
-        // temp hardcoded dfx controller principal
+        // temp hardcoded dfx controller principal (same as before)
         let dfx_controller_principal = Principal::from_text("ju5k3-incuz-afpss-iopne-5tzfe-b466x-j4roy-owlyu-zq2pv-4dfjb-4ae").unwrap();
 
-    
         // Create canister settings
         let create_canister_arg = CreateCanisterArgument {
             settings: Some(ic_cdk::api::management_canister::main::CanisterSettings {
@@ -640,10 +641,12 @@ pub mod giftcards_handlers {
                 wasm_memory_limit: None,  
             }),
         };
-    
+
         // Ensure cycles value is converted to u128
         let cycles_to_use = cycles as u128;
-    
+
+        debug_log!("Cycles to use: {}", cycles_to_use);
+
         // Create the canister
         match create_canister(create_canister_arg, cycles_to_use).await {
             Ok((canister_id_record,)) => {
@@ -651,9 +654,54 @@ pub mod giftcards_handlers {
 
                 debug_log!("canister id deployed: {}", drive_canister_id);
                 
-                // Read WASM module from path
+                // Read WASM module
                 const DRIVE_WASM: &[u8] = include_bytes!("../../../../../target/wasm32-unknown-unknown/release/canisters_official_backend.wasm");
-    
+                
+                // Split WASM into chunks of 1MB each to stay safely under the 2MB limit
+                const CHUNK_SIZE: usize = 1_000_000; // 1MB
+                
+                debug_log!("WASM module size: {} bytes", DRIVE_WASM.len());
+                
+                // Prepare chunks
+                let mut chunks: Vec<Vec<u8>> = Vec::new();
+                let mut chunk_hashes = Vec::new();
+                
+                let mut offset = 0;
+                while offset < DRIVE_WASM.len() {
+                    let end = std::cmp::min(offset + CHUNK_SIZE, DRIVE_WASM.len());
+                    let chunk = DRIVE_WASM[offset..end].to_vec();
+                    
+                    // Upload chunk
+                    debug_log!("Uploading chunk {} of size {} bytes", chunks.len(), chunk.len());
+                    
+                    let upload_arg = UploadChunkArgument {
+                        canister_id: drive_canister_id,
+                        chunk: chunk.clone(),
+                    };
+                    
+                    match ic_cdk::api::management_canister::main::upload_chunk(upload_arg).await {
+                        Ok((chunk_hash,)) => {
+                            chunk_hashes.push(chunk_hash);
+                            chunks.push(chunk);
+                            debug_log!("Chunk uploaded successfully");
+                        },
+                        Err(e) => {
+                            debug_log!("Failed to upload chunk: {:?}", e);
+                            return Err(format!("Failed to upload WASM chunk: {:?}", e));
+                        }
+                    }
+                    
+                    offset = end;
+                }
+                
+                debug_log!("All chunks uploaded, total chunks: {}", chunks.len());
+                
+                // Calculate WASM module hash (SHA-256)
+                use sha2::{Sha256, Digest};
+                let mut hasher = Sha256::new();
+                hasher.update(DRIVE_WASM);
+                let wasm_module_hash = hasher.finalize().to_vec();
+                
                 // Create SpawnInitArgs for the canister
                 let init_args = SpawnInitArgs {
                     owner: owner_icp_principal,
@@ -662,7 +710,7 @@ pub mod giftcards_handlers {
                     note,
                     spawn_redeem_code: Some(spawn_redeem_code),
                 };
-    
+
                 // Encode initialization arguments
                 let arg = match Encode!(&Option::<SpawnInitArgs>::Some(init_args)) {
                     Ok(a) => a,
@@ -670,26 +718,28 @@ pub mod giftcards_handlers {
                 };
                 
                 debug_log!("Encoded initialization arguments");
-    
-                // Install code arguments
-                let install_code_arg = InstallCodeArgument {
+
+                // Install chunked code arguments
+                let install_chunked_code_arg = InstallChunkedCodeArgument {
                     mode: CanisterInstallMode::Install,
-                    canister_id: drive_canister_id,
-                    wasm_module: DRIVE_WASM.to_vec(),
+                    target_canister: drive_canister_id,
+                    store_canister: None, // Use the target canister as the storage canister
+                    chunk_hashes_list: chunk_hashes,
+                    wasm_module_hash,
                     arg,
                 };
-    
-                debug_log!("Installing code...");
-    
-                // Install the code
-                match install_code(install_code_arg).await {
+
+                debug_log!("Installing chunked code...");
+
+                // Install the chunked code
+                match install_chunked_code(install_chunked_code_arg).await {
                     Ok(()) => {
                         debug_log!("Code installed successfully");
                         Ok(drive_canister_id.to_string())
                     },
                     Err(e) => {
-                        debug_log!("Failed to install code: {:?}", e);
-                        Err(format!("Failed to install code: {:?}", e))
+                        debug_log!("Failed to install chunked code: {:?}", e);
+                        Err(format!("Failed to install chunked code: {:?}", e))
                     }
                 }
             },
@@ -699,7 +749,7 @@ pub mod giftcards_handlers {
             }
         }
     }
-    
+
     // Format ISO8601 timestamp
     fn format_iso8601(time: u64) -> String {
         let nanoseconds = time as i64;

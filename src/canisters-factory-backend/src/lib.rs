@@ -16,7 +16,7 @@ use ic_stable_structures::memory_manager::{MemoryId, VirtualMemory};
 
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = true;
+pub static LOCAL_DEV_MODE: bool = false;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]

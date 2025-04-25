@@ -3,8 +3,7 @@
     "canisters-factory-backend": {
       "candid": "src/canisters-factory-backend/canisters-factory-backend.did",
       "package": "canisters-factory-backend",
-      "type": "rust",
-      "cycles": 5000000000000
+      "type": "rust"
     }
   },
   "defaults": {
