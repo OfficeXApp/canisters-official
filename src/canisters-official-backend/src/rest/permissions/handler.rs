@@ -321,6 +321,8 @@ pub mod permissions_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+
+        debug_log!("create_directory_permissions_handler");
     
         // 2. Parse request body
         let body: &[u8] = request.body();
@@ -332,12 +334,16 @@ pub mod permissions_handlers {
             ),
         };
 
+        debug_log!("request parse body");
+
         if let Err(e) = upsert_request.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, e.message).encode()
             );
         }
+
+        debug_log!("validate body");
         
         // 3. Parse and validate resource ID
         let resource_id = match parse_directory_resource_id(&upsert_request.resource_id.to_string()) {
@@ -347,9 +353,14 @@ pub mod permissions_handlers {
                 ErrorResponse::err(400, "Invalid resource ID format".to_string()).encode()
             ),
         };
+
+        debug_log!("validate resourceid");
         
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
         let (grantee_id, redeem_code) = if let Some(grantee) = upsert_request.granted_to {
+
+            debug_log!("validate grantee id");
+
             match parse_permission_grantee_id(&grantee.to_string()) {
                 Ok(id) => (id, None),
                 Err(_) => return create_response(
@@ -358,6 +369,7 @@ pub mod permissions_handlers {
                 ),
             }
         } else {
+            debug_log!("create placeholder id");
             // Create a new deferred link ID for sharing
             let _placeholder_id = PlaceholderPermissionGranteeID(
                 generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
@@ -367,12 +379,16 @@ pub mod permissions_handlers {
             let redeem_code = format!("REDEEM_{}", ic_cdk::api::time());
             (_placeholder_grantee, Some(redeem_code))
         };
+
+        debug_log!("validate resource");
         
         // 5. Check if resource exists  
         let resource_exists = match &resource_id {
             DirectoryResourceID::File(file_id) => file_uuid_to_metadata.contains_key(file_id),
             DirectoryResourceID::Folder(folder_id) => folder_uuid_to_metadata.contains_key(folder_id),
         };
+
+        debug_log!("resource exsits");
     
         if !resource_exists {
             return create_response(
@@ -385,9 +401,11 @@ pub mod permissions_handlers {
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
         let mut allowed_permission_types = if is_owner {
+            debug_log!("is owner");
             // Owner can grant any permission
             upsert_request.permission_types.clone()
         } else {
+            debug_log!("check permissions");
             // Get requester's permissions on the resource and its parents
             let resources_to_check = get_inherited_resources_list(resource_id.clone());
             let mut requester_permissions = Vec::new();
@@ -398,6 +416,8 @@ pub mod permissions_handlers {
                 ).await;
                 requester_permissions.extend(permissions);
             }
+
+            debug_log!("checked various permissions");
     
             let has_manage = requester_permissions.contains(&DirectoryPermissionType::Manage);
             let has_invite = requester_permissions.contains(&DirectoryPermissionType::Invite);
@@ -408,6 +428,8 @@ pub mod permissions_handlers {
                     ErrorResponse::err(403, "Not authorized to modify permissions".to_string()).encode()
                 );
             }
+
+            debug_log!("has_manage?");
     
             if has_manage {
                 // Can grant any permission if they have manage rights
@@ -421,11 +443,15 @@ pub mod permissions_handlers {
             }
         };
     
+        debug_log!("create_directory_permissions_handler");
+        
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
 
         let prestate = snapshot_prestate();
     
         // 7. Handle update vs create based on ID presence
+
+        debug_log!("create case");
         
         // CREATE case
         let permission_id = match upsert_request.id {
@@ -454,38 +480,61 @@ pub mod permissions_handlers {
             external_payload: Some(ExternalPayload(upsert_request.external_payload.clone().unwrap_or_default())),
         };
 
+        debug_log!("new-permission {:?}", new_permission);
+
         // Update all state indices
         DIRECTORY_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
             permissions.borrow_mut().insert(permission_id.clone(), new_permission.clone());
         });
 
+        debug_log!("update state indices");
+
         DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
+            debug_log!("update DIRECTORY_PERMISSIONS_BY_RESOURCE_HASHTABLE");
             let mut map = permissions_by_resource.borrow_mut();
+            debug_log!("map:");
+            debug_log!("resource_id: {:?}", resource_id);
             if let Some(perm_list) = map.get(&resource_id) {
                 // Clone, then modify
+                debug_log!("perm_list: {:?}", perm_list);
                 let mut new_list = perm_list.clone();
+                debug_log!("new_list: {:?}", new_list);
                 new_list.add(permission_id.clone());
+                debug_log!("new_list after add: {:?}", new_list);
                 map.insert(resource_id.clone(), new_list);
             } else {
+                debug_log!("No list exists, create a new one");
                 // No list exists, create a new one
-                map.insert(resource_id.clone(), DirectoryPermissionIDList::with_permission(permission_id.clone()));
-            }
-        });
-        
-        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
-            let mut map = grantee_permissions.borrow_mut();
-            if let Some(perm_list) = map.get(&grantee_id) {
-                // Clone, then modify
-                let mut new_list = perm_list.clone();
-                new_list.add(permission_id.clone());
-                map.insert(grantee_id.clone(), new_list);
-            } else {
-                // No list exists, create a new one
-                map.insert(grantee_id.clone(), DirectoryPermissionIDList::with_permission(permission_id.clone()));
+                map.insert(resource_id.clone(), DirectoryPermissionIDList { permissions: vec![permission_id.clone()] });
             }
         });
 
+        debug_log!("update DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE indices");
+        
+        DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
+            debug_log!("update DIRECTORY_GRANTEE_PERMISSIONS_HASHTABLE");
+            debug_log!("grantee_id: {:?}", grantee_id);
+            let mut map = grantee_permissions.borrow_mut();
+            debug_log!("map::");
+            if let Some(perm_list) = map.get(&grantee_id) {
+                // Clone, then modify
+                debug_log!("perm_list: {:?}", perm_list);
+                let mut new_list = perm_list.clone();
+                debug_log!("new_list before add: {:?}", new_list);
+                new_list.add(permission_id.clone());
+                debug_log!("new_list after add: {:?}", new_list);
+                map.insert(grantee_id.clone(), new_list);
+            } else {
+                // No list exists, create a new one
+                debug_log!("No list exists, create a new one");
+                map.insert(grantee_id.clone(), DirectoryPermissionIDList { permissions: vec![permission_id.clone()] });
+            }
+        });
+
+        debug_log!("update DIRECTORY_PERMISSIONS_BY_TIME_LIST indices");
+
         DIRECTORY_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
+            debug_log!("update DIRECTORY_PERMISSIONS_BY_TIME_LIST");
             let mut list = permissions_by_time.borrow_mut();
             list.add(permission_id.clone());
         });
@@ -500,8 +549,7 @@ pub mod permissions_handlers {
             ).to_string()
         ));
 
-
-
+        debug_log!("success create_directory_permissions_handler");
 
         create_response(
             StatusCode::OK,
@@ -1274,6 +1322,8 @@ pub mod permissions_handlers {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
+
+        debug_log!("create_system_permissions_handler");
     
         // 2. Parse request body
         let body: &[u8] = request.body();
@@ -1285,17 +1335,22 @@ pub mod permissions_handlers {
             ),
         };
 
+        debug_log!("create_system_permissions_handler - parsed request");
+
         if let Err(e) = upsert_request.validate_body() {
             return create_response(
                 StatusCode::BAD_REQUEST,
                 ErrorResponse::err(400, e.message).encode()
             );
         }
+
+        debug_log!("create_system_permissions_handler - validated request");
     
         // 3. Parse resource ID string into SystemResourceID
         debug_log!("Upsert request resource_id {:?}", upsert_request.resource_id.clone());
         let resource_id = match upsert_request.resource_id.split_once('_') {
             Some(("TABLE", table_name)) => {
+                debug_log!("Parsed resource_id as TABLE: {}", table_name);
                 match table_name {
                     "DRIVES" => SystemResourceID::Table(SystemTableEnum::Drives),
                     "DISKS" => SystemResourceID::Table(SystemTableEnum::Disks),
@@ -1322,6 +1377,7 @@ pub mod permissions_handlers {
     
         // 4. Parse and validate grantee ID if provided (not required for deferred links)
         let (grantee_id, redeem_code) = if let Some(grantee) = upsert_request.granted_to {
+            debug_log!("Parsed grantee ID: {}", grantee);
             match parse_permission_grantee_id(&grantee) {
                 Ok(id) => (id, None),
                 Err(_) => return create_response(
@@ -1330,6 +1386,7 @@ pub mod permissions_handlers {
                 ),
             }
         } else {
+            debug_log!("No grantee ID provided, creating deferred link ID");
             // Create a new deferred link ID for sharing
             let _placeholder_id = PlaceholderPermissionGranteeID(
                 generate_uuidv4(IDPrefix::PlaceholderPermissionGrantee)
@@ -1343,7 +1400,7 @@ pub mod permissions_handlers {
         // 5. Check authorization
         let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == owner_id.borrow().get().clone());
         
-    
+        debug_log!("create_system_permissions_handler - checking authorization");
         let current_time = ic_cdk::api::time() / 1_000_000; // Convert from ns to ms
     
         
@@ -1356,6 +1413,8 @@ pub mod permissions_handlers {
             );
         }
 
+        debug_log!("create_system_permissions_handler - authorization check passed");
+
         let prestate = snapshot_prestate();
 
 
@@ -1363,6 +1422,8 @@ pub mod permissions_handlers {
             Some(id) => SystemPermissionID(id.to_string()),
             None => SystemPermissionID(generate_uuidv4(IDPrefix::SystemPermission)),
         };
+
+        debug_log!("create_system_permissions_handler - creating permission");
         
         let new_permission = SystemPermission {
             id: permission_id.clone(),
@@ -1389,10 +1450,14 @@ pub mod permissions_handlers {
             },
         };
 
+        debug_log!("create_system_permissions_handler - this permission");
+
         // Update all state indices
         SYSTEM_PERMISSIONS_BY_ID_HASHTABLE.with(|permissions| {
             permissions.borrow_mut().insert(permission_id.clone(), new_permission.clone());
         });
+
+        debug_log!("SYSTEM_PERMISSIONS_BY_ID_HASHTABLE");
 
         SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE.with(|permissions_by_resource| {
             let mut table = permissions_by_resource.borrow_mut();
@@ -1419,6 +1484,8 @@ pub mod permissions_handlers {
             table.insert(resource_id, resource_list);
         });
 
+        debug_log!("SYSTEM_PERMISSIONS_BY_RESOURCE_HASHTABLE");
+
         SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE.with(|grantee_permissions| {
             let mut table = grantee_permissions.borrow_mut();
             
@@ -1444,19 +1511,27 @@ pub mod permissions_handlers {
             table.insert(grantee_id, grantee_list);
         });
 
+        debug_log!("SYSTEM_GRANTEE_PERMISSIONS_HASHTABLE");
+
         SYSTEM_PERMISSIONS_BY_TIME_LIST.with(|permissions_by_time| {
             permissions_by_time.borrow_mut()
                 .push(&permission_id.clone())
                 .expect("Failed to add permission to time list");
         });
 
+        debug_log!("SYSTEM_PERMISSIONS_BY_TIME_LIST");
+
         mark_claimed_uuid(&permission_id.clone().to_string());
+
+        debug_log!("mark_claimed_uuid");
 
         update_external_id_mapping(
             None,
             new_permission.external_id.clone(),
             Some(new_permission.id.clone().to_string()),
         );
+
+        debug_log!("update_external_id_mapping");
 
         snapshot_poststate(prestate, Some(
             format!(
@@ -1469,6 +1544,8 @@ pub mod permissions_handlers {
         let final_permission = CreateSystemPermissionsResponseData {
             permission: new_permission.cast_fe(&requester_api_key.user_id.clone())
         };
+
+        debug_log!("create_system_permissions_handler - returning response");
 
         create_response(
             StatusCode::OK,
