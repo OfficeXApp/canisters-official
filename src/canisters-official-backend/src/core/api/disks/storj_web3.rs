@@ -30,7 +30,7 @@ pub fn generate_storj_view_url(
     expires_in: Option<u64>,
     download_filename: Option<&str>,
 ) -> String {
-    let DEFAULT_EXPIRATION: u64 = 3600; // seconds
+    let DEFAULT_EXPIRATION: u64 = 60 * 60 * 24; // 24 hours
     let current_time = ic_cdk::api::time();
     let date = format_date(current_time);         // YYYYMMDD
     let date_time = format_datetime(current_time); // YYYYMMDDTHHMMSSZ

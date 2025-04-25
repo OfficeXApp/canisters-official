@@ -709,9 +709,6 @@ impl DirectoryPermissionIDList {
         Self { permissions: Vec::new() }
     }
     
-    pub fn with_permission(permission_id: DirectoryPermissionID) -> Self {
-        Self { permissions: vec![permission_id] }
-    }
     
     pub fn add(&mut self, permission_id: DirectoryPermissionID) {
         self.permissions.push(permission_id);
@@ -775,10 +772,6 @@ pub struct SystemPermissionIDList {
 impl SystemPermissionIDList {
     pub fn new() -> Self {
         Self { permissions: Vec::new() }
-    }
-    
-    pub fn with_permission(permission_id: SystemPermissionID) -> Self {
-        Self { permissions: vec![permission_id] }
     }
     
     pub fn add(&mut self, permission_id: SystemPermissionID) {

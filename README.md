@@ -103,10 +103,10 @@ $ dfx identity get-wallet --network ic
 $ dfx ledger top-up --network ic --amount 0.5 <wallet_id>
 
 # deploy factory (eg canister_id="lfp6f-3iaaa-aaaak-apcgq-cai")
-$ dfx deploy canisters-factory-backend --network ic --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+$ dfx build && dfx deploy canisters-factory-backend --network ic --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 
-# deposit 2.5T cycles into canister
-$ dfx canister deposit-cycles --network ic 5000000000000 <canister_id>
+# deposit 4T cycles into canister
+$ dfx canister deposit-cycles --network ic 4000000000000 <canister_id>
 
 # check status of deployed caniter
 $ dfx canister --network ic status <canister_id>
