@@ -16,7 +16,7 @@ pub fn generate_s3_view_url(
     expires_in: Option<u64>,
     download_filename: Option<&str>
 ) -> String {
-    let DEFAULT_EXPIRATION: u64 = 3600; // 1 hour in seconds
+    let DEFAULT_EXPIRATION: u64 = 60 * 60 * 24; // 24 hours
     let current_time = ic_cdk::api::time();
     
     // Format dates
