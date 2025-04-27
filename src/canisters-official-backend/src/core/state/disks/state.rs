@@ -63,6 +63,7 @@ pub mod state {
             root_folder: root_folder,
             trash_folder: trash_folder,
             created_at: ic_cdk::api::time() / 1_000_000,
+            endpoint: None,
         };
 
         DISKS_BY_ID_HASHTABLE.with(|map| {
