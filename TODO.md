@@ -7,8 +7,8 @@
 
 ## Urgent Next
 
+- [ ] Ability to add/remove controllers via REST API
 - [ ] Audit the list handlers and inputs to be string based, not rust enum based (might need to audit all route types even)
-
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
 - [ ] Figure out the upgrade flow of ICP canisters (so that API key values etc dont change)

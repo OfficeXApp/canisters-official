@@ -346,6 +346,7 @@ pub mod disks_handlers {
             trash_folder: trash_folder_uuid,
             external_id: new_external_id.clone(),
             external_payload: Some(ExternalPayload(create_req.external_payload.unwrap_or("".to_string()))),
+            endpoint: create_req.endpoint,
         };
         update_external_id_mapping(
             None,
@@ -460,6 +461,9 @@ pub mod disks_handlers {
         }
         if let Some(external_payload) = update_req.external_payload {
             disk.external_payload = Some(ExternalPayload(external_payload));
+        }
+        if let Some(endpoint) = update_req.endpoint {
+            disk.endpoint = Some(endpoint);
         }
 
         DISKS_BY_ID_HASHTABLE.with(|store| {

@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}, labels::{state::validate_uuid4_string_with_prefix, types::redact_label}}, types::{ClientSuggestedUUID, IDPrefix, UserID}},
-    rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
+    core::{api::permissions::system::check_system_permissions, state::{disks::types::{Disk, DiskID, DiskTypeEnum}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::redact_label}, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}}, types::{ClientSuggestedUUID, IDPrefix, UserID}},
+    rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url, ApiResponse, UpsertActionTypeEnum, ValidationError}, webhooks::types::SortDirection},
 };
 
 
@@ -114,6 +114,7 @@ pub struct CreateDiskRequestBody {
     pub auth_json: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
+    pub endpoint: Option<String>,
 }
 impl CreateDiskRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -166,6 +167,10 @@ impl CreateDiskRequestBody {
             validate_external_payload(external_payload)?;
         }
 
+        if let Some(endpoint) = &self.endpoint {
+            validate_url(endpoint, "endpoint")?;
+        }
+
         Ok(())
     }
 }
@@ -185,6 +190,8 @@ pub struct UpdateDiskRequestBody {
     pub external_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_payload: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
 }
 impl UpdateDiskRequestBody {
     pub fn validate_body(&self) -> Result<(), ValidationError> {

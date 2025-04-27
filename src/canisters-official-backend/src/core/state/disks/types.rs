@@ -50,6 +50,7 @@ pub struct Disk {
     pub trash_folder: FolderID,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,
+    pub endpoint: Option<String>,
 }
 
 
