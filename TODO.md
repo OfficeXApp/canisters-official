@@ -7,7 +7,9 @@
 
 ## Urgent Next
 
+- [ ] Add versioning of canister to /about
 - [ ] Ability to add/remove controllers via REST API
+- [ ] FileRecord.thumbnails & FolderRecord.thumbnails `Option<Vec<String>>`
 - [ ] Audit the list handlers and inputs to be string based, not rust enum based (might need to audit all route types even)
 - [ ] Add route type validation to throw error on unknown fields instead of panicking
 - [ ] Add ACL checks on /directory/asset/{file_id_with_extension}
@@ -158,3 +160,4 @@
 - [x] Delete file permanently should also remove from S3/STORJ/canister etc
 - [x] Fix superswap user to also handle permissions updating
 - [x] Fix the 502 error on canisters-official-backend initial deployment. update works --> we must init stable state structs in lib.rs
+- [x] Scope files in S3 to an org and disk, for easy reusing of S3 buckets

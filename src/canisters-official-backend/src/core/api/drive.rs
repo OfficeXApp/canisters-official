@@ -249,7 +249,8 @@ pub mod drive {
                                             &existing_file.extension,   // file_extension
                                             &aws_auth.clone(),                  // AWS credentials
                                             file_size,
-                                            3600
+                                            3600,
+                                            disk_id
                                         )?
                                     },
                                     DiskTypeEnum::StorjWeb3 => {
@@ -263,7 +264,8 @@ pub mod drive {
                                             &existing_file.extension,   // file_extension
                                             &aws_auth.clone(),                // Storj credentials (make sure to define this)
                                             file_size,
-                                            3600
+                                            3600,
+                                            disk_id
                                         )?
                                     },
                                     DiskTypeEnum::IcpCanister => {
@@ -379,7 +381,8 @@ pub mod drive {
                     file_metadata.extension.as_str(),// file_extension
                     &aws_auth,                       // AWS credentials
                     file_size,
-                    3600
+                    3600,
+                    disk_id
                 )?
             },
             DiskTypeEnum::StorjWeb3 => {
@@ -393,7 +396,8 @@ pub mod drive {
                     file_metadata.extension.as_str(),// file_extension
                     &aws_auth,                     // Storj credentials
                     file_size,
-                    3600
+                    3600,
+                    disk_id
                 )?
             },
             DiskTypeEnum::IcpCanister => {
@@ -915,12 +919,13 @@ pub mod drive {
             let file_path = file.full_directory_path.clone();
             let folder_uuid = file.parent_folder_uuid.clone();
 
-            // Get the S3 key for the file
-            let s3_key = format!("{}/{}.{}", file_id.0, file_id.0, file.extension);
-            
             // Delete the file from the storage
             let disk_type = file.disk_type.clone();
             let disk_id = file.disk_id.clone();
+
+            // Get the S3 key for the file
+            let drive_id = DRIVE_ID.with(|id| id.clone());
+            let s3_key = format!("{}/{}/{}/{}.{}", drive_id, disk_id, file_id.0, file_id.0, file.extension);
             
             let disk_result = DISKS_BY_ID_HASHTABLE.with(|map| {
                 map.borrow()

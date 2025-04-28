@@ -115,7 +115,7 @@ impl CreateGiftcardSpawnOrgRequestBody {
                 message: "Action must be 'Create'".to_string(),
             });
         }
-
+        
         Ok(())
     }
 }

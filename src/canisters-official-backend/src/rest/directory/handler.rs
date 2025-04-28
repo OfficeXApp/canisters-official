@@ -502,7 +502,8 @@ pub mod directorys_handlers {
                     &file_meta.extension,     // file_extension
                     &aws_auth.clone(),                // AWS credentials
                     Some(3600),
-                    Some(&download_filename)
+                    Some(&download_filename),
+                    file_meta.disk_id.clone()
                 )
             }
             DiskTypeEnum::StorjWeb3 => {
@@ -511,7 +512,8 @@ pub mod directorys_handlers {
                     &file_meta.extension,     // file_extension
                     &aws_auth.clone(),              // Storj credentials (assumed to be defined)
                     Some(3600),
-                    Some(&download_filename)
+                    Some(&download_filename),
+                    file_meta.disk_id.clone()
                 )
             }
             _ => {
