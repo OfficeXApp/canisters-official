@@ -6,7 +6,7 @@ use ic_cdk::api::management_canister::http_request::{
 };
 use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
-use crate::{core::state::disks::types::AwsBucketAuth, debug_log, rest::directory::types::DiskUploadResponse};
+use crate::{core::state::{disks::types::{AwsBucketAuth, DiskID}, drives::state::state::DRIVE_ID}, debug_log, rest::directory::types::DiskUploadResponse};
 use num_traits::cast::ToPrimitive;
 
 //
@@ -29,6 +29,7 @@ pub fn generate_storj_view_url(
     auth: &AwsBucketAuth,
     expires_in: Option<u64>,
     download_filename: Option<&str>,
+    disk_id: DiskID
 ) -> String {
     let DEFAULT_EXPIRATION: u64 = 60 * 60 * 24; // 24 hours
     let current_time = ic_cdk::api::time();
@@ -45,7 +46,8 @@ pub fn generate_storj_view_url(
     let host = extract_host(endpoint);
 
     // Build the S3 key as before.
-    let s3_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+    let drive_id = DRIVE_ID.with(|id| id.clone());
+    let s3_key = format!("{}/{}/{}/{}.{}", drive_id, disk_id, file_id, file_id, file_extension);
     // For path‐style, the canonical URI includes the bucket.
     let canonical_uri = format!("/{}/{}", auth.bucket, s3_key);
 
@@ -116,6 +118,7 @@ pub fn generate_storj_upload_url(
     auth: &AwsBucketAuth,
     max_size: u64,
     expires_in: u64,
+    disk_id: DiskID
 ) -> Result<DiskUploadResponse, String> {
     let current_time = ic_cdk::api::time();
     let expiration_time = current_time + (expires_in * 1_000_000_000);
@@ -126,7 +129,8 @@ pub fn generate_storj_upload_url(
     let expiration = format_iso8601(expiration_time);
 
     // Build the object key (does not include bucket here).
-    let target_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+    let drive_id = DRIVE_ID.with(|id| id.clone());
+    let target_key = format!("{}/{}/{}/{}.{}", drive_id, disk_id, file_id, file_id, file_extension);
 
     // Create the policy document.
     let policy = format!(

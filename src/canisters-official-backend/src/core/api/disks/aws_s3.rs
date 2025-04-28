@@ -6,7 +6,7 @@ use base64::{Engine as _, engine::general_purpose};
 use ic_cdk::api::management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod};
 use serde::{Serialize, Deserialize};
 use time::{Duration, OffsetDateTime};
-use crate::{core::state::disks::types::AwsBucketAuth, debug_log, rest::directory::types::DiskUploadResponse};
+use crate::{core::state::{disks::types::{AwsBucketAuth, DiskID}, drives::state::state::DRIVE_ID}, debug_log, rest::directory::types::DiskUploadResponse};
 use num_traits::cast::ToPrimitive;
 
 pub fn generate_s3_view_url(
@@ -14,7 +14,8 @@ pub fn generate_s3_view_url(
     file_extension: &str,  // Added parameter for file extension
     auth: &AwsBucketAuth,
     expires_in: Option<u64>,
-    download_filename: Option<&str>
+    download_filename: Option<&str>,
+    disk_id: DiskID
 ) -> String {
     let DEFAULT_EXPIRATION: u64 = 60 * 60 * 24; // 24 hours
     let current_time = ic_cdk::api::time();
@@ -33,7 +34,8 @@ pub fn generate_s3_view_url(
     let host = format!("{}.s3.{}.amazonaws.com", auth.bucket, auth.region);
 
     // Construct the S3 key using the same format as upload
-    let s3_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+    let drive_id = DRIVE_ID.with(|id| id.clone());
+    let s3_key = format!("{}/{}/{}/{}.{}", drive_id, disk_id, file_id, file_id, file_extension);
 
     // Create content disposition string if filename provided
     let content_disposition = download_filename.map(|filename| {
@@ -133,7 +135,8 @@ pub fn generate_s3_upload_url(
     file_extension: &str,
     auth: &AwsBucketAuth,
     max_size: u64,
-    expires_in: u64
+    expires_in: u64,
+    disk_id: DiskID
 ) -> Result<DiskUploadResponse, String> {
     let current_time = ic_cdk::api::time();
     let expiration_time = current_time + (expires_in * 1_000_000_000);
@@ -144,7 +147,8 @@ pub fn generate_s3_upload_url(
     let expiration = format_iso8601(expiration_time);
 
     // Create the target key using fileId for both directory and filename
-    let target_key = format!("{}/{}.{}", file_id, file_id, file_extension);
+    let drive_id = DRIVE_ID.with(|id| id.clone());
+    let target_key = format!("{}/{}/{}/{}.{}", drive_id, disk_id, file_id, file_id, file_extension);
 
     // Policy document with exact key instead of starts-with
     let policy = format!(

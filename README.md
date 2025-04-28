@@ -40,6 +40,12 @@ or standalone backend in prod:
 $ dfx canister --network ic create canisters-official-backend && dfx build && dfx deploy --network ic canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 ```
 
+or update backend in prod:
+
+```sh
+$ dfx build && dfx canister --network ic install <canister_id> --mode upgrade --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" --wasm target/wasm32-unknown-unknown/release/canisters_official_backend.wasm
+```
+
 deposit gas cycles into dev canister
 
 ```sh
