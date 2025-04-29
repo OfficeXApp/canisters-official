@@ -369,16 +369,16 @@ pub mod apikeys_handlers {
         debug_log!("Incoming snapshot request: {}", request.url());
     
         // // Authenticate request
-        // let requester_api_key = match authenticate_request(request) {
-        //     Some(key) => key,
-        //     None => return create_auth_error_response(),
-        // };
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
     
-        // // Check authorization - only owner can access snapshots
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        // if !is_owner {
-        //     return create_auth_error_response();
-        // }
+        // Check authorization - only owner can access snapshots
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
+        if !is_owner {
+            return create_auth_error_response();
+        }
     
         // Create a snapshot of the entire state
         let state_snapshot = StateSnapshot {

@@ -115,16 +115,16 @@ pub mod drives_handlers {
     
     pub async fn snapshot_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         // Authenticate request
-        // let requester_api_key = match authenticate_request(request) {
-        //     Some(key) => key,
-        //     None => return create_auth_error_response(),
-        // };
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
 
         // temporarily disabled for testing
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        // if !is_owner {
-        //     return create_auth_error_response();
-        // }
+        let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
+        if !is_owner {
+            return create_auth_error_response();
+        }
 
         // debug_log!("Requester API Key, {:?}", requester_api_key);
 
