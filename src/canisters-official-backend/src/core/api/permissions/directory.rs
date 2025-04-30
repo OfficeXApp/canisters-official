@@ -166,7 +166,7 @@ async fn check_directory_resource_permissions(
     // Process permissions outside the with() closure where we can use await
     for permission in permission_entries {
         // Skip if permission is expired or not yet active
-        let current_time = ic_cdk::api::time() as i64;
+        let current_time = (ic_cdk::api::time() / 1_000_000) as i64;
         if permission.expiry_date_ms > 0 && permission.expiry_date_ms <= current_time {
             continue;
         }

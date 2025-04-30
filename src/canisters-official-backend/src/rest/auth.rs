@@ -217,12 +217,12 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                 // Check if key exists and validate expiration/revocation
                 if let Some(key) = full_api_key {
                     // Get current Unix timestamp
-                    let now = ic_cdk::api::time() as i64;
+                    let now = (ic_cdk::api::time() / 1_000_000) as i64;
                     
                     debug_log!("Successfully authenticated user: {}", key.user_id.clone());
                     
                     // Return the key if it's valid (not expired and not revoked), and begins time is past
-                    if (key.expires_at <= 0 || now < key.expires_at) && !key.is_revoked && key.begins_at <= ic_cdk::api::time() {
+                    if (key.expires_at <= 0 || now < key.expires_at) && !key.is_revoked && key.begins_at <= (ic_cdk::api::time() / 1_000_000) {
 
                         update_last_online_at(&key.user_id);
                         return Some(key);

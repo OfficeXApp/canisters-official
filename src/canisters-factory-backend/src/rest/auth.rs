@@ -172,7 +172,7 @@ pub fn authenticate_request(req: &HttpRequest) -> Option<ApiKey> {
                 // Check if key exists and validate expiration/revocation
                 if let Some(key) = full_api_key {
                     // Get current Unix timestamp
-                    let now = ic_cdk::api::time() as i64;
+                    let now = (ic_cdk::api::time() / 1_000_000) as i64;
                     
                     debug_log!("key check - expires_at: {}, is_revoked: {}", key.expires_at, key.is_revoked);
                     

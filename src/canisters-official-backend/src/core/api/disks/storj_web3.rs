@@ -32,7 +32,7 @@ pub fn generate_storj_view_url(
     disk_id: DiskID
 ) -> String {
     let DEFAULT_EXPIRATION: u64 = 60 * 60 * 24; // 24 hours
-    let current_time = ic_cdk::api::time();
+    let current_time = ic_cdk::api::time() / 1_000_000_000;
     let date = format_date(current_time);         // YYYYMMDD
     let date_time = format_datetime(current_time); // YYYYMMDDTHHMMSSZ
 
@@ -120,8 +120,8 @@ pub fn generate_storj_upload_url(
     expires_in: u64,
     disk_id: DiskID
 ) -> Result<DiskUploadResponse, String> {
-    let current_time = ic_cdk::api::time();
-    let expiration_time = current_time + (expires_in * 1_000_000_000);
+    let current_time = ic_cdk::api::time() / 1_000_000_000;
+    let expiration_time = current_time + (expires_in);
 
     // Convert timestamps to the required formats.
     let date = format_date(current_time);
@@ -190,7 +190,7 @@ pub async fn copy_storj_object(
     let endpoint = auth.endpoint.trim_end_matches('/');
     let host = extract_host(endpoint);
 
-    let current_time = ic_cdk::api::time();
+    let current_time = ic_cdk::api::time() / 1_000_000_000;
     let date = format_date(current_time);
     let date_time = format_datetime(current_time);
     let credential = format!("{}/{}/{}/s3/aws4_request", auth.access_key, date, auth.region);
@@ -399,7 +399,7 @@ pub async fn delete_storj_object(
     
     debug_log!("Host for signing: {}", host);
     
-    let current_time = ic_cdk::api::time();
+    let current_time = ic_cdk::api::time() / 1_000_000_000;
     let date = format_date(current_time);
     let date_time = format_datetime(current_time);
     

@@ -856,7 +856,7 @@ pub mod contacts_handlers {
                     user_id: new_user_id.clone(), 
                     name: "Superswap User API Key".to_string(),
                     private_note: Some("Automatically generated API key for superswapped user".to_string()),
-                    created_at: ic_cdk::api::time(),
+                    created_at: ic_cdk::api::time() / 1_000_000,
                     begins_at: 0,
                     expires_at: -1,
                     is_revoked: false,

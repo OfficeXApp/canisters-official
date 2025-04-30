@@ -272,7 +272,7 @@ pub mod giftcards_handlers {
             match req {
                 UpsertGiftcardRefuelRequestBody::Create(create_req) => {            
                     // Create new giftcard
-                    let current_time = ic_cdk::api::time();
+                    let current_time = ic_cdk::api::time() / 1_000_000;
                     let new_giftcard = GiftcardRefuel {
                         id: GiftcardRefuelID(generate_uuidv4(IDPrefix::GiftcardRefuel)),
                         usd_revenue_cents: create_req.usd_revenue_cents,
@@ -497,7 +497,7 @@ pub mod giftcards_handlers {
     
         // Generate a unique redeem code using timestamp
         let redeem_code = format!("REDEEM_{}", ic_cdk::api::time());
-        let current_time = ic_cdk::api::time();
+        let current_time = ic_cdk::api::time() / 1_000_000;
     
         // Deposit cycles to the recipient's principal
         match deposit_cycles(recipient_principal, giftcard.gas_cycles_included).await {

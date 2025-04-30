@@ -203,7 +203,7 @@ pub mod apikeys_handlers {
             user_id: key_user_id, 
             name: create_req.name,
             private_note: create_req.private_note,
-            created_at: ic_cdk::api::time(),
+            created_at: ic_cdk::api::time() / 1_000_000,
             begins_at: create_req.begins_at.unwrap_or(0),
             expires_at: create_req.expires_at.unwrap_or(-1),
             is_revoked: false,

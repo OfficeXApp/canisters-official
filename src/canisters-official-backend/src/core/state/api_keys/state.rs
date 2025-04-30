@@ -50,7 +50,7 @@ pub mod state {
             user_id: OWNER_ID.with(|id| id.borrow().get().clone()),
             name: "Default Admin Key".to_string(),
             private_note: None,
-            created_at: ic_cdk::api::time(),
+            created_at: ic_cdk::api::time() / 1_000_000,
             begins_at: 0,
             expires_at: -1,
             is_revoked: false,

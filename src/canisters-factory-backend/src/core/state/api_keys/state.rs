@@ -117,7 +117,7 @@ pub mod state {
             value: ApiKeyValue(generate_api_key()),
             user_id: OWNER_ID.with(|id| id.borrow().get().clone()),
             name: "Default Admin Key".to_string(),
-            created_at: ic_cdk::api::time(),
+            created_at: ic_cdk::api::time() / 1_000_000,
             expires_at: -1,
             is_revoked: false,
         };
