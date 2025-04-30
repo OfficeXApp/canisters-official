@@ -9,8 +9,8 @@ pub mod drive {
             },
             state::{
                 directory::{
-                    state::state::{file_uuid_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
-                    types::{DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}
+                    state::state::{file_uuid_to_metadata, file_version_to_metadata, folder_uuid_to_metadata, full_file_path_to_uuid, full_folder_path_to_uuid},
+                    types::{DriveFullFilePath, FileID, FileRecord, FileVersionID, FolderID, FolderRecord}
                 }, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID}, types::{ExternalID, ExternalPayload}}, permissions::types::PermissionGranteeID, raw_storage::types::UploadStatus
             }, types::{ClientSuggestedUUID, ICPPrincipalString, IDPrefix, PublicKeyICP, UserID},
         }, debug_log, rest::{directory::types::{DirectoryActionResult, DirectoryListResponse, DirectoryResourceID, DiskUploadResponse, FileConflictResolutionEnum, ListDirectoryRequest, RestoreTrashPayload, RestoreTrashResponse}, webhooks::types::SortDirection}
@@ -222,7 +222,7 @@ pub mod drive {
             match file_conflict_resolution {
                 Some(FileConflictResolutionEnum::REPLACE) => {
                     let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
-                    (existing_file.file_version + 1, Some(existing_uuid.clone()))
+                    (existing_file.file_version + 1, Some(existing_file.version_id.clone()))
                 },
                 Some(FileConflictResolutionEnum::KEEP_NEWER) => {
                     let existing_file = file_uuid_to_metadata.get(existing_uuid).unwrap();
@@ -249,7 +249,7 @@ pub mod drive {
                                             &existing_file.extension,   // file_extension
                                             &aws_auth.clone(),                  // AWS credentials
                                             file_size,
-                                            3600,
+                                            60*60*24, // 24 hours
                                             disk_id
                                         )?
                                     },
@@ -264,7 +264,7 @@ pub mod drive {
                                             &existing_file.extension,   // file_extension
                                             &aws_auth.clone(),                // Storj credentials (make sure to define this)
                                             file_size,
-                                            3600,
+                                            60*60*24, // 24 hours
                                             disk_id
                                         )?
                                     },
@@ -292,7 +292,7 @@ pub mod drive {
                             Err(e) => Err(e)
                         };
                     }
-                    (existing_file.file_version + 1, Some(existing_uuid.clone()))
+                    (existing_file.file_version + 1, Some(existing_file.version_id.clone()))
                 },
                 _ => (1, None) // For KEEP_BOTH and KEEP_ORIGINAL, we create a new version chain
             }
@@ -301,13 +301,19 @@ pub mod drive {
         };
     
         let extension = file_name.rsplit('.').next().unwrap_or("").to_string();
+        let file_version_uuid = FileVersionID(generate_uuidv4(IDPrefix::FileVersion));
 
+        let file_id_to_use = match existing_file_uuid.clone() {
+            Some(existing_file_uuid) => existing_file_uuid.clone(),
+            None => new_file_uuid.clone()
+        };
     
         let file_metadata = FileRecord {
-            id: new_file_uuid.clone(),
+            id: file_id_to_use.clone(),
             name: final_name,
             parent_folder_uuid: folder_uuid.clone(),
             file_version,
+            version_id: file_version_uuid.clone(),
             prior_version,
             next_version: None,
             extension: extension.clone(),
@@ -318,7 +324,7 @@ pub mod drive {
             disk_id: disk_id.clone(),
             disk_type: disk.disk_type.clone(),
             file_size,
-            raw_url: format_file_asset_path(new_file_uuid.clone(), extension),
+            raw_url: format_file_asset_path(file_id_to_use.clone(), extension),
             last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
             last_updated_by: user_id,
             deleted: false,
@@ -333,32 +339,32 @@ pub mod drive {
         };
     
         // Update version chain if we're replacing
-        if let Some(existing_uuid) = existing_file_uuid {
+        if let Some(existing_uuid) = existing_file_uuid.clone() {
             match file_conflict_resolution {
                 Some(FileConflictResolutionEnum::REPLACE) | Some(FileConflictResolutionEnum::KEEP_NEWER) => {
-                    // Update the prior version's next_version pointer
-                    file_uuid_to_metadata.with_mut(|map| {
-                        if let Some(mut existing_file) = map.get(&existing_uuid) {
-                            existing_file.next_version = Some(new_file_uuid.clone());
-                            map.insert(existing_uuid.clone(), existing_file);
+                    let existing_file = file_uuid_to_metadata.get(&existing_uuid).unwrap();
+
+                    file_version_to_metadata.with_mut(|map| {
+                        if let Some(mut existing_file) = map.get(&existing_file.version_id) {
+                            existing_file.next_version = Some(file_version_uuid.clone());
+                            map.insert(existing_file.version_id.clone(), existing_file);
                         }
                     });
-                    
-                    // Remove old file from parent folder's file_uuids
-                    update_folder_file_uuids(&folder_uuid, &existing_uuid, false);
                 },
                 _ => ()
             }
         }
+        // Also add this to the version map
+        file_version_to_metadata.insert(file_version_uuid.clone(), file_metadata.clone());
     
         // Update hashtables
-        file_uuid_to_metadata.insert(new_file_uuid.clone(), file_metadata.clone());
-        full_file_path_to_uuid.insert(DriveFullFilePath(full_directory_path), new_file_uuid.clone());
+        file_uuid_to_metadata.insert(file_id_to_use.clone(), file_metadata.clone());
+        full_file_path_to_uuid.insert(DriveFullFilePath(full_directory_path), file_id_to_use.clone());
     
-        mark_claimed_uuid(&new_file_uuid.clone().to_string());
+        mark_claimed_uuid(&file_id_to_use.clone().to_string());
 
         // Update parent folder's file_uuids
-        update_folder_file_uuids(&folder_uuid, &new_file_uuid, true);
+        update_folder_file_uuids(&folder_uuid, &file_id_to_use, true);
     
         // Get disk info for S3 upload URL generation
         let disk = DISKS_BY_ID_HASHTABLE.with(|map| {
@@ -377,11 +383,11 @@ pub mod drive {
                 ).map_err(|_| "Invalid AWS credentials format".to_string())?;
                 
                 generate_s3_upload_url(
-                    &new_file_uuid.0,                // file_id
+                    &file_id_to_use.0,                // file_id
                     file_metadata.extension.as_str(),// file_extension
                     &aws_auth,                       // AWS credentials
                     file_size,
-                    3600,
+                    60*60*24, // 24 hours
                     disk_id
                 )?
             },
@@ -392,11 +398,11 @@ pub mod drive {
                 ).map_err(|_| "Invalid Storj credentials format".to_string())?;
                 
                 generate_storj_upload_url(
-                    &new_file_uuid.0,                // file_id
+                    &file_id_to_use.0,                // file_id
                     file_metadata.extension.as_str(),// file_extension
                     &aws_auth,                     // Storj credentials
                     file_size,
-                    3600,
+                    60*60*24, // 24 hours
                     disk_id
                 )?
             },
@@ -420,7 +426,7 @@ pub mod drive {
         update_external_id_mapping(
             None,
             external_id,
-            Some(new_file_uuid.0.clone())
+            Some(file_id_to_use.0.clone())
         );
     
         Ok((file_metadata, upload_response))
@@ -1005,7 +1011,7 @@ pub mod drive {
             
             // Handle version chain
             if let Some(prior_id) = &file.prior_version {
-                file_uuid_to_metadata.with_mut(|map| {
+                file_version_to_metadata.with_mut(|map| {
                     if let Some(mut prior_file) = map.get(prior_id) {
                         prior_file.next_version = file.next_version.clone();
                         map.insert(prior_id.clone(), prior_file);
@@ -1014,7 +1020,7 @@ pub mod drive {
             }
     
             if let Some(next_id) = &file.next_version {
-                file_uuid_to_metadata.with_mut(|map| {
+                file_version_to_metadata.with_mut(|map| {
                     if let Some(mut next_file) = map.get(next_id) {
                         next_file.prior_version = file.prior_version.clone();
                         map.insert(next_id.clone(), next_file);

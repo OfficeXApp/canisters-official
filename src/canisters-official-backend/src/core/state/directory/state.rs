@@ -8,6 +8,7 @@ pub mod state {
     use ic_stable_structures::memory_manager::MemoryId;
     use ic_stable_structures::{StableBTreeMap, DefaultMemoryImpl};
 
+    use crate::core::state::directory::types::FileVersionID;
     use crate::core::state::{
         directory::types::{DriveFullFilePath, FileRecord, FileID, FolderRecord, FolderID}
     };
@@ -20,10 +21,12 @@ pub mod state {
     pub const FILE_UUID_TO_METADATA_MEMORY_ID: MemoryId = MemoryId::new(41);
     pub const FULL_FOLDER_PATH_TO_UUID_MEMORY_ID: MemoryId = MemoryId::new(42);
     pub const FULL_FILE_PATH_TO_UUID_MEMORY_ID: MemoryId = MemoryId::new(43);
+    pub const FILE_VERSION_TO_METADATA_MEMORY_ID: MemoryId = MemoryId::new(52);
 
     // Wrapper types that implement Deref
     pub struct FolderMap;
     pub struct FileMap;
+    pub struct FileVersionMap;
     pub struct FolderPathMap;
     pub struct FilePathMap;
 
@@ -76,6 +79,32 @@ pub mod state {
         
         pub fn with<R>(&self, f: impl FnOnce(&StableBTreeMap<FileID, FileRecord, Memory>) -> R) -> R {
             file_uuid_to_metadata_inner.with(|map| f(&map.borrow()))
+        }
+    }
+
+    impl FileVersionMap {
+        pub fn get(&self, key: &FileVersionID) -> Option<FileRecord> {
+            file_version_to_metadata_inner.with(|map| map.borrow().get(key))
+        }
+
+        pub fn insert(&self, key: FileVersionID, value: FileRecord) {
+            file_version_to_metadata_inner.with(|map| map.borrow_mut().insert(key, value));
+        }
+
+        pub fn with_mut<R>(&self, f: impl FnOnce(&mut StableBTreeMap<FileVersionID, FileRecord, Memory>) -> R) -> R {
+            file_version_to_metadata_inner.with(|map| f(&mut map.borrow_mut()))
+        }
+    
+        pub fn contains_key(&self, key: &FileVersionID) -> bool {
+            file_version_to_metadata_inner.with(|map| map.borrow().contains_key(key))
+        }
+    
+        pub fn remove(&self, key: &FileVersionID) -> Option<FileRecord> {
+            file_version_to_metadata_inner.with(|map| map.borrow_mut().remove(key))
+        }
+        
+        pub fn with<R>(&self, f: impl FnOnce(&StableBTreeMap<FileVersionID, FileRecord, Memory>) -> R) -> R {
+            file_version_to_metadata_inner.with(|map| f(&map.borrow()))
         }
     }
 
@@ -146,6 +175,13 @@ pub mod state {
                 MEMORY_MANAGER.with(|m| m.borrow().get(FILE_UUID_TO_METADATA_MEMORY_ID))
             )
         );
+
+        // Replace HashMap with StableBTreeMap for file versions by ID
+        static file_version_to_metadata_inner: RefCell<StableBTreeMap<FileVersionID, FileRecord, Memory>> = RefCell::new(
+            StableBTreeMap::init(
+                MEMORY_MANAGER.with(|m| m.borrow().get(FILE_VERSION_TO_METADATA_MEMORY_ID))
+            )
+        );
         
         // Replace HashMap with StableBTreeMap for folder paths to IDs
         static full_folder_path_to_uuid_inner: RefCell<StableBTreeMap<DriveFullFilePath, FolderID, Memory>> = RefCell::new(
@@ -167,7 +203,7 @@ pub mod state {
     pub static file_uuid_to_metadata: FileMap = FileMap;
     pub static full_folder_path_to_uuid: FolderPathMap = FolderPathMap;
     pub static full_file_path_to_uuid: FilePathMap = FilePathMap;
-
+    pub static file_version_to_metadata: FileVersionMap = FileVersionMap;
 
     pub fn initialize() {
         // Force thread_locals in this module to initialize
@@ -175,6 +211,7 @@ pub mod state {
         file_uuid_to_metadata_inner.with(|_| {});
         full_folder_path_to_uuid_inner.with(|_| {});
         full_file_path_to_uuid_inner.with(|_| {});
+        file_version_to_metadata_inner.with(|_| {});
     }
 }
 

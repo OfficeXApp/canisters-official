@@ -131,6 +131,7 @@ pub enum IDPrefix {
     File,
     Folder,
     Drive,
+    FileVersion,
     ApiKey,
     Disk,
     Group,
@@ -154,6 +155,7 @@ impl IDPrefix {
         match self {
             IDPrefix::File => "FileID_",
             IDPrefix::Folder => "FolderID_",
+            IDPrefix::FileVersion => "FileVersionID_",
             IDPrefix::Drive => "DriveID_",
             IDPrefix::ApiKey => "ApiKeyID_",
             IDPrefix::Disk => "DiskID_",
