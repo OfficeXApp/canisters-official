@@ -273,7 +273,7 @@ pub mod giftcards_handlers {
             match req {
                 UpsertGiftcardSpawnOrgRequestBody::Create(create_req) => {            
                     // Create new giftcard
-                    let current_time = ic_cdk::api::time();
+                    let current_time = ic_cdk::api::time() / 1_000_000;
                     let new_giftcard = GiftcardSpawnOrg {
                         id: GiftcardSpawnOrgID(generate_uuidv4(IDPrefix::GiftcardSpawnOrg)),
                         usd_revenue_cents: create_req.usd_revenue_cents,
@@ -502,7 +502,7 @@ pub mod giftcards_handlers {
         let owner_id = format_user_id(&redeem_request.owner_icp_principal);
     
         // Create note for the factory spawn
-        let current_time = ic_cdk::api::time();
+        let current_time = ic_cdk::api::time() / 1_000_000;
         let time_iso = format_iso8601(current_time);
         
         // Deploy the canister using IC management canister

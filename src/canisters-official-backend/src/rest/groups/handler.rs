@@ -269,7 +269,7 @@ pub mod groups_handlers {
         }
         let prestate = snapshot_prestate();
         
-        let now = ic_cdk::api::time();
+        let now = ic_cdk::api::time() / 1_000_000;
 
         let group_id = match create_req.id {
             Some(id) => GroupID(id.to_string()),
@@ -394,7 +394,7 @@ pub mod groups_handlers {
             group.endpoint_url = DriveRESTUrlEndpoint(endpoint_url.trim_end_matches('/')
             .to_string());
         }
-        group.last_modified_at = ic_cdk::api::time();
+        group.last_modified_at = ic_cdk::api::time() / 1_000_000;
 
         if let Some(external_id) = update_req.external_id.clone() {
             let old_external_id = group.external_id.clone();

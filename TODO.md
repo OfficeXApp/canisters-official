@@ -17,7 +17,6 @@
 
 ## Awkward Urgent
 
-- [ ] Go through every ic_cdk::time::now() to check if we handle ms instead of ns
 - [ ] Refactor list to apply filter on all appropriate route items, including tags
 - [ ] Refactor inbox webhook to allow topic filters so that webhooks dont receieve EVERY piece of mail
 - [ ] Consider deterministic canister deloyment via seed phrase to enable true cold archive & reboot (in case canister runs out of gas and owner wants to still keep it frozen, download as encrypted json string + seed phrase, be able to deploy anytime/anywhere)
@@ -161,3 +160,4 @@
 - [x] Fix superswap user to also handle permissions updating
 - [x] Fix the 502 error on canisters-official-backend initial deployment. update works --> we must init stable state structs in lib.rs
 - [x] Scope files in S3 to an org and disk, for easy reusing of S3 buckets
+- [x] Go through every ic_cdk::time::now() to check if we handle ms instead of ns

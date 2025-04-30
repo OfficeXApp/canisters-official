@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, APIKEYS_BY_VALUE_MEMORY_ID, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}}, giftcards_spawnorg::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, MEMORY_MANAGER, 
+        core::{api::{helpers::is_local_environment, uuid::{generate_api_key, generate_uuidv4}}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, APIKEYS_BY_VALUE_MEMORY_ID, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}}, giftcards_spawnorg::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, MEMORY_MANAGER, 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use ic_stable_structures::StableBTreeMap;
@@ -169,7 +169,7 @@ pub mod apikeys_handlers {
                         value: ApiKeyValue(generate_api_key()),
                         user_id: key_user_id, 
                         name: create_req.name,
-                        created_at: ic_cdk::api::time(),
+                        created_at: ic_cdk::api::time() / 1_000_000,
                         expires_at: create_req.expires_at.unwrap_or(-1),
                         is_revoked: false,
                     };
@@ -368,17 +368,20 @@ pub mod apikeys_handlers {
     pub async fn snapshot_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("Incoming snapshot request: {}", request.url());
     
-        // // Authenticate request
-        // let requester_api_key = match authenticate_request(request) {
-        //     Some(key) => key,
-        //     None => return create_auth_error_response(),
-        // };
-    
-        // // Check authorization - only owner can access snapshots
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        // if !is_owner {
-        //     return create_auth_error_response();
-        // }
+        if !is_local_environment() {
+            // // Authenticate request
+            let requester_api_key = match authenticate_request(request) {
+                Some(key) => key,
+                None => return create_auth_error_response(),
+            };
+        
+            // Check authorization - only owner can access snapshots
+            let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow().get());
+            if !is_owner {
+                return create_auth_error_response();
+            }
+        }
+
     
         // Create a snapshot of the entire state
         let state_snapshot = StateSnapshot {
@@ -476,7 +479,7 @@ pub mod apikeys_handlers {
         let response = SnapshotResponse {
             status: "success".to_string(),
             data: state_snapshot,
-            timestamp: ic_cdk::api::time(),
+            timestamp: ic_cdk::api::time() / 1_000_000,
         };
     
         create_response(

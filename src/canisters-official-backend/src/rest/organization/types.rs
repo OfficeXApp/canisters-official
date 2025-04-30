@@ -354,6 +354,7 @@ pub struct AboutDriveResponseData {
     pub canister_id: String,
     pub daily_idle_cycle_burn_rate: String,
     pub controllers: Vec<String>,
+    pub version: String,
 }
 
 pub type AboutDriveResponse<'a> = ApiResponse<'a, AboutDriveResponseData>;

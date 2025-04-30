@@ -43,7 +43,7 @@ pub mod drive_internals {
                 full_directory_path: root_path.clone(),
                 labels: Vec::new(),
                 created_by: user_id.clone(),
-                created_at: ic_cdk::api::time(),
+                created_at: ic_cdk::api::time() / 1_000_000,
                 disk_id: disk_id.clone(),
                 disk_type: disk_type.clone(),
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
@@ -76,7 +76,7 @@ pub mod drive_internals {
                 full_directory_path: trash_path.clone(),
                 labels: Vec::new(),
                 created_by: user_id.clone(),
-                created_at: ic_cdk::api::time(),
+                created_at: ic_cdk::api::time() / 1_000_000,
                 disk_id: disk_id.clone(),
                 disk_type: disk_type.clone(),
                 last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
@@ -210,7 +210,7 @@ folder_uuid_to_metadata.with_mut(|map| {
                     full_directory_path: DriveFullFilePath(current_path.clone()),
                     labels: Vec::new(),
                     created_by: user_id.clone(),
-                    created_at: ic_cdk::api::time(),
+                    created_at: ic_cdk::api::time() / 1_000_000,
                     disk_id: disk_id.clone(),
                     disk_type: disk_type.clone(),
                     last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
@@ -528,7 +528,7 @@ folder_uuid_to_metadata.with_mut(|map| {
         });
     
         // Now check if any of the user's invites are active for this group
-        let now = ic_cdk::api::time();
+        let now = ic_cdk::api::time() / 1_000_000;
         INVITES_BY_ID_HASHTABLE.with(|invites| {
             user_invites.iter().any(|invite_id| {
                 if let Some(invite) = invites.borrow().get(invite_id) {

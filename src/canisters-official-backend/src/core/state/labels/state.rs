@@ -309,7 +309,7 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
                     let mut updated_resource = resource.clone();
                     if !updated_resource.labels.iter().any(|t| t == label_value) {
                         updated_resource.labels.push(label_value.clone());
-                        updated_resource.last_modified_at = ic_cdk::api::time();
+                        updated_resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                         store_mut.insert(id.clone(), updated_resource);
                     }
                 }
@@ -323,7 +323,7 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
                     let mut updated_resource = resource.clone();
                     if !updated_resource.labels.iter().any(|t| t == label_value) {
                         updated_resource.labels.push(label_value.clone());
-                        updated_resource.last_modified_at = ic_cdk::api::time();
+                        updated_resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                         store_mut.insert(id.clone(), updated_resource);
                     }
                 }
@@ -335,7 +335,7 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
                 if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
-                        resource.last_modified_at = ic_cdk::api::time();
+                        resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                         store.insert(id.clone(), resource);
                     }
                 }
@@ -347,7 +347,7 @@ pub fn add_label_to_resource(resource_id: &LabelResourceID, label_value: &LabelS
                 if let Some(mut resource) = store.get(id) {
                     if !resource.labels.iter().any(|t| t == label_value) {
                         resource.labels.push(label_value.clone());
-                        resource.last_modified_at = ic_cdk::api::time();
+                        resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                         store.insert(id.clone(), resource);
                     }
                 }
@@ -492,7 +492,7 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
                 if let Some(resource) = store_mut.get(id) {
                     let mut updated_resource = resource.clone();
                     updated_resource.labels.retain(|t| t != label_value);
-                    updated_resource.last_modified_at = ic_cdk::api::time();
+                    updated_resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                     store_mut.insert(id.clone(), updated_resource);
                 }
             });
@@ -504,7 +504,7 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
                 if let Some(resource) = store_mut.get(id) {
                     let mut updated_resource = resource.clone();
                     updated_resource.labels.retain(|t| t != label_value);
-                    updated_resource.last_modified_at = ic_cdk::api::time();
+                    updated_resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                     store_mut.insert(id.clone(), updated_resource);
                 }
             });
@@ -514,7 +514,7 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
                 let mut store = store.borrow_mut();
                 if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
-                    resource.last_modified_at = ic_cdk::api::time();
+                    resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                     store.insert(id.clone(), resource);
                 }
             });
@@ -524,7 +524,7 @@ pub fn remove_label_from_resource(resource_id: &LabelResourceID, label_value: &L
                 let mut store = store.borrow_mut();
                 if let Some(mut resource) = store.get(id) {
                     resource.labels.retain(|t| t != label_value);
-                    resource.last_modified_at = ic_cdk::api::time();
+                    resource.last_modified_at = ic_cdk::api::time() / 1_000_000;
                     store.insert(id.clone(), resource);
                 }
             });

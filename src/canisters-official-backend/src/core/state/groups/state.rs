@@ -180,7 +180,7 @@ pub mod state {
                 for invite_id in &group.admin_invites {
                     if let Some(invite) = INVITES_BY_ID_HASHTABLE.with(|invites| invites.borrow().get(invite_id).clone()) {
                         if invite.invitee_id == GroupInviteeID::User(user_id.clone()) {
-                            let current_time = ic_cdk::api::time();
+                            let current_time = ic_cdk::api::time() / 1_000_000;
                             if invite.active_from <= current_time && 
                                (invite.expires_at <= 0 || invite.expires_at > current_time as i64) {
                                 return true;
@@ -203,7 +203,7 @@ pub mod state {
         for invite_id in &group.member_invites {
             if let Some(invite) = INVITES_BY_ID_HASHTABLE.with(|invites| invites.borrow().get(invite_id).clone()) {
                 if invite.invitee_id == GroupInviteeID::User(user_id.clone()) {
-                    let current_time = ic_cdk::api::time();
+                    let current_time = ic_cdk::api::time() / 1_000_000;
                     if invite.active_from <= current_time && 
                        (invite.expires_at <= 0 || invite.expires_at > current_time as i64) {
                         return true;

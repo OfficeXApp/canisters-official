@@ -555,7 +555,7 @@ pub mod group_invites_handlers {
             invite.note = note;
         }
 
-        invite.last_modified_at = ic_cdk::api::time();
+        invite.last_modified_at = ic_cdk::api::time() / 1_000_000;
 
         if let Some(external_id) = update_req.external_id.clone() {
             let old_external_id = invite.external_id.clone();
@@ -793,7 +793,7 @@ pub mod group_invites_handlers {
         if invite.invitee_id == GroupInviteeID::Public {
             // For Public invites, create a new invite rather than modifying the original
             let new_invite_id = GroupInviteID(generate_uuidv4(IDPrefix::GroupInvite));
-            let now = ic_cdk::api::time();
+            let now = ic_cdk::api::time() / 1_000_000;
             
             // Create a new invite with duplicated fields but user-specific changes
             let new_invite = GroupInvite {
@@ -882,7 +882,7 @@ pub mod group_invites_handlers {
             updated_invite.from_placeholder_invitee = Some(invite.invitee_id.clone().to_string());
             updated_invite.invitee_id = new_invitee;
             updated_invite.role = GroupRole::Member; // Default to Member role when redeeming
-            updated_invite.last_modified_at = ic_cdk::api::time();
+            updated_invite.last_modified_at = ic_cdk::api::time() / 1_000_000;
             updated_invite.redeem_code = None;
             if let Some(user_note) = &redeem_request.note {
                 updated_invite.note = format!("Note from User: {}, Prior Original Note: {}", user_note, invite.note);
