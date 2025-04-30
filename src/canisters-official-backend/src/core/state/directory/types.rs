@@ -61,6 +61,34 @@ impl Storable for FileID {
     }
 }
 
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
+pub struct FileVersionID(pub String);
+impl fmt::Display for FileVersionID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Storable for FileVersionID {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 256, // Adjust based on your needs
+        is_fixed_size: false,
+    };
+    
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let mut bytes = vec![];
+        ciborium::ser::into_writer(self, &mut bytes)
+            .expect("Failed to serialize FileVersionID");
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        ciborium::de::from_reader(bytes.as_ref())
+            .expect("Failed to deserialize FileVersionID")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, SerdeDiff, CandidType, PartialOrd, Ord)]
 pub struct DriveFullFilePath(pub String);
 impl fmt::Display for DriveFullFilePath {
@@ -209,8 +237,9 @@ pub struct FileRecord {
     pub(crate) name: String,
     pub(crate) parent_folder_uuid: FolderID,
     pub(crate) file_version: u32,
-    pub(crate) prior_version: Option<FileID>,
-    pub(crate) next_version: Option<FileID>,
+    pub(crate) prior_version: Option<FileVersionID>,
+    pub(crate) next_version: Option<FileVersionID>,
+    pub(crate) version_id: FileVersionID,
     pub(crate) extension: String,
     pub(crate) full_directory_path: DriveFullFilePath,
     pub(crate) labels: Vec<LabelStringValue>,
