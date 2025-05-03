@@ -1,6 +1,6 @@
 // src/core/api/factory.rs
 
-use crate::{core::{state::drives::state::state::{DRIVE_ID, RECENT_DEPLOYMENTS, URL_ENDPOINT}, types::UserID}, debug_log, rest::organization::types::{ RedeemOrgRequestBody, RedeemOrgResponseData}, LOCAL_DEV_MODE};
+use crate::{core::{state::drives::state::state::{DRIVE_ID, RECENT_DEPLOYMENTS, URL_ENDPOINT}, types::UserID}, debug_log, rest::organization::types::{ RedeemOrgRequestBody, RedeemOrgResponseData}, DEPLOYMENT_STAGE, _DEPLOYMENT_STAGING};
 use candid::{CandidType, Encode};
 use ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod, TransformArgs, TransformContext, TransformFunc
@@ -66,12 +66,14 @@ struct ApiError {
     message: String,
 }
 
-pub fn is_local_environment() -> bool {
-    return LOCAL_DEV_MODE;
-}
 
 pub fn get_appropriate_url_endpoint() -> String {
-    if is_local_environment() {
+    if _DEPLOYMENT_STAGING == DEPLOYMENT_STAGE::Production {
+// In production, use the standard IC URL format
+format!("https://{}.icp0.io", ic_cdk::api::id().to_text())
+    } else if _DEPLOYMENT_STAGING == DEPLOYMENT_STAGE::StagingPublicTestnet {
+        format!("https://{}.icp-testnet.click", ic_cdk::api::id().to_text())
+    } else {
         // For local development, use the correct local format with canister ID
         let drive_id = ic_cdk::api::id().to_text();
         
@@ -81,8 +83,5 @@ pub fn get_appropriate_url_endpoint() -> String {
         // In local development, URLs are typically structured like:
         // http://{drive_id}.localhost:{port}
         format!("http://{}.localhost:{}", drive_id, port)
-    } else {
-        // In production, use the standard IC URL format
-        format!("https://{}.icp0.io", ic_cdk::api::id().to_text())
     }
 }

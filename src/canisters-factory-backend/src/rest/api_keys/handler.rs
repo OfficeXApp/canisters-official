@@ -2,7 +2,7 @@
 
 pub mod apikeys_handlers {
     use crate::{
-        core::{api::{helpers::is_local_environment, uuid::{generate_api_key, generate_uuidv4}}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, APIKEYS_BY_VALUE_MEMORY_ID, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}}, giftcards_spawnorg::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, MEMORY_MANAGER, 
+        core::{api::uuid::{generate_api_key, generate_uuidv4}, state::{api_keys::{state::state::{APIKEYS_BY_HISTORY, APIKEYS_BY_ID_HASHTABLE, APIKEYS_BY_VALUE_HASHTABLE, APIKEYS_BY_VALUE_MEMORY_ID, USERS_APIKEYS_HASHTABLE}, types::{ApiKey, ApiKeyID, ApiKeyIDList, ApiKeyValue}}, giftcards_spawnorg::state::state::OWNER_ID}, types::{IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{api_keys::types::{CreateApiKeyRequestBody, CreateApiKeyResponse, DeleteApiKeyRequestBody, DeleteApiKeyResponse, DeletedApiKeyData, ErrorResponse, GetApiKeyResponse, ListApiKeysResponse, SnapshotResponse, StateSnapshot, UpdateApiKeyRequestBody, UpdateApiKeyResponse, UpsertApiKeyRequestBody}, auth::{authenticate_request, create_auth_error_response}}, DEPLOYMENT_STAGE, MEMORY_MANAGER, _DEPLOYMENT_STAGING 
     };
     use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
     use ic_stable_structures::StableBTreeMap;
@@ -368,7 +368,7 @@ pub mod apikeys_handlers {
     pub async fn snapshot_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("Incoming snapshot request: {}", request.url());
     
-        if !is_local_environment() {
+        if _DEPLOYMENT_STAGING != DEPLOYMENT_STAGE::LocalDevelopment {
             // // Authenticate request
             let requester_api_key = match authenticate_request(request) {
                 Some(key) => key,

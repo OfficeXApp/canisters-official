@@ -14,9 +14,17 @@ use candid::{CandidType, Decode, Encode};
 use ic_stable_structures::memory_manager::{MemoryId, VirtualMemory};
 
 
+// LOCAL_DEV
+pub static _DEPLOYMENT_STAGING: DEPLOYMENT_STAGE = DEPLOYMENT_STAGE::StagingPublicTestnet;
 
-// change this to false for production
-pub static LOCAL_DEV_MODE: bool = false;
+
+// rust enum for stage
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType, PartialEq)]
+pub enum DEPLOYMENT_STAGE {
+    LocalDevelopment,
+    StagingPublicTestnet,
+    Production
+}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]

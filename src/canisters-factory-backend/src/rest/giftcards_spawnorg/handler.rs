@@ -2,7 +2,7 @@
 
 pub mod giftcards_handlers {
     use std::{thread::sleep, time::Duration};
-    use crate::core::api::helpers::is_local_environment;
+    
     use crate::core::api::uuid::format_drive_id;
     use crate::core::state::giftcards_spawnorg::types::DriveID;
     use crate::core::state::giftcards_spawnorg::types::DriveRESTUrlEndpoint;
@@ -13,6 +13,8 @@ pub mod giftcards_handlers {
     use crate::rest::giftcards_spawnorg::types::RedeemGiftcardSpawnOrgData;
     use crate::rest::giftcards_spawnorg::types::RedeemGiftcardSpawnOrgResult;
     use crate::rest::giftcards_spawnorg::types::SpawnInitArgs;
+    use crate::DEPLOYMENT_STAGE;
+    use crate::_DEPLOYMENT_STAGING;
     use crate::{
         core::{
             api::uuid::{format_user_id, generate_uuidv4}, 
@@ -527,9 +529,8 @@ pub mod giftcards_handlers {
         // Create a record of the deployment
         let version = crate::core::state::giftcards_spawnorg::state::state::VERSION.with(|v| v.borrow().get().clone());
         
-        // Get appropriate URL endpoint for the deployed canister
-        let endpoint = match is_local_environment() {
-            true => {
+        let endpoint = match _DEPLOYMENT_STAGING {
+            DEPLOYMENT_STAGE::LocalDevelopment => {
                 // Use the configured local port if available
                 let port = option_env!("IC_LOCAL_PORT").unwrap_or("8000");
                 
@@ -537,7 +538,11 @@ pub mod giftcards_handlers {
                 // http://{canister_id}.localhost:{port}
                 DriveRESTUrlEndpoint(format!("http://{}.localhost:{}", deployed_canister, port))
             },
-            false => {
+            DEPLOYMENT_STAGE::StagingPublicTestnet => {
+                // In staging, use the standard IC URL format
+                DriveRESTUrlEndpoint(format!("https://{}.icp-testnet.click", deployed_canister))
+            },
+            DEPLOYMENT_STAGE::Production => {
                 // In production, use the standard IC URL format
                 DriveRESTUrlEndpoint(format!("https://{}.icp0.io", deployed_canister))
             }

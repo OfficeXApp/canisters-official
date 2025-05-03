@@ -12,6 +12,18 @@ use rest::{router, types::validate_icp_principal};
 use candid::{CandidType, Decode, Encode};
 
 
+// LOCAL_DEV
+pub static _DEPLOYMENT_STAGING: DEPLOYMENT_STAGE = DEPLOYMENT_STAGE::StagingPublicTestnet;
+
+
+// rust enum for stage
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType, PartialEq)]
+pub enum DEPLOYMENT_STAGE {
+    LocalDevelopment,
+    StagingPublicTestnet,
+    Production
+}
+
 
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{DefaultMemoryImpl, StableCell, Storable}; // Import Storable
@@ -19,9 +31,6 @@ use ic_stable_structures::{DefaultMemoryImpl, StableCell, Storable}; // Import S
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 
 const INITIALIZED_FLAG_MEMORY_ID: MemoryId = MemoryId::new(0);
-
-// change this to false for production
-pub static LOCAL_DEV_MODE: bool = false;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
