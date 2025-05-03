@@ -368,7 +368,7 @@ pub mod apikeys_handlers {
     pub async fn snapshot_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("Incoming snapshot request: {}", request.url());
     
-        if _DEPLOYMENT_STAGING != DEPLOYMENT_STAGE::LocalDevelopment {
+        if _DEPLOYMENT_STAGING == DEPLOYMENT_STAGE::Production {
             // // Authenticate request
             let requester_api_key = match authenticate_request(request) {
                 Some(key) => key,
