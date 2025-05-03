@@ -2,7 +2,7 @@
 
 pub mod giftcards_handlers {
     use std::{thread::sleep, time::Duration};
-    use crate::core::api::helpers::is_local_environment;
+    
     use crate::core::api::uuid::format_drive_id;
     use crate::core::state::giftcards_refuel::state::state::DEPLOYMENTS_BY_GIFTCARD_REFUEL_ID;
     use crate::core::state::giftcards_refuel::types::FactoryRefuelHistoryRecord;

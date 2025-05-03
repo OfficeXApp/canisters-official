@@ -13,7 +13,9 @@ Powers the cloud smart contract of https://drive.officex.app
 Dev single line restart:
 
 ```sh
-$ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+$ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend --with-cycles 90000000000000 && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+
+$ dfx ledger fabricate-cycles --t 1000 --canister <canister_id>
 ```
 
 or standalone factory in dev:
@@ -26,6 +28,17 @@ or upgrade specific canister in dev:
 
 ```sh
 $ dfx build canisters-official-backend && dfx canister install canisters-official-backend --mode upgrade --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" --wasm target/wasm32-unknown-unknown/release/canisters_official_backend.wasm
+```
+
+or standalone factory in staging:
+
+```sh
+$ dfx start --clean --host 0.0.0.0:8000 # alternatively run: $ nohup dfx start --clean --host 0.0.0.0:8000 > dfx.log 2>&1 &
+$ dfx canister create canisters-factory-backend --network http://ec2-100-26-34-3.compute-1.amazonaws.com:8000 --no-wallet
+
+$ dfx build && dfx deploy canisters-factory-backend --network http://ec2-100-26-34-3.compute-1.amazonaws.com:8000 --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+
+$ sudo vi /etc/nginx/conf.d/icp-testnet.click.conf # see file ./icp-testnet.click.conf.nginx-demo (remove .nginx-demo from filename)
 ```
 
 or standalone factory in prod:
@@ -52,6 +65,12 @@ deposit gas cycles into dev canister
 $ dfx canister deposit-cycles 20000000000000 <canister_id>
 ```
 
+deposit gas cycles into staging canister
+
+```sh
+$ dfx canister --network http://ec2-100-26-34-3.compute-1.amazonaws.com:8000 deposit-cycles 200000000000000 lqy7q-dh777-77777-aaaaq-cai
+```
+
 From clean start:
 
 ```sh
@@ -74,7 +93,7 @@ $ curl -X POST "http://$(dfx canister id canisters-official-backend).localhost:$
   -H "Content-Type: application/json" \
   --data '{"redeem_code": "DEFAULT_SPAWN_REDEEM_CODE"}'
 
-# Which responds something like below. use the admin_login_password. if you are on localhost, update "src/lib.rs" variable LOCAL_DEV_MODE = true
+# Which responds something like below. use the admin_login_password. if you are on localhost, update "src/lib.rs" variable DEPLOYMENT_STAGE = DEPLOYMENT_STAGE.LocalDevelopment
 
 # {"ok":{"data":{"drive_id":"DriveID_bkyz2-fmaaa-aaaaa-qaaaq-cai","endpoint":"https://bkyz2-fmaaa-aaaaa-qaaaq-cai.icp0.io","api_key":"eyJhdXRoX3R5cGUiOiJBUElfX0tFWSIsInZhbHVlIjoiOTg4N2FhYzFhYjZkOGE5OGMyYmYwY2RkNzA2YmU4MTY4MjIwZjc3NmUwYzU1ODdlNDU5N2ExMTM1ZjRiZGNiYiJ9","note":"","admin_login_password":"DriveID_bkyz2-fmaaa-aaaaa-qaaaq-cai:eyJhdXRoX3R5cGUiOiJBUElfX0tFWSIsInZhbHVlIjoiOTg4N2FhYzFhYjZkOGE5OGMyYmYwY2RkNzA2YmU4MTY4MjIwZjc3NmUwYzU1ODdlNDU5N2ExMTM1ZjRiZGNiYiJ9@https://bkyz2-fmaaa-aaaaa-qaaaq-cai.icp0.io"}}}
 ```
@@ -114,7 +133,7 @@ $ dfx build && dfx deploy canisters-factory-backend --network ic --argument "(op
 # deposit 4T cycles into canister
 $ dfx canister deposit-cycles --network ic 4000000000000 <canister_id>
 
-# check status of deployed caniter
+# check status of deployed caniter eg. glvgj-aiaaa-aaaak-apdmq-cai
 $ dfx canister --network ic status <canister_id>
 $ dfx canister --network ic logs <canister_id>
 
