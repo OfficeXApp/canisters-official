@@ -38,10 +38,11 @@ pub fn generate_s3_view_url(
     let s3_key = format!("{}/{}/{}/{}.{}", drive_id, disk_id, file_id, file_id, file_extension);
 
     // Create content disposition string if filename provided
-    let content_disposition = download_filename.map(|filename| {
-        let encoded_filename = url_encode(filename);
-        format!("attachment; filename=\"{}\"", encoded_filename)
-    });
+    let content_disposition = Some("inline".to_string());
+    // let content_disposition = download_filename.map(|filename| {
+    //     let encoded_filename = url_encode(filename);
+    //     format!("attachment; filename=\"{}\"", encoded_filename)
+    // });
 
     // Create sorted query parameters
     let mut query_params = vec![
@@ -161,7 +162,8 @@ pub fn generate_s3_upload_url(
                 ["content-length-range", 0, {}],
                 {{"x-amz-algorithm": "AWS4-HMAC-SHA256"}},
                 {{"x-amz-credential": "{}/{}/{}/s3/aws4_request"}},
-                {{"x-amz-date": "{}"}}
+                {{"x-amz-date": "{}"}},
+                {{"Content-Disposition": "inline"}}
             ]
         }}"#,
         expiration,
@@ -189,6 +191,7 @@ pub fn generate_s3_upload_url(
     fields.insert("x-amz-date".to_string(), date_time);
     fields.insert("policy".to_string(), policy_base64);
     fields.insert("x-amz-signature".to_string(), signature);
+    fields.insert("Content-Disposition".to_string(), "inline".to_string());
 
     Ok(DiskUploadResponse {
         url: format!("{}/{}", auth.endpoint, auth.bucket),
