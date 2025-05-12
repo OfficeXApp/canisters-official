@@ -52,10 +52,11 @@ pub fn generate_storj_view_url(
     let canonical_uri = format!("/{}/{}", auth.bucket, s3_key);
 
     // Revised code with owned values:
-    let content_disposition: Option<String> = download_filename.map(|filename| {
-        let encoded_filename = url_encode(filename);
-        format!("attachment; filename=\"{}\"", encoded_filename)
-    });
+    let content_disposition = Some("inline".to_string());
+    // let content_disposition: Option<String> = download_filename.map(|filename| {
+    //     let encoded_filename = url_encode(filename);
+    //     format!("attachment; filename=\"{}\"", encoded_filename)
+    // });
 
     let mut query_params: Vec<(String, String)> = vec![
         ("X-Amz-Algorithm".to_string(), "AWS4-HMAC-SHA256".to_string()),
@@ -143,7 +144,8 @@ pub fn generate_storj_upload_url(
                 ["content-length-range", 0, {}],
                 {{"x-amz-algorithm": "AWS4-HMAC-SHA256"}},
                 {{"x-amz-credential": "{}/{}/{}/s3/aws4_request"}},
-                {{"x-amz-date": "{}"}}
+                {{"x-amz-date": "{}"}},
+                {{"Content-Disposition": "inline"}}
             ]
         }}"#,
         expiration,
@@ -171,6 +173,7 @@ pub fn generate_storj_upload_url(
     fields.insert("x-amz-date".to_string(), date_time);
     fields.insert("policy".to_string(), policy_base64);
     fields.insert("x-amz-signature".to_string(), signature);
+    fields.insert("Content-Disposition".to_string(), "inline".to_string());
 
     // For uploads the URL is the Storj gateway endpoint with the bucket in the path.
     Ok(DiskUploadResponse {
