@@ -1,0 +1,70 @@
+# -----------------------------------------
+# HTTPS installation of dfx on ec2
+# -----------------------------------------
+# sudo apt update
+# sudo apt install nginx
+# sudo apt install certbot python3-certbot-nginx
+# sudo certbot --nginx -d icp-testnet.click
+# sudo certbot certonly --manual --preferred-challenges dns -d icp-testnet.click -d *.icp-testnet.click
+# sudo mkdir -p /etc/nginx/ssl
+# sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt
+# sudo vi /etc/nginx/conf.d/icp-testnet.click.conf
+# sudo ln -s /etc/nginx/sites-available/dfx-proxy /etc/nginx/sites-enabled/
+# sudo nginx -t  # Test the configuration
+# sudo systemctl restart nginx
+
+# HTTP Server - Redirects to HTTPS but lets DFX canister handle CORS
+server {
+    listen 80;
+    server_name *.icp-testnet.click;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS Server
+server {
+    listen 443 ssl http2;
+    server_name *.icp-testnet.click;
+
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/icp-testnet.click/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/icp-testnet.click/privkey.pem;
+
+    # Security Headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+
+    location / {
+        # Extract the canister ID from the subdomain
+        set $canister_id $host;
+        if ($host ~ "^([^.]+)\.icp-testnet\.click$") {
+            set $canister_id $1;
+        }
+
+        # Check if there are already query parameters in the request
+        if ($args = "") {
+            # No existing query parameters, add canisterId
+            rewrite ^(.*)$ $1?canisterId=$canister_id break;
+        }
+        if ($args != "") {
+            # Existing query parameters, append canisterId
+            rewrite ^(.*)$ $1&canisterId=$canister_id break;
+        }
+
+        # Forward to pocket-ic preserving path and ALL query parameters
+        proxy_pass http://127.0.0.1:8000;
+
+        # Preserve headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass $http_upgrade;
+        
+        # Pass through the Origin header to allow your canister to handle CORS
+        proxy_pass_request_headers on;
+    }
+}

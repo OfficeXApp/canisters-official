@@ -101,7 +101,7 @@ pub async fn handle_options_request<'a, 'k, 'v>(
     let headers = vec![
         ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
         ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
-        ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key".to_string()),
+        ("Access-Control-Allow-Headers".to_string(), "Content-Type, Api-Key, Authorization".to_string()),
         ("Access-Control-Max-Age".to_string(), "86400".to_string()),
     ];
 
