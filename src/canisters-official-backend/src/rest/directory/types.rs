@@ -760,7 +760,7 @@ impl CreateFilePayload {
 
 
         if self.id.is_some() {
-            validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
+            // validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?; // we allow duplication of uuid as file_raw re-upload if user has write permission on resource
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::File)?;
         }
 
