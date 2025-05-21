@@ -3,7 +3,7 @@
 
 pub mod directorys_handlers {
     use crate::{
-        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, permissions::directory::check_directory_permissions, uuid::generate_uuidv4}, state::{directory::{state::state::file_uuid_to_metadata, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, raw_storage::{state::{get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, UploadStatus, CHUNK_SIZE}}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, DirectoryResourceID, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
+        core::{api::{disks::{aws_s3::{generate_s3_upload_url, generate_s3_view_url}, storj_web3::generate_storj_view_url}, drive::drive::fetch_files_at_folder_path, permissions::directory::check_directory_permissions, uuid::generate_uuidv4}, state::{directory::{state::state::file_uuid_to_metadata, types::{FileID, FolderID}}, disks::{state::state::DISKS_BY_ID_HASHTABLE, types::{AwsBucketAuth, DiskID, DiskTypeEnum}}, drives::state::state::OWNER_ID, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, raw_storage::{state::{delete_file_data, get_file_chunks, store_chunk, store_filename, FILE_META}, types::{ChunkId, FileChunk, UploadStatus, CHUNK_SIZE}}}, types::IDPrefix}, debug_log, rest::{auth::{authenticate_request, create_auth_error_response, create_raw_upload_error_response}, directory::types::{ClientSideUploadRequest, ClientSideUploadResponse, CompleteUploadRequest, CompleteUploadResponse, DirectoryAction, DirectoryActionError, DirectoryActionOutcome, DirectoryActionOutcomeID, DirectoryActionRequestBody, DirectoryActionResponse, DirectoryListResponse, DirectoryResourceID, ErrorResponse, FileMetadataResponse, ListDirectoryRequest, UploadChunkRequest, UploadChunkResponse}}, 
         
     };
     
@@ -188,6 +188,15 @@ pub mod directorys_handlers {
         if file_record.upload_status == UploadStatus::Completed {
             debug_log!("handle_upload_chunk: File upload already completed");
             return create_raw_upload_error_response("File upload already completed")
+        }
+
+        // If this is chunk index 0, delete any existing file data to prepare for a fresh upload
+        if upload_req.chunk_index == 0 {
+            debug_log!("handle_upload_chunk: Received chunk 0, deleting existing file data for {}", upload_req.file_id);
+            match delete_file_data(&upload_req.file_id) {
+                Ok(_) => debug_log!("handle_upload_chunk: Successfully deleted existing file data"),
+                Err(e) => debug_log!("handle_upload_chunk: No existing file data to delete or error: {}", e),
+            }
         }
     
         if upload_req.chunk_data.len() > CHUNK_SIZE {
