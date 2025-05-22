@@ -178,9 +178,19 @@ pub mod directorys_handlers {
             }
         };
 
-        // Check if user has permission to upload to this file
-        if file_record.created_by != requester_api_key.user_id {
-            debug_log!("handle_upload_chunk: User not authorized to upload to this file");
+        // Check directory permissions for upload/create/update
+        let resource_id = DirectoryResourceID::File(file_id.clone());
+        let permissions = check_directory_permissions(
+            resource_id.clone(),
+            PermissionGranteeID::User(requester_api_key.user_id.clone()),
+        ).await;
+
+        let has_permission = permissions.contains(&DirectoryPermissionType::Upload) ||
+                            permissions.contains(&DirectoryPermissionType::Edit) ||
+                            permissions.contains(&DirectoryPermissionType::Manage);
+
+        if !has_permission {
+            debug_log!("handle_upload_chunk: User does not have upload/create/update permission");
             return create_raw_upload_error_response("Not authorized to upload to this file")
         }
 
@@ -256,9 +266,19 @@ pub mod directorys_handlers {
             }
         };
 
-        // Check if user has permission to upload to this file
-        if file_record.created_by != requester_api_key.user_id {
-            debug_log!("handle_complete_upload: User not authorized to upload to this file");
+        // Check directory permissions for upload/create/update
+        let resource_id = DirectoryResourceID::File(file_id.clone());
+        let permissions = check_directory_permissions(
+            resource_id.clone(),
+            PermissionGranteeID::User(requester_api_key.user_id.clone()),
+        ).await;
+
+        let has_permission = permissions.contains(&DirectoryPermissionType::Upload) ||
+                            permissions.contains(&DirectoryPermissionType::Edit) ||
+                            permissions.contains(&DirectoryPermissionType::Manage);
+
+        if !has_permission {
+            debug_log!("handle_complete_upload: User does not have upload/create/update permission");
             return create_raw_upload_error_response("Not authorized to upload to this file")
         }
 
@@ -296,19 +316,13 @@ pub mod directorys_handlers {
     pub async fn download_file_metadata_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("download_file_metadata_handler: Handling file metadata request");
 
-        // // 1. Optionally authenticate, if required
-        // let requester_api_key = match authenticate_request(req) {
-        //     Some(key) => key,
-        //     None => return create_auth_error_response(),
-        // };
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
 
-        // // 2. Check if user is owner, if that's your policy
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        // if !is_owner {
-        //     return create_auth_error_response();
-        // }
-
-        // 3. Parse query string for file_id
+        // 2. Parse query string for file_id
         let raw_query_string = request.get_query().unwrap_or(Some("".to_string()));
         let query_string = raw_query_string.as_deref().unwrap_or("");
         let query_map = crate::rest::helpers::parse_query_string(&query_string);
@@ -325,6 +339,21 @@ pub mod directorys_handlers {
         let file_id = decode(file_id).unwrap_or_else(|_| file_id.into());
 
         debug_log!("download_file_metadata_handler: file_id={}", file_id);
+
+        // 3. Check directory permissions for view
+        let resource_id = DirectoryResourceID::File(FileID(file_id.clone().to_string()));
+        let permissions = check_directory_permissions(
+            resource_id.clone(),
+            PermissionGranteeID::User(requester_api_key.user_id.clone()),
+        ).await;
+
+        if !permissions.contains(&DirectoryPermissionType::View) {
+            debug_log!("download_file_metadata_handler: User does not have view permission");
+            return create_response(
+                StatusCode::FORBIDDEN,
+                ErrorResponse::err(403, "Not authorized to view this file".to_string()).encode()
+            )
+        }
 
         // 4. Collect chunks for this file, if any
         let mut chunks = get_file_chunks(&file_id);
@@ -367,19 +396,13 @@ pub mod directorys_handlers {
     pub async fn download_file_chunk_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         debug_log!("download_file_chunk_handler: Handling file chunk request");
 
-        // // 1. Optionally authenticate
-        // let requester_api_key = match authenticate_request(req) {
-        //     Some(key) => key,
-        //     None => return create_auth_error_response(),
-        // };
+        // 1. Authenticate request
+        let requester_api_key = match authenticate_request(request) {
+            Some(key) => key,
+            None => return create_auth_error_response(),
+        };
 
-        // // 2. Owner check, if you want
-        // let is_owner = OWNER_ID.with(|owner_id| requester_api_key.user_id == *owner_id.borrow());
-        // if !is_owner {
-        //     return create_auth_error_response();
-        // }
-
-        // 3. Parse query for file_id & chunk_index
+        // 2. Parse query for file_id & chunk_index
         let raw_query_string = request.get_query().unwrap_or(Some("".to_string()));
         let query_string = raw_query_string.as_deref().unwrap_or("");
         let query_map = crate::rest::helpers::parse_query_string(query_string);
@@ -395,6 +418,22 @@ pub mod directorys_handlers {
         };
         let file_id = decode(file_id).unwrap_or_else(|_| file_id.into());
 
+        // 3. Check directory permissions for view
+        let resource_id = DirectoryResourceID::File(FileID(file_id.clone().to_string()));
+        let permissions = check_directory_permissions(
+            resource_id.clone(),
+            PermissionGranteeID::User(requester_api_key.user_id.clone()),
+        ).await;
+
+        if !permissions.contains(&DirectoryPermissionType::View) {
+            debug_log!("download_file_chunk_handler: User does not have view permission");
+            return create_response(
+                StatusCode::FORBIDDEN,
+                ErrorResponse::err(403, "Not authorized to view this file".to_string()).encode()
+            )
+        }
+
+        // 4. Parse chunk index
         let chunk_index_str = match query_map.get("chunk_index") {
             Some(cix) => cix,
             None => {
@@ -455,7 +494,7 @@ pub mod directorys_handlers {
                 ErrorResponse::err(400, "Missing file ID in URL".to_string()).encode()
             ),
         };
-    
+
         // Strip extension from file_id if present
         let file_id = match file_id_with_extension.rfind('.') {
             Some(pos) => &file_id_with_extension[..pos],
@@ -463,8 +502,48 @@ pub mod directorys_handlers {
         };
     
         debug_log!("get_raw_url_proxy_handler: file_id={}", file_id);
+
+        // 2. Check directory permissions for view
+        let resource_id = DirectoryResourceID::File(FileID(file_id.to_string()));
+        
+        // Try to get authenticated user if present
+        let has_permission = match authenticate_request(request) {
+            Some(api_key) => {
+                // First check if user is owner
+                let is_owner = OWNER_ID.with(|owner_id| api_key.user_id == *owner_id.borrow().get());
+                
+                if is_owner {
+                    true // Owner has full access
+                } else {
+                    // Check authenticated user's permissions
+                    let permissions = check_directory_permissions(
+                        resource_id.clone(),
+                        PermissionGranteeID::User(api_key.user_id.clone()),
+                    ).await;
+                    permissions.contains(&DirectoryPermissionType::View) || 
+                    permissions.contains(&DirectoryPermissionType::Edit) || 
+                    permissions.contains(&DirectoryPermissionType::Manage)
+                }
+            },
+            None => {
+                // Check public view permissions
+                let permissions = check_directory_permissions(
+                    resource_id.clone(),
+                    PermissionGranteeID::Public,
+                ).await;
+                permissions.contains(&DirectoryPermissionType::View)
+            }
+        };
+
+        if !has_permission {
+            debug_log!("get_raw_url_proxy_handler: No view permission");
+            return create_response(
+                StatusCode::FORBIDDEN,
+                ErrorResponse::err(403, "Not authorized to view this file".to_string()).encode()
+            )
+        }
     
-        // 2. Look up file metadata
+        // 3. Look up file metadata
         let file_meta = file_uuid_to_metadata.get(&FileID(file_id.to_string()));
         let file_meta = match file_meta {
             Some(meta) => meta,
