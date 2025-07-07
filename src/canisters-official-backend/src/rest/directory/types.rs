@@ -4,7 +4,7 @@ use std::{borrow::Cow, collections::HashMap, fmt};
 use candid::CandidType;
 use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize, Deserializer, Serializer, ser::SerializeStruct};
-use crate::{core::{state::{directory::types::{DriveClippedFilePath, DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, raw_storage::types::UploadStatus}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
+use crate::{core::{state::{directory::types::{DriveClippedFilePath, DriveFullFilePath, FileID, FileRecord, FolderID, FolderRecord}, drives::state::state::OWNER_ID, labels::{state::validate_uuid4_string_with_prefix, types::{redact_label, LabelStringValue}}, permissions::types::{DirectoryPermissionID, DirectoryPermissionType, SystemPermissionType}, raw_storage::types::UploadStatus}, types::{ClientSuggestedUUID, IDPrefix}}, rest::{types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url, validate_url_endpoint, ValidationError}, webhooks::types::SortDirection}};
 use crate::core::{
     state::disks::types::{DiskID, DiskTypeEnum},
     types::{ICPPrincipalString, UserID}
@@ -754,6 +754,8 @@ pub struct CreateFilePayload {
     pub shortcut_to: Option<FileID>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
+    pub raw_url: Option<String>,
+    pub notes: Option<String>,
 }
 impl CreateFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -799,6 +801,16 @@ impl CreateFilePayload {
         if let Some(external_payload) = &self.external_payload {
             validate_external_payload(external_payload)?;
         }
+
+        // Validate raw_url if provided
+        if let Some(raw_url) = &self.raw_url {
+            validate_url(raw_url, "raw_url")?;
+        }
+
+        // Validate notes if provided
+        if let Some(notes) = &self.notes {
+            validate_description(notes, "notes")?;
+        }
         
         Ok(())
     }
@@ -821,6 +833,7 @@ pub struct CreateFolderPayload {
     pub shortcut_to: Option<FolderID>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
+    pub notes: Option<String>,
 }
 impl CreateFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -857,6 +870,11 @@ impl CreateFolderPayload {
         if let Some(external_payload) = &self.external_payload {
             validate_external_payload(external_payload)?;
         }
+
+        // Validate notes if provided
+        if let Some(notes) = &self.notes {
+            validate_description(notes, "notes")?;
+        }
         
         Ok(())
     }
@@ -873,6 +891,7 @@ pub struct UpdateFilePayload {
     pub upload_status: Option<UploadStatus>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
+    pub notes: Option<String>,
 }
 impl UpdateFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -905,6 +924,11 @@ impl UpdateFilePayload {
         if let Some(external_payload) = &self.external_payload {
             validate_external_payload(external_payload)?;
         }
+
+        // Validate notes if provided
+        if let Some(notes) = &self.notes {
+            validate_description(notes, "notes")?;
+        }
         
         Ok(())
     }
@@ -921,6 +945,7 @@ pub struct UpdateFolderPayload {
     pub shortcut_to: Option<FolderID>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
+    pub notes: Option<String>,
 }
 impl UpdateFolderPayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -953,6 +978,11 @@ impl UpdateFolderPayload {
         // Validate external_payload if provided
         if let Some(external_payload) = &self.external_payload {
             validate_external_payload(external_payload)?;
+        }
+
+        // Validate notes if provided
+        if let Some(notes) = &self.notes {
+            validate_description(notes, "notes")?;
         }
         
         Ok(())

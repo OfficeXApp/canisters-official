@@ -167,6 +167,7 @@ pub struct FolderRecord {
     pub(crate) shortcut_to: Option<FolderID>,
     pub(crate) external_id: Option<ExternalID>,
     pub(crate) external_payload: Option<ExternalPayload>,
+    pub(crate) notes: Option<String>,
 }
 
 impl Storable for FolderRecord {
@@ -260,6 +261,7 @@ pub struct FileRecord {
     pub(crate) shortcut_to: Option<FileID>,
     pub(crate) external_id: Option<ExternalID>,
     pub(crate) external_payload: Option<ExternalPayload>,
+    pub(crate) notes: Option<String>,
 }
 
 impl Storable for FileRecord {

@@ -11,8 +11,6 @@ mod core;
 use rest::{router, types::validate_icp_principal};
 use candid::{CandidType, Decode, Encode};
 
-
-
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{DefaultMemoryImpl, StableCell, Storable}; // Import Storable
 
@@ -21,8 +19,7 @@ type Memory = VirtualMemory<DefaultMemoryImpl>;
 const INITIALIZED_FLAG_MEMORY_ID: MemoryId = MemoryId::new(0);
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = false;
-
+pub static LOCAL_DEV_MODE: bool = true;
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct InitArgs {

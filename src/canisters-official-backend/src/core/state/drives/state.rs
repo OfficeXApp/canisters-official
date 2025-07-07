@@ -54,13 +54,13 @@ pub mod state {
     pub const EXTERNAL_ID_MAPPINGS_MEMORY_ID: MemoryId = MemoryId::new(25);
     pub const UUID_CLAIMED_MEMORY_ID: MemoryId = MemoryId::new(26);
     pub const NONCE_UUID_MEMORY_ID: MemoryId = MemoryId::new(27);
-
+    
 
     thread_local! { 
         // self info - immutable
         pub(crate) static DRIVE_ID: DriveID = format_drive_id(&ic_cdk::api::id().to_text());
         pub(crate) static CANISTER_ID: PublicKeyICP = PublicKeyICP(ic_cdk::api::id().to_text());
-        
+
         // Convert configuration values to stable cells
         pub(crate) static VERSION: RefCell<StableCell<String, Memory>> = RefCell::new(
             StableCell::init(

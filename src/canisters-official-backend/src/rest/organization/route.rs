@@ -11,6 +11,7 @@ pub const ORG_SEARCH_PATH: &str =                   genroute!("/organization/sea
 pub const ORG_REINDEX_PATH: &str =                  genroute!("/organization/reindex");
 pub const ORG_EXTERNAL_ID_PATH: &str =              genroute!("/organization/external_id");
 pub const ORG_TRANSFER_OWNERSHIP_PATH: &str =       genroute!("/organization/transfer_ownership");
+pub const ORG_UPDATE_ALLOWED_DOMAINS_PATH: &str =   genroute!("/organization/update_allowed_domains");
 pub const ORG_WHOAMI_PATH: &str =                   genroute!("/organization/whoami");
 pub const ORG_SUPERSWAP_PATH: &str =                genroute!("/organization/superswap_user");
 pub const ORG_REDEEM_SPAWN_PATH: &str =             genroute!("/organization/redeem");
@@ -61,6 +62,11 @@ pub fn init_routes() {
             |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::transfer_ownership_drive_handler(req, params)),
         ),
         (
+            "POST",
+            ORG_UPDATE_ALLOWED_DOMAINS_PATH,
+            |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::update_allowed_domains_drive_handler(req, params)),
+        ),
+        (
             "GET",
             ORG_WHOAMI_PATH,
             |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::whoami_drive_handler(req, params)),
@@ -76,7 +82,7 @@ pub fn init_routes() {
             ORG_REDEEM_SPAWN_PATH,
             // transfering ownership requires owner call this route twice with the same body at least 24 hours apart
             |req, params| Box::pin(crate::rest::organization::handler::drives_handlers::redeem_organization_drive_handler(req, params)),
-        ),
+        )
     ];
 
     for &(method, path, handler) in routes {

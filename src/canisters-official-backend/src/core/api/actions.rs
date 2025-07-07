@@ -341,6 +341,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.shortcut_to,
                         Some(ExternalID(payload.external_id.unwrap_or("".to_string()))),
                         Some(ExternalPayload(payload.external_payload.unwrap_or("".to_string()))),
+                        payload.raw_url,
+                        payload.notes,
                     ) {
                         Ok((file_metadata, upload_response)) => {
 
@@ -446,6 +448,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         payload.shortcut_to,
                         Some(ExternalID(payload.external_id.unwrap_or("".to_string()))),
                         Some(ExternalPayload(payload.external_payload.unwrap_or("".to_string()))),
+                        payload.notes
                     ) {
                         Ok(folder) => {
                             let after_snap_folder = DirectoryWebhookData::Folder(FolderWebhookData {
@@ -594,6 +597,11 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 );
                                 file.external_id = new_external_id;
                             }
+
+                            // notes
+                            if let Some(notes) = payload.notes {
+                                file.notes = Some(notes);
+                            }
                             
                             // Insert the modified record back into the map
                             map.insert(file_id.clone(), file);
@@ -740,6 +748,11 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                     Some(folder.id.clone().to_string())
                                 );
                                 folder.external_id = new_external_id;
+                            }
+
+                            // notes
+                            if let Some(notes) = payload.notes {
+                                folder.notes = Some(notes);
                             }
                             
                             // Insert the modified record back into the map

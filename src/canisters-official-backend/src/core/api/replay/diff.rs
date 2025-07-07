@@ -25,6 +25,7 @@ pub struct EntireState {
     OWNER_ID: UserID,
     URL_ENDPOINT: DriveRESTUrlEndpoint,
     DRIVE_STATE_TIMESTAMP_NS: u64,
+    
     EXTERNAL_ID_MAPPINGS: HashMap<ExternalID, Vec<String>>,
     RECENT_DEPLOYMENTS: Vec<FactorySpawnHistoryRecord>,
     SPAWN_REDEEM_CODE: SpawnRedeemCode,
@@ -81,6 +82,7 @@ pub fn snapshot_entire_state() -> EntireState {
         OWNER_ID: OWNER_ID.with(|owner_id| owner_id.borrow().get().clone()),
         URL_ENDPOINT: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
         DRIVE_STATE_TIMESTAMP_NS: DRIVE_STATE_TIMESTAMP_NS.with(|ts| ts.borrow().get().clone()),
+        
         EXTERNAL_ID_MAPPINGS: EXTERNAL_ID_MAPPINGS.with(|store| {
             let btree = store.borrow();
             let mut hashmap = HashMap::new();
