@@ -110,6 +110,7 @@ pub mod state {
                 shortcut_to: None,
                 external_id: None,
                 external_payload: None,
+                notes: None,
             };
     
             full_folder_path_to_uuid.insert(root_path, new_uuid.clone());
@@ -149,6 +150,7 @@ pub mod state {
                 shortcut_to: None,
                 external_id: None,
                 external_payload: None,
+                notes: None,
             };
     
             full_folder_path_to_uuid.insert(trash_path, new_uuid.clone());

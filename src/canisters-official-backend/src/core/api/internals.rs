@@ -55,6 +55,7 @@ pub mod drive_internals {
                 shortcut_to: None,
                 external_id: None,
                 external_payload: None,
+                notes: None,
             };
     
             full_folder_path_to_uuid.insert(root_path, FolderID(root_folder_uuid.clone()));
@@ -88,6 +89,7 @@ pub mod drive_internals {
                 shortcut_to: None,
                 external_id: None,
                 external_payload: None,
+                notes: None,
             };
 
             full_folder_path_to_uuid.insert(trash_path, FolderID(trash_folder_uuid.clone()));
@@ -178,7 +180,8 @@ folder_uuid_to_metadata.with_mut(|map| {
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
         final_folder_id: Option<ClientSuggestedUUID>,
-        shortcut_to: Option<FolderID>
+        shortcut_to: Option<FolderID>,
+        notes: Option<String>,
     ) -> FolderID {
         let path_parts: Vec<&str> = folder_path.split("::").collect();
         let mut current_path = format!("{}::/", path_parts[0]);  // Always start with root slash
@@ -239,6 +242,11 @@ folder_uuid_to_metadata.with_mut(|map| {
                     // only set if its the final folder
                     external_payload: if is_final_folder {
                         external_payload.clone()
+                    } else {
+                        None
+                    },
+                    notes: if is_final_folder {
+                        notes.clone()
                     } else {
                         None
                     },
@@ -477,7 +485,8 @@ folder_uuid_to_metadata.with_mut(|map| {
                     None,
                     None,
                     None,
-                    None
+                    None,
+                    None,
                 );
                 // Retrieve the folder metadata using the new UUID.
                 get_folder_by_id(new_folder_uuid)

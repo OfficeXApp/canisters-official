@@ -144,6 +144,8 @@ pub mod drive {
         shortcut_to: Option<FileID>,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
+        raw_url: Option<String>,
+        notes: Option<String>,
     ) -> Result<(FileRecord, DiskUploadResponse), String> {
         let sanitized_file_path: String = sanitize_file_path(&file_path);
         let (folder_path, file_name) = split_path(&sanitized_file_path);
@@ -207,6 +209,7 @@ pub mod drive {
             user_id.clone(), 
             DRIVE_ID.with(|id| id.clone()),
             false,
+            None,
             None,
             None,
             None,
@@ -307,6 +310,16 @@ pub mod drive {
             Some(existing_file_uuid) => existing_file_uuid.clone(),
             None => new_file_uuid.clone()
         };
+
+        // If raw_url is provided, the upload is considered complete.
+        // Otherwise, a path is generated and the status is marked as Queued.
+        let (upload_status, raw_url) = match raw_url {
+            Some(url) => (UploadStatus::Completed, url),
+            None => (
+                UploadStatus::Queued,
+                format_file_asset_path(file_id_to_use.clone(), extension.clone()),
+            ),
+        };
     
         let file_metadata = FileRecord {
             id: file_id_to_use.clone(),
@@ -324,7 +337,7 @@ pub mod drive {
             disk_id: disk_id.clone(),
             disk_type: disk.disk_type.clone(),
             file_size,
-            raw_url: format_file_asset_path(file_id_to_use.clone(), extension),
+            raw_url,
             last_updated_date_ms: ic_cdk::api::time() / 1_000_000,
             last_updated_by: user_id,
             deleted: false,
@@ -333,9 +346,10 @@ pub mod drive {
             restore_trash_prior_folder_uuid: None,
             has_sovereign_permissions: has_sovereign_permissions.unwrap_or(false),
             shortcut_to,
-            upload_status: UploadStatus::Queued,
+            upload_status,
             external_id: external_id.clone(),
             external_payload: external_payload.clone(),
+            notes,
         };
     
         // Update version chain if we're replacing
@@ -444,6 +458,7 @@ pub mod drive {
         shortcut_to: Option<FolderID>,
         external_id: Option<ExternalID>,
         external_payload: Option<ExternalPayload>,
+        notes: Option<String>,
     ) -> Result<FolderRecord, String> {
         // Ensure the path ends with a slash
         let mut sanitized_path = sanitize_file_path(&full_directory_path.to_string());
@@ -551,7 +566,8 @@ pub mod drive {
             external_id.clone(),
             external_payload,
             id,
-            shortcut_to
+            shortcut_to,
+            notes
         );
         update_external_id_mapping(
             None,
@@ -1452,6 +1468,7 @@ pub mod drive {
                         None,
                         None,
                         None,
+                        None,
                         None
                     );
                     
@@ -1563,7 +1580,8 @@ pub mod drive {
                         None,
                         None,
                         None,
-                        None
+                        None,
+                        None,
                     );
                     
                     folder_uuid_to_metadata

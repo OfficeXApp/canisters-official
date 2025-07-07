@@ -243,6 +243,26 @@ pub struct TransferOwnershipResponseData {
 pub type TransferOwnershipDriveResponse<'a> = ApiResponse<'a, TransferOwnershipResponseData>;
 
 
+// UpdateAllowedDomainsDriveRequestBody
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAllowedDomainsDriveRequestBody {
+    pub allowed_domains: String,
+}
+impl UpdateAllowedDomainsDriveRequestBody {
+    pub fn validate_body(&self) -> Result<(), ValidationError> {
+        // Validate allowed_domains format
+        validate_short_string(&self.allowed_domains, "allowed_domains")?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateAllowedDomainsDriveResponseData {
+    pub success: bool,
+    pub message: String,
+}
+pub type UpdateAllowedDomainsDriveResponse<'a> = ApiResponse<'a, UpdateAllowedDomainsDriveResponseData>;
+
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WhoAmIReport {
