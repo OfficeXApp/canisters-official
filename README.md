@@ -4,6 +4,11 @@ Powers the cloud smart contract of https://drive.officex.app
 
 ![developer-docs](https://github.com/user-attachments/assets/057afc6d-da2f-4750-80c0-5b590bed47de)
 
+```sh
+$ rustc --version
+rustc 1.86.0 (05f9846f8 2025-03-31)
+```
+
 ### Get Started
 
 - `NOTES.md` for developer quickstart

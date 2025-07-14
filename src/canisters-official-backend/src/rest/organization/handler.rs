@@ -154,19 +154,6 @@ pub mod drives_handlers {
                 )
             }
         }
-        // match serde_json::to_vec(&snapshot) {
-        //     Ok(json) => create_response(StatusCode::OK, json),
-        //     Err(e) => {
-        //         // Log detailed error information
-        //         ic_cdk::println!("Failed to serialize state snapshot: {:?}", e);
-                
-        //         // Return a more informative error response to the client
-        //         create_response(
-        //             StatusCode::INTERNAL_SERVER_ERROR, 
-        //             ErrorResponse::err(500, format!("Failed to serialize state: {}", e)).encode()
-        //         )
-        //     }
-        // }
     }
 
     pub async fn replay_drive_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {

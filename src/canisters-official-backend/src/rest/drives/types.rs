@@ -88,7 +88,7 @@ impl ListDrivesRequestBody {
         if let Some(cursor) = &self.cursor {
             if cursor.len() > 256 {
                 return Err(ValidationError {
-                    field: "cursor_up".to_string(),
+                    field: "cursor".to_string(),
                     message: "Cursor must be 256 characters or less".to_string(),
                 });
             }
