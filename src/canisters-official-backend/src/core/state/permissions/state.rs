@@ -98,7 +98,6 @@ pub mod state {
 }
 
 
-
 // Helper functions for managing permissions state
 pub mod helpers {
     use super::state::*;

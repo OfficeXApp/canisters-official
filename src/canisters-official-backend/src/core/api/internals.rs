@@ -347,7 +347,7 @@ folder_uuid_to_metadata.with_mut(|map| {
         let base_url = get_appropriate_url_endpoint();
         let drive_id = DRIVE_ID.with(|id| id.clone());
         format!(
-            "{}/v1/{}/directory/asset/{file_uuid}.{extension}",
+            "{}/v1/drive/{}/directory/asset/{file_uuid}.{extension}",
             base_url,
             drive_id,
         )

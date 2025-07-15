@@ -19,7 +19,7 @@ type Memory = VirtualMemory<DefaultMemoryImpl>;
 const INITIALIZED_FLAG_MEMORY_ID: MemoryId = MemoryId::new(0);
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = false;
+pub static LOCAL_DEV_MODE: bool = true;
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct InitArgs {
