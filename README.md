@@ -15,6 +15,22 @@ rustc 1.86.0 (05f9846f8 2025-03-31)
 - `TODO.md` for roadmap triage
 - View developer docs at https://dev.officex.app
 
+First time install:
+
+```sh
+# install dfx
+$ sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)" # https://internetcomputer.org/docs/building-apps/getting-started/install
+
+# install nodejs
+$ brew install node # https://nodejs.org/en/download
+
+# install rust
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh # https://www.rust-lang.org/tools/install
+
+# add rust wasm target
+$ rustup target add wasm32-unknown-unknown
+```
+
 Dev single line restart:
 
 ```sh
