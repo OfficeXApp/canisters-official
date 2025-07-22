@@ -9,7 +9,7 @@ pub const APIKEYS_GET_PATH: &str =      genroute!("/api_keys/get/{api_key_id}");
 pub const APIKEYS_LIST_PATH: &str =     genroute!("/api_keys/list/{user_id}");
 pub const APIKEYS_UPSERT_PATH: &str =   genroute!("/api_keys/upsert");
 pub const APIKEYS_DELETE_PATH: &str =   genroute!("/api_keys/delete");
-pub const SNAPSHOT_PATH: &str =         genroute!("/factory/snapshot");
+pub const SNAPSHOT_PATH: &str =         genroute!("/snapshot");
 
 type HandlerEntry = (&'static str, &'static str, RouteHandler);
 
