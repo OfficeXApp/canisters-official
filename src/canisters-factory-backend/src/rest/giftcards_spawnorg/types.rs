@@ -94,7 +94,7 @@ pub struct CreateGiftcardSpawnOrgRequestBody {
     pub usd_revenue_cents: u64,
     pub note: String,
     pub gas_cycles_included: u64,
-    pub external_id: String,
+    pub external_id: Option<String>,
     pub disk_auth_json: Option<String>,
 }
 impl CreateGiftcardSpawnOrgRequestBody {

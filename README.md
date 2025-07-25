@@ -9,13 +9,13 @@ $ rustc --version
 rustc 1.86.0 (05f9846f8 2025-03-31)
 ```
 
-### Get Started
+## Get Started
 
 - `NOTES.md` for developer quickstart
 - `TODO.md` for roadmap triage
 - View developer docs at https://dev.officex.app
 
-First time install:
+### First time install:
 
 ```sh
 # install dfx
@@ -29,7 +29,24 @@ $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh # https://www.r
 
 # add rust wasm target
 $ rustup target add wasm32-unknown-unknown
+
+# run dfx locally
+$ dfx start --clean
 ```
+
+### First Time Running
+
+```sh
+# create, build & deploy canisters locally
+$ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+
+# add gas to factory (get the factory_canister_id from prev step localhost:8000/...?id=factory_canister_id)
+$ dfx canister deposit-cycles 20000000000000 <factory_canister_id>
+```
+
+
+
+### Quick Reference
 
 Dev single line restart:
 
