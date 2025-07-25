@@ -594,6 +594,7 @@ pub struct RedeemSystemPermissionRequest {
     pub permission_id: String,
     pub user_id: String,
     pub redeem_code: String,
+    pub note: Option<String>,
 }
 impl RedeemSystemPermissionRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
