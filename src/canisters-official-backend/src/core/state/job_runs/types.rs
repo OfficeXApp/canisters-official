@@ -93,6 +93,8 @@ pub struct JobRun {
     pub vendor_id: UserID, // cannot be updated, only set on create
     pub status: JobRunStatus, // can be updated by vendor
     pub description: String, // cannot be updated, only set on create
+    pub about_url: String,
+    pub run_url: String,
     pub billing_url: String, // can be updated by vendor
     pub support_url: String, // can be updated by vendor
     pub delivery_url: String, // can be updated by vendor

@@ -115,11 +115,12 @@ pub struct CreateJobRunRequestBody {
     pub id: Option<ClientSuggestedUUID>,
     pub template_id: Option<String>,
     pub title: String,
-    pub vendor_name: String,
-    pub vendor_id: UserID,
-    pub about_url: String,
+    pub vendor_name: Option<String>,
+    pub vendor_id: Option<UserID>,
+    pub about_url: Option<String>,
     pub status: Option<JobRunStatus>,
     pub description: Option<String>,
+    pub run_url: Option<String>,
     pub billing_url: Option<String>,
     pub support_url: Option<String>,
     pub delivery_url: Option<String>,
@@ -144,11 +145,12 @@ impl CreateJobRunRequestBody {
             validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::JobRun)?;
         }
 
-        validate_short_string(&self.vendor_name, "vendor_name")?;
+        if let Some(vendor_name) = &self.vendor_name {
+            validate_short_string(vendor_name, "vendor_name")?;
+        }
         if let Some(description) = &self.description {
             validate_long_string(description, "description", 8192)?;
         }
-        validate_short_string(&self.title, "title")?;
         if let Some(notes) = &self.notes {
             validate_long_string(notes, "notes", 8192)?;
         }
@@ -166,6 +168,12 @@ impl CreateJobRunRequestBody {
         }
         if let Some(installation_url) = &self.installation_url {
             validate_url(installation_url, "installation_url")?;
+        }
+        if let Some(about_url) = &self.about_url {
+            validate_url(about_url, "about_url")?;
+        }
+        if let Some(run_url) = &self.run_url {
+            validate_url(run_url, "run_url")?;
         }
 
         if let Some(subtitle) = &self.subtitle {
@@ -208,6 +216,22 @@ impl CreateJobRunRequestBody {
 pub struct UpdateJobRunRequestBody {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor_id: Option<UserID>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub about_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<JobRunStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billing_url: Option<String>,
@@ -241,7 +265,12 @@ impl UpdateJobRunRequestBody {
     /// Validates the fields in the update JobRun request body.
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         validate_id_string(&self.id, "id")?;
-
+        if let Some(url) = &self.about_url {
+            validate_url(url, "about_url")?;
+        }
+        if let Some(url) = &self.run_url {
+            validate_url(url, "run_url")?;
+        }
         if let Some(url) = &self.billing_url {
             validate_url(url, "billing_url")?;
         }

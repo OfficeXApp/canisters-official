@@ -104,7 +104,7 @@ pub struct GiftcardSpawnOrg {
     pub note: String,
     pub gas_cycles_included: u64,
     pub timestamp_ms: u64,
-    pub external_id: String, // eg. stripe charge id or evm tx hash
+    pub external_id: Option<String>, // eg. stripe charge id or evm tx hash
     pub redeemed: bool,
     pub disk_auth_json: Option<String>,
 }

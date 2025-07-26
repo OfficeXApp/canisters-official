@@ -20,9 +20,9 @@ pub mod state {
     type Memory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
 
     // Unique MemoryId values for JobRun stable structures
-    pub const JOB_RUNS_MEMORY_ID: MemoryId = MemoryId::new(13);
-    pub const JOB_RUNS_BY_TIME_MEMORY_ID: MemoryId = MemoryId::new(14);
-    pub const JOB_RUNS_BY_VENDOR_ID_MEMORY_ID: MemoryId = MemoryId::new(15);
+    pub const JOB_RUNS_MEMORY_ID: MemoryId = MemoryId::new(53);
+    pub const JOB_RUNS_BY_TIME_MEMORY_ID: MemoryId = MemoryId::new(54);
+    pub const JOB_RUNS_BY_VENDOR_ID_MEMORY_ID: MemoryId = MemoryId::new(55);
 
     thread_local! {
         /// Stores JobRun records indexed by their unique JobRunID.

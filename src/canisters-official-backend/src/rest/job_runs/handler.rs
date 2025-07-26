@@ -276,10 +276,12 @@ pub mod job_runs_handlers {
         let job_run = JobRun {
             id: job_run_id.clone(),
             template_id: create_req.template_id,
-            vendor_name: create_req.vendor_name,
-            vendor_id: create_req.vendor_id.clone(),
+            vendor_name: create_req.vendor_name.unwrap_or("".to_string()),
+            vendor_id: create_req.vendor_id.unwrap_or(UserID("".to_string())),
             status: create_req.status.unwrap_or(JobRunStatus::Requested),
             description: create_req.description.unwrap_or("".to_string()),
+            about_url: create_req.about_url.unwrap_or("".to_string()),
+            run_url: create_req.run_url.unwrap_or("".to_string()),
             billing_url: create_req.billing_url.unwrap_or("".to_string()),
             support_url: create_req.support_url.unwrap_or("".to_string()),
             delivery_url: create_req.delivery_url.unwrap_or("".to_string()),
@@ -381,8 +383,33 @@ pub mod job_runs_handlers {
         let current_time = ic_cdk::api::time() / 1_000_000;
 
         // Update fields (only those allowed to be updated)
+        if let Some(title) = update_req.title {
+            job_run.title = title;
+        }
+        if let Some(vendor_name) = update_req.vendor_name {
+            job_run.vendor_name = vendor_name;
+        }
+        if let Some(vendor_id) = update_req.vendor_id {
+            job_run.vendor_id = vendor_id;
+        }
+        if let Some(description) = update_req.description {
+            job_run.description = description;
+        }
+        if let Some(notes) = update_req.notes {
+            job_run.notes = notes;
+        }
+        
+        if let Some(template_id) = update_req.template_id {
+            job_run.template_id = Some(template_id);
+        }
         if let Some(status) = update_req.status {
             job_run.status = status;
+        }
+        if let Some(about_url) = update_req.about_url {
+            job_run.about_url = about_url;
+        }
+        if let Some(run_url) = update_req.run_url {
+            job_run.run_url = run_url;
         }
         if let Some(billing_url) = update_req.billing_url {
             job_run.billing_url = billing_url;
