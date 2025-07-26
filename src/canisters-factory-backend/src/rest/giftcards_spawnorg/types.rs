@@ -90,7 +90,6 @@ pub struct ListGiftcardSpawnOrgsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateGiftcardSpawnOrgRequestBody {
-    pub action: UpsertActionTypeEnum, 
     pub usd_revenue_cents: u64,
     pub note: String,
     pub gas_cycles_included: u64,
@@ -108,18 +107,10 @@ impl CreateGiftcardSpawnOrgRequestBody {
             });
         }
 
-        // action must be UpsertActionTypeEnum::Create
-        if self.action != UpsertActionTypeEnum::Create {
-            return Err(ValidationError {
-                field: "action".to_string(),
-                message: "Action must be 'Create'".to_string(),
-            });
-        }
         
         Ok(())
     }
 }
-pub type CreateGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, GiftcardSpawnOrg>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeleteGiftcardSpawnOrgRequestBody {
@@ -152,7 +143,6 @@ pub type DeleteGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, DeletedGiftcardSpa
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateGiftcardSpawnOrgRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -179,14 +169,6 @@ impl UpdateGiftcardSpawnOrgRequestBody {
             });
         }
 
-        // action must be UpsertActionTypeEnum::Update
-        if self.action != UpsertActionTypeEnum::Update {
-            return Err(ValidationError {
-                field: "action".to_string(),
-                message: "Action must be 'Update'".to_string(),
-            });
-        }
-
         // validate gas_cycles_included (must be greater than 1T)
         if let Some(gas_cycles_included) = self.gas_cycles_included {
             if gas_cycles_included < 1_000_000_000_000 {
@@ -201,21 +183,7 @@ impl UpdateGiftcardSpawnOrgRequestBody {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum UpsertGiftcardSpawnOrgRequestBody {
-    Create(CreateGiftcardSpawnOrgRequestBody),
-    Update(UpdateGiftcardSpawnOrgRequestBody),
-}
-impl UpsertGiftcardSpawnOrgRequestBody {
-    pub fn validate_body(&self) -> Result<(), ValidationError> {
-        match self {
-            UpsertGiftcardSpawnOrgRequestBody::Create(create_req) => create_req.validate_body(),
-            UpsertGiftcardSpawnOrgRequestBody::Update(update_req) => update_req.validate_body(),
-        }
-    }
-}
-
+pub type CreateGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, GiftcardSpawnOrg>;
 pub type UpdateGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, GiftcardSpawnOrg>;
 pub type ListGiftcardSpawnOrgsResponse<'a> = ApiResponse<'a, ListGiftcardSpawnOrgsResponseData>;
 pub type GetGiftcardSpawnOrgResponse<'a> = ApiResponse<'a, GiftcardSpawnOrg>;
