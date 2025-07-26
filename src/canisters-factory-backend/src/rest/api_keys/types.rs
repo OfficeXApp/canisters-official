@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, types::{IDPrefix, PublicKeyICP, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError}};
+use crate::{core::{state::api_keys::types::{ApiKey, ApiKeyID, ApiKeyValue}, types::{IDPrefix, PublicKeyICP, UserID}}, rest::types::{validate_external_id, validate_external_payload, validate_id_string, validate_user_id, ApiResponse, ValidationError}};
 use crate::core::state::giftcards_spawnorg::types::DriveID;
 use crate::core::state::giftcards_spawnorg::types::DriveRESTUrlEndpoint;
 use crate::core::state::giftcards_spawnorg::types::FactorySpawnHistoryRecord;
@@ -15,7 +15,6 @@ use crate::core::state::giftcards_spawnorg::types::GiftcardSpawnOrg;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateApiKeyRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub name: String,
     pub user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -93,7 +92,6 @@ pub type DeleteApiKeyResponse<'a> = ApiResponse<'a, DeletedApiKeyData>;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateApiKeyRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

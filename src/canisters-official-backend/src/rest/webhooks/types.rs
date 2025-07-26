@@ -17,7 +17,7 @@ use crate::core::state::webhooks::types::{WebhookID, Webhook};
 use crate::core::types::{ClientSuggestedUUID, IDPrefix, UserID};
 use crate::rest::directory::types::DirectoryResourcePermissionFE;
 use crate::rest::organization::types::InboxOrgRequestBody;
-use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_description, validate_external_id, validate_external_payload, validate_id_string, validate_short_string, validate_unclaimed_uuid, validate_url_endpoint, ApiResponse, ValidationError};
 
 
 

@@ -8,7 +8,7 @@ use crate::{
         types::{ICPPrincipalString, IDPrefix, UserID}
     }, 
     rest::types::{
-            validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError
+            validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_user_id, ApiResponse, ValidationError
         }
 };
 

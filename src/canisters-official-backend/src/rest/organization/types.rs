@@ -8,7 +8,7 @@ use crate::core::state::drives::types::{Drive, DriveID, DriveStateDiffID, Extern
 use crate::core::state::search::types::{SearchCategoryEnum, SearchResult};
 use crate::core::types::{ICPPrincipalString, PublicKeyICP, UserID};
 use crate::rest::webhooks::types::{SortDirection};
-use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_seed_phrase, validate_short_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError};
+use crate::rest::types::{validate_drive_id, validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_seed_phrase, validate_short_string, validate_user_id, ApiResponse, ValidationError};
 
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 
