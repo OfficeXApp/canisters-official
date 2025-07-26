@@ -103,6 +103,7 @@ pub struct JobRun {
     pub title: String, // cannot be updated, only set on create
     pub subtitle: String, // can be updated
     pub pricing: String, // can be updated
+    pub next_delivery_date: i64, // can be updated by vendor
     pub vendor_notes: String, // can be updated by vendor
     pub notes: String, // cannot be viewed or updated by vendor
     pub created_at: u64,
