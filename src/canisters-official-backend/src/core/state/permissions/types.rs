@@ -348,7 +348,8 @@ pub enum SystemTableEnum {
     Permissions,
     Webhooks,
     Labels,
-    Inbox
+    Inbox,
+    JobRuns,
 }
 
 impl fmt::Display for SystemTableEnum {
@@ -363,6 +364,7 @@ impl fmt::Display for SystemTableEnum {
             SystemTableEnum::Webhooks => write!(f, "WEBHOOKS"),
             SystemTableEnum::Labels => write!(f, "LABELS"),
             SystemTableEnum::Inbox => write!(f, "INBOX"),
+            SystemTableEnum::JobRuns => write!(f, "JOB_RUNS"),
         }
     }
 }
@@ -377,6 +379,7 @@ pub enum SystemRecordIDEnum {
     Permission(String),   // SystemPermissionID_xxx or DirectoryPermissionID_xxx
     Webhook(String),      // WebhookID_xxx
     Label(String),          // LabelID_xxx
+    JobRun(String),         // JobRunID_xxx
     Unknown(String), // General catch
 }
 
@@ -410,6 +413,7 @@ impl fmt::Display for SystemRecordIDEnum {
             SystemRecordIDEnum::Permission(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Webhook(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Label(id) => write!(f, "{}", id),
+            SystemRecordIDEnum::JobRun(id) => write!(f, "{}", id),
             SystemRecordIDEnum::Unknown(id) => write!(f, "{}", id),
         }
     }

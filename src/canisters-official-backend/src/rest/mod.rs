@@ -19,3 +19,4 @@ pub mod directory;
 pub mod permissions;
 pub mod labels;
 pub mod organization;
+pub mod job_runs;

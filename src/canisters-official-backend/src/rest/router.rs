@@ -40,6 +40,7 @@ pub fn init_routes() {
     crate::rest::labels::route::init_routes();
     crate::rest::directory::route::init_routes();
     crate::rest::permissions::route::init_routes();
+    crate::rest::job_runs::route::init_routes();
 
     debug_log!("Initializing routes...");
 
