@@ -334,7 +334,7 @@ pub mod giftcards_handlers {
                         giftcard.gas_cycles_included = gas_cycles_included;
                     }
                     if let Some(external_id) = update_req.external_id {
-                        giftcard.external_id = external_id;
+                        giftcard.external_id = Some(external_id);
                     }
                     if let Some(disk_auth_json) = update_req.disk_auth_json {
                         giftcard.disk_auth_json = Some(disk_auth_json);

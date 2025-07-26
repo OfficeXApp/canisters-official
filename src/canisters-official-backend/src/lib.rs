@@ -19,7 +19,7 @@ type Memory = VirtualMemory<DefaultMemoryImpl>;
 const INITIALIZED_FLAG_MEMORY_ID: MemoryId = MemoryId::new(0);
 
 // change this to false for production
-pub static LOCAL_DEV_MODE: bool = false;
+pub static LOCAL_DEV_MODE: bool = true;
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct InitArgs {
@@ -112,6 +112,7 @@ fn initialize_canister(args: Option<InitArgs>) {
                 crate::core::state::permissions::state::state::initialize();
                 crate::core::state::raw_storage::state::initialize();
                 crate::core::state::webhooks::state::state::initialize();
+                crate::core::state::job_runs::state::state::initialize();
                 
                 // Initialize the drive with all parameters
                 init_self_drive(

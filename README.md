@@ -38,20 +38,18 @@ $ dfx start --clean
 
 ```sh
 # create, build & deploy canisters locally
-$ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+$ dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 
 # add gas to factory (get the factory_canister_id from prev step localhost:8000/...?id=factory_canister_id)
 $ dfx canister deposit-cycles 20000000000000 <factory_canister_id>
 ```
-
-
 
 ### Quick Reference
 
 Dev single line restart:
 
 ```sh
-$ dfx canister create canisters-official-frontend && dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
+$ dfx canister create canisters-official-backend && dfx canister create canisters-factory-backend && dfx build && dfx deploy canisters-official-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })" && dfx deploy canisters-factory-backend --argument "(opt record { owner = \"$(dfx identity get-principal)\" })"
 ```
 
 or standalone factory in dev:
