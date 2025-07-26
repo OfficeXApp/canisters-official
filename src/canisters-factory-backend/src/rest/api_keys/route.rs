@@ -7,7 +7,8 @@ use crate::rest::types::RouteHandler;
 // ROUTE_PREFIX
 pub const APIKEYS_GET_PATH: &str =      genroute!("/api_keys/get/{api_key_id}");
 pub const APIKEYS_LIST_PATH: &str =     genroute!("/api_keys/list/{user_id}");
-pub const APIKEYS_UPSERT_PATH: &str =   genroute!("/api_keys/upsert");
+pub const APIKEYS_CREATE_PATH: &str =   genroute!("/api_keys/create");
+pub const APIKEYS_UPDATE_PATH: &str =   genroute!("/api_keys/update");
 pub const APIKEYS_DELETE_PATH: &str =   genroute!("/api_keys/delete");
 pub const SNAPSHOT_PATH: &str =         genroute!("/snapshot");
 
@@ -27,8 +28,13 @@ pub fn init_routes() {
         ),
         (
             "POST",
-            APIKEYS_UPSERT_PATH,
-            |req, params| Box::pin(crate::rest::api_keys::handler::apikeys_handlers::upsert_apikey_handler(req, params)),
+            APIKEYS_CREATE_PATH,
+            |req, params| Box::pin(crate::rest::api_keys::handler::apikeys_handlers::create_apikey_handler(req, params)),
+        ),
+        (
+            "POST",
+            APIKEYS_UPDATE_PATH,
+            |req, params| Box::pin(crate::rest::api_keys::handler::apikeys_handlers::update_apikey_handler(req, params)),
         ),
         (
             "POST",

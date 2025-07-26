@@ -8,7 +8,7 @@ use crate::{
         types::{ICPPrincipalString, IDPrefix, UserID}
     }, 
     rest::types::{
-            validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_user_id, ApiResponse, UpsertActionTypeEnum, ValidationError
+            validate_external_id, validate_external_payload, validate_icp_principal, validate_id_string, validate_user_id, ApiResponse, ValidationError
         }
 };
 
@@ -90,7 +90,6 @@ pub struct ListGiftcardRefuelsResponseData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateGiftcardRefuelRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub usd_revenue_cents: u64,
     pub note: String,
     pub gas_cycles_included: u64,
@@ -107,13 +106,6 @@ impl CreateGiftcardRefuelRequestBody {
             });
         }
 
-        // action must be UpsertActionTypeEnum::Create
-        if self.action != UpsertActionTypeEnum::Create {
-            return Err(ValidationError {
-                field: "action".to_string(),
-                message: "Action must be 'Create'".to_string(),
-            });
-        }
 
         Ok(())
     }
@@ -151,7 +143,6 @@ pub type DeleteGiftcardRefuelResponse<'a> = ApiResponse<'a, DeletedGiftcardRefue
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateGiftcardRefuelRequestBody {
-    pub action: UpsertActionTypeEnum,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -176,13 +167,6 @@ impl UpdateGiftcardRefuelRequestBody {
             });
         }
 
-        // action must be UpsertActionTypeEnum::Update
-        if self.action != UpsertActionTypeEnum::Update {
-            return Err(ValidationError {
-                field: "action".to_string(),
-                message: "Action must be 'Update'".to_string(),
-            });
-        }
 
         // validate gas_cycles_included (must be greater than 1T)
         if let Some(gas_cycles_included) = self.gas_cycles_included {
