@@ -128,6 +128,7 @@ pub struct CreateJobRunRequestBody {
     pub installation_url: Option<String>,
     pub subtitle: Option<String>,
     pub pricing: Option<String>,
+    pub next_delivery_date: Option<i64>,
     pub vendor_notes: Option<String>,
     pub notes: Option<String>,
     pub related_resources: Option<Vec<String>>,
@@ -247,6 +248,8 @@ pub struct UpdateJobRunRequestBody {
     pub subtitle: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pricing: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_delivery_date: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vendor_notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

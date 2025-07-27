@@ -325,6 +325,9 @@ pub mod apikeys_handlers {
         if let Some(name) = update_req.name {
             api_key.name = name;
         }
+        if let Some(private_note) = update_req.private_note {
+            api_key.private_note = Some(private_note);
+        }
         if let Some(begins_at) = update_req.begins_at {
             api_key.begins_at = begins_at;
         }

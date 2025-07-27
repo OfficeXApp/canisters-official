@@ -290,6 +290,7 @@ pub mod job_runs_handlers {
             title: create_req.title,
             subtitle: create_req.subtitle.unwrap_or("".to_string()),
             pricing: create_req.pricing.unwrap_or("".to_string()),
+            next_delivery_date: create_req.next_delivery_date.unwrap_or(-1),
             vendor_notes: create_req.vendor_notes.unwrap_or("".to_string()),
             notes: create_req.notes.unwrap_or("".to_string()),
             created_at: current_time,
@@ -431,6 +432,9 @@ pub mod job_runs_handlers {
         }
         if let Some(pricing) = update_req.pricing {
             job_run.pricing = pricing;
+        }
+        if let Some(next_delivery_date) = update_req.next_delivery_date {
+            job_run.next_delivery_date = next_delivery_date;
         }
         if let Some(vendor_notes) = update_req.vendor_notes {
             job_run.vendor_notes = vendor_notes;
