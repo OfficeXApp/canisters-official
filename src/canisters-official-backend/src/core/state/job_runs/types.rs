@@ -96,12 +96,11 @@ pub struct JobRun {
     pub status: JobRunStatus, // can be updated by vendor
     pub description: String, // cannot be updated, only set on create
     pub about_url: String,
-    pub run_url: String,
     pub billing_url: String, // can be updated by vendor
     pub support_url: String, // can be updated by vendor
     pub delivery_url: String, // can be updated by vendor
     pub verification_url: String, // can be updated by vendor
-    pub installation_url: String, // the script to run to install the job
+    pub auth_installation_url: String, // the script to run to install the job
     pub title: String, // cannot be updated, only set on create
     pub subtitle: String, // can be updated
     pub pricing: String, // can be updated
