@@ -120,12 +120,11 @@ pub struct CreateJobRunRequestBody {
     pub about_url: Option<String>,
     pub status: Option<JobRunStatus>,
     pub description: Option<String>,
-    pub run_url: Option<String>,
     pub billing_url: Option<String>,
     pub support_url: Option<String>,
     pub delivery_url: Option<String>,
     pub verification_url: Option<String>,
-    pub installation_url: Option<String>,
+    pub auth_installation_url: Option<String>,
     pub subtitle: Option<String>,
     pub pricing: Option<String>,
     pub next_delivery_date: Option<i64>,
@@ -167,14 +166,11 @@ impl CreateJobRunRequestBody {
         if let Some(verification_url) = &self.verification_url {
             validate_url(verification_url, "verification_url")?;
         }
-        if let Some(installation_url) = &self.installation_url {
-            validate_url(installation_url, "installation_url")?;
+        if let Some(auth_installation_url) = &self.auth_installation_url {
+            validate_url(auth_installation_url, "auth_installation_url")?;
         }
         if let Some(about_url) = &self.about_url {
             validate_url(about_url, "about_url")?;
-        }
-        if let Some(run_url) = &self.run_url {
-            validate_url(run_url, "run_url")?;
         }
 
         if let Some(subtitle) = &self.subtitle {
@@ -231,8 +227,6 @@ pub struct UpdateJobRunRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub about_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub run_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<JobRunStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billing_url: Option<String>,
@@ -243,7 +237,7 @@ pub struct UpdateJobRunRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verification_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub installation_url: Option<String>,
+    pub auth_installation_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subtitle: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -271,9 +265,6 @@ impl UpdateJobRunRequestBody {
         if let Some(url) = &self.about_url {
             validate_url(url, "about_url")?;
         }
-        if let Some(url) = &self.run_url {
-            validate_url(url, "run_url")?;
-        }
         if let Some(url) = &self.billing_url {
             validate_url(url, "billing_url")?;
         }
@@ -286,8 +277,8 @@ impl UpdateJobRunRequestBody {
         if let Some(url) = &self.verification_url {
             validate_url(url, "verification_url")?;
         }
-        if let Some(url) = &self.installation_url {
-            validate_url(url, "installation_url")?;
+        if let Some(url) = &self.auth_installation_url {
+            validate_url(url, "auth_installation_url")?;
         }
 
         if let Some(subtitle) = &self.subtitle {

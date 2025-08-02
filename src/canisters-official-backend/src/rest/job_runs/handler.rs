@@ -281,12 +281,11 @@ pub mod job_runs_handlers {
             status: create_req.status.unwrap_or(JobRunStatus::Requested),
             description: create_req.description.unwrap_or("".to_string()),
             about_url: create_req.about_url.unwrap_or("".to_string()),
-            run_url: create_req.run_url.unwrap_or("".to_string()),
             billing_url: create_req.billing_url.unwrap_or("".to_string()),
             support_url: create_req.support_url.unwrap_or("".to_string()),
             delivery_url: create_req.delivery_url.unwrap_or("".to_string()),
             verification_url: create_req.verification_url.unwrap_or("".to_string()),
-            installation_url: create_req.installation_url.unwrap_or("".to_string()),
+            auth_installation_url: create_req.auth_installation_url.unwrap_or("".to_string()),
             title: create_req.title,
             subtitle: create_req.subtitle.unwrap_or("".to_string()),
             pricing: create_req.pricing.unwrap_or("".to_string()),
@@ -409,9 +408,6 @@ pub mod job_runs_handlers {
         if let Some(about_url) = update_req.about_url {
             job_run.about_url = about_url;
         }
-        if let Some(run_url) = update_req.run_url {
-            job_run.run_url = run_url;
-        }
         if let Some(billing_url) = update_req.billing_url {
             job_run.billing_url = billing_url;
         }
@@ -424,8 +420,8 @@ pub mod job_runs_handlers {
         if let Some(verification_url) = update_req.verification_url {
             job_run.verification_url = verification_url;
         }
-        if let Some(installation_url) = update_req.installation_url {
-            job_run.installation_url = installation_url;
+        if let Some(auth_installation_url) = update_req.auth_installation_url {
+            job_run.auth_installation_url = auth_installation_url;
         }
         if let Some(subtitle) = update_req.subtitle {
             job_run.subtitle = subtitle;
