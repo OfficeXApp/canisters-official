@@ -4,7 +4,7 @@ use crate::{
     core::{
         api::permissions::system::check_system_permissions,
         state::{
-            job_runs::types::{JobRun, JobRunID, JobRunStatus}, labels::state::validate_uuid4_string_with_prefix, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}
+            purchases::types::{Purchase, PurchaseID, PurchaseStatus}, labels::state::validate_uuid4_string_with_prefix, permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum}
         },
         types::{ClientSuggestedUUID, IDPrefix, UserID},
     },
@@ -14,37 +14,37 @@ use crate::{
     },
 };
 
-/// Frontend representation of a JobRun, including permission previews.
+/// Frontend representation of a Purchase, including permission previews.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobRunFE {
+pub struct PurchaseFE {
     #[serde(flatten)]
-    pub job_run: JobRun,
+    pub purchase: Purchase,
     pub permission_previews: Vec<SystemPermissionType>,
 }
 
-impl JobRunFE {
-    /// Redacts sensitive JobRun fields based on user permissions.
+impl PurchaseFE {
+    /// Redacts sensitive Purchase fields based on user permissions.
     pub fn redacted(&self, user_id: &UserID) -> Self {
         let mut redacted = self.clone();
 
-        // For JobRun, `notes` is strictly internal, `vendor_notes` is for the vendor.
-        // Assuming the `vendor_id` is the primary "owner" for specific JobRun data.
-        let is_vendor_of_job = user_id == &redacted.job_run.vendor_id;
+        // For Purchase, `notes` is strictly internal, `vendor_notes` is for the vendor.
+        // Assuming the `vendor_id` is the primary "owner" for specific Purchase data.
+        let is_vendor_of_purchase = user_id == &redacted.purchase.vendor_id;
 
         // Check if the user has a general view permission (e.g., admin, or role with broad view)
         let has_table_view_permission = redacted.permission_previews.contains(&SystemPermissionType::View);
 
         // `notes` field is always internal and should be redacted for anyone not considered an "owner" (system owner/admin).
-        // For simplicity here, we redact for anyone who isn't the direct vendor of this job run.
-        if !is_vendor_of_job && !has_table_view_permission {
-            redacted.job_run.notes = "".to_string(); // Always redact 'notes' for non-vendor/non-admin
+        // For simplicity here, we redact for anyone who isn't the direct vendor of this purchase run.
+        if !is_vendor_of_purchase && !has_table_view_permission {
+            redacted.purchase.notes = "".to_string(); // Always redact 'notes' for non-vendor/non-admin
         }
 
         // `vendor_notes` and `tracer` are for the vendor, redact for others without view permission
-        if !is_vendor_of_job {
+        if !is_vendor_of_purchase {
             if !has_table_view_permission {
-                redacted.job_run.vendor_notes = "".to_string();
-                redacted.job_run.tracer = None;
+                redacted.purchase.vendor_notes = "".to_string();
+                redacted.purchase.tracer = None;
             }
         }
 
@@ -52,9 +52,9 @@ impl JobRunFE {
     }
 }
 
-/// Request body for listing JobRuns.
+/// Request body for listing Purchases.
 #[derive(Debug, Clone, Deserialize)]
-pub struct ListJobRunsRequestBody {
+pub struct ListPurchasesRequestBody {
     #[serde(default)]
     pub filters: String,
     #[serde(default = "default_page_size")]
@@ -68,8 +68,8 @@ fn default_page_size() -> usize {
     50
 }
 
-impl ListJobRunsRequestBody {
-    /// Validates the fields in the list JobRuns request body.
+impl ListPurchasesRequestBody {
+    /// Validates the fields in the list Purchases request body.
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         if self.filters.len() > 256 {
             return Err(ValidationError {
@@ -98,27 +98,27 @@ impl ListJobRunsRequestBody {
     }
 }
 
-/// Response data for listing JobRuns.
+/// Response data for listing Purchases.
 #[derive(Debug, Clone, Serialize)]
-pub struct ListJobRunsResponseData {
-    pub items: Vec<JobRunFE>,
+pub struct ListPurchasesResponseData {
+    pub items: Vec<PurchaseFE>,
     pub page_size: usize,
     pub total: usize,
     pub direction: SortDirection,
     pub cursor: Option<String>,
 }
 
-/// Request body for creating a new JobRun.
+/// Request body for creating a new Purchase.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CreateJobRunRequestBody {
+pub struct CreatePurchaseRequestBody {
     pub id: Option<ClientSuggestedUUID>,
     pub template_id: Option<String>,
     pub title: String,
     pub vendor_name: Option<String>,
     pub vendor_id: Option<UserID>,
     pub about_url: Option<String>,
-    pub status: Option<JobRunStatus>,
+    pub status: Option<PurchaseStatus>,
     pub description: Option<String>,
     pub billing_url: Option<String>,
     pub support_url: Option<String>,
@@ -137,12 +137,12 @@ pub struct CreateJobRunRequestBody {
     pub external_payload: Option<String>,
 }
 
-impl CreateJobRunRequestBody {
-    /// Validates the fields in the create JobRun request body.
+impl CreatePurchaseRequestBody {
+    /// Validates the fields in the create Purchase request body.
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         if self.id.is_some() {
             validate_unclaimed_uuid(&self.id.as_ref().unwrap().to_string())?;
-            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::JobRun)?;
+            validate_uuid4_string_with_prefix(&self.id.as_ref().unwrap().to_string(), IDPrefix::Purchase)?;
         }
 
         if let Some(vendor_name) = &self.vendor_name {
@@ -208,9 +208,9 @@ impl CreateJobRunRequestBody {
     }
 }
 
-/// Request body for updating an existing JobRun.
+/// Request body for updating an existing Purchase.
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateJobRunRequestBody {
+pub struct UpdatePurchaseRequestBody {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -227,7 +227,7 @@ pub struct UpdateJobRunRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub about_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<JobRunStatus>,
+    pub status: Option<PurchaseStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billing_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -258,8 +258,8 @@ pub struct UpdateJobRunRequestBody {
     pub external_payload: Option<String>,
 }
 
-impl UpdateJobRunRequestBody {
-    /// Validates the fields in the update JobRun request body.
+impl UpdatePurchaseRequestBody {
+    /// Validates the fields in the update Purchase request body.
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         validate_id_string(&self.id, "id")?;
         if let Some(url) = &self.about_url {
@@ -305,7 +305,7 @@ impl UpdateJobRunRequestBody {
 }
 
 // This is a helper validation function that might typically live in `src/rest/types.rs`.
-// Included here for completeness as it's used by JobRun types.
+// Included here for completeness as it's used by Purchase types.
 fn validate_long_string(value: &str, field_name: &str, max_len: usize) -> Result<(), ValidationError> {
     if value.len() > max_len {
         return Err(ValidationError {
@@ -316,37 +316,37 @@ fn validate_long_string(value: &str, field_name: &str, max_len: usize) -> Result
     Ok(())
 }
 
-/// Request body for deleting a JobRun.
+/// Request body for deleting a Purchase.
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeleteJobRunRequest {
-    pub id: JobRunID,
+pub struct DeletePurchaseRequest {
+    pub id: PurchaseID,
 }
-impl DeleteJobRunRequest {
-    /// Validates the fields in the delete JobRun request body.
+impl DeletePurchaseRequest {
+    /// Validates the fields in the delete Purchase request body.
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         validate_id_string(&self.id.0, "id")?;
-        let prefix = IDPrefix::JobRun.as_str();
+        let prefix = IDPrefix::Purchase.as_str();
         if !self.id.0.starts_with(prefix) {
             return Err(ValidationError {
                 field: "id".to_string(),
-                message: format!("JobRun ID must start with '{}'", prefix),
+                message: format!("Purchase ID must start with '{}'", prefix),
             });
         }
         Ok(())
     }
 }
 
-/// Response data after deleting a JobRun.
+/// Response data after deleting a Purchase.
 #[derive(Debug, Clone, Serialize)]
-pub struct DeletedJobRunData {
-    pub id: JobRunID,
+pub struct DeletedPurchaseData {
+    pub id: PurchaseID,
     pub deleted: bool,
 }
 
 // Type aliases for API responses
-pub type GetJobRunResponse<'a> = ApiResponse<'a, JobRunFE>;
-pub type DeleteJobRunResponse<'a> = ApiResponse<'a, DeletedJobRunData>;
+pub type GetPurchaseResponse<'a> = ApiResponse<'a, PurchaseFE>;
+pub type DeletePurchaseResponse<'a> = ApiResponse<'a, DeletedPurchaseData>;
 pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
-pub type ListJobRunsResponse<'a> = ApiResponse<'a, ListJobRunsResponseData>;
-pub type CreateJobRunResponse<'a> = ApiResponse<'a, JobRunFE>;
-pub type UpdateJobRunResponse<'a> = ApiResponse<'a, JobRunFE>;
+pub type ListPurchasesResponse<'a> = ApiResponse<'a, ListPurchasesResponseData>;
+pub type CreatePurchaseResponse<'a> = ApiResponse<'a, PurchaseFE>;
+pub type UpdatePurchaseResponse<'a> = ApiResponse<'a, PurchaseFE>;

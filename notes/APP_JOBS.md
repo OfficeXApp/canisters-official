@@ -1,15 +1,15 @@
-Please help me add this JobRun state & routes to my rust icp canister code. please give me the files required, using disks as reference. please strictly follow what you see in the Disk reference, including those imports.
+Please help me add this Purchase state & routes to my rust icp canister code. please give me the files required, using disks as reference. please strictly follow what you see in the Disk reference, including those imports.
 
-note that aside from the basic JOB_RUN_BY_ID a,d JOB_RUN_BY_TIME_LIST, there should also be a JOB_RUN_LIST_BY_VENDOR_ID, and our handlers should remember to add and remove from this map.
+note that aside from the basic PURCHASE_BY_ID a,d PURCHASE_BY_TIME_LIST, there should also be a PURCHASE_LIST_BY_VENDOR_ID, and our handlers should remember to add and remove from this map.
 
-### Concept of JobRun
+### Concept of Purchase
 
-export interface JobRun {
-id: JobRunID;
+export interface Purchase {
+id: PurchaseID;
 template_id?: string; // no guarnatees on this, only set on create
 vendor_name: string; // cannot be updated, only set on create
 vendor_id: UserID; // cannot be updated, only set on create
-status: JobRunStatus; // can be updated by vendor
+status: PurchaseStatus; // can be updated by vendor
 description: string; // cannot be updated, only set on create
 billing_url: string; // can be updated by vendor
 support_url: string; // can be updated by vendor

@@ -1,4 +1,4 @@
-pub mod job_runs_handlers {
+pub mod purchases_handlers {
     use crate::{
         core::{
             api::{
@@ -7,11 +7,11 @@ pub mod job_runs_handlers {
                 uuid::{generate_uuidv4, mark_claimed_uuid},
             },
             state::{
-                job_runs::{
+                purchases::{
                     state::state::{
-                        add_job_run_to_vendor_list, remove_job_run_from_vendor_list, JOB_RUNS_BY_ID_HASHTABLE, JOB_RUNS_BY_TIME_LIST, JOB_RUNS_BY_TIME_MEMORY_ID, JOB_RUNS_BY_VENDOR_ID_HASHTABLE
+                        add_purchase_to_vendor_list, remove_purchase_from_vendor_list, PURCHASES_BY_ID_HASHTABLE, PURCHASES_BY_TIME_LIST, PURCHASES_BY_TIME_MEMORY_ID, PURCHASES_BY_VENDOR_ID_HASHTABLE
                     },
-                    types::{JobRun, JobRunID, JobRunStatus},
+                    types::{Purchase, PurchaseID, PurchaseStatus},
                 },
                 permissions::types::{PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum},
                 
@@ -19,10 +19,10 @@ pub mod job_runs_handlers {
             types::{IDPrefix, UserID},
         }, debug_log, rest::{
             auth::{authenticate_request, create_auth_error_response},
-            job_runs::types::{
-                CreateJobRunRequestBody, CreateJobRunResponse, DeleteJobRunRequest, DeleteJobRunResponse,
-                DeletedJobRunData, ErrorResponse, GetJobRunResponse, ListJobRunsRequestBody,
-                ListJobRunsResponse, ListJobRunsResponseData, UpdateJobRunRequestBody, UpdateJobRunResponse,
+            purchases::types::{
+                CreatePurchaseRequestBody, CreatePurchaseResponse, DeletePurchaseRequest, DeletePurchaseResponse,
+                DeletedPurchaseData, ErrorResponse, GetPurchaseResponse, ListPurchasesRequestBody,
+                ListPurchasesResponse, ListPurchasesResponseData, UpdatePurchaseRequestBody, UpdatePurchaseResponse,
             },
             webhooks::types::SortDirection,
         }, MEMORY_MANAGER
@@ -32,41 +32,41 @@ pub mod job_runs_handlers {
     use matchit::Params;
     use serde::Deserialize;
 
-    /// Handles GET requests for a single JobRun by its ID.
-    pub async fn get_job_run_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    /// Handles GET requests for a single Purchase by its ID.
+    pub async fn get_purchase_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
-        let job_run_id = JobRunID(params.get("job_run_id").unwrap().to_string());
+        let purchase_id = PurchaseID(params.get("purchase_id").unwrap().to_string());
 
-        let job_run = JOB_RUNS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&job_run_id).map(|d| d.clone())
+        let purchase = PURCHASES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().get(&purchase_id).map(|d| d.clone())
         });
 
-        // Permissions check: User is vendor of the job OR has table view OR has record view.
-        let is_vendor_of_job = job_run.as_ref().map_or(false, |jr| requester_api_key.user_id == jr.vendor_id);
+        // Permissions check: User is vendor of the purchase OR has table view OR has record view.
+        let is_vendor_of_purchase = purchase.as_ref().map_or(false, |jr| requester_api_key.user_id == jr.vendor_id);
 
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::JobRuns),
+            SystemResourceID::Table(SystemTableEnum::Purchases),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::JobRun(job_run_id.to_string()));
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Purchase(purchase_id.to_string()));
         let record_permissions = check_system_permissions(
             resource_id,
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !is_vendor_of_job && !record_permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) {
+        if !is_vendor_of_purchase && !record_permissions.contains(&SystemPermissionType::View) && !table_permissions.contains(&SystemPermissionType::View) {
             return create_auth_error_response();
         }
 
-        match job_run {
+        match purchase {
             Some(jr) => {
                 create_response(
                     StatusCode::OK,
-                    GetJobRunResponse::ok(&jr.cast_fe(&requester_api_key.user_id)).encode()
+                    GetPurchaseResponse::ok(&jr.cast_fe(&requester_api_key.user_id)).encode()
                 )
             },
             None => create_response(
@@ -76,9 +76,9 @@ pub mod job_runs_handlers {
         }
     }
 
-    /// Handles POST requests for listing JobRuns with pagination and filtering.
-    pub async fn list_job_runs_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
-        debug_log!("Handling list_job_runs_handler...");
+    /// Handles POST requests for listing Purchases with pagination and filtering.
+    pub async fn list_purchases_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+        debug_log!("Handling list_purchases_handler...");
 
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
@@ -86,7 +86,7 @@ pub mod job_runs_handlers {
         };
 
         let body = request.body();
-        let request_body: ListJobRunsRequestBody = match serde_json::from_slice(body) {
+        let request_body: ListPurchasesRequestBody = match serde_json::from_slice(body) {
             Ok(body) => body,
             Err(e) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -103,7 +103,7 @@ pub mod job_runs_handlers {
 
         // Check table-level view permission for general listing access.
         let has_table_view_permission = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::JobRuns),
+            SystemResourceID::Table(SystemTableEnum::Purchases),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         ).contains(&SystemPermissionType::View);
 
@@ -119,12 +119,12 @@ pub mod job_runs_handlers {
             None
         };
 
-        let total_count = JOB_RUNS_BY_TIME_LIST.with(|list| list.borrow().len()) as usize;
+        let total_count = PURCHASES_BY_TIME_LIST.with(|list| list.borrow().len()) as usize;
 
         if total_count == 0 {
             return create_response(
                 StatusCode::OK,
-                ListJobRunsResponse::ok(&ListJobRunsResponseData {
+                ListPurchasesResponse::ok(&ListPurchasesResponseData {
                     items: vec![],
                     page_size: 0,
                     total: 0,
@@ -143,12 +143,12 @@ pub mod job_runs_handlers {
             }
         };
 
-        let mut filtered_job_runs = Vec::new();
+        let mut filtered_purchases = Vec::new();
         let mut end_index = start_index;
 
-        JOB_RUNS_BY_TIME_LIST.with(|time_index| {
+        PURCHASES_BY_TIME_LIST.with(|time_index| {
             let time_index = time_index.borrow();
-            JOB_RUNS_BY_ID_HASHTABLE.with(|id_store| {
+            PURCHASES_BY_ID_HASHTABLE.with(|id_store| {
                 let id_store = id_store.borrow();
 
                 let mut current_idx = start_index;
@@ -160,13 +160,13 @@ pub mod job_runs_handlers {
                         SortDirection::Desc => total_count.saturating_sub(1).saturating_sub(current_idx),
                     };
 
-                    if let Some(job_run_id) = time_index.get(actual_idx as u64) {
-                        if let Some(job_run) = id_store.get(&job_run_id) {
-                            let is_vendor_of_job = requester_api_key.user_id == job_run.vendor_id;
+                    if let Some(purchase_id) = time_index.get(actual_idx as u64) {
+                        if let Some(purchase) = id_store.get(&purchase_id) {
+                            let is_vendor_of_purchase = requester_api_key.user_id == purchase.vendor_id;
 
-                            // Check if user has permission to view this specific job run
-                            let can_view = has_table_view_permission || is_vendor_of_job || {
-                                let resource_id = SystemResourceID::Record(SystemRecordIDEnum::JobRun(job_run.id.to_string()));
+                            // Check if user has permission to view this specific purchase run
+                            let can_view = has_table_view_permission || is_vendor_of_purchase || {
+                                let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Purchase(purchase.id.to_string()));
                                 check_system_permissions(
                                     resource_id,
                                     PermissionGranteeID::User(requester_api_key.user_id.clone())
@@ -174,7 +174,7 @@ pub mod job_runs_handlers {
                             };
 
                             if can_view && request_body.filters.is_empty() { // Placeholder for filters
-                                filtered_job_runs.push(job_run.clone());
+                                filtered_purchases.push(purchase.clone());
                             }
                         }
                     }
@@ -192,7 +192,7 @@ pub mod job_runs_handlers {
             });
         });
 
-        let next_cursor = if filtered_job_runs.len() >= request_body.page_size {
+        let next_cursor = if filtered_purchases.len() >= request_body.page_size {
             match request_body.direction {
                 SortDirection::Desc => {
                     if end_index > 0 {
@@ -216,14 +216,14 @@ pub mod job_runs_handlers {
         let total_count_to_return = if has_table_view_permission {
             total_count
         } else {
-            filtered_job_runs.len()
+            filtered_purchases.len()
         };
 
         create_response(
             StatusCode::OK,
-            ListJobRunsResponse::ok(&ListJobRunsResponseData {
-                items: filtered_job_runs.clone().into_iter().map(|jr| jr.cast_fe(&requester_api_key.user_id)).collect(),
-                page_size: filtered_job_runs.len(),
+            ListPurchasesResponse::ok(&ListPurchasesResponseData {
+                items: filtered_purchases.clone().into_iter().map(|jr| jr.cast_fe(&requester_api_key.user_id)).collect(),
+                page_size: filtered_purchases.len(),
                 total: total_count_to_return,
                 direction: request_body.direction,
                 cursor: next_cursor,
@@ -231,15 +231,15 @@ pub mod job_runs_handlers {
         )
     }
 
-    /// Handles POST requests for creating a new JobRun.
-    pub async fn create_job_run_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    /// Handles POST requests for creating a new Purchase.
+    pub async fn create_purchase_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
         let body: &[u8] = request.body();
-        let create_req = match serde_json::from_slice::<CreateJobRunRequestBody>(body) {
+        let create_req = match serde_json::from_slice::<CreatePurchaseRequestBody>(body) {
             Ok(body) => body,
             Err(e) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -256,7 +256,7 @@ pub mod job_runs_handlers {
 
         // Check create permission
         let has_create_permission = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::JobRuns),
+            SystemResourceID::Table(SystemTableEnum::Purchases),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         ).contains(&SystemPermissionType::Create);
 
@@ -266,19 +266,19 @@ pub mod job_runs_handlers {
 
         let prestate = snapshot_prestate();
 
-        let job_run_id = match create_req.id {
-            Some(id) => JobRunID(id.to_string()),
-            None => JobRunID(generate_uuidv4(IDPrefix::JobRun)),
+        let purchase_id = match create_req.id {
+            Some(id) => PurchaseID(id.to_string()),
+            None => PurchaseID(generate_uuidv4(IDPrefix::Purchase)),
         };
 
         let current_time = ic_cdk::api::time() / 1_000_000;
 
-        let job_run = JobRun {
-            id: job_run_id.clone(),
+        let purchase = Purchase {
+            id: purchase_id.clone(),
             template_id: create_req.template_id,
             vendor_name: create_req.vendor_name.unwrap_or("".to_string()),
             vendor_id: create_req.vendor_id.unwrap_or(UserID("".to_string())),
-            status: create_req.status.unwrap_or(JobRunStatus::Requested),
+            status: create_req.status.unwrap_or(PurchaseStatus::Requested),
             description: create_req.description.unwrap_or("".to_string()),
             about_url: create_req.about_url.unwrap_or("".to_string()),
             billing_url: create_req.billing_url.unwrap_or("".to_string()),
@@ -302,42 +302,42 @@ pub mod job_runs_handlers {
             external_payload: create_req.external_payload,
         };
 
-        JOB_RUNS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow_mut().insert(job_run_id.clone(), job_run.clone());
+        PURCHASES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(purchase_id.clone(), purchase.clone());
         });
 
-        JOB_RUNS_BY_TIME_LIST.with(|store| {
-            store.borrow_mut().push(&job_run_id.clone());
+        PURCHASES_BY_TIME_LIST.with(|store| {
+            store.borrow_mut().push(&purchase_id.clone());
         });
 
         // Add to the vendor-specific list
-        add_job_run_to_vendor_list(&job_run.vendor_id, &job_run_id);
+        add_purchase_to_vendor_list(&purchase.vendor_id, &purchase_id);
 
-        mark_claimed_uuid(&job_run_id.clone().to_string());
+        mark_claimed_uuid(&purchase_id.clone().to_string());
 
         snapshot_poststate(prestate, Some(
             format!(
-                "{}: Create JobRun {}",
+                "{}: Create Purchase {}",
                 requester_api_key.user_id,
-                job_run_id.clone()
+                purchase_id.clone()
             ).to_string())
         );
 
         create_response(
             StatusCode::OK,
-            CreateJobRunResponse::ok(&job_run.cast_fe(&requester_api_key.user_id)).encode()
+            CreatePurchaseResponse::ok(&purchase.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 
-    /// Handles POST requests for updating an existing JobRun.
-    pub async fn update_job_run_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    /// Handles POST requests for updating an existing Purchase.
+    pub async fn update_purchase_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
         };
 
         let body: &[u8] = request.body();
-        let update_req = match serde_json::from_slice::<UpdateJobRunRequestBody>(body) {
+        let update_req = match serde_json::from_slice::<UpdatePurchaseRequestBody>(body) {
             Ok(body) => body,
             Err(e) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -352,9 +352,9 @@ pub mod job_runs_handlers {
             );
         }
 
-        let job_run_id = JobRunID(update_req.id);
+        let purchase_id = PurchaseID(update_req.id);
 
-        let mut job_run = match JOB_RUNS_BY_ID_HASHTABLE.with(|store| store.borrow().get(&job_run_id).map(|d| d.clone())) {
+        let mut purchase = match PURCHASES_BY_ID_HASHTABLE.with(|store| store.borrow().get(&purchase_id).map(|d| d.clone())) {
             Some(jr) => jr,
             None => return create_response(
                 StatusCode::NOT_FOUND,
@@ -362,20 +362,20 @@ pub mod job_runs_handlers {
             ),
         };
 
-        // Permissions check: User is vendor of the job OR has table edit OR has record edit.
-        let is_vendor_of_job = requester_api_key.user_id == job_run.vendor_id;
+        // Permissions check: User is vendor of the purchase OR has table edit OR has record edit.
+        let is_vendor_of_purchase = requester_api_key.user_id == purchase.vendor_id;
 
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::JobRuns),
+            SystemResourceID::Table(SystemTableEnum::Purchases),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::JobRun(job_run_id.to_string()));
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Purchase(purchase_id.to_string()));
         let record_permissions = check_system_permissions(
             resource_id,
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !is_vendor_of_job && !record_permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
+        if !is_vendor_of_purchase && !record_permissions.contains(&SystemPermissionType::Edit) && !table_permissions.contains(&SystemPermissionType::Edit) {
             return create_auth_error_response();
         }
 
@@ -384,96 +384,96 @@ pub mod job_runs_handlers {
 
         // Update fields (only those allowed to be updated)
         if let Some(title) = update_req.title {
-            job_run.title = title;
+            purchase.title = title;
         }
         if let Some(vendor_name) = update_req.vendor_name {
-            job_run.vendor_name = vendor_name;
+            purchase.vendor_name = vendor_name;
         }
         if let Some(vendor_id) = update_req.vendor_id {
-            job_run.vendor_id = vendor_id;
+            purchase.vendor_id = vendor_id;
         }
         if let Some(description) = update_req.description {
-            job_run.description = description;
+            purchase.description = description;
         }
         if let Some(notes) = update_req.notes {
-            job_run.notes = notes;
+            purchase.notes = notes;
         }
         
         if let Some(template_id) = update_req.template_id {
-            job_run.template_id = Some(template_id);
+            purchase.template_id = Some(template_id);
         }
         if let Some(status) = update_req.status {
-            job_run.status = status;
+            purchase.status = status;
         }
         if let Some(about_url) = update_req.about_url {
-            job_run.about_url = about_url;
+            purchase.about_url = about_url;
         }
         if let Some(billing_url) = update_req.billing_url {
-            job_run.billing_url = billing_url;
+            purchase.billing_url = billing_url;
         }
         if let Some(support_url) = update_req.support_url {
-            job_run.support_url = support_url;
+            purchase.support_url = support_url;
         }
         if let Some(delivery_url) = update_req.delivery_url {
-            job_run.delivery_url = delivery_url;
+            purchase.delivery_url = delivery_url;
         }
         if let Some(verification_url) = update_req.verification_url {
-            job_run.verification_url = verification_url;
+            purchase.verification_url = verification_url;
         }
         if let Some(auth_installation_url) = update_req.auth_installation_url {
-            job_run.auth_installation_url = auth_installation_url;
+            purchase.auth_installation_url = auth_installation_url;
         }
         if let Some(subtitle) = update_req.subtitle {
-            job_run.subtitle = subtitle;
+            purchase.subtitle = subtitle;
         }
         if let Some(pricing) = update_req.pricing {
-            job_run.pricing = pricing;
+            purchase.pricing = pricing;
         }
         if let Some(next_delivery_date) = update_req.next_delivery_date {
-            job_run.next_delivery_date = next_delivery_date;
+            purchase.next_delivery_date = next_delivery_date;
         }
         if let Some(vendor_notes) = update_req.vendor_notes {
-            job_run.vendor_notes = vendor_notes;
+            purchase.vendor_notes = vendor_notes;
         }
         if let Some(related_resources) = update_req.related_resources {
-            job_run.related_resources = related_resources;
+            purchase.related_resources = related_resources;
         }
         if let Some(tracer) = update_req.tracer {
-            job_run.tracer = Some(tracer);
+            purchase.tracer = Some(tracer);
         }
         if let Some(labels) = update_req.labels {
-            job_run.labels = labels;
+            purchase.labels = labels;
         }
         if let Some(external_id) = update_req.external_id {
-            job_run.external_id = Some(external_id);
+            purchase.external_id = Some(external_id);
         }
         if let Some(external_payload) = update_req.external_payload {
-            job_run.external_payload = Some(external_payload);
+            purchase.external_payload = Some(external_payload);
         }
 
-        job_run.updated_at = current_time;
-        job_run.last_updated_at = current_time;
+        purchase.updated_at = current_time;
+        purchase.last_updated_at = current_time;
 
-        JOB_RUNS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow_mut().insert(job_run_id.clone(), job_run.clone());
+        PURCHASES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().insert(purchase_id.clone(), purchase.clone());
         });
 
         snapshot_poststate(prestate, Some(
             format!(
-                "{}: Update JobRun {}",
+                "{}: Update Purchase {}",
                 requester_api_key.user_id,
-                job_run_id.clone()
+                purchase_id.clone()
             ).to_string())
         );
 
         create_response(
             StatusCode::OK,
-            UpdateJobRunResponse::ok(&job_run.cast_fe(&requester_api_key.user_id)).encode()
+            UpdatePurchaseResponse::ok(&purchase.cast_fe(&requester_api_key.user_id)).encode()
         )
     }
 
-    /// Handles POST requests for deleting a JobRun.
-    pub async fn delete_job_run_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
+    /// Handles POST requests for deleting a Purchase.
+    pub async fn delete_purchase_handler<'a, 'k, 'v>(request: &'a HttpRequest<'a>, params: &'a Params<'k, 'v>) -> HttpResponse<'static> {
         let requester_api_key = match authenticate_request(request) {
             Some(key) => key,
             None => return create_auth_error_response(),
@@ -482,7 +482,7 @@ pub mod job_runs_handlers {
         let prestate = snapshot_prestate();
 
         let body: &[u8] = request.body();
-        let delete_request = match serde_json::from_slice::<DeleteJobRunRequest>(body) {
+        let delete_request = match serde_json::from_slice::<DeletePurchaseRequest>(body) {
             Ok(req) => req,
             Err(_) => return create_response(
                 StatusCode::BAD_REQUEST,
@@ -497,47 +497,47 @@ pub mod job_runs_handlers {
             );
         }
 
-        let job_run_id = delete_request.id.clone();
+        let purchase_id = delete_request.id.clone();
 
-        // Retrieve the job run to get vendor_id before it's removed
-        let job_run = JOB_RUNS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow().get(&job_run_id).map(|d| d.clone())
+        // Retrieve the purchase run to get vendor_id before it's removed
+        let purchase = PURCHASES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow().get(&purchase_id).map(|d| d.clone())
         });
 
-        let vendor_id_for_cleanup = job_run.as_ref().map(|jr| jr.vendor_id.clone());
+        let vendor_id_for_cleanup = purchase.as_ref().map(|jr| jr.vendor_id.clone());
 
-        // Permissions check: User is vendor of the job OR has table delete OR has record delete.
-        let is_vendor_of_job = job_run.as_ref().map_or(false, |jr| requester_api_key.user_id == jr.vendor_id);
+        // Permissions check: User is vendor of the purchase OR has table delete OR has record delete.
+        let is_vendor_of_purchase = purchase.as_ref().map_or(false, |jr| requester_api_key.user_id == jr.vendor_id);
 
         let table_permissions = check_system_permissions(
-            SystemResourceID::Table(SystemTableEnum::JobRuns),
+            SystemResourceID::Table(SystemTableEnum::Purchases),
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
-        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::JobRun(job_run_id.to_string()));
+        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Purchase(purchase_id.to_string()));
         let record_permissions = check_system_permissions(
             resource_id,
             PermissionGranteeID::User(requester_api_key.user_id.clone())
         );
 
-        if !is_vendor_of_job && !record_permissions.contains(&SystemPermissionType::Delete) && !table_permissions.contains(&SystemPermissionType::Delete) {
+        if !is_vendor_of_purchase && !record_permissions.contains(&SystemPermissionType::Delete) && !table_permissions.contains(&SystemPermissionType::Delete) {
             return create_auth_error_response();
         }
 
         // Remove from main stores
-        JOB_RUNS_BY_ID_HASHTABLE.with(|store| {
-            store.borrow_mut().remove(&job_run_id);
+        PURCHASES_BY_ID_HASHTABLE.with(|store| {
+            store.borrow_mut().remove(&purchase_id);
         });
 
-        // Rebuild StableVec for JOB_RUNS_BY_TIME_LIST to remove the item
-        JOB_RUNS_BY_TIME_LIST.with(|store| {
+        // Rebuild StableVec for PURCHASES_BY_TIME_LIST to remove the item
+        PURCHASES_BY_TIME_LIST.with(|store| {
             let mut new_vec = StableVec::init(
-                MEMORY_MANAGER.with(|m| m.borrow().get(JOB_RUNS_BY_TIME_MEMORY_ID))
+                MEMORY_MANAGER.with(|m| m.borrow().get(PURCHASES_BY_TIME_MEMORY_ID))
             ).expect("Failed to initialize new StableVec");
 
             let store_ref = store.borrow();
             for i in 0..store_ref.len() {
                 if let Some(id) = store_ref.get(i) {
-                    if id != job_run_id {
+                    if id != purchase_id {
                         new_vec.push(&id);
                     }
                 }
@@ -546,23 +546,23 @@ pub mod job_runs_handlers {
             *store.borrow_mut() = new_vec;
         });
 
-        // Remove from JOB_RUNS_BY_VENDOR_ID_HASHTABLE
+        // Remove from PURCHASES_BY_VENDOR_ID_HASHTABLE
         if let Some(vendor_id) = vendor_id_for_cleanup {
-            remove_job_run_from_vendor_list(&vendor_id, &job_run_id);
+            remove_purchase_from_vendor_list(&vendor_id, &purchase_id);
         }
 
         snapshot_poststate(prestate, Some(
             format!(
-                "{}: Delete JobRun {}",
+                "{}: Delete Purchase {}",
                 requester_api_key.user_id,
-                job_run_id.clone()
+                purchase_id.clone()
             ).to_string())
         );
 
         create_response(
             StatusCode::OK,
-            DeleteJobRunResponse::ok(&DeletedJobRunData {
-                id: job_run_id,
+            DeletePurchaseResponse::ok(&DeletedPurchaseData {
+                id: purchase_id,
                 deleted: true
             }).encode()
         )

@@ -16,8 +16,8 @@ pub mod state {
     use crate::core::state::drives::state::state::{DRIVES_BY_ID_HASHTABLE, DRIVE_ID};
     use crate::core::state::drives::types::{DriveID, ExternalID};
     use crate::core::state::groups::types::GroupID;
-    use crate::core::state::job_runs::state::state::JOB_RUNS_BY_ID_HASHTABLE;
-    use crate::core::state::job_runs::types::JobRunID;
+    use crate::core::state::purchases::state::state::PURCHASES_BY_ID_HASHTABLE;
+    use crate::core::state::purchases::types::PurchaseID;
     use crate::core::state::permissions::types::{DirectoryPermissionType, PermissionGranteeID, SystemPermissionType, SystemRecordIDEnum, SystemResourceID, SystemTableEnum};
     use crate::core::state::search::types::{SearchResult, SearchResultResourceID, SearchCategoryEnum};
     use crate::core::state::contacts::state::state::{CONTACTS_BY_ID_HASHTABLE};
@@ -97,8 +97,8 @@ pub mod state {
         // Index groups
         index_groups(&mut entries, &mut path_to_id);
 
-        // Index job runs
-        index_job_runs(&mut entries, &mut path_to_id);
+        // Index purchases
+        index_purchases(&mut entries, &mut path_to_id);
     
         // Get the total count of indexed items
         let indexed_count = entries.len();
@@ -273,24 +273,24 @@ pub mod state {
         });
     }
 
-    fn index_job_runs(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
+    fn index_purchases(entries: &mut BTreeMap<String, u64>, path_to_id: &mut HashMap<String, (SearchResultResourceID, SearchCategoryEnum)>) {
     
-        JOB_RUNS_BY_ID_HASHTABLE.with(|job_runs| {
-            for (job_run_id, job_run) in job_runs.borrow().iter() {
-                // Create a searchable string with job_run id, name, and drive_id
+        PURCHASES_BY_ID_HASHTABLE.with(|purchases| {
+            for (purchase_id, purchase) in purchases.borrow().iter() {
+                // Create a searchable string with purchase id, name, and drive_id
                 let search_string = format!(
                     "{}|{}|{}",
-                    job_run_id.0,
-                    job_run.title,
-                    job_run.vendor_name
+                    purchase_id.0,
+                    purchase.title,
+                    purchase.vendor_name
                 );
                 
                 // Normalize for search
                 let normalized = normalize_path(&search_string);
                 
                 path_to_id.insert(normalized.clone(), (
-                    SearchResultResourceID::JobRun(job_run_id.clone()),
-                    SearchCategoryEnum::JobRuns
+                    SearchResultResourceID::Purchase(purchase_id.clone()),
+                    SearchCategoryEnum::Purchases
                 ));
                 
                 // Insert with a default score of 1
@@ -482,9 +482,9 @@ pub mod state {
                         false // This should not happen based on category
                     }
                 },
-                SearchCategoryEnum::JobRuns => {
-                    if let SearchResultResourceID::JobRun(job_run_id) = &SearchResultResourceID::JobRun(JobRunID(result.resource_id.clone())) {
-                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::JobRun(job_run_id.0.clone()));
+                SearchCategoryEnum::Purchases => {
+                    if let SearchResultResourceID::Purchase(purchase_id) = &SearchResultResourceID::Purchase(PurchaseID(result.resource_id.clone())) {
+                        let resource_id = SystemResourceID::Record(SystemRecordIDEnum::Purchase(purchase_id.0.clone()));
                         let permissions = check_system_permissions(
                             resource_id,
                             grantee_id.clone()
@@ -492,7 +492,7 @@ pub mod state {
                         // Check table-wide permission if no specific permission found
                         if !permissions.contains(&SystemPermissionType::View) {
                             let table_permission = check_system_permissions(
-                                SystemResourceID::Table(SystemTableEnum::JobRuns),
+                                SystemResourceID::Table(SystemTableEnum::Purchases),
                                 grantee_id.clone()
                             );
                             table_permission.contains(&SystemPermissionType::View)
@@ -743,18 +743,18 @@ pub mod state {
                 
                 (title, preview, created_at, updated_at, None)
             },
-            SearchResultResourceID::JobRun(job_run_id) => {
+            SearchResultResourceID::Purchase(purchase_id) => {
                 let mut title = String::new();
                 let mut preview = String::new();
                 let mut created_at = 0;
                 let mut updated_at = 0;
                 
-                JOB_RUNS_BY_ID_HASHTABLE.with(|job_runs| {
-                    if let Some(job_run) = job_runs.borrow().get(job_run_id) {
-                        title = job_run.title.clone();
-                        preview = job_run.vendor_name.clone();
-                        created_at = job_run.created_at;
-                        updated_at = job_run.last_updated_at;
+                PURCHASES_BY_ID_HASHTABLE.with(|purchases| {
+                    if let Some(purchase) = purchases.borrow().get(purchase_id) {
+                        title = purchase.title.clone();
+                        preview = purchase.vendor_name.clone();
+                        created_at = purchase.created_at;
+                        updated_at = purchase.last_updated_at;
                     }
                 });
                 
