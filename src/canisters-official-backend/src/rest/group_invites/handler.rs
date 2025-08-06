@@ -786,7 +786,7 @@ pub mod group_invites_handlers {
         let prestate = snapshot_prestate();
     
         // Parse and validate the user_id
-        let new_user_id = UserID(redeem_request.user_id);
+        let new_user_id = requester_api_key.user_id.clone();
         let new_invitee = GroupInviteeID::User(new_user_id.clone());
     
         // Handle differently based on invitee_id type

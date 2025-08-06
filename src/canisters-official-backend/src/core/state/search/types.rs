@@ -3,7 +3,7 @@
 use core::fmt;
 
 use serde::{Deserialize, Serialize};
-use crate::core::{state::{directory::types::{FileID, FolderID}, disks::types::DiskID, drives::types::DriveID, groups::types::GroupID}, types::UserID};
+use crate::core::{state::{directory::types::{FileID, FolderID}, disks::types::DiskID, drives::types::DriveID, groups::types::GroupID, job_runs::types::JobRunID}, types::UserID};
 
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -16,6 +16,7 @@ pub enum SearchCategoryEnum {
     Disks,
     Drives,
     Groups,
+    JobRuns,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +27,7 @@ pub enum SearchResultResourceID {
     Disk(DiskID),
     Drive(DriveID),
     Group(GroupID),
+    JobRun(JobRunID),
 }
 // implement display
 impl fmt::Display for SearchResultResourceID {
@@ -37,6 +39,7 @@ impl fmt::Display for SearchResultResourceID {
             SearchResultResourceID::Disk(id) => write!(f, "{}", id),
             SearchResultResourceID::Drive(id) => write!(f, "{}", id),
             SearchResultResourceID::Group(id) => write!(f, "{}", id),
+            SearchResultResourceID::JobRun(id) => write!(f, "{}", id),
         }
     }
 }
