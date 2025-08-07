@@ -892,6 +892,7 @@ pub struct UpdateFilePayload {
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
     pub notes: Option<String>,
+    pub request_presigned_url: Option<bool>,
 }
 impl UpdateFilePayload {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
@@ -1246,7 +1247,7 @@ pub enum DirectoryActionResult {
     GetFolder(GetFolderResponse),
     CreateFile(CreateFileResponse),
     CreateFolder(CreateFolderResponse),
-    UpdateFile(FileRecordFE),
+    UpdateFile(UpdateFileResponse),
     UpdateFolder(FolderRecordFE),
     DeleteFile(DeleteFileResponse),
     DeleteFolder(DeleteFolderResponse),
@@ -1263,14 +1264,21 @@ pub enum DirectoryActionResult {
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct CreateFileResponse {
     pub file: FileRecordFE,
-    pub upload: DiskUploadResponse,
-    pub notes: String,
+    pub upload: Option<DiskUploadResponse>,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct CreateFolderResponse {
-    pub notes: String,
+    pub notes: Option<String>,
     pub folder: FolderRecordFE,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
+pub struct UpdateFileResponse {
+    pub file: FileRecordFE,
+    pub upload: Option<DiskUploadResponse>,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]

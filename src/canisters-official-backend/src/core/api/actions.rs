@@ -1,6 +1,6 @@
 // src/core/api/actions.rs
 use std::result::Result;
-use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
+use crate::{core::{state::{directory::{state::state::{file_uuid_to_metadata, folder_uuid_to_metadata}, types::{DriveFullFilePath, FileID, FolderID, PathTranslationResponse, ShareTrackID, ShareTrackResourceID}}, drives::{state::state::{update_external_id_mapping, DRIVE_ID, OWNER_ID, URL_ENDPOINT}, types::{ExternalID, ExternalPayload}}, permissions::types::{DirectoryPermissionType, PermissionGranteeID}, webhooks::types::{WebhookAltIndexID, WebhookEventLabel}}, types::{ICPPrincipalString, IDPrefix, PublicKeyICP, UserID}}, debug_log, rest::{directory::types::{CreateFileResponse, CreateFolderResponse, DeleteFileResponse, DeleteFolderResponse, DirectoryAction, DirectoryActionEnum, DirectoryActionPayload, DirectoryActionResult, DirectoryResourceID, GetFileResponse, GetFolderResponse, UpdateFileResponse}, webhooks::types::{DirectoryWebhookData, FileWebhookData, FolderWebhookData, ShareTrackingWebhookData}}};
 use super::{drive::drive::{copy_file, copy_folder, create_file, create_folder, delete_file, delete_folder, get_file_by_id, get_folder_by_id, move_file, move_folder, rename_file, rename_folder, restore_from_trash}, internals::drive_internals::{get_destination_folder, translate_path_to_id}, permissions::{self, directory::{check_directory_permissions, derive_directory_breadcrumbs, preview_directory_permissions}}, uuid::{decode_share_track_hash, generate_share_track_hash, ShareTrackHash}, webhooks::directory::{fire_directory_webhook, get_active_file_webhooks, get_active_folder_webhooks}};
 
 
@@ -303,11 +303,22 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                         PermissionGranteeID::User(user_id.clone())
                     ).await;
 
+                    // Check if theres an existing file and whether user has EDIT permission
+                    // if no file found, it should just continue with code execution
+                    let mut has_edit_permission = false;
+                    if let Ok(existing_file) = get_file_by_id(FileID(format!("{:?}", payload.id))) {
+                        let user_permissions = check_directory_permissions(
+                            DirectoryResourceID::File(existing_file.id.clone()),
+                            PermissionGranteeID::User(user_id.clone())
+                        ).await;
+                        has_edit_permission = user_permissions.contains(&DirectoryPermissionType::Edit);
+                    }
+
                     let is_owner = OWNER_ID.with(|owner_id| user_id == *owner_id.borrow().get());
         
                     if !is_owner && !user_permissions.contains(&DirectoryPermissionType::Upload) && 
                        !user_permissions.contains(&DirectoryPermissionType::Edit) &&
-                       !user_permissions.contains(&DirectoryPermissionType::Manage) {
+                       !user_permissions.contains(&DirectoryPermissionType::Manage) && !has_edit_permission {
                         return Err(DirectoryActionErrorInfo {
                             code: 403,
                             message: "You don't have permission to create files in this folder".to_string(),
@@ -367,8 +378,8 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
 
                             Ok(DirectoryActionResult::CreateFile(CreateFileResponse {
                                 file: file_metadata.cast_fe(&user_id).await,
-                                upload: upload_response,
-                                notes: "File created successfully".to_string(),
+                                upload: Some(upload_response),
+                                notes: Some("File created successfully".to_string()),
                             }))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
@@ -471,7 +482,7 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                             );
 
                             Ok(DirectoryActionResult::CreateFolder(CreateFolderResponse {
-                                notes: "Folder created successfully".to_string(),
+                                notes: Some("Folder created successfully".to_string()),
                                 folder: folder.cast_fe(&user_id).await,
                             }))
                         },
@@ -629,7 +640,13 @@ pub async fn pipe_action(action: DirectoryAction, user_id: UserID) -> Result<Dir
                                 Some(after_snap_file),
                                 Some("Subfile updated".to_string()),
                             );
-                            Ok(DirectoryActionResult::UpdateFile(updated_file.cast_fe(&user_id).await))
+                            let updated_file_fe = updated_file.cast_fe(&user_id).await;
+
+                            Ok(DirectoryActionResult::UpdateFile(UpdateFileResponse {
+                                file: updated_file_fe,
+                                upload: None,
+                                notes: Some("".to_string()),
+                            }))
                         },
                         Err(e) => Err(DirectoryActionErrorInfo {
                             code: 500,
