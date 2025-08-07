@@ -581,7 +581,7 @@ pub mod giftcards_handlers {
         let history_record = FactorySpawnHistoryRecord {
             owner_id: owner_id.clone(),
             drive_id: format_drive_id(&deployed_canister.clone()),
-            endpoint: endpoint.clone(),
+            host: endpoint.clone(),
             version,
             note: giftcard.note.clone(),
             gas_cycles_included: giftcard.gas_cycles_included,
@@ -621,7 +621,7 @@ pub mod giftcards_handlers {
         let redeem_giftcard_result = RedeemGiftcardSpawnOrgResult {
             owner_id: owner_id,
             drive_id: format_drive_id(&deployed_canister),
-            endpoint: endpoint,
+            host: endpoint,
             redeem_code: redeem_code,
             disk_auth_json: giftcard.disk_auth_json,
         };

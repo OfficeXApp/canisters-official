@@ -289,8 +289,8 @@ pub mod groups_handlers {
             created_at: now,
             last_modified_at: now,
             drive_id: DRIVE_ID.with(|id| id.clone()),
-            endpoint_url: DriveRESTUrlEndpoint(
-                create_req.endpoint_url
+            host_url: DriveRESTUrlEndpoint(
+                create_req.host_url
                     .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().get().0.clone()))
                     .trim_end_matches('/')
                     .to_string()
@@ -390,8 +390,8 @@ pub mod groups_handlers {
         if let Some(private_note) = update_req.private_note {
             group.private_note = Some(private_note);
         }
-        if let Some(endpoint_url) = update_req.endpoint_url {
-            group.endpoint_url = DriveRESTUrlEndpoint(endpoint_url.trim_end_matches('/')
+        if let Some(host_url) = update_req.host_url {
+            group.host_url = DriveRESTUrlEndpoint(host_url.trim_end_matches('/')
             .to_string());
         }
         group.last_modified_at = ic_cdk::api::time() / 1_000_000;

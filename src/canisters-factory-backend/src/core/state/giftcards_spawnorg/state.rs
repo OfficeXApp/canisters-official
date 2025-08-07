@@ -121,11 +121,11 @@ pub mod state {
     
         // Handle the URL endpoint
         let endpoint = get_appropriate_url_endpoint();
-        debug_log!("Setting URL endpoint to: {}", endpoint);
+        debug_log!("Setting URL host to: {}", endpoint);
         URL_ENDPOINT.with(|url| {
             // Use set() instead of direct assignment
             url.borrow_mut().set(DriveRESTUrlEndpoint(endpoint));
-            debug_log!("Confirmed URL endpoint set to: {}", url.borrow().get().0);
+            debug_log!("Confirmed URL host set to: {}", url.borrow().get().0);
         });
     }
     

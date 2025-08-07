@@ -416,7 +416,7 @@ pub struct ShareTrackingWebhookData {
     pub resource_name: String,
     pub drive_id: DriveID,
     pub timestamp_ms: u64,
-    pub endpoint_url: DriveRESTUrlEndpoint,
+    pub host_url: DriveRESTUrlEndpoint,
     pub metadata: Option<String>,
 }
 

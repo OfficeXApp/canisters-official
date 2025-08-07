@@ -77,7 +77,7 @@ interface ShareTrack {
   resource_name: String;
   canister_id: CanisterID;
   timestamp_ms: number;
-  endpoint_url: String; // url of the canister
+  host_url: String; // url of the canister
   metadata?: String; // metadata can contain utm params and other data
 }
 ```

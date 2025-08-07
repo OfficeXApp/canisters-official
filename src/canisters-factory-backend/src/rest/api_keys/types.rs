@@ -175,7 +175,7 @@ pub struct StateSnapshot {
     pub canister_id: PublicKeyICP,
     pub version: String,
     pub owner_id: UserID,
-    pub endpoint_url: DriveRESTUrlEndpoint,
+    pub host_url: DriveRESTUrlEndpoint,
     
     // API keys state
     pub apikeys_by_value: HashMap<ApiKeyValue, ApiKeyID>,

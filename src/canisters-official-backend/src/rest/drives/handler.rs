@@ -353,8 +353,8 @@ pub mod drives_handlers {
             public_note: Some(create_req.public_note.unwrap_or_default()),
             private_note: Some(create_req.private_note.unwrap_or_default()),
             icp_principal: ICPPrincipalString(PublicKeyICP(create_req.icp_principal)),
-            endpoint_url: DriveRESTUrlEndpoint(
-                create_req.endpoint_url
+            host_url: DriveRESTUrlEndpoint(
+                create_req.host_url
                     .unwrap_or(URL_ENDPOINT.with(|url| url.borrow().get().0.clone()))
                     .trim_end_matches('/')
                     .to_string()
@@ -456,8 +456,8 @@ pub mod drives_handlers {
         if let Some(private_note) = update_req.private_note {
             drive.private_note = Some(private_note);
         }
-        if let Some(endpoint_url) = update_req.endpoint_url {
-            drive.endpoint_url = DriveRESTUrlEndpoint(endpoint_url.trim_end_matches('/')
+        if let Some(host_url) = update_req.host_url {
+            drive.host_url = DriveRESTUrlEndpoint(host_url.trim_end_matches('/')
             .to_string());
         }
 

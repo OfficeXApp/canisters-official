@@ -227,7 +227,7 @@ pub mod state {
             public_note: Some("".to_string()),
             private_note: Some("".to_string()),
             icp_principal: ICPPrincipalString(PublicKeyICP(ic_cdk::api::id().to_text())),
-            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
+            host_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
             last_indexed_ms: None,
             labels: vec![],
             external_id: None,

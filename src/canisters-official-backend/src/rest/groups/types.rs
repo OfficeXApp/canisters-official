@@ -27,7 +27,7 @@ impl GroupFE {
 
             // 2nd most sensitive
             if !has_edit_permissions && !is_group_admin {
-                redacted.group.endpoint_url = DriveRESTUrlEndpoint("".to_string());
+                redacted.group.host_url = DriveRESTUrlEndpoint("".to_string());
                 redacted.group.private_note = None;
             }
         }
@@ -123,7 +123,7 @@ pub struct CreateGroupRequestBody {
     pub avatar: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub endpoint_url: Option<String>,
+    pub host_url: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -153,9 +153,9 @@ impl CreateGroupRequestBody {
             validate_url(avatar, "avatar")?;
         }
 
-        // Validate endpoint_url if provided
-        if let Some(endpoint_url) = &self.endpoint_url {
-            validate_url_endpoint(endpoint_url, "endpoint_url")?;
+        // Validate host_url if provided
+        if let Some(host_url) = &self.host_url {
+            validate_url_endpoint(host_url, "host_url")?;
         }
 
         // Validate external_id if provided
@@ -179,7 +179,7 @@ pub struct UpdateGroupRequestBody {
     pub avatar: Option<String>,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub endpoint_url: Option<String>,
+    pub host_url: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -208,9 +208,9 @@ impl UpdateGroupRequestBody {
             validate_url(avatar, "avatar")?;
         }
 
-        // Validate endpoint_url if provided
-        if let Some(endpoint_url) = &self.endpoint_url {
-            validate_url_endpoint(endpoint_url, "endpoint_url")?;
+        // Validate host_url if provided
+        if let Some(host_url) = &self.host_url {
+            validate_url_endpoint(host_url, "host_url")?;
         }
 
         // Validate external_id if provided

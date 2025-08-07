@@ -55,7 +55,7 @@ pub struct Drive {
     pub icp_principal: ICPPrincipalString,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub endpoint_url: DriveRESTUrlEndpoint,
+    pub host_url: DriveRESTUrlEndpoint,
     pub last_indexed_ms: Option<u64>,
     pub created_at: u64,
     pub labels: Vec<LabelStringValue>,
@@ -147,7 +147,7 @@ impl fmt::Display for SpawnRedeemCode {
 pub struct FactorySpawnHistoryRecord {
     pub owner_id: UserID,
     pub drive_id: DriveID,
-    pub endpoint: String,
+    pub host: String,
 }
 
 impl Storable for FactorySpawnHistoryRecord {
@@ -256,7 +256,7 @@ pub struct StateDiffRecord {
     pub timestamp_ns: u64,
     pub notes: Option<String>,
     pub drive_id: DriveID,
-    pub endpoint_url: DriveRESTUrlEndpoint,
+    pub host_url: DriveRESTUrlEndpoint,
     pub implementation: DriveStateDiffImplementationType,
     pub diff_forward: DriveStateDiffString,
     pub diff_backward: DriveStateDiffString,
