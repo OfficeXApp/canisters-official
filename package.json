@@ -14,5 +14,8 @@
   "type": "module",
   "workspaces": [
     "src/canisters-official-frontend"
-  ]
+  ],
+  "dependencies": {
+    "@officexapp/types": "^0.0.185"
+  }
 }

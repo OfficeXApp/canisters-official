@@ -112,7 +112,7 @@ fn initialize_canister(args: Option<InitArgs>) {
                 crate::core::state::permissions::state::state::initialize();
                 crate::core::state::raw_storage::state::initialize();
                 crate::core::state::webhooks::state::state::initialize();
-                crate::core::state::job_runs::state::state::initialize();
+                crate::core::state::purchases::state::state::initialize();
                 
                 // Initialize the drive with all parameters
                 init_self_drive(

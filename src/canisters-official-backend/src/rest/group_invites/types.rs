@@ -264,7 +264,6 @@ pub type ErrorResponse<'a> = ApiResponse<'a, ()>;
 #[derive(Debug, Clone, Deserialize)]
 pub struct RedeemGroupInviteRequest {
     pub invite_id: String,
-    pub user_id: String,
     pub redeem_code: String,
     pub note: Option<String>,
 }
@@ -272,9 +271,6 @@ impl RedeemGroupInviteRequest {
     pub fn validate_body(&self) -> Result<(), ValidationError> {
         // Validate invite_id
         validate_id_string(&self.invite_id, "invite_id")?;
-        
-        // Validate user_id
-        validate_user_id(&self.user_id)?;
         
         Ok(())
     }

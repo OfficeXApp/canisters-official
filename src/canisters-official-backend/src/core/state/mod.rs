@@ -13,4 +13,4 @@ pub mod raw_storage;
 pub mod permissions;
 pub mod search;
 pub mod labels;
-pub mod job_runs;
+pub mod purchases;

@@ -148,7 +148,7 @@ pub enum IDPrefix {
     LabelID,
     RedeemCode,
     InboxNotifID,
-    JobRun,
+    Purchase,
 }
 
 impl IDPrefix {
@@ -174,7 +174,7 @@ impl IDPrefix {
             IDPrefix::LabelID => "LabelID_",
             IDPrefix::RedeemCode => "RedeemTokenID_",
             IDPrefix::InboxNotifID => "InboxNotifID_",
-            IDPrefix::JobRun => "JobRunID_",
+            IDPrefix::Purchase => "PurchaseID_",
         }
     }
 }

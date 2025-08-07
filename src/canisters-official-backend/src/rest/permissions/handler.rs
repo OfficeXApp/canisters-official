@@ -1797,7 +1797,7 @@ pub mod permissions_handlers {
                     "PERMISSIONS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Permissions),
                     "LABELS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Labels),
                     "INBOX" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Inbox),
-                    "JOB_RUNS" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::JobRuns),
+                    "PURCHASES" => SystemResourceID::Table(crate::core::state::permissions::types::SystemTableEnum::Purchases),
                     _ => return create_response(
                         StatusCode::BAD_REQUEST,
                         ErrorResponse::err(400, "Invalid table name".to_string()).encode()

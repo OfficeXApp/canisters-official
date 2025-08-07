@@ -10,8 +10,8 @@ use crate::core::state::contacts::state::state::HISTORY_SUPERSWAP_USERID;
 use crate::core::state::drives::state::state::{DRIVE_STATE_CHECKSUM, EXTERNAL_ID_MAPPINGS, NONCE_UUID_GENERATED, RECENT_DEPLOYMENTS, SPAWN_NOTE, SPAWN_REDEEM_CODE, UUID_CLAIMED, VERSION};
 use crate::core::state::drives::types::{DriveStateDiffID, ExternalID, FactorySpawnHistoryRecord, SpawnRedeemCode, StateChecksum, StateDiffRecord, StringVec};
 use crate::core::state::group_invites::types::GroupInviteIDList;
-use crate::core::state::job_runs::state::state::{JOB_RUNS_BY_ID_HASHTABLE, JOB_RUNS_BY_TIME_LIST, JOB_RUNS_BY_VENDOR_ID_HASHTABLE};
-use crate::core::state::job_runs::types::{JobRun, JobRunID, JobRunIDList};
+use crate::core::state::purchases::state::state::{PURCHASES_BY_ID_HASHTABLE, PURCHASES_BY_TIME_LIST, PURCHASES_BY_VENDOR_ID_HASHTABLE};
+use crate::core::state::purchases::types::{Purchase, PurchaseID, PurchaseIDList};
 use crate::core::state::permissions::types::{DirectoryPermissionIDList, SystemPermissionIDList};
 use crate::core::state::webhooks::types::WebhookIDList;
 use crate::core::types::{ICPPrincipalString, PublicKeyEVM};
@@ -74,10 +74,10 @@ pub struct EntireState {
     WEBHOOKS_BY_ID_HASHTABLE: HashMap<WebhookID, Webhook>,
     WEBHOOKS_BY_TIME_LIST: Vec<WebhookID>,
 
-    // Job Runs
-    JOB_RUNS_BY_ID_HASHTABLE: HashMap<JobRunID, JobRun>,
-    JOB_RUNS_BY_TIME_LIST: Vec<JobRunID>,
-    JOB_RUNS_BY_VENDOR_ID_HASHTABLE: HashMap<UserID, JobRunIDList>,
+    // Purchases
+    PURCHASES_BY_ID_HASHTABLE: HashMap<PurchaseID, Purchase>,
+    PURCHASES_BY_TIME_LIST: Vec<PurchaseID>,
+    PURCHASES_BY_VENDOR_ID_HASHTABLE: HashMap<UserID, PurchaseIDList>,
 }
  
 pub fn snapshot_entire_state() -> EntireState {
@@ -516,7 +516,7 @@ pub fn snapshot_entire_state() -> EntireState {
             
             vec
         }),
-        JOB_RUNS_BY_ID_HASHTABLE: JOB_RUNS_BY_ID_HASHTABLE.with(|store| {
+        PURCHASES_BY_ID_HASHTABLE: PURCHASES_BY_ID_HASHTABLE.with(|store| {
             let btree = store.borrow();
             let mut hashmap = HashMap::new();
             
@@ -529,7 +529,7 @@ pub fn snapshot_entire_state() -> EntireState {
             
             hashmap
         }),
-        JOB_RUNS_BY_TIME_LIST: JOB_RUNS_BY_TIME_LIST.with(|store| {
+        PURCHASES_BY_TIME_LIST: PURCHASES_BY_TIME_LIST.with(|store| {
             let stable_vec = store.borrow();
             let mut vec = Vec::new();
             
@@ -543,7 +543,7 @@ pub fn snapshot_entire_state() -> EntireState {
             vec
         }),
         // handle this similar to WEBHOOKS_BY_ALT_INDEX_HASHTABLE
-        JOB_RUNS_BY_VENDOR_ID_HASHTABLE: JOB_RUNS_BY_VENDOR_ID_HASHTABLE.with(|store| {
+        PURCHASES_BY_VENDOR_ID_HASHTABLE: PURCHASES_BY_VENDOR_ID_HASHTABLE.with(|store| {
             let btree = store.borrow();
             let mut hashmap = HashMap::new();
             
