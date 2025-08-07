@@ -69,7 +69,7 @@ impl Storable for GiftcardSpawnOrgID {
 pub struct FactorySpawnHistoryRecord {
     pub owner_id: UserID,
     pub drive_id: DriveID,
-    pub endpoint: DriveRESTUrlEndpoint,
+    pub host: DriveRESTUrlEndpoint,
     pub version: String,
     pub note: String,
     pub giftcard_id: GiftcardSpawnOrgID,

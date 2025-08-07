@@ -104,7 +104,7 @@ pub mod drives_handlers {
             organization_name,
             organization_id: drive_id,
             owner,
-            endpoint,
+            host: endpoint,
             canister_id,
             daily_idle_cycle_burn_rate,
             controllers,
@@ -954,7 +954,7 @@ pub mod drives_handlers {
         // Get the necessary drive data
         let drive_id = DRIVE_ID.with(|id| id.clone());
         let canister_id = CANISTER_ID.with(|id| id.0.clone());
-        let endpoint_url = URL_ENDPOINT.with(|url| url.borrow().get().0.clone());
+        let host_url = URL_ENDPOINT.with(|url| url.borrow().get().0.clone());
         let spawn_note = SPAWN_NOTE.with(|note| note.borrow().get().clone());
         
         // Get the owner's default admin API key
@@ -976,15 +976,17 @@ pub mod drives_handlers {
         });
     
         // Construct the admin login password
-        let admin_login_password = format!("{}:{}@{}", drive_id, admin_api_key, endpoint_url);
-    
+        let admin_login_password = format!("{}:{}@{}", drive_id, admin_api_key, host_url);
+        let auto_login_url = "".to_string();
+
         // Create the response data
         let response_data = RedeemOrgResponseData {
             drive_id,
-            endpoint_url: endpoint_url,
+            host_url: host_url,
             api_key: admin_api_key,
             note: spawn_note,
             admin_login_password,
+            auto_login_url
         };
     
         // Reset the redemption code to empty string (mark as redeemed)

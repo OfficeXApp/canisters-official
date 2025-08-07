@@ -329,10 +329,11 @@ impl RedeemOrgRequestBody {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedeemOrgResponseData {
     pub drive_id: DriveID, // spawned drive id
-    pub endpoint_url: String, // spawned drive url endpoint
+    pub host_url: String, // spawned drive url host
     pub api_key: String, // admin api key for the spawned drive
     pub note: String, // note about the spawned drive, particularly info about the factory
     pub admin_login_password: String, // admin login password for the spawned drive
+    pub auto_login_url: String, // auto login url for the spawned drive
 }
 pub type RedeemOrgResponse<'a> = ApiResponse<'a, RedeemOrgResponseData>;
 
@@ -370,7 +371,7 @@ pub struct AboutDriveResponseData {
     pub organization_name: String,
     pub organization_id: DriveID,
     pub owner: UserID,
-    pub endpoint: String,
+    pub host: String,
     pub canister_id: String,
     pub daily_idle_cycle_burn_rate: String,
     pub controllers: Vec<String>,

@@ -67,7 +67,7 @@ pub mod state {
             created_at: current_time.clone(),
             last_modified_at: current_time.clone(),
             drive_id: DRIVE_ID.with(|drive_id| drive_id.clone()),
-            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
+            host_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
             labels: Vec::new(),
             external_id: None,
             external_payload: None,
@@ -219,12 +219,12 @@ pub mod state {
         
         if let Some(group) = group_opt {
             // If it's our own drive's group, use local validation
-            if group.endpoint_url == URL_ENDPOINT.with(|url| url.borrow().get().clone()) {
+            if group.host_url == URL_ENDPOINT.with(|url| url.borrow().get().clone()) {
                 return is_user_on_local_group(user_id, &group);
             }
     
             // It's an external group, make HTTP call to their validate endpoint
-            let validation_url = format!("{}/groups/validate", group.endpoint_url.0.trim_end_matches('/'));
+            let validation_url = format!("{}/groups/validate", group.host_url.0.trim_end_matches('/'));
             
             let validation_body = json!({
                 "group_id": group_id.0,

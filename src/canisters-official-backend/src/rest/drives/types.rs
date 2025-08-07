@@ -117,7 +117,7 @@ pub struct CreateDriveRequestBody {
     pub icp_principal: String,
     pub public_note: Option<String>,
     pub private_note: Option<String>,
-    pub endpoint_url: Option<String>,
+    pub host_url: Option<String>,
     pub external_id: Option<String>,
     pub external_payload: Option<String>,
 }
@@ -155,12 +155,12 @@ impl CreateDriveRequestBody {
             }
         }
 
-        // Validate endpoint_url if provided
-        if let Some(endpoint_url) = &self.endpoint_url {
-            if endpoint_url.len() > 4096 {
+        // Validate host_url if provided
+        if let Some(host_url) = &self.host_url {
+            if host_url.len() > 4096 {
                 return Err(ValidationError {
-                    field: "endpoint_url".to_string(),
-                    message: "URL endpoint must be 4,096 characters or less".to_string(),
+                    field: "host_url".to_string(),
+                    message: "URL host must be 4,096 characters or less".to_string(),
                 });
             }
         }
@@ -190,7 +190,7 @@ pub struct UpdateDriveRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub private_note: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub endpoint_url: Option<String>,
+    pub host_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -226,12 +226,12 @@ impl UpdateDriveRequestBody {
             }
         }
 
-        // Validate endpoint_url if provided
-        if let Some(endpoint_url) = &self.endpoint_url {
-            if endpoint_url.len() > 4096 {
+        // Validate host_url if provided
+        if let Some(host_url) = &self.host_url {
+            if host_url.len() > 4096 {
                 return Err(ValidationError {
-                    field: "endpoint_url".to_string(),
-                    message: "URL endpoint must be 4,096 characters or less".to_string(),
+                    field: "host_url".to_string(),
+                    message: "URL host must be 4,096 characters or less".to_string(),
                 });
             }
         }

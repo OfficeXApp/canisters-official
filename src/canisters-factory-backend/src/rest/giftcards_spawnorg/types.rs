@@ -259,7 +259,7 @@ impl RedeemGiftcardSpawnOrgData {
 pub struct RedeemGiftcardSpawnOrgResult {
     pub owner_id: UserID,
     pub drive_id: DriveID,
-    pub endpoint: DriveRESTUrlEndpoint,
+    pub host: DriveRESTUrlEndpoint,
     pub redeem_code: String,
     pub disk_auth_json: Option<String>,
 }

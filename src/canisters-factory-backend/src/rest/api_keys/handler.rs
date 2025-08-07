@@ -420,7 +420,7 @@ pub mod apikeys_handlers {
             canister_id: CANISTER_ID.with(|id| id.clone()),
             version: VERSION.with(|v| v.borrow().get().clone()),
             owner_id: OWNER_ID.with(|id| id.borrow().get().clone()),
-            endpoint_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
+            host_url: URL_ENDPOINT.with(|url| url.borrow().get().clone()),
             
             // API keys state
             apikeys_by_value: APIKEYS_BY_VALUE_HASHTABLE.with(|store| {

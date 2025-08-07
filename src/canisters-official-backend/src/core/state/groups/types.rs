@@ -46,7 +46,7 @@ pub struct Group {
     pub created_at: u64,
     pub last_modified_at: u64,
     pub drive_id: DriveID,
-    pub endpoint_url: DriveRESTUrlEndpoint,
+    pub host_url: DriveRESTUrlEndpoint,
     pub labels: Vec<LabelStringValue>,
     pub external_id: Option<ExternalID>,
     pub external_payload: Option<ExternalPayload>,

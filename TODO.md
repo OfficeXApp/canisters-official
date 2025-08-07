@@ -127,7 +127,7 @@
 - [x] Refactor upsert to seperate out into /create and /edit for simplicity (upsert was a mistake)
 - [x] Augment the contact cast_fe with permissions array for that requester user
 - [x] For every route, apply cast_fe & redaction (as we go along, use Contacts as reference)
-- [x] Audit types for file/folders, some missing disk_enum, canister_id maybe replace with endpoint_url, etc
+- [x] Audit types for file/folders, some missing disk_enum, canister_id maybe replace with host_url, etc
 - [x] Write code for import profile via API Key, should work with placeholder contact and/or employer owned seedphrase
 - [x] Setup multi-organization switch with prefixed cache, cookies, indexdb, etc
 - [x] Audit REST API to ensure all snake case variables consistency

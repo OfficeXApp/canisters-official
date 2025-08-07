@@ -230,7 +230,7 @@ pub mod state {
                     drive_id.0,
                     drive.name,
                     drive.icp_principal.0.0,
-                    drive.endpoint_url.0
+                    drive.host_url.0
                 );
                 
                 // Normalize for search
